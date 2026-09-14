@@ -37,14 +37,14 @@ module parallel_block_build_mod
 contains
 
 
-subroutine build_source_blocks (verbose)
+subroutine build_source_blocks (verbose,check_serialization)
   ! Build and verify every candidate block whose source Domain is
   ! currently local to this rank. Optional diagnostics describe one
   ! representative block and the rank totals; validation always runs.
 
   implicit none
 
-  logical, optional, intent(in) :: verbose
+  logical, optional, intent(in) :: verbose,check_serialization
 
   integer :: b
   integer :: b_verbose
@@ -73,9 +73,11 @@ subroutine build_source_blocks (verbose)
   integer :: n_pack_byte_total
   integer :: n_pack_byte_max
 
-  logical :: print_summary
+  logical :: print_summary,serialize
 
   call detail_enter(DP_SOURCE)
+    serialize=.true.
+  if(present(check_serialization)) serialize=check_serialization
     print_summary = .false.
   if (present(verbose)) print_summary = verbose
 
@@ -257,7 +259,10 @@ subroutine build_source_blocks (verbose)
   call check_source_blocks
 
 
-  call check_migrating_block_serialization( &
+  n_pack_block=0
+  n_pack_byte_total=0
+  n_pack_byte_max=0
+  if(serialize) call check_migrating_block_serialization( &
        n_pack_block, n_pack_byte_total, n_pack_byte_max)
 
   if (print_summary) then

@@ -48,13 +48,14 @@ module parallel_block_profile_mod
        DC_GEOMETRY_WRITES=4, DC_FIELD_SAMPLES=5, DC_REMOTE_GEOMETRY_WRITES=6, &
        DC_INVERSE_BUILD=7, DC_INVERSE_REUSE=8, DC_BDRY_SEND=9, DC_BDRY_RECV=10, &
        DC_BDRY_REQUESTS=11, DC_BDRY_PACK_VISITS=12, DC_BDRY_ROUTE_VISITS=13, &
-       DC_BDRY_INSTALL_VISITS=14, DC_BDRY_ZERO=15, DC_BDRY_FIELDS=16, DC_COUNT=16
+       DC_BDRY_INSTALL_VISITS=14, DC_BDRY_ZERO=15, DC_BDRY_FIELDS=16, DC_INSTALL_MOVED=17, DC_INSTALL_COPIED=18, DC_COUNT=18
   character(32), parameter, public :: detail_counter_name(DC_COUNT)=[character(32) :: &
        'source proof payload bytes', 'receive proof payload bytes', 'copy proof payload bytes', &
        'local geometry doubles written', 'local scalar field samples', 'received geometry doubles copied', &
        'inverse plan builds', 'inverse plan reuses', 'boundary doubles sent', 'boundary doubles received', &
        'boundary posted requests', 'boundary pack candidates', 'boundary route candidates', &
-       'boundary install candidates', 'boundary buffer doubles zeroed', 'boundary fields per start']
+       'boundary install candidates', 'boundary buffer doubles zeroed', 'boundary fields per start', &
+       'install moved payload bytes', 'install copied payload bytes']
   integer(int64), public, save :: detail_count(DC_COUNT)=0_int64
   integer, parameter, public :: DM_SCALAR_BYTES=1, DM_GEOMETRY_BYTES=2, DM_SHARED_BYTES=3, DM_COUNT=3
   character(32), parameter, public :: detail_memory_name(DM_COUNT)=[character(32) :: &

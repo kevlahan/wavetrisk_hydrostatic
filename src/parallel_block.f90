@@ -601,7 +601,64 @@ subroutine check_block_storage (block,check_serialization)
 end subroutine check_block_storage
 
 
-subroutine install_local_blocks (n_catalog,local_seen)
+subroutine move_block_storage(source,destination)
+  ! The caller has completed source validation and migration sends. No pointer
+  ! aliases are retained: every Block_Data payload is an owned allocatable.
+  type(Block_Data), intent(inout) :: source
+  type(Block_Data), intent(out) :: destination
+  destination%id=source%id
+  destination%root_domain=source%root_domain
+  destination%root_patch=source%root_patch
+  destination%level=source%level
+  destination%scalar_variable=source%scalar_variable
+  destination%n_scalar_variable=source%n_scalar_variable
+  destination%vector_variable=source%vector_variable
+  destination%field_level=source%field_level
+  destination%n_field_level=source%n_field_level
+  destination%scalar_mult=source%scalar_mult
+  destination%vector_mult=source%vector_mult
+  destination%tke_level=source%tke_level
+  destination%n_tke_level=source%n_tke_level
+  call move_alloc(source%patch,destination%patch)
+  call move_alloc(source%node,destination%node)
+  call move_alloc(source%bdry_node,destination%bdry_node)
+  call move_alloc(source%scalar,destination%scalar)
+  call move_alloc(source%vector,destination%vector)
+  call move_alloc(source%wavelet_scalar,destination%wavelet_scalar)
+  call move_alloc(source%wavelet_vector,destination%wavelet_vector)
+  call move_alloc(source%scalar_mean,destination%scalar_mean)
+  call move_alloc(source%vector_mean,destination%vector_mean)
+  call move_alloc(source%tke,destination%tke)
+  call move_alloc(source%wavelet_tke,destination%wavelet_tke)
+  call move_alloc(source%topography,destination%topography)
+  call move_alloc(source%bdry_scalar,destination%bdry_scalar)
+  call move_alloc(source%bdry_vector,destination%bdry_vector)
+  call move_alloc(source%bdry_wavelet_scalar,destination%bdry_wavelet_scalar)
+  call move_alloc(source%bdry_wavelet_vector,destination%bdry_wavelet_vector)
+  call move_alloc(source%bdry_scalar_mean,destination%bdry_scalar_mean)
+  call move_alloc(source%bdry_vector_mean,destination%bdry_vector_mean)
+  call move_alloc(source%bdry_tke,destination%bdry_tke)
+  call move_alloc(source%bdry_wavelet_tke,destination%bdry_wavelet_tke)
+  call move_alloc(source%bdry_topography,destination%bdry_topography)
+  call move_alloc(source%neigh_class,destination%neigh_class)
+  call move_alloc(source%block_bdry,destination%block_bdry)
+  call move_alloc(source%bdry_storage,destination%bdry_storage)
+  call move_alloc(source%stencil,destination%stencil)
+  call move_alloc(source%ghost_storage,destination%ghost_storage)
+  call move_alloc(source%ghost_node,destination%ghost_node)
+  call move_alloc(source%ghost_scalar,destination%ghost_scalar)
+  call move_alloc(source%ghost_vector,destination%ghost_vector)
+  call move_alloc(source%ghost_wavelet_scalar,destination%ghost_wavelet_scalar)
+  call move_alloc(source%ghost_wavelet_vector,destination%ghost_wavelet_vector)
+  call move_alloc(source%ghost_scalar_mean,destination%ghost_scalar_mean)
+  call move_alloc(source%ghost_vector_mean,destination%ghost_vector_mean)
+  call move_alloc(source%ghost_tke,destination%ghost_tke)
+  call move_alloc(source%ghost_wavelet_tke,destination%ghost_wavelet_tke)
+  call move_alloc(source%ghost_topography,destination%ghost_topography)
+end subroutine move_block_storage
+
+
+subroutine install_local_blocks (n_catalog,local_seen,transfer_storage)
   ! Build the final-owner local store from deep copies of the retained
   ! source blocks and validated received blocks. Catalogue ownership is
   ! deliberately checked by the caller, outside this non-MPI module.
@@ -611,6 +668,8 @@ subroutine install_local_blocks (n_catalog,local_seen)
   integer, intent(in) :: n_catalog
   integer, allocatable, intent(out) :: local_seen(:)
 
+  logical, optional, intent(in) :: transfer_storage
+  logical :: move_storage
   integer :: b
   integer :: i
   integer :: ib
@@ -620,6 +679,8 @@ subroutine install_local_blocks (n_catalog,local_seen)
   integer(int8), allocatable :: buffer_local(:)
   integer(int8), allocatable :: buffer_reference(:)
 
+  move_storage=.false.
+  if(present(transfer_storage)) move_storage=transfer_storage
   call detail_enter(DP_INSTALL)
     if (n_catalog < 1) then
      error stop "install_local_blocks: invalid catalogue size"
@@ -684,11 +745,24 @@ subroutine install_local_blocks (n_catalog,local_seen)
      end if
 
      ilocal = ilocal + 1
-     block_local(ilocal) = block_source(ib)
+     if(detail_enabled) then
+        if(move_storage) then
+           call detail_add(DC_INSTALL_MOVED,int(packed_block_nbyte(block_source(ib)),int64))
+        else
+           call detail_add(DC_INSTALL_COPIED,int(packed_block_nbyte(block_source(ib)),int64))
+        end if
+     end if
+     if(move_storage) then
+        call move_block_storage(block_source(ib),block_local(ilocal))
+        call check_block_storage(block_local(ilocal))
+     else
+        block_local(ilocal) = block_source(ib)
+     end if
      block_local_catalog_index(ilocal) = b
      block_catalog_local_index(b) = ilocal
      local_seen(b) = 1
 
+     if(.not.move_storage) then
      call detail_enter(DP_COPY_PROOF)
      call pack_block(block_local(ilocal),buffer_local)
      call pack_block(block_source(ib),buffer_reference)
@@ -704,6 +778,7 @@ subroutine install_local_blocks (n_catalog,local_seen)
              "install_local_blocks: retained deep-copy mismatch"
      end if
      call detail_leave(DP_COPY_PROOF)
+     end if
 
   end do
 
@@ -721,11 +796,24 @@ subroutine install_local_blocks (n_catalog,local_seen)
      end if
 
      ilocal = ilocal + 1
-     block_local(ilocal) = block_received(i)
+     if(detail_enabled) then
+        if(move_storage) then
+           call detail_add(DC_INSTALL_MOVED,int(packed_block_nbyte(block_received(i)),int64))
+        else
+           call detail_add(DC_INSTALL_COPIED,int(packed_block_nbyte(block_received(i)),int64))
+        end if
+     end if
+     if(move_storage) then
+        call move_block_storage(block_received(i),block_local(ilocal))
+        call check_block_storage(block_local(ilocal))
+     else
+        block_local(ilocal) = block_received(i)
+     end if
      block_local_catalog_index(ilocal) = b
      block_catalog_local_index(b) = ilocal
      local_seen(b) = 1
 
+     if(.not.move_storage) then
      call detail_enter(DP_COPY_PROOF)
      call pack_block(block_local(ilocal),buffer_local)
      call pack_block(block_received(i),buffer_reference)
@@ -741,6 +829,7 @@ subroutine install_local_blocks (n_catalog,local_seen)
              "install_local_blocks: received deep-copy mismatch"
      end if
      call detail_leave(DP_COPY_PROOF)
+     end if
 
   end do
 

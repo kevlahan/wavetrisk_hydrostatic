@@ -60,6 +60,7 @@ module main_mod
   use coord_arithmetic_mod
 
   use parallel_block_build_mod, only : build_source_blocks
+  use parallel_block_mpi_mod, only : block_stage191_fast_install_enabled
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
        block_adaptation_validation_enabled, &
@@ -657,7 +658,8 @@ contains
     call build_parallel_block_catalog
     detailed_block_diagnostics = &
          block_detailed_diagnostics_enabled()
-    call build_source_blocks(verbose=detailed_block_diagnostics)
+    call build_source_blocks(verbose=detailed_block_diagnostics, &
+         check_serialization=.not.block_stage191_fast_install_enabled())
     ! Production hydrostatic and tendency workspace preparation is independent
     ! of the exhaustive migration audit.  Retain that audit for oracle-enabled
     ! validation runs and omit it from the production-equivalent restart path.
@@ -828,7 +830,8 @@ contains
        call build_parallel_block_catalog
        detailed_block_diagnostics = &
             block_detailed_diagnostics_enabled()
-       call build_source_blocks(verbose=detailed_block_diagnostics)
+       call build_source_blocks(verbose=detailed_block_diagnostics, &
+         check_serialization=.not.block_stage191_fast_install_enabled())
        call migrate_blocks( &
             verbose=detailed_block_diagnostics, &
             full_validation=.false.)

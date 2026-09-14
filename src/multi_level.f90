@@ -38,7 +38,7 @@ module multi_level_mod
        BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY, &
        BLOCK_PROFILE_NATIVE_VELOCITY_PLAN, BLOCK_PROFILE_NATIVE_VELOCITY_SOURCE, BLOCK_PROFILE_NATIVE_VELOCITY_GRADIENT, &
        begin_block_velocity_source_transport, &
-       block_dynamics_validation_enabled, &
+       block_dynamics_validation_enabled, block_stage191_option, &
        native_velocity_plan_generation, &
        block_scalar_capture_active, capture_block_scalar_physics_patch, &
        capture_block_scalar_divergence_level, &
@@ -85,8 +85,11 @@ module multi_level_mod
      integer, allocatable :: send_count(:),recv_count(:),send_displ(:),recv_displ(:)
      integer, allocatable :: source(:,:),destination(:,:),local(:,:)
      real(dp), allocatable :: send_value(:),recv_value(:)
+     type(MPI_Request), allocatable :: requests(:)
+     integer :: nrequest=0, pending_layer=0
+     logical :: pending=.false.
   end type
-  type(Mass_Boundary_Plan), allocatable, save :: mass_boundary(:,:)
+  type(Mass_Boundary_Plan), allocatable, asynchronous, save :: mass_boundary(:,:)
   integer(int64), save :: mass_boundary_generation=-1_int64
   integer, save :: mass_plan_domain=0,mass_plan_level=0,mass_plan_pass=0,mass_plan_count=0
 
@@ -247,7 +250,7 @@ contains
     type(Temperature_Scratch_Backup), allocatable :: temperature_scratch(:)
 #endif
 
-    logical :: validate_velocity_source
+    logical :: validate_velocity_source, overlap_mass
 
     real(dp) :: profile_start
 
@@ -258,6 +261,7 @@ contains
     call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
     call detail_leave(DP_PRIMITIVE)
     validate_velocity_source = block_dynamics_validation_enabled()
+    overlap_mass=block_stage191_option(2).and..not.validate_velocity_source
     profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_VELOCITY_PLAN)
     call prepare_native_velocity_programs
     call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_VELOCITY_PLAN,profile_start)
@@ -349,7 +353,11 @@ contains
           end if
           if (l<level_end) then
              profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS)
-             call exchange_native_mass(AT_NODE,l+1,k)
+             if(overlap_mass) then
+                call finish_native_mass(AT_NODE,l+1,k)
+             else
+                call exchange_native_mass(AT_NODE,l+1,k)
+             end if
              call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS,profile_start)
           end if
           profile_start = parallel_block_profile_begin( &
@@ -377,6 +385,11 @@ contains
           if (level_start /= level_end .and. l > level_start.and.validate_velocity_source) then
              call update_bdry__start( &
                   dq(scalars(1):compatibility_last,k),l)
+          end if
+          if(overlap_mass.and.l>level_start) then
+             profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS)
+             call begin_native_mass(AT_NODE,l,k)
+             call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS,profile_start)
           end if
           profile_start = parallel_block_profile_begin( &
                BLOCK_PROFILE_NATIVE_VELOCITY_SOURCE)
@@ -505,7 +518,10 @@ contains
        end associate
     end do
     if (mass_boundary_generation/=generation) then
-       if (allocated(mass_boundary)) deallocate(mass_boundary)
+       if (allocated(mass_boundary)) then
+          if(any(mass_boundary%pending)) error stop "mass plan retired with pending exchange"
+          deallocate(mass_boundary)
+       end if
        allocate(mass_boundary(AT_NODE:AT_EDGE,level_start:level_end))
        do l=level_start,level_end
           call compile_mass_boundary(AT_NODE,l)
@@ -689,11 +705,14 @@ contains
     end associate
   end subroutine
 
-  subroutine exchange_native_mass(pos,l,k)
+  subroutine begin_native_mass(pos,l,k)
     integer,intent(in)::pos,l,k
     integer::i,r,nreq,ierr,ds,dd,si,di
-    type(MPI_Request)::requests(2*n_process)
     associate(p=>mass_boundary(pos,l))
+    if(p%pending) error stop "mass exchange buffer reused while pending"
+    if(.not.allocated(p%requests)) allocate(p%requests(2*n_process))
+    p%pending=.true.
+    p%pending_layer=k
     do i=1,size(p%source,2)
        ds=p%source(1,i)
        si=p%source(2,i)
@@ -707,13 +726,13 @@ contains
     do r=1,n_process
        if(p%recv_count(r)==0) cycle
        nreq=nreq+1
-       call MPI_Irecv(p%recv_value(p%recv_displ(r)+1:),p%recv_count(r),MPI_DP,r-1,28471,comm,requests(nreq),ierr)
+       call MPI_Irecv(p%recv_value(p%recv_displ(r)+1:),p%recv_count(r),MPI_DP,r-1,28471,comm,p%requests(nreq),ierr)
        if(ierr/=MPI_SUCCESS) error stop "native mass boundary receive failed"
     end do
     do r=1,n_process
        if(p%send_count(r)==0) cycle
        nreq=nreq+1
-       call MPI_Isend(p%send_value(p%send_displ(r)+1:),p%send_count(r),MPI_DP,r-1,28471,comm,requests(nreq),ierr)
+       call MPI_Isend(p%send_value(p%send_displ(r)+1:),p%send_count(r),MPI_DP,r-1,28471,comm,p%requests(nreq),ierr)
        if(ierr/=MPI_SUCCESS) error stop "native mass boundary send failed"
     end do
     do i=1,size(p%local,2)
@@ -727,9 +746,18 @@ contains
           native_mass(dd)%tendency(di,k)=native_mass(ds)%tendency(si,k)
        end if
     end do
-    if(nreq>0) then
+    p%nrequest=nreq
+    end associate
+  end subroutine begin_native_mass
+
+  subroutine finish_native_mass(pos,l,k)
+    integer,intent(in)::pos,l,k
+    integer::i,ierr,dd,di
+    associate(p=>mass_boundary(pos,l))
+    if(.not.p%pending.or.p%pending_layer/=k) error stop "mass exchange completion without matching begin"
+    if(p%nrequest>0) then
        call detail_enter(DP_MASS_WAIT)
-       call MPI_Waitall(nreq,requests(1:nreq),MPI_STATUSES_IGNORE,ierr)
+       call MPI_Waitall(p%nrequest,p%requests(1:p%nrequest),MPI_STATUSES_IGNORE,ierr)
        call detail_leave(DP_MASS_WAIT)
        if(ierr/=MPI_SUCCESS) error stop "native mass boundary completion failed"
     end if
@@ -742,9 +770,18 @@ contains
           native_mass(dd)%tendency(di,k)=p%recv_value(i)
        end if
     end do
+    p%pending=.false.
+    p%nrequest=0
+    p%pending_layer=0
     mass_work(4)=mass_work(4)+size(p%recv_value)+size(p%local,2)
     end associate
   end subroutine
+
+  subroutine exchange_native_mass(pos,l,k)
+    integer,intent(in)::pos,l,k
+    call begin_native_mass(pos,l,k)
+    call finish_native_mass(pos,l,k)
+  end subroutine exchange_native_mass
 
   subroutine assert_native_mass_level(dq,k,l)
     type(Float_Field),intent(in)::dq(1:N_VARIABLE,1:zlevels)

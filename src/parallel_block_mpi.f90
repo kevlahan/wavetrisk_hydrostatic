@@ -559,6 +559,9 @@ module parallel_block_mpi_mod
   logical, save :: production_grid_change_pending = .false.
   logical, save :: block_adaptation_validation = .false.
   logical, save :: block_adaptation_validation_initialized = .false.
+  logical, save :: stage191_options_ready = .false.
+  logical, save :: stage191_options(2) = .true.
+  public :: block_stage191_option, block_stage191_fast_install_enabled
   logical, save :: block_dynamics_validation = .false.
   logical, save :: block_dynamics_validation_initialized = .false.
   logical, save :: block_detailed_diagnostics = .false.
@@ -1599,6 +1602,49 @@ contains
 
   end function block_adaptation_validation_enabled
 
+
+  logical function block_stage191_option(option) result(enabled)
+    integer, intent(in) :: option
+    character(40), parameter :: names(2) = [character(40) :: &
+         'WAVETRISK_STAGE191_INSTALL', 'WAVETRISK_STAGE191_MASS_OVERLAP']
+    character(16) :: value
+    integer :: i, status, length, local(2), low(2), high(2), ierr
+    if (option<1.or.option>2) call fail("invalid Stage 191 option index")
+    if (.not.stage191_options_ready) then
+       do i=1,2
+          call get_environment_variable(trim(names(i)),value,length,status)
+          if (status==0.and.length>0) then
+             select case(trim(value))
+             case('0')
+                stage191_options(i)=.false.
+             case('1')
+                stage191_options(i)=.true.
+             case default
+                call fail("Stage 191 options require 0 or 1")
+             end select
+          else if (status/=1.and.status/=0) then
+             call fail("unable to read Stage 191 option")
+          end if
+       end do
+       local=merge(1,0,stage191_options)
+       call MPI_Allreduce(local,low,2,MPI_INTEGER,MPI_MIN,comm,ierr)
+       call check_mpi(ierr,"Stage 191 option minimum")
+       call MPI_Allreduce(local,high,2,MPI_INTEGER,MPI_MAX,comm,ierr)
+       call check_mpi(ierr,"Stage 191 option maximum")
+       if(any(low/=high)) call fail("inconsistent Stage 191 options across ranks")
+       stage191_options_ready=.true.
+       if(rank==0) write(6,'(a,2(i0,1x))') &
+            'Stage 191 requested install/mass-overlap = ',local
+    end if
+    enabled=stage191_options(option)
+  end function block_stage191_option
+
+  logical function block_stage191_fast_install_enabled() result(enabled)
+    ! Full source comparisons retain source allocations and the copying path.
+    enabled=block_stage191_option(1)
+    if(block_dynamics_validation_enabled()) enabled=.false.
+    if(block_adaptation_validation_enabled()) enabled=.false.
+  end function block_stage191_fast_install_enabled
 
   logical function block_dynamics_validation_enabled () result(enabled)
     ! Expensive exact dynamics comparisons, repeated-refresh proofs and
@@ -5435,7 +5481,7 @@ end subroutine build_parallel_block_catalog
     integer(int8), allocatable :: send_payload(:)
 
     logical :: print_local
-    logical :: run_full_validation
+    logical :: run_full_validation, transfer_storage
 
     call detail_enter(DP_MIGRATE)
     print_local = .true.
@@ -5444,6 +5490,8 @@ end subroutine build_parallel_block_catalog
     if (present(full_validation)) then
        run_full_validation = full_validation
     end if
+
+    transfer_storage=block_stage191_fast_install_enabled().and..not.run_full_validation
 
     if (.not. allocated(block_source) .or. &
          .not. allocated(block_source_catalog_index) .or. &
@@ -5610,7 +5658,7 @@ end subroutine build_parallel_block_catalog
           call fail("received block identity does not match catalogue")
        end if
 
-       call check_block_storage(block_received(i),.true.)
+       call check_block_storage(block_received(i),.not.transfer_storage)
 
        block_received_catalog_index(i) = b
        seen_catalog(b) = 1
@@ -5626,7 +5674,7 @@ end subroutine build_parallel_block_catalog
        call fail("received block inventory is incomplete")
     end if
 
-    call install_local_blocks(size(block_catalog),local_seen)
+    call install_local_blocks(size(block_catalog),local_seen,transfer_storage)
 
     expected_local = 0
 
