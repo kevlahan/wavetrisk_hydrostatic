@@ -1,0 +1,13 @@
+{
+  "kit": "/private/tmp/wavetrisk-stage194-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage194-cluster-kit.tar.gz",
+  "sha256": "23eaf250bbbdf9dd2bbb0e8434c3751e13968f88be0def2ae106b07faf88a94b",
+  "bootstrap_commit": "30c831149653205210531427f81b184663a3acbf",
+  "baseline_stage": 193,
+  "baseline_patch_sha256": "e00d6dbb6d010c34c1f0fcc56b0d127d80551cda7d4174e0078cc7527d0cfc33",
+  "candidate_patch_sha256": "ab37d1f6b458aa233aa6cfeafdeda9b430bffdad696881dda478bdff11944796",
+  "changed_sources": {
+    "src/parallel_block_mpi.f90": "4a20116cc4e9b5cce894ef6966eb14c30085efa570600c3a29201b9b539e3672",
+    "src/parallel_block_profile.f90": "2549a5d7b9528f49932bfa0b13d517c9956f049b1b480e54160c8dbfecf2609c"
+  }
+}

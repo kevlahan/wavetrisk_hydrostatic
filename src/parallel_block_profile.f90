@@ -18,7 +18,8 @@ module parallel_block_profile_mod
        DP_GRID_CHANGE=48, DP_TREND_REFRESH=49, DP_STATE_REFRESH=50, DP_CAPTURE=51, DP_VELOCITY_PREP=52, &
        DP_RK_COMPAT=53, DP_PHYSICS=54, DP_REMAP=55, DP_RESTART=56, DP_ORACLE=57, &
        DP_BDRY_PACK=58, DP_BDRY_ROUTE=59, DP_BDRY_POST=60, DP_BDRY_INSTALL=61, DP_BDRY_LOCAL=62, &
-       DP_BDRY_STORAGE=63, DP_OUTSIDE=64, DP_WT_DRIVER=65, DP_COUNT=65
+       DP_BDRY_STORAGE=63, DP_OUTSIDE=64, DP_WT_DRIVER=65, &
+       DP_SCALAR_INVERSE_KERNEL=66, DP_INNER_VECTOR_KERNEL=67, DP_COUNT=67
   character(32), parameter, public :: detail_name(DP_COUNT)=[character(32) :: &
        'timestep residual', 'dynamics residual', 'adaptation residual', 'output/checkpoint', &
        'source extraction', 'source serialization proof', 'receive serialization proof', &
@@ -39,7 +40,8 @@ module parallel_block_profile_mod
        'RK compatibility closure', 'split physics consumers', 'vertical remap', 'restart bootstrap', &
        'validation oracle', 'boundary scan and pack', 'boundary receive route scan', &
        'boundary MPI posting', 'boundary scan and install', 'boundary local copies', &
-       'boundary buffer allocation/zero', 'outside instrumented context', 'wavelet driver residual']
+       'boundary buffer allocation/zero', 'outside instrumented context', 'wavelet driver residual', &
+       'scalar inverse kernels', 'inner-vector inverse kernel']
   logical, public, save :: detail_enabled=.false.
   ! self wall, self process CPU, inclusive wall, inclusive process CPU.
   real(real64), public, save :: detail_time(4,DP_COUNT)=0.0_real64

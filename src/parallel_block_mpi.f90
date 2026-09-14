@@ -549,6 +549,8 @@ module parallel_block_mpi_mod
   integer(int64), save :: inverse_stencil_generation=-1_int64
   integer(int64), save :: inverse_address_work(12)=0_int64
   integer(int64), save :: scalar_inverse_work(6)=0_int64
+  integer(int64), save :: inner_geometry_work(4)=0_int64
+  logical, save :: stage194_ready=.false., stage194_inner_geometry=.false.
   logical, save :: stage193_ready=.false., stage193_scalar_columns=.false.
   integer(int64), save :: production_block_compression_writeback_before = &
        0_int64
@@ -1634,6 +1636,34 @@ contains
     if(rank==0) write(6,'(a,i0)') 'Stage 193 requested scalar inverse columns = ',selected
   end subroutine configure_stage193
 
+  subroutine configure_stage194
+    ! Called at the collective inverse entry, never inside a per-block callback.
+    character(16) :: value
+    integer :: status,length,selected,low,high,ierr
+    if (stage194_ready) return
+    call get_environment_variable('WAVETRISK_STAGE194_INNER_GEOMETRY',value,length,status)
+    if (status==0.and.length>0) then
+       select case(trim(value))
+       case('0')
+          stage194_inner_geometry=.false.
+       case('1')
+          stage194_inner_geometry=.true.
+       case default
+          call fail("Stage 194 inner geometry require 0 or 1")
+       end select
+    else if (status/=0.and.status/=1) then
+       call fail("unable to read Stage 194 inner geometry option")
+    end if
+    selected=merge(1,0,stage194_inner_geometry)
+    call MPI_Allreduce(selected,low,1,MPI_INTEGER,MPI_MIN,comm,ierr)
+    call check_mpi(ierr,"Stage 194 option minimum")
+    call MPI_Allreduce(selected,high,1,MPI_INTEGER,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"Stage 194 option maximum")
+    if (low/=high) call fail("inconsistent Stage 194 options across ranks")
+    stage194_ready=.true.
+    if(rank==0) write(6,'(a,i0)') 'Stage 194 requested inner inverse geometry = ',selected
+  end subroutine configure_stage194
+
 
   logical function block_stage191_option(option) result(enabled)
     integer, intent(in) :: option
@@ -2070,6 +2100,7 @@ contains
     integer(int64) :: mass_sum(6)
     integer(int64) :: inverse_address_sum(12)
     integer(int64) :: scalar_inverse_sum(6)
+    integer(int64) :: inner_geometry_sum(4)
     integer(int64) :: producer_sum(9),producer_local(9)
     integer :: producer_domain
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
@@ -2098,6 +2129,8 @@ contains
     if (present(reset)) clear_after = reset
     state_ready = parallel_block_state_is_ready()
 
+    call MPI_Allreduce(inner_geometry_work,inner_geometry_sum,4,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce inner geometry work")
     call MPI_Allreduce(scalar_inverse_work,scalar_inverse_sum,6,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce scalar inverse work")
     call MPI_Allreduce(inverse_address_work,inverse_address_sum,12,MPI_INTEGER8,MPI_SUM,comm,ierr)
@@ -2331,6 +2364,8 @@ contains
             "  inverse stencil addresses: resolved reused = ",inverse_address_sum(1:2)
        write(6,'(a,6(i0,1x))') &
             "  scalar inverse columns: stencils samples addresses geometry old-addresses old-geometry = ",scalar_inverse_sum
+       write(6,'(a,4(i0,1x))') &
+            "  inner inverse geometry: prepared-cells cell-updates reads reference-reads = ",inner_geometry_sum
        write(6,'(a,3(i0,1x))') &
             "  divergence columns: columns locations replaced scalar reads = ",inverse_address_sum(3:5)
        write(6,'(a,3(i0,1x))') &
@@ -2363,6 +2398,7 @@ contains
        mass_work = 0_int64
        inverse_address_work = 0_int64
        scalar_inverse_work = 0_int64
+       inner_geometry_work = 0_int64
        scalar_producer_work = 0_int64
        block_profile_depth = 0
        block_profile_outer_start = 0.0_dp
@@ -14542,6 +14578,7 @@ end subroutine build_parallel_block_catalog
     type(Float_Field), intent(in) :: wavelet(1:N_VARIABLE,1:zlevels),scaling(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: first_level
     call configure_stage193
+    call configure_stage194
     if (production_inverse_completed_mode/=0) call fail("inverse boundary result was not consumed")
     call detail_enter(DP_INVERSE)
     call block_profile_enter(BLOCK_PROFILE_INVERSE)
@@ -14645,8 +14682,10 @@ end subroutine build_parallel_block_catalog
        scalar_statistics = Block_Scalar_Inverse_Context( &
             target_level=inverse_level,phase=1)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
+       call detail_enter(DP_SCALAR_INVERSE_KERNEL)
        call apply_local_block_field_producer( &
             reconstruct_block_scalar_level,scalar_statistics)
+       call detail_leave(DP_SCALAR_INVERSE_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
        scalar_count_local = scalar_count_local + [ &
             scalar_statistics%parent_patch_count, &
@@ -14671,8 +14710,10 @@ end subroutine build_parallel_block_catalog
        scalar_statistics = Block_Scalar_Inverse_Context( &
             target_level=inverse_level,phase=2)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
+       call detail_enter(DP_SCALAR_INVERSE_KERNEL)
        call apply_local_block_field_producer( &
             reconstruct_block_scalar_level,scalar_statistics)
+       call detail_leave(DP_SCALAR_INVERSE_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
        scalar_count_local = scalar_count_local + [ &
             scalar_statistics%parent_patch_count, &
@@ -14685,8 +14726,10 @@ end subroutine build_parallel_block_catalog
        vector_statistics = Block_Vector_Inverse_Context( &
             target_level=inverse_level)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
+       call detail_enter(DP_INNER_VECTOR_KERNEL)
        call apply_local_block_field_producer( &
             reconstruct_block_inner_vector_level,vector_statistics)
+       call detail_leave(DP_INNER_VECTOR_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
        vector_count_local(5:6) = vector_count_local(5:6) + [ &
             vector_statistics%cell_count, &
@@ -15707,7 +15750,9 @@ end subroutine build_parallel_block_catalog
     integer :: j_par
     integer :: level_slot
     integer :: local_index
-    integer :: p
+    integer :: p,first,last
+    logical :: geometry_ready
+    real(dp) :: geometry(32,PATCH_SIZE/2,PATCH_SIZE/2)
 
     local_index = catalog_local_block(catalog_index)
     if (local_index < 1 .or. &
@@ -15719,6 +15764,9 @@ end subroutine build_parallel_block_catalog
          catalog_index) then
        call fail("vector inverse geometry block is stale")
     end if
+
+    first=max(1,2-block%field_level)
+    last=min(block%n_field_level,zlevels-block%field_level+1)
 
     select type (statistics => context)
     type is (Block_Vector_Inverse_Context)
@@ -15734,6 +15782,9 @@ end subroutine build_parallel_block_catalog
                   statistics%target_level+1) then
                 call fail("vector inverse child level is invalid")
              end if
+             if(first>last) cycle
+             geometry_ready=.false.
+             if(stage194_inner_geometry) call prepare_geometry
              do level_slot = 1,block%n_field_level
                 if (block%field_level+level_slot-1 < 1 .or. &
                      block%field_level+level_slot-1 > zlevels) cycle
@@ -15745,6 +15796,10 @@ end subroutine build_parallel_block_catalog
                       i_par = i-1+chd_offs(1,c)
                       statistics%cell_count = &
                            statistics%cell_count+1_int64
+                      if(block_profile) then
+                         inner_geometry_work(2)=inner_geometry_work(2)+1_int64
+                         inner_geometry_work(4)=inner_geometry_work(4)+32_int64
+                      end if
                       call reconstruct_inner_vector(statistics)
                    end do
                 end do
@@ -15756,6 +15811,54 @@ end subroutine build_parallel_block_catalog
     end select
 
   contains
+
+    subroutine prepare_geometry
+      ! Horizontal geometry is common to all physical layers. Fill fixed slots
+      ! before field interpolation, preserving every expression and division.
+      ! A new child/callback rebuilds this small stack cache; no stale remap state.
+      integer :: t
+      level_slot=first
+      do j=1,PATCH_SIZE/2
+         j_chd=2*(j-1);j_par=j-1+chd_offs(2,c)
+         do i=1,PATCH_SIZE/2
+            i_chd=2*(i-1);i_par=i-1+chd_offs(1,c)
+            do t=LORT,UPLT
+             geometry(4*(t-LORT)+1,i,j)=edge_length(p,i_par,j_par,DG,4*(t-LORT)+1)
+             geometry(4*(t-LORT)+2,i,j)=edge_length(p,i_par-t+1,j_par,UP,4*(t-LORT)+2)
+             geometry(4*(t-LORT)+3,i,j)=edge_length(p,i_par,j_par+t,RT,4*(t-LORT)+3)
+             geometry(4*(t-LORT)+4,i,j)=triangle_area(p,i_par,j_par,t,4*(t-LORT)+4)
+            end do
+             geometry(9,i,j)=triangle_area(child+1,i_chd,j_chd,LORT,9)
+             geometry(10,i,j)=edge_length(child+1,i_chd,j_chd,RT,10)
+             geometry(11,i,j)=edge_length(child+1,i_chd,j_chd,DG,11)
+             geometry(12,i,j)=edge_length(child+1,i_chd+1,j_chd,UP,12)
+             geometry(13,i,j)=triangle_area(child+1,i_chd+1,j_chd,LORT,13)
+             geometry(14,i,j)=edge_length(child+1,i_chd+1,j_chd,RT,14)
+             geometry(15,i,j)=edge_length(child+1,i_chd+2,j_chd,UP,15)
+             geometry(16,i,j)=edge_length(child+1,i_chd+1,j_chd,DG,16)
+             geometry(17,i,j)=triangle_area(child+1,i_chd+1,j_chd+1,LORT,17)
+             geometry(18,i,j)=edge_length(child+1,i_chd+1,j_chd+1,DG,18)
+             geometry(19,i,j)=edge_length(child+1,i_chd+2,j_chd+1,UP,19)
+             geometry(20,i,j)=edge_length(child+1,i_chd+1,j_chd+1,RT,20)
+             geometry(21,i,j)=triangle_area(child+1,i_chd,j_chd,UPLT,21)
+             geometry(22,i,j)=edge_length(child+1,i_chd,j_chd,UP,22)
+             geometry(23,i,j)=edge_length(child+1,i_chd,j_chd,DG,23)
+             geometry(24,i,j)=edge_length(child+1,i_chd,j_chd+1,RT,24)
+             geometry(25,i,j)=triangle_area(child+1,i_chd,j_chd+1,UPLT,25)
+             geometry(26,i,j)=edge_length(child+1,i_chd,j_chd+1,UP,26)
+             geometry(27,i,j)=edge_length(child+1,i_chd,j_chd+2,RT,27)
+             geometry(28,i,j)=edge_length(child+1,i_chd,j_chd+1,DG,28)
+             geometry(29,i,j)=triangle_area(child+1,i_chd+1,j_chd+1,UPLT,29)
+             geometry(30,i,j)=edge_length(child+1,i_chd+1,j_chd+1,DG,30)
+             geometry(31,i,j)=edge_length(child+1,i_chd+1,j_chd+2,RT,31)
+             geometry(32,i,j)=edge_length(child+1,i_chd+1,j_chd+1,UP,32)
+            if(block_profile) inner_geometry_work(1)=inner_geometry_work(1)+1_int64
+         end do
+      end do
+      geometry_ready=.true.
+    end subroutine prepare_geometry
+
+
 
     subroutine reconstruct_inner_vector (statistics)
 
@@ -15805,56 +15908,56 @@ end subroutine build_parallel_block_catalog
       do t = LORT,UPLT
          curl_u(t) = ( &
               vector_value(p,i_par,j_par,DG)* &
-              edge_length(p,i_par,j_par,DG)+ &
+              edge_length(p,i_par,j_par,DG,4*(t-LORT)+1)+ &
               vector_value(p,i_par-t+1,j_par,UP)* &
-              edge_length(p,i_par-t+1,j_par,UP)+ &
+              edge_length(p,i_par-t+1,j_par,UP,4*(t-LORT)+2)+ &
               vector_value(p,i_par,j_par+t,RT)* &
-              edge_length(p,i_par,j_par+t,RT))/ &
-              triangle_area(p,i_par,j_par,t)
+              edge_length(p,i_par,j_par+t,RT,4*(t-LORT)+3))/ &
+              triangle_area(p,i_par,j_par,t,4*(t-LORT)+4)
       end do
 
       value(1) = ( &
-           triangle_area(child+1,i_chd,j_chd,LORT)*curl_u(LORT)- &
+           triangle_area(child+1,i_chd,j_chd,LORT,9)*curl_u(LORT)- &
            vector_value(child+1,i_chd,j_chd,RT)* &
-           edge_length(child+1,i_chd,j_chd,RT)- &
+           edge_length(child+1,i_chd,j_chd,RT,10)- &
            vector_value(child+1,i_chd,j_chd,DG)* &
-           edge_length(child+1,i_chd,j_chd,DG))/ &
-           edge_length(child+1,i_chd+1,j_chd,UP)
+           edge_length(child+1,i_chd,j_chd,DG,11))/ &
+           edge_length(child+1,i_chd+1,j_chd,UP,12)
       value(2) = ( &
-           triangle_area(child+1,i_chd+1,j_chd,LORT)*curl_u(LORT)- &
+           triangle_area(child+1,i_chd+1,j_chd,LORT,13)*curl_u(LORT)- &
            vector_value(child+1,i_chd+1,j_chd,RT)* &
-           edge_length(child+1,i_chd+1,j_chd,RT)- &
+           edge_length(child+1,i_chd+1,j_chd,RT,14)- &
            vector_value(child+1,i_chd+2,j_chd,UP)* &
-           edge_length(child+1,i_chd+2,j_chd,UP))/ &
-           edge_length(child+1,i_chd+1,j_chd,DG)
+           edge_length(child+1,i_chd+2,j_chd,UP,15))/ &
+           edge_length(child+1,i_chd+1,j_chd,DG,16)
       value(3) = ( &
-           triangle_area(child+1,i_chd+1,j_chd+1,LORT)*curl_u(LORT)- &
+           triangle_area(child+1,i_chd+1,j_chd+1,LORT,17)*curl_u(LORT)- &
            vector_value(child+1,i_chd+1,j_chd+1,DG)* &
-           edge_length(child+1,i_chd+1,j_chd+1,DG)- &
+           edge_length(child+1,i_chd+1,j_chd+1,DG,18)- &
            vector_value(child+1,i_chd+2,j_chd+1,UP)* &
-           edge_length(child+1,i_chd+2,j_chd+1,UP))/ &
-           edge_length(child+1,i_chd+1,j_chd+1,RT)
+           edge_length(child+1,i_chd+2,j_chd+1,UP,19))/ &
+           edge_length(child+1,i_chd+1,j_chd+1,RT,20)
       value(4) = ( &
-           triangle_area(child+1,i_chd,j_chd,UPLT)*curl_u(UPLT)- &
+           triangle_area(child+1,i_chd,j_chd,UPLT,21)*curl_u(UPLT)- &
            vector_value(child+1,i_chd,j_chd,UP)* &
-           edge_length(child+1,i_chd,j_chd,UP)- &
+           edge_length(child+1,i_chd,j_chd,UP,22)- &
            vector_value(child+1,i_chd,j_chd,DG)* &
-           edge_length(child+1,i_chd,j_chd,DG))/ &
-           edge_length(child+1,i_chd,j_chd+1,RT)
+           edge_length(child+1,i_chd,j_chd,DG,23))/ &
+           edge_length(child+1,i_chd,j_chd+1,RT,24)
       value(5) = ( &
-           triangle_area(child+1,i_chd,j_chd+1,UPLT)*curl_u(UPLT)- &
+           triangle_area(child+1,i_chd,j_chd+1,UPLT,25)*curl_u(UPLT)- &
            vector_value(child+1,i_chd,j_chd+1,UP)* &
-           edge_length(child+1,i_chd,j_chd+1,UP)- &
+           edge_length(child+1,i_chd,j_chd+1,UP,26)- &
            vector_value(child+1,i_chd,j_chd+2,RT)* &
-           edge_length(child+1,i_chd,j_chd+2,RT))/ &
-           edge_length(child+1,i_chd,j_chd+1,DG)
+           edge_length(child+1,i_chd,j_chd+2,RT,27))/ &
+           edge_length(child+1,i_chd,j_chd+1,DG,28)
       value(6) = ( &
-           triangle_area(child+1,i_chd+1,j_chd+1,UPLT)*curl_u(UPLT)- &
+           triangle_area(child+1,i_chd+1,j_chd+1,UPLT,29)*curl_u(UPLT)- &
            vector_value(child+1,i_chd+1,j_chd+1,DG)* &
-           edge_length(child+1,i_chd+1,j_chd+1,DG)- &
+           edge_length(child+1,i_chd+1,j_chd+1,DG,30)- &
            vector_value(child+1,i_chd+1,j_chd+2,RT)* &
-           edge_length(child+1,i_chd+1,j_chd+2,RT))/ &
-           edge_length(child+1,i_chd+1,j_chd+1,UP)
+           edge_length(child+1,i_chd+1,j_chd+2,RT,31))/ &
+           edge_length(child+1,i_chd+1,j_chd+1,UP,32)
 
     end subroutine block_inner_vector_interpolation
 
@@ -15877,15 +15980,21 @@ end subroutine build_parallel_block_catalog
 
 
     real(dp) function edge_length ( &
-         patch_index,node_i,node_j,edge_component) result(value)
+         patch_index,node_i,node_j,edge_component,slot) result(value)
 
       implicit none
 
       integer, intent(in) :: patch_index
       integer, intent(in) :: node_i
       integer, intent(in) :: node_j
+      integer, intent(in) :: slot
       integer, intent(in) :: edge_component
 
+      if(geometry_ready) then
+         value=geometry(slot,i,j)
+         return
+      end if
+      if(block_profile) inner_geometry_work(3)=inner_geometry_work(3)+1_int64
       value = block_scalar_record_value( &
            block,local_index,patch_index,0,level_slot,node_i,node_j, &
            BLOCK_SCALAR_EDGE_LENGTH_START+edge_component)
@@ -15897,18 +16006,24 @@ end subroutine build_parallel_block_catalog
 
 
     real(dp) function triangle_area ( &
-         patch_index,node_i,node_j,triangle) result(value)
+         patch_index,node_i,node_j,triangle,slot) result(value)
 
       implicit none
 
       integer, intent(in) :: patch_index
       integer, intent(in) :: node_i
       integer, intent(in) :: node_j
+      integer, intent(in) :: slot
       integer, intent(in) :: triangle
 
       if (triangle < LORT .or. triangle > UPLT) then
          call fail("vector inverse triangle index is invalid")
       end if
+      if(geometry_ready) then
+         value=geometry(slot,i,j)
+         return
+      end if
+      if(block_profile) inner_geometry_work(3)=inner_geometry_work(3)+1_int64
       value = block_scalar_record_value( &
            block,local_index,patch_index,0,level_slot,node_i,node_j, &
            BLOCK_SCALAR_TRIANGLE_AREA_START+triangle-LORT)
