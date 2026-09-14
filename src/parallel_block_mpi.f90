@@ -548,6 +548,8 @@ module parallel_block_mpi_mod
   type(Inverse_Stencil_Addresses), allocatable, save :: inverse_stencil(:)
   integer(int64), save :: inverse_stencil_generation=-1_int64
   integer(int64), save :: inverse_address_work(12)=0_int64
+  integer(int64), save :: scalar_inverse_work(6)=0_int64
+  logical, save :: stage193_ready=.false., stage193_scalar_columns=.false.
   integer(int64), save :: production_block_compression_writeback_before = &
        0_int64
   integer(int64), save :: production_block_compression_allocation_before = &
@@ -1604,6 +1606,35 @@ contains
   end function block_adaptation_validation_enabled
 
 
+  subroutine configure_stage193
+    ! Called at the collective inverse entry, never inside a per-block callback.
+    character(16) :: value
+    integer :: status,length,selected,low,high,ierr
+    if (stage193_ready) return
+    call get_environment_variable('WAVETRISK_STAGE193_SCALAR_COLUMNS',value,length,status)
+    if (status==0.and.length>0) then
+       select case(trim(value))
+       case('0')
+          stage193_scalar_columns=.false.
+       case('1')
+          stage193_scalar_columns=.true.
+       case default
+          call fail("Stage 193 scalar columns require 0 or 1")
+       end select
+    else if (status/=0.and.status/=1) then
+       call fail("unable to read Stage 193 scalar columns option")
+    end if
+    selected=merge(1,0,stage193_scalar_columns)
+    call MPI_Allreduce(selected,low,1,MPI_INTEGER,MPI_MIN,comm,ierr)
+    call check_mpi(ierr,"Stage 193 option minimum")
+    call MPI_Allreduce(selected,high,1,MPI_INTEGER,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"Stage 193 option maximum")
+    if (low/=high) call fail("inconsistent Stage 193 options across ranks")
+    stage193_ready=.true.
+    if(rank==0) write(6,'(a,i0)') 'Stage 193 requested scalar inverse columns = ',selected
+  end subroutine configure_stage193
+
+
   logical function block_stage191_option(option) result(enabled)
     integer, intent(in) :: option
     character(40), parameter :: names(2) = [character(40) :: &
@@ -2038,6 +2069,7 @@ contains
     integer(int64) :: velocity_sum(9)
     integer(int64) :: mass_sum(6)
     integer(int64) :: inverse_address_sum(12)
+    integer(int64) :: scalar_inverse_sum(6)
     integer(int64) :: producer_sum(9),producer_local(9)
     integer :: producer_domain
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
@@ -2066,6 +2098,8 @@ contains
     if (present(reset)) clear_after = reset
     state_ready = parallel_block_state_is_ready()
 
+    call MPI_Allreduce(scalar_inverse_work,scalar_inverse_sum,6,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce scalar inverse work")
     call MPI_Allreduce(inverse_address_work,inverse_address_sum,12,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce inverse address work")
     call MPI_Allreduce(block_profile_seconds,seconds_min, &
@@ -2295,6 +2329,8 @@ contains
             "  native mass: plans restricted-edges divergence boundary published RK-values = ",mass_sum
        write(6,'(a,2(i0,1x))') &
             "  inverse stencil addresses: resolved reused = ",inverse_address_sum(1:2)
+       write(6,'(a,6(i0,1x))') &
+            "  scalar inverse columns: stencils samples addresses geometry old-addresses old-geometry = ",scalar_inverse_sum
        write(6,'(a,3(i0,1x))') &
             "  divergence columns: columns locations replaced scalar reads = ",inverse_address_sum(3:5)
        write(6,'(a,3(i0,1x))') &
@@ -2326,6 +2362,7 @@ contains
        native_velocity_work = 0_int64
        mass_work = 0_int64
        inverse_address_work = 0_int64
+       scalar_inverse_work = 0_int64
        scalar_producer_work = 0_int64
        block_profile_depth = 0
        block_profile_outer_start = 0.0_dp
@@ -14504,6 +14541,7 @@ end subroutine build_parallel_block_catalog
   subroutine prepare_block_native_inverse_boundaries(wavelet,scaling,first_level)
     type(Float_Field), intent(in) :: wavelet(1:N_VARIABLE,1:zlevels),scaling(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: first_level
+    call configure_stage193
     if (production_inverse_completed_mode/=0) call fail("inverse boundary result was not consumed")
     call detail_enter(DP_INVERSE)
     call block_profile_enter(BLOCK_PROFILE_INVERSE)
@@ -15287,6 +15325,10 @@ end subroutine build_parallel_block_catalog
     integer :: p
     integer :: scalar_slot
 
+    if (stage193_scalar_columns) then
+       call reconstruct_block_scalar_columns(catalog_index,block,context)
+       return
+    end if
     local_index = catalog_local_block(catalog_index)
     if (local_index < 1 .or. &
          local_index > size(block_scalar_tendency)) then
@@ -15456,6 +15498,193 @@ end subroutine build_parallel_block_catalog
     end subroutine reconstruct_one
 
   end subroutine reconstruct_block_scalar_level
+
+
+  subroutine reconstruct_block_scalar_columns(catalog_index,block,context)
+    ! Resolve each spatial stencil and immutable physical geometry once, then
+    ! apply it to all atmospheric layers/scalars. No state survives this call:
+    ! remapping/restart cannot leave stale addresses or geometry. The k-order
+    ! and arithmetic of the scalar reference kernel are retained exactly.
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(inout) :: block
+    class(*), intent(inout) :: context
+    integer :: local_index,first,last,count,p,c,child,i,j,ic,jc,ip,jp
+    ! Scratch is allocated once per block callback, not for every stencil.
+    real(dp) :: column(zlevels),base_column(zlevels),weighted_sum(zlevels)
+    integer, parameter :: wi(11)=[1,2,3,1,2,3,4,1,2,3,4]
+
+    local_index=catalog_local_block(catalog_index)
+    if (local_index<1.or.local_index>size(block_scalar_tendency)) call fail("scalar inverse block index is invalid")
+    if (.not.block_scalar_tendency(local_index)%ready.or. &
+         block_scalar_tendency(local_index)%catalog_index/=catalog_index) call fail("scalar inverse geometry block is stale")
+    first=max(1,2-block%field_level)
+    last=min(block%n_field_level,zlevels-block%field_level+1)
+    count=max(0,last-first+1)
+    select type(statistics=>context)
+    type is(Block_Scalar_Inverse_Context)
+       if(statistics%phase<1.or.statistics%phase>2) call fail("scalar inverse phase is invalid")
+       do p=1,size(block%patch)
+          if(block%patch(p)%level/=statistics%target_level) cycle
+          if(.not.any(block%patch(p)%children>0)) cycle
+          statistics%parent_patch_count=statistics%parent_patch_count+1_int64
+          do c=1,N_CHDRN
+             child=block%patch(p)%children(c)
+             if(child==0) cycle
+             if(child<0.or.child>=size(block%patch)) call fail("scalar inverse child patch is invalid")
+             if(block%patch(child+1)%level/=statistics%target_level+1) call fail("scalar inverse child level is invalid")
+             if(count==0.or.block%n_scalar_variable==0) cycle
+             do j=1,PATCH_SIZE/2
+                jc=2*(j-1);jp=j-1+chd_offs(2,c)
+                do i=1,PATCH_SIZE/2
+                   ic=2*(i-1);ip=i-1+chd_offs(1,c)
+                   if(statistics%phase==1) then
+                      call apply_stencil(ic,jc,ic+[1,1,2,0,-1,-1,-2,-1,0,-1,1], &
+                           jc+[0,1,1,1,0,1,-1,-1,-1,-2,-1],.true.,statistics)
+                   else
+                      call apply_stencil(ic+1,jc,[ic,ic+2,ic+2,ic],[jc,jc,jc+2,jc-2],.false.,statistics)
+                      call apply_stencil(ic+1,jc+1,[ic+2,ic,ic+2,ic],[jc+2,jc,jc,jc+2],.false.,statistics)
+                      call apply_stencil(ic,jc+1,[ic,ic,ic-2,ic+2],[jc,jc+2,jc,jc+2],.false.,statistics)
+                   end if
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("scalar inverse context is invalid")
+    end select
+
+  contains
+
+    subroutine apply_stencil(x,y,sx,sy,lifting,statistics)
+      integer, intent(in) :: x,y,sx(:),sy(:)
+      logical, intent(in) :: lifting
+      type(Block_Scalar_Inverse_Context), intent(inout) :: statistics
+      integer :: address(3,11),base(3),target,k,scalar_slot,level_slot,field,ngeom,layer
+      integer(int64) :: samples
+      real(dp) :: weights(11),area,mask
+      samples=int(count,int64)*block%n_scalar_variable
+      statistics%candidate_count=statistics%candidate_count+samples
+      if(lifting) then
+         mask=block_scalar_record_value(block,local_index,child+1,0,first,x,y,BLOCK_SCALAR_WAVELET_MASK_INDEX)
+         if(block_profile) scalar_inverse_work(4)=scalar_inverse_work(4)+1_int64
+         if(nint(mask)==FROZEN) then
+            statistics%frozen_count=statistics%frozen_count+samples
+            if(block_profile) scalar_inverse_work(6)=scalar_inverse_work(6)+samples
+            return
+         end if
+         call address_at(p,ip,jp,base)
+         area=block_scalar_record_value(block,local_index,p,0,first,ip,jp,BLOCK_SCALAR_AREA_INDEX)
+      else
+         call address_at(child+1,x,y,base)
+         area=block_scalar_record_value(block,local_index,child+1,0,first,x,y,BLOCK_SCALAR_AREA_INDEX)
+      end if
+      do k=1,size(sx)
+         call address_at(child+1,sx(k),sy(k),address(:,k))
+         if(lifting) then
+            weights(k)=block_scalar_record_value(block,local_index,child+1,0,first,sx(k),sy(k), &
+                 BLOCK_SCALAR_OVERLAP_START+wi(k)-1)
+         else
+            weights(k)=block_scalar_record_value(block,local_index,child+1,0,first,x,y, &
+                 BLOCK_SCALAR_OVERLAP_START+k-1)
+         end if
+      end do
+      if(x<0.or.x>=PATCH_SIZE.or.y<0.or.y>=PATCH_SIZE) call fail("scalar inverse target is invalid")
+      target=block%patch(child+1)%elts_start+PATCH_SIZE*y+x+1
+      if(target<1.or.target>size(block%node)) call fail("scalar inverse target node is invalid")
+      if(size(block%scalar)<block%n_scalar_variable*block%n_field_level*size(block%node)) &
+           call fail("scalar inverse target storage is invalid")
+      do scalar_slot=0,block%n_scalar_variable-1
+         call read_column(base,scalar_slot,merge(BLOCK_PAYLOAD_SOL,BLOCK_PAYLOAD_WAV_COEFF,lifting),base_column(1:count))
+         weighted_sum(1:count)=0.0_dp
+         do k=1,size(sx)
+            call read_column(address(:,k),scalar_slot,merge(BLOCK_PAYLOAD_WAV_COEFF,BLOCK_PAYLOAD_SOL,lifting),column(1:count))
+            do layer=1,count
+               weighted_sum(layer)=weighted_sum(layer)+column(layer)*weights(k)
+            end do
+         end do
+         if(lifting) then
+            column(1:count)=base_column(1:count)-weighted_sum(1:count)*area
+         else
+            column(1:count)=weighted_sum(1:count)*area+base_column(1:count)
+         end if
+         if(.not.all(ieee_is_finite(column(1:count)))) call fail("scalar inverse solution is non-finite")
+         do level_slot=first,last
+            field=(scalar_slot*block%n_field_level+level_slot-1)*size(block%node)+target
+            block%scalar(field)=column(level_slot-first+1)
+         end do
+      end do
+      statistics%produced_count=statistics%produced_count+samples
+      if(block_profile) then
+         ngeom=size(sx)+1
+         scalar_inverse_work(1)=scalar_inverse_work(1)+1_int64
+         scalar_inverse_work(2)=scalar_inverse_work(2)+samples
+         scalar_inverse_work(3)=scalar_inverse_work(3)+int(size(sx)+1,int64)
+         scalar_inverse_work(4)=scalar_inverse_work(4)+int(ngeom,int64)
+         scalar_inverse_work(5)=scalar_inverse_work(5)+samples*(size(sx)+1)
+         scalar_inverse_work(6)=scalar_inverse_work(6)+samples*(ngeom+merge(1,0,lifting))
+      end if
+    end subroutine apply_stencil
+
+    subroutine address_at(patch,x,y,address)
+      integer, intent(in) :: patch,x,y
+      integer, intent(out) :: address(3)
+      integer :: record,node,storage,stride
+      call locate_block_scalar_record(block,local_index,patch,x,y,storage,record,node)
+      select case(storage)
+      case(STORE_PATCH)
+         if(record<0.or.record>=size(block%patch)) call fail("scalar inverse patch record is invalid")
+         node=block%patch(record+1)%elts_start+node
+         stride=size(block%node)
+      case(STORE_BDRY)
+         stride=size(block%bdry_node)
+      case(STORE_GHOST)
+         stride=size(block%ghost_node)
+      case default
+         call fail("scalar inverse storage class is invalid")
+      end select
+      if(node<0.or.node>=stride) call fail("scalar inverse source node is invalid")
+      address=[storage,node+1,stride]
+    end subroutine address_at
+
+    subroutine read_column(address,scalar_slot,family,column)
+      integer, intent(in) :: address(3),scalar_slot,family
+      real(dp), intent(out) :: column(count)
+      integer :: start,finish,stride
+      stride=address(3)
+      start=(scalar_slot*block%n_field_level+first-1)*stride+address(2)
+      finish=start+(count-1)*stride
+      select case(address(1))
+      case(STORE_PATCH)
+         if(finish>size(block%scalar)) call fail("scalar inverse patch field is invalid")
+         if(family==BLOCK_PAYLOAD_SOL) then
+            column=block%scalar(start:finish:stride)
+         else
+            if(finish>size(block%wavelet_scalar)) call fail("scalar inverse patch wavelet is invalid")
+            column=block%wavelet_scalar(start:finish:stride)
+         end if
+      case(STORE_BDRY)
+         if(finish>size(block%bdry_scalar)) call fail("scalar inverse boundary field is invalid")
+         if(family==BLOCK_PAYLOAD_SOL) then
+            column=block%bdry_scalar(start:finish:stride)
+         else
+            if(finish>size(block%bdry_wavelet_scalar)) call fail("scalar inverse boundary wavelet is invalid")
+            column=block%bdry_wavelet_scalar(start:finish:stride)
+         end if
+      case(STORE_GHOST)
+         if(finish>size(block%ghost_scalar)) call fail("scalar inverse ghost field is invalid")
+         if(family==BLOCK_PAYLOAD_SOL) then
+            column=block%ghost_scalar(start:finish:stride)
+         else
+            if(finish>size(block%ghost_wavelet_scalar)) call fail("scalar inverse ghost wavelet is invalid")
+            column=block%ghost_wavelet_scalar(start:finish:stride)
+         end if
+      case default
+         call fail("scalar inverse column storage is invalid")
+      end select
+      if(.not.all(ieee_is_finite(column))) call fail("scalar inverse source field is non-finite")
+    end subroutine read_column
+
+  end subroutine reconstruct_block_scalar_columns
 
 
   subroutine reconstruct_block_inner_vector_level ( &

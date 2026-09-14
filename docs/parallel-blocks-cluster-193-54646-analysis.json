@@ -1,0 +1,962 @@
+{
+  "paired_timings": [
+    {
+      "round": 1,
+      "elapsed_saved_seconds": 0.7424142860108986,
+      "ordinary_step_saved_seconds": 0.06000000000000005
+    },
+    {
+      "round": 2,
+      "elapsed_saved_seconds": 0.6613562559941784,
+      "ordinary_step_saved_seconds": 0.06000000000000005
+    },
+    {
+      "round": 3,
+      "elapsed_saved_seconds": 0.3873731149942614,
+      "ordinary_step_saved_seconds": 0.06000000000000005
+    },
+    {
+      "round": 4,
+      "elapsed_saved_seconds": 0.5284197430009954,
+      "ordinary_step_saved_seconds": 0.06000000000000005
+    },
+    {
+      "round": 5,
+      "elapsed_saved_seconds": 0.6996845890244003,
+      "ordinary_step_saved_seconds": 0.050000000000000044
+    },
+    {
+      "round": 6,
+      "elapsed_saved_seconds": 0.7170838610327337,
+      "ordinary_step_saved_seconds": 0.06000000000000005
+    }
+  ],
+  "candidate_control": {
+    "elapsed_seconds": 31.76770783000393,
+    "ordinary_step_median": 1.35,
+    "stage193_evidence": {
+      "requested_scalar_columns": "0"
+    }
+  },
+  "job": 54646,
+  "status": "passed_review",
+  "inventory_files_verified": 4683,
+  "source_hashes_match_frozen_candidate": true,
+  "baseline_commit": "30c831149653205210531427f81b184663a3acbf",
+  "candidate_patch_sha256": "e00d6dbb6d010c34c1f0fcc56b0d127d80551cda7d4174e0078cc7527d0cfc33",
+  "matched_inverse_comparison": {
+    "baseline": {
+      "steps": 12,
+      "wavelet_calls": 4980,
+      "wavelet_seconds": 5.58882,
+      "inverse_seconds": 3.586475,
+      "transfers": {
+        "inverse native gather": {
+          "seconds": 0.432512,
+          "calls_per_rank": 680,
+          "remote_messages": 51648,
+          "remote_bytes": 6357166080,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 529763840.0,
+          "remote_messages_per_step_including_checkpoint": 4304.0
+        },
+        "inverse native aliases": {
+          "seconds": 0.8357,
+          "calls_per_rank": 772,
+          "remote_messages": 363312,
+          "remote_bytes": 10557549120,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 879795760.0,
+          "remote_messages_per_step_including_checkpoint": 30276.0
+        },
+        "inverse native scatter": {
+          "seconds": 0.77605,
+          "calls_per_rank": 680,
+          "remote_messages": 81044,
+          "remote_bytes": 25348300800,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 2112358400.0,
+          "remote_messages_per_step_including_checkpoint": 6753.666666666667
+        }
+      }
+    },
+    "candidate": {
+      "steps": 12,
+      "wavelet_calls": 4980,
+      "wavelet_seconds": 4.90321,
+      "inverse_seconds": 2.892992,
+      "transfers": {
+        "inverse native gather": {
+          "seconds": 0.324992,
+          "calls_per_rank": 680,
+          "remote_messages": 51648,
+          "remote_bytes": 6357166080,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 529763840.0,
+          "remote_messages_per_step_including_checkpoint": 4304.0
+        },
+        "inverse native aliases": {
+          "seconds": 0.76051,
+          "calls_per_rank": 772,
+          "remote_messages": 363312,
+          "remote_bytes": 10557549120,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 879795760.0,
+          "remote_messages_per_step_including_checkpoint": 30276.0
+        },
+        "inverse native scatter": {
+          "seconds": 0.71104,
+          "calls_per_rank": 680,
+          "remote_messages": 81044,
+          "remote_bytes": 25348300800,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 2112358400.0,
+          "remote_messages_per_step_including_checkpoint": 6753.666666666667
+        }
+      }
+    },
+    "legacy": {
+      "wavelet_seconds": 1.2880414476245081,
+      "wavelet_calls": 4980,
+      "steps": 12
+    },
+    "scatter_byte_reduction_percent": 0.0,
+    "wavelet_reduction_percent": 12.26752695560065,
+    "candidate_wavelet_to_legacy_ratio": 3.806717562577529,
+    "scope": "Whole-window rank-mean inclusive WT_after_step, including checkpoint. Helpers are contained in inverse time. Remote sends exclude self copies; bytes are not measured DRAM or NIC traffic. Profiles are excluded from headline timing. Per-step traffic here includes checkpoint; it is not an ordinary-step measurement.",
+    "scalar_work": {
+      "compiled_stencils": 1545664,
+      "produced_field_samples": 92739840,
+      "resolved_field_addresses": 10433232,
+      "geometry_reads": 10819648,
+      "reference_equivalent_field_addresses": 625993920,
+      "reference_equivalent_geometry_reads": 649178880,
+      "address_reduction_percent": 98.33333333333333,
+      "geometry_read_reduction_percent": 98.33333333333333,
+      "scope": "Global sums over all profile windows, including checkpoint. Reference-equivalent counts derive from the retained scalar kernel; arithmetic sample count is unchanged. Field-address counts exclude the separate geometry accessor lookups."
+    },
+    "inverse_local_kernels": {
+      "baseline": {
+        "inclusive_seconds": 0.759201,
+        "global_calls": 30544
+      },
+      "candidate": {
+        "inclusive_seconds": 0.361888,
+        "global_calls": 30544
+      },
+      "scope": "Matched scalar plus inner-vector kernel scopes, whole-window rank-mean wall time. Includes address/geometry preparation and arithmetic, excludes inverse MPI. Not added to parent WT or inverse time."
+    },
+    "transfer_workload_unchanged": true
+  },
+  "inverse_component_rank_mean_self_seconds": {
+    "baseline": {
+      "plan": 0.0737217,
+      "pack": 0.30865960000000003,
+      "local_aliases": 0.0380768,
+      "MPI_post_self_copy": 0.0377572,
+      "MPI_wait": 1.415956,
+      "install": 0.2323806
+    },
+    "candidate": {
+      "plan": 0.0731938,
+      "pack": 0.321893,
+      "local_aliases": 0.0396535,
+      "MPI_post_self_copy": 0.0372501,
+      "MPI_wait": 1.149575,
+      "install": 0.23658049999999997
+    }
+  },
+  "results_sha256": "e32e1f757a0401d08fa2d4e2e55fa4289de6755695ed2db768d34dd3fd22bb21",
+  "build_identity_sha256": "0362dc84a982c8cb48cf3694cb26484868257755a1d428c7284f402c5d4eba9b",
+  "build_logs": {
+    "baseline": {
+      "sha256": "4f4ff0cdb2437c33acc6518fc77d9059529c1674e24c2a06981b7594685ef2bb",
+      "compiler_commands_verified": 55
+    },
+    "candidate": {
+      "sha256": "349b4f727f5cc6de7ca36fd7b5e27df03adbe9a282520b59054237389f984c07",
+      "compiler_commands_verified": 55
+    },
+    "checked": {
+      "sha256": "da4e30eeee1e7b5ca426a48fd0fc62f0e524523e451673889060daaaf460f1c4",
+      "compiler_commands_verified": 55
+    },
+    "legacy": {
+      "sha256": "196e205002a34ea5812ac6ca9ef8cdaefd6e2b3c15b2167c25d9dac6463050ee",
+      "compiler_commands_verified": 47
+    },
+    "legacy_profile": {
+      "sha256": "edb806daa998aa58492ceec55c2ddeb6c2b7c6aecc3f3c8a977d863c9558c992",
+      "compiler_commands_verified": 49
+    }
+  },
+  "gate_counts": {
+    "exact": 29,
+    "workload": 25,
+    "legacy_screen": 8
+  },
+  "maximum_legacy_field_differences": {
+    "velocity": 3.723243935382925e-12,
+    "mass": 2.5011104298755527e-12,
+    "temperature": 7.8580342233181e-10
+  },
+  "summary": {
+    "baseline": {
+      "elapsed_seconds": [
+        31.82595086400397,
+        31.83918340798118,
+        31.624226090993034,
+        31.62464470299892,
+        31.724096752004698,
+        31.764311324019218
+      ],
+      "ordinary_step_medians": [
+        1.34,
+        1.34,
+        1.35,
+        1.34,
+        1.34,
+        1.34
+      ],
+      "median_elapsed_seconds": 31.744204038011958,
+      "median_ordinary_step_seconds": 1.34
+    },
+    "candidate": {
+      "elapsed_seconds": [
+        31.083536577993073,
+        31.177827151987003,
+        31.236852975998772,
+        31.096224959997926,
+        31.024412162980298,
+        31.047227462986484
+      ],
+      "ordinary_step_medians": [
+        1.28,
+        1.28,
+        1.29,
+        1.28,
+        1.29,
+        1.28
+      ],
+      "median_elapsed_seconds": 31.0898807689955,
+      "median_ordinary_step_seconds": 1.28
+    },
+    "legacy": {
+      "elapsed_seconds": [
+        22.751294045971008,
+        22.424711775005562,
+        22.488343275996158,
+        22.48977135401219,
+        22.469173710007453,
+        22.404784440994263
+      ],
+      "ordinary_step_medians": [
+        0.556,
+        0.557,
+        0.556,
+        0.556,
+        0.554,
+        0.558
+      ],
+      "median_elapsed_seconds": 22.478758493001806,
+      "median_ordinary_step_seconds": 0.556
+    },
+    "observed_elapsed_reduction_percent": 2.061236968590996,
+    "block_vs_legacy": {
+      "baseline": {
+        "elapsed_ratio": 1.4121867116413354,
+        "ordinary_step_ratio": 2.4100719424460433
+      },
+      "candidate": {
+        "elapsed_ratio": 1.3830781970754547,
+        "ordinary_step_ratio": 2.302158273381295
+      }
+    },
+    "scope": "Observed timings only. Inspect node load, placement and memory/swap evidence. Warmups, correctness runs and detailed profiles are excluded."
+  },
+  "ordinary_step_reduction_percent": 4.477611940298509,
+  "fraction_of_excess_over_legacy_removed_percent": 7.653061224489803,
+  "memory": {
+    "checked-off": {
+      "max_rank_rss_mib": 386.48046875,
+      "sum_rank_peak_rss_gib": 22.39879608154297,
+      "major_faults_sum": 5988,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "checked-on": {
+      "max_rank_rss_mib": 703.828125,
+      "sum_rank_peak_rss_gib": 41.17838668823242,
+      "major_faults_sum": 6300,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-warmup": {
+      "max_rank_rss_mib": 380.0625,
+      "sum_rank_peak_rss_gib": 21.68665313720703,
+      "major_faults_sum": 1857,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-warmup": {
+      "max_rank_rss_mib": 380.53125,
+      "sum_rank_peak_rss_gib": 21.644290924072266,
+      "major_faults_sum": 2011,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-warmup": {
+      "max_rank_rss_mib": 166.64453125,
+      "sum_rank_peak_rss_gib": 11.019706726074219,
+      "major_faults_sum": 1355,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-1": {
+      "max_rank_rss_mib": 379.9609375,
+      "sum_rank_peak_rss_gib": 21.70108413696289,
+      "major_faults_sum": 1964,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-1": {
+      "max_rank_rss_mib": 380.2421875,
+      "sum_rank_peak_rss_gib": 21.676559448242188,
+      "major_faults_sum": 2110,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-1": {
+      "max_rank_rss_mib": 166.3359375,
+      "sum_rank_peak_rss_gib": 11.003063201904297,
+      "major_faults_sum": 1200,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-2": {
+      "max_rank_rss_mib": 379.25390625,
+      "sum_rank_peak_rss_gib": 21.661468505859375,
+      "major_faults_sum": 2147,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-2": {
+      "max_rank_rss_mib": 167.13671875,
+      "sum_rank_peak_rss_gib": 11.01980209350586,
+      "major_faults_sum": 1152,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-2": {
+      "max_rank_rss_mib": 379.56640625,
+      "sum_rank_peak_rss_gib": 21.64678955078125,
+      "major_faults_sum": 1991,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-3": {
+      "max_rank_rss_mib": 166.73046875,
+      "sum_rank_peak_rss_gib": 11.015373229980469,
+      "major_faults_sum": 1151,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-3": {
+      "max_rank_rss_mib": 379.765625,
+      "sum_rank_peak_rss_gib": 21.65259552001953,
+      "major_faults_sum": 1901,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-3": {
+      "max_rank_rss_mib": 382.421875,
+      "sum_rank_peak_rss_gib": 21.673171997070312,
+      "major_faults_sum": 2097,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-4": {
+      "max_rank_rss_mib": 379.11328125,
+      "sum_rank_peak_rss_gib": 21.66214370727539,
+      "major_faults_sum": 2206,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-4": {
+      "max_rank_rss_mib": 378.83203125,
+      "sum_rank_peak_rss_gib": 21.657756805419922,
+      "major_faults_sum": 2212,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-4": {
+      "max_rank_rss_mib": 167.0859375,
+      "sum_rank_peak_rss_gib": 11.010196685791016,
+      "major_faults_sum": 1112,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-5": {
+      "max_rank_rss_mib": 381.5859375,
+      "sum_rank_peak_rss_gib": 21.674579620361328,
+      "major_faults_sum": 2240,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-5": {
+      "max_rank_rss_mib": 166.921875,
+      "sum_rank_peak_rss_gib": 11.015300750732422,
+      "major_faults_sum": 1218,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-5": {
+      "max_rank_rss_mib": 380.04296875,
+      "sum_rank_peak_rss_gib": 21.682083129882812,
+      "major_faults_sum": 2145,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-6": {
+      "max_rank_rss_mib": 165.921875,
+      "sum_rank_peak_rss_gib": 11.025264739990234,
+      "major_faults_sum": 729,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-6": {
+      "max_rank_rss_mib": 380.1640625,
+      "sum_rank_peak_rss_gib": 21.66958236694336,
+      "major_faults_sum": 2144,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-6": {
+      "max_rank_rss_mib": 379.6484375,
+      "sum_rank_peak_rss_gib": 21.67858123779297,
+      "major_faults_sum": 2158,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-control": {
+      "max_rank_rss_mib": 380.3828125,
+      "sum_rank_peak_rss_gib": 21.66863250732422,
+      "major_faults_sum": 2033,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-profile": {
+      "max_rank_rss_mib": 380.21484375,
+      "sum_rank_peak_rss_gib": 21.695148468017578,
+      "major_faults_sum": 1832,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-profile": {
+      "max_rank_rss_mib": 380.07421875,
+      "sum_rank_peak_rss_gib": 21.668285369873047,
+      "major_faults_sum": 1684,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-profile": {
+      "max_rank_rss_mib": 165.92578125,
+      "sum_rank_peak_rss_gib": 11.012351989746094,
+      "major_faults_sum": 1067,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    }
+  },
+  "timing_memory_summary": {
+    "baseline": {
+      "max_rank_rss_mib_range": [
+        379.11328125,
+        380.1640625
+      ],
+      "median_sum_rank_peak_rss_gib": 21.665863037109375
+    },
+    "candidate": {
+      "max_rank_rss_mib_range": [
+        378.83203125,
+        382.421875
+      ],
+      "median_sum_rank_peak_rss_gib": 21.67387580871582
+    },
+    "legacy": {
+      "max_rank_rss_mib_range": [
+        165.921875,
+        167.13671875
+      ],
+      "median_sum_rank_peak_rss_gib": 11.015336990356445
+    }
+  },
+  "profiles": {
+    "baseline": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 1.3309040670668126,
+      "mean_self_wall_by_region": [
+        0.0028222265104052573,
+        0.001824222452354874,
+        0.0278251291347207,
+        0.0003813523734939759,
+        0.009904052705366923,
+        0.0,
+        0.0,
+        1.593393313253012e-05,
+        0.0,
+        0.028517408324205913,
+        0.01066624150595838,
+        0.00547018626067908,
+        0.036454707557502734,
+        0.009499865794085433,
+        0.006156784589266155,
+        0.02559831934282585,
+        0.003156665822124863,
+        0.003173441704271632,
+        0.11550241215772179,
+        0.01924742799561884,
+        0.006641170540021906,
+        0.028782727601314347,
+        0.0004619640481927711,
+        0.028925872464403066,
+        0.0963063578532311,
+        0.04402472935377875,
+        0.027972068017524644,
+        0.016314690142387733,
+        0.00425660739211391,
+        0.01216965922234392,
+        0.012035315728368016,
+        0.005221227430449069,
+        0.05575685706462213,
+        0.02803888312705367,
+        0.008878531507119387,
+        0.0557119753041621,
+        0.04546721892661555,
+        0.1513152603504929,
+        0.07765917182913472,
+        0.03570316487075575,
+        2.536395500547645e-05,
+        0.00715794291347207,
+        0.06097774501642935,
+        0.016031065443592552,
+        0.0012869477250821468,
+        0.0018710399211391017,
+        0.023054432070098576,
+        0.0013320612705366923,
+        0.007719449813800657,
+        0.0004211642531215772,
+        5.0231918510405254e-05,
+        0.005615306667031764,
+        0.00840630812924425,
+        0.012484971029572836,
+        0.0018034056078860899,
+        0.0,
+        0.0,
+        0.034964908762322014,
+        0.019779780799561882,
+        0.013307023395399782,
+        0.02272177746987952,
+        0.00372285573932092,
+        0.023999978948521357,
+        0.0,
+        0.016310468674698795
+      ],
+      "max_conservation_error": 1.7852999998346775e-06,
+      "whole_window_counters": {
+        "source proof payload bytes": 0,
+        "receive proof payload bytes": 0,
+        "copy proof payload bytes": 0,
+        "local geometry doubles written": 5942112,
+        "local scalar field samples": 7382624,
+        "received geometry doubles copied": 13835712,
+        "inverse plan builds": 996,
+        "inverse plan reuses": 2988,
+        "boundary doubles sent": 2014206995,
+        "boundary doubles received": 2014206995,
+        "boundary posted requests": 21192112,
+        "boundary pack candidates": 5193344911,
+        "boundary route candidates": 5193344911,
+        "boundary install candidates": 5193344911,
+        "boundary buffer doubles zeroed": 208806015978,
+        "boundary fields per start": 4161122,
+        "install moved payload bytes": 13862170508,
+        "install copied payload bytes": 0
+      }
+    },
+    "candidate": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 1.2785824851040526,
+      "mean_self_wall_by_region": [
+        0.002450800987951807,
+        0.001821684708652793,
+        0.02803020416210296,
+        0.0003826048970427163,
+        0.009956514381161007,
+        0.0,
+        0.0,
+        1.605364335158817e-05,
+        0.0,
+        0.028787431982475357,
+        0.01071240463297919,
+        0.00547520630558598,
+        0.03633816166484118,
+        0.010043092365826945,
+        0.006098698773274918,
+        0.026669567064622125,
+        0.0032833590639649505,
+        0.0031371832442497263,
+        0.09421385903614458,
+        0.01958177917853231,
+        0.006643938328838992,
+        0.02850153077765608,
+        0.0004634519069003286,
+        0.02894282835706462,
+        0.0961313256407448,
+        0.04449640230010953,
+        0.027582416024096387,
+        0.016351572398685652,
+        0.004217696993428259,
+        0.012229189299014238,
+        0.01193802543263965,
+        0.005160157446878423,
+        0.055822962946330774,
+        0.024101565105147865,
+        0.009186289403066813,
+        0.02308753986418401,
+        0.04517364989047098,
+        0.1543012673603505,
+        0.07779931530120482,
+        0.035093952454545455,
+        2.6190909200438117e-05,
+        0.007085291905805038,
+        0.0612746430449069,
+        0.016192520810514786,
+        0.0013707476407447973,
+        0.001873318382256298,
+        0.023082669715224536,
+        0.0014017308236582695,
+        0.0076591109748083246,
+        0.0004285252946330778,
+        4.8302630339539977e-05,
+        0.005626992140197152,
+        0.008353924986856517,
+        0.0124828986966046,
+        0.0017874669550930996,
+        0.0,
+        0.0,
+        0.03506303033953998,
+        0.01979961852135816,
+        0.013309784194961665,
+        0.022959738630887183,
+        0.00373730843373494,
+        0.024007211500547646,
+        0.0,
+        0.01678778904709748
+      ],
+      "max_conservation_error": 1.5490000000450976e-06,
+      "whole_window_counters": {
+        "source proof payload bytes": 0,
+        "receive proof payload bytes": 0,
+        "copy proof payload bytes": 0,
+        "local geometry doubles written": 5942112,
+        "local scalar field samples": 7382624,
+        "received geometry doubles copied": 13835712,
+        "inverse plan builds": 996,
+        "inverse plan reuses": 2988,
+        "boundary doubles sent": 2014206995,
+        "boundary doubles received": 2014206995,
+        "boundary posted requests": 21192112,
+        "boundary pack candidates": 5193344911,
+        "boundary route candidates": 5193344911,
+        "boundary install candidates": 5193344911,
+        "boundary buffer doubles zeroed": 208806015978,
+        "boundary fields per start": 4161122,
+        "install moved payload bytes": 13862170508,
+        "install copied payload bytes": 0
+      }
+    },
+    "legacy": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 0.6108226358852217,
+      "mean_self_wall_by_region": [
+        0.008787555626162806,
+        0.00037676260136180074,
+        0.012405280949429814,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.01748764417611745,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.01611965785440193,
+        0.020002646483451604,
+        0.025574430010650257,
+        0.023592507678624967,
+        0.0,
+        0.0,
+        0.031161864764937673,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.24366950960561448,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0011810238598011992,
+        0.0053378049688613165,
+        0.0,
+        0.0031986742028976747,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.012218385545514179,
+        0.0007921391127728995,
+        0.0,
+        0.0,
+        0.05238308949093309,
+        0.033701265166829336,
+        0.019323862694158717,
+        0.03835739011852441,
+        0.005962032286859824,
+        0.032963563790488766,
+        0.0,
+        0.006225544896827519
+      ]
+    }
+  },
+  "profile_groups": {
+    "Domain boundary handling": {
+      "baseline": 0.2861262756078861,
+      "candidate": 0.2895295313800657,
+      "legacy": 0.4499532208320336
+    },
+    "Block reconstruction and migration": {
+      "baseline": 0.10123912306450164,
+      "candidate": 0.10187379283711939,
+      "legacy": 0.0
+    },
+    "Native inverse": {
+      "baseline": 0.25187137011857613,
+      "candidate": 0.19987049973464405,
+      "legacy": 0.01748764417611745
+    },
+    "Scalar input and restriction": {
+      "baseline": 0.19999437281226726,
+      "candidate": 0.19926108920317634,
+      "legacy": 0.01611965785440193
+    },
+    "Block ghost handling": {
+      "baseline": 0.0837957401916758,
+      "candidate": 0.07992452805147864,
+      "legacy": 0.0
+    },
+    "Native mass and velocity": {
+      "baseline": 0.10186414677984665,
+      "candidate": 0.1019665300328587,
+      "legacy": 0.031161864764937673
+    },
+    "Shared Domain producers": {
+      "baseline": 0.08186871143044906,
+      "candidate": 0.08192350745783133,
+      "legacy": 0.045577076494101865
+    },
+    "Domain/block publication": {
+      "baseline": 0.04906500636812705,
+      "candidate": 0.04834174617086528,
+      "legacy": 0.0
+    },
+    "Wavelet and compression": {
+      "baseline": 0.0933192791347207,
+      "candidate": 0.09425495290251917,
+      "legacy": 0.0074065687566287185
+    },
+    "RK and tendency assembly": {
+      "baseline": 0.03461872784556407,
+      "candidate": 0.03468066072508215,
+      "legacy": 0.008536479171758992
+    },
+    "Other timestep work": {
+      "baseline": 0.047141307108433735,
+      "candidate": 0.046955660407447974,
+      "legacy": 0.0345801238352415
+    }
+  },
+  "limitations": [
+    "Checkpoint payloads and executables are absent: validate supplied reports/hashes, not re-execution.",
+    "One short 83-rank nk J5/J7 RK4 campaign; no general multi-node or longer-run claim.",
+    "Legacy phase boundaries differ, notably boundary work split out of inverse/scalar phases. Group differences are not a causal excess decomposition.",
+    "Profile means exclude checkpoint steps but are instrumented runs; timing medians exclude all profiles.",
+    "Summed rank peaks are not simultaneous node memory; resource collection excludes waiting Python parents.",
+    "Only one profile per implementation. Profile component differences are diagnostic, not repeated performance measurements."
+  ],
+  "frozen_kit_all_source_variants_verified": true,
+  "frozen_manifest_sha256": "fed91065fab092480def0a5cfd8eede890c26fdb7de264ec9ea0727c7cf8892e",
+  "archive_sha256": "692139246cc7f11676a4b9fa554a6c06ebd7e8c0465c734668847e77963c8586"
+}
