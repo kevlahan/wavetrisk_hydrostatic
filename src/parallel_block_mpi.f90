@@ -547,7 +547,7 @@ module parallel_block_mpi_mod
   end type
   type(Inverse_Stencil_Addresses), allocatable, save :: inverse_stencil(:)
   integer(int64), save :: inverse_stencil_generation=-1_int64
-  integer(int64), save :: inverse_address_work(5)=0_int64
+  integer(int64), save :: inverse_address_work(8)=0_int64
   integer(int64), save :: production_block_compression_writeback_before = &
        0_int64
   integer(int64), save :: production_block_compression_allocation_before = &
@@ -1990,7 +1990,7 @@ contains
     integer(int64) :: thermodynamic_sum(11)
     integer(int64) :: velocity_sum(9)
     integer(int64) :: mass_sum(6)
-    integer(int64) :: inverse_address_sum(5)
+    integer(int64) :: inverse_address_sum(8)
     integer(int64) :: producer_sum(9),producer_local(9)
     integer :: producer_domain
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
@@ -2019,7 +2019,7 @@ contains
     if (present(reset)) clear_after = reset
     state_ready = parallel_block_state_is_ready()
 
-    call MPI_Allreduce(inverse_address_work,inverse_address_sum,5,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call MPI_Allreduce(inverse_address_work,inverse_address_sum,8,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce inverse address work")
     call MPI_Allreduce(block_profile_seconds,seconds_min, &
          BLOCK_PROFILE_PHASE_COUNT,MPI_DOUBLE_PRECISION,MPI_MIN,comm,ierr)
@@ -2250,6 +2250,8 @@ contains
             "  inverse stencil addresses: resolved reused = ",inverse_address_sum(1:2)
        write(6,'(a,3(i0,1x))') &
             "  divergence columns: columns locations replaced scalar reads = ",inverse_address_sum(3:5)
+       write(6,'(a,3(i0,1x))') &
+            "  restriction interpolation columns: columns locations replaced scalar reads = ",inverse_address_sum(6:8)
        write(6,'(a,3(i0,1x))') &
             "  scalar producer: geometry nodes physics values oracle records = ",producer_sum(1:3)
        write(6,'(a,2(i0,1x))') &
@@ -24862,6 +24864,10 @@ end subroutine build_parallel_block_catalog
          local_index > size(block_scalar_tendency)) then
        call fail("scalar-restriction block index is invalid")
     end if
+    if (.not. validate_oracle) then
+       call restrict_block_scalar_flux_columns(catalog_index,block,context)
+       return
+    end if
     select type (statistics => context)
     type is (Block_Scalar_Restriction_Context)
        do p = 1,size(block%patch)
@@ -24985,6 +24991,226 @@ end subroutine build_parallel_block_catalog
     end select
 
   end subroutine restrict_block_scalar_flux_level
+
+
+  subroutine restrict_block_scalar_flux_columns(catalog_index,block,context)
+    ! Stage 189: batch interpolation across physical layers. Fine-level inputs
+    ! are finalized before this call; only parent direct flux is written here.
+    ! Partial/coarse closure retains its original scalar evaluation and order.
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+    integer :: local_index,p,c,child,scalar_slot,i,j,ip,jp,ic,jc,e,k,first,count
+    real(dp) :: masks(RT:UP),sm(zlevels,4),value
+    type(Block_Scalar_Restriction_Cursor) :: cursor
+
+    local_index=catalog_local_block(catalog_index)
+    first=max(1,2-block%field_level)
+    count=min(block%n_field_level,zlevels-block%field_level+1)-first+1
+    if (count<=0) return
+    if (.not. block_scalar_tendency(local_index)%patch%compact) &
+         call fail("scalar restriction columns require compact production storage")
+    select type (statistics=>context)
+    type is (Block_Scalar_Restriction_Context)
+       do p=1,size(block%patch)
+          if (block%patch(p)%level/=statistics%target_level) cycle
+          if (.not. any(block%patch(p)%children>0)) cycle
+          statistics%parent_patch_count=statistics%parent_patch_count+1_int64
+          do c=1,N_CHDRN
+             child=block%patch(p)%children(c)
+             if (child<=0) cycle
+             if (child>=size(block%patch)) call fail("scalar restriction column child is invalid")
+             cursor%target_level=statistics%target_level
+             cursor%catalog_index=catalog_index
+             cursor%block_id=block%id
+             cursor%parent_patch=p
+             cursor%child_index=c
+             cursor%child_patch=child+1
+             do scalar_slot=0,block%n_scalar_variable-1
+                if (block%scalar_variable+scalar_slot==S_MASS) cycle
+                cursor%scalar_slot=scalar_slot
+                do j=1,PATCH_SIZE/2
+                   jc=2*(j-1)
+                   jp=j-1+chd_offs(2,c)
+                   do i=1,PATCH_SIZE/2
+                      ic=2*(i-1)
+                      ip=i-1+chd_offs(1,c)
+                      cursor%i_parent=ip
+                      cursor%j_parent=jp
+                      cursor%i_child=ic
+                      cursor%j_child=jc
+                      ! Parent coordinates are interior; compact storage shares
+                      ! these edge masks across all physical levels.
+                      do e=RT,UP
+                         masks(e)=block_scalar_record_value(block,local_index,p,scalar_slot,first,ip,jp, &
+                              BLOCK_SCALAR_EDGE_MASK_START+e)
+                      end do
+                      if (maxval(masks)<real(RESTRCT,dp)) cycle
+                      sm(:count,:)=interpolate_block_scalar_flux_columns( &
+                           block,local_index,child+1,scalar_slot,first,count,ic,jc,BLOCK_SCALAR_DIRECT_FLUX_START)
+                      if (block_profile) inverse_address_work(6)=inverse_address_work(6)+1_int64
+                      do k=1,count
+                         cursor%level_slot=first+k-1
+                         cursor%physical_level=block%field_level+cursor%level_slot-1
+                         cursor%edge=-1
+                         call validate_scalar_restriction_vector("interpolate_block_scalar_flux_columns",sm(k,:),cursor)
+                         do e=RT,UP
+                            if (masks(e)<real(RESTRCT,dp)) cycle
+                            cursor%edge=e
+                            value=complete_block_coarse_flux(sm(k,:),block,local_index,child+1,scalar_slot, &
+                                 cursor%level_slot,ip,jp,ic,jc,e,cursor)
+                            call validate_scalar_restriction_value("complete_block_coarse_flux",value,cursor)
+                            call set_block_patch_scalar_record_value(local_index,p,block%n_field_level,scalar_slot, &
+                                 cursor%level_slot,ip,jp,BLOCK_SCALAR_DIRECT_FLUX_START+e,value)
+                            statistics%restricted_edge_count=statistics%restricted_edge_count+1_int64
+                         end do
+                      end do
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("scalar restriction column context is invalid")
+    end select
+  end subroutine restrict_block_scalar_flux_columns
+
+
+  function interpolate_block_scalar_flux_columns ( &
+       block,local_index,p,scalar_slot,first,count,i,j,flux_start) &
+       result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: first,count
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: flux_start
+    real(dp) :: value(count,4)
+
+    integer :: edge_component(0:19)
+    integer :: edge_i(0:19)
+    integer :: edge_j(0:19)
+    integer :: scalar_i(0:19)
+    integer :: scalar_j(0:19)
+
+    call get_block_restriction_indices( &
+         i+1,j,RT,edge_i,edge_j,edge_component,scalar_i,scalar_j)
+    value(:,1) = -sum_edge_weight_product( &
+         [WPM,UZM,VMM],i+1,j-2) - &
+         sum_edge_difference_weight_product( &
+         [VPM,WMMM,UMZ],[UPZ,VPMM,WMM],i+1,j-1)
+    value(:,2) = sum_edge_weight_product( &
+         [WMP,UZP,VPP],i,j) + &
+         sum_edge_difference_weight_product( &
+         [VMP,WPPP,UPZ],[UMZ,VMPP,WPP],i,j+1)
+
+    call get_block_restriction_indices( &
+         i,j+1,UP,edge_i,edge_j,edge_component,scalar_i,scalar_j)
+    value(:,3) = -sum_edge_weight_product( &
+         [UZM,VMM,WPM],i+1,j) - &
+         sum_edge_difference_weight_product( &
+         [WMMM,UMZ,VPM],[VPMM,WMM,UPZ],i+1,j+1)
+    value(:,4) = sum_edge_weight_product( &
+         [UZP,VPP,WMP],i-2,j) + &
+         sum_edge_difference_weight_product( &
+         [WPPP,UPZ,VMP],[VMPP,WPP,UMZ],i-2,j+1)
+
+  contains
+
+    function sum_edge_weight_product (aliases,wi,wj) &
+         result(total)
+
+      implicit none
+
+      integer, intent(in) :: aliases(3)
+      integer, intent(in) :: wi
+      integer, intent(in) :: wj
+
+      integer :: k
+      real(dp) :: total(count)
+
+      total = 0.0_dp
+      do k = 1,EDGE
+         total = total + edge_column( &
+              edge_i(aliases(k)),edge_j(aliases(k)), &
+              edge_component(aliases(k)),flux_start)* &
+              read_column(wi,wj, &
+              BLOCK_SCALAR_RESTRICTION_WEIGHT_START+k-1)
+      end do
+
+    end function sum_edge_weight_product
+
+
+    function sum_edge_difference_weight_product ( &
+         positive_aliases,negative_aliases,wi,wj) result(total)
+
+      implicit none
+
+      integer, intent(in) :: positive_aliases(3)
+      integer, intent(in) :: negative_aliases(3)
+      integer, intent(in) :: wi
+      integer, intent(in) :: wj
+
+      integer :: k
+      real(dp) :: total(count)
+
+      total = 0.0_dp
+      do k = 1,EDGE
+         total = total + (edge_column( &
+              edge_i(positive_aliases(k)), &
+              edge_j(positive_aliases(k)), &
+              edge_component(positive_aliases(k)),flux_start)- &
+              edge_column( &
+              edge_i(negative_aliases(k)), &
+              edge_j(negative_aliases(k)), &
+              edge_component(negative_aliases(k)),flux_start))* &
+              read_column(wi,wj, &
+              BLOCK_SCALAR_RESTRICTION_WEIGHT_START+k-1)
+      end do
+
+    end function sum_edge_difference_weight_product
+
+    function edge_column(x,y,e,start) result(values)
+      integer, intent(in) :: x,y,e,start
+      real(dp) :: values(count)
+      if (e<RT.or.e>UP) call fail("scalar restriction column edge is invalid")
+      values=read_column(x,y,start+e)
+    end function edge_column
+
+    function read_column(x,y,slot) result(values)
+      integer, intent(in) :: x,y,slot
+      real(dp) :: values(count)
+      integer :: storage_class,record,node,base
+      call locate_block_scalar_record(block,local_index,p,x,y,storage_class,record,node)
+      base=scalar_slot*block%n_field_level+first-1
+      select case(storage_class)
+      case(STORE_PATCH)
+         base=record*block_writeback_plan%scalar_patch_nvalue+base*PATCH_SIZE**2+node
+         values=scalar_read_column(block_scalar_tendency(local_index)%patch,base,slot,count)
+      case(STORE_BDRY)
+         base=base*size(block%bdry_node)+node
+         values=scalar_read_column(block_scalar_tendency(local_index)%bdry,base,slot,count)
+      case(STORE_GHOST)
+         base=base*size(block%ghost_node)+node
+         values=scalar_read_column(block_scalar_tendency(local_index)%ghost,base,slot,count)
+      case default
+         call fail("scalar restriction interpolation column storage is invalid")
+      end select
+      if (.not. all(ieee_is_finite(values))) call fail("scalar restriction interpolation column is non-finite")
+      if (.not. all(abs(values)<BLOCK_RESTRICTION_VALUE_LIMIT)) &
+           call fail("scalar restriction interpolation column is poisoned")
+      if (block_profile) then
+         inverse_address_work(7)=inverse_address_work(7)+1_int64
+         inverse_address_work(8)=inverse_address_work(8)+int(count,int64)
+      end if
+    end function read_column
+
+  end function interpolate_block_scalar_flux_columns
 
 
   subroutine compare_block_scalar_restricted_flux ( &

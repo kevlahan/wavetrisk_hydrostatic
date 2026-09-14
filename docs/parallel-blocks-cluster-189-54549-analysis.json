@@ -1,0 +1,3149 @@
+{
+  "job_id": "54549",
+  "partition": "nk",
+  "node": "bb13",
+  "ranks": 83,
+  "attachment_sha256": {
+    "results.json": "7bb08a7438a75076c0e40da50ba71ec1a372724642261ca7d2224c4a6bfec3ad",
+    "wavetrisk-189-54549.log": "4b0ff6f3c5d7c05027422af134eae69ff15041c71a3c8f4a0bdb42aa5cea2e55",
+    "run_baseline.log": "d91d2d027cec731f4a49baabfe2129485f2649062bf901a333cfc8dc41c240a0",
+    "run_candidate.log": "fda72966498c15e425d37f19d954da648821b94674645ea75f8c4bebf71146a8"
+  },
+  "correctness": "All 14 reported gates pass; 12 independent comparisons and two self-checks. All compared checkpoint groups have zero differences and nonfinite values.",
+  "coverage": {
+    "runs": 12,
+    "steps_each": 12,
+    "reloads": [
+      3,
+      4
+    ],
+    "post_restart_remap": true
+  },
+  "build_provenance": {
+    "source_manifests_match_local": true,
+    "physics_objects": 23,
+    "binary_hashes_match_all_runs": true,
+    "reported_fp_contract": "off",
+    "reported_makefile_sha256": "8c22b84bcbdc74089abfba8c8b78e46c24a0c331b35000ddec71a947d85b1f1a",
+    "native_flag_status": "Resolved on 2026-09-14: supplied compilation lines show -march=native in both optimized builds; absent from the checked build. All three use -ffp-contract=off.",
+    "initial_user_report_native_removed": true,
+    "user_edit_clarification": "The user edited wavetrisk_hydrostatic/Makefile in the main checkout. The Stage 189 builder runs make in the separate $HOME/wt-stage189 worktree and checks its Makefile hash, so the main-checkout edit did not affect these builds.",
+    "compile_line_evidence": {
+      "origin": "User supplied grep excerpts from the three build logs on 2026-09-14; full build logs not supplied.",
+      "translation_unit": "src/parallel_block_mpi.f90",
+      "builds": {
+        "baseline": {
+          "log": "/home/kevlahan/wt-stage189/build-189-baseline.log",
+          "optimization": "-O2",
+          "march_native": true,
+          "fp_contract": "off"
+        },
+        "candidate": {
+          "log": "/home/kevlahan/wt-stage189/build-189-candidate.log",
+          "optimization": "-O2",
+          "march_native": true,
+          "fp_contract": "off"
+        },
+        "checked": {
+          "log": "/home/kevlahan/wt-stage189/build-189-checked.log",
+          "optimization": "-O0",
+          "march_native": false,
+          "fp_contract": "off"
+        }
+      },
+      "checked_runtime_flags": [
+        "-fcheck=all",
+        "-finit-real=snan",
+        "-finit-integer=-999999",
+        "-finit-logical=true",
+        "-ffpe-trap=invalid,zero,overflow",
+        "-ftrapping-math"
+      ]
+    }
+  },
+  "summary": {
+    "baseline": {
+      "elapsed_seconds": [
+        33.9628440719971,
+        33.91513013700023,
+        33.955627241986804
+      ],
+      "ordinary_step_medians": [
+        1.53,
+        1.53,
+        1.54
+      ],
+      "median_elapsed_seconds": 33.955627241986804,
+      "median_ordinary_step_seconds": 1.53
+    },
+    "candidate": {
+      "elapsed_seconds": [
+        33.70650345701142,
+        33.53562766799587,
+        33.492014524992555
+      ],
+      "ordinary_step_medians": [
+        1.5,
+        1.5,
+        1.5
+      ],
+      "median_elapsed_seconds": 33.53562766799587,
+      "median_ordinary_step_seconds": 1.5
+    },
+    "observed_elapsed_reduction_percent": 1.2369071288178102,
+    "scope": "Observed timings only. Inspect node load, placement and memory/swap evidence. Warmups, correctness runs and detailed profiles are excluded."
+  },
+  "ordinary_step_reduction_percent": 1.9607843137254943,
+  "profiles": {
+    "baseline": {
+      "filename": "run_baseline.log",
+      "sha256": "d91d2d027cec731f4a49baabfe2129485f2649062bf901a333cfc8dc41c240a0",
+      "regions": {
+        "timestep residual": [
+          {
+            "id": 1,
+            "self_wall_mean": 0.0229184,
+            "self_wall_min": 0.00635001,
+            "self_wall_max": 0.0671566,
+            "self_cpu_mean": 0.0227037,
+            "self_cpu_on_max_wall_rank": 0.0614,
+            "inclusive_wall_mean": 18.3589,
+            "max_rank": 82,
+            "calls_global": 664
+          },
+          {
+            "id": 1,
+            "self_wall_mean": 0.0130617,
+            "self_wall_min": 0.00288556,
+            "self_wall_max": 0.0331633,
+            "self_cpu_mean": 0.012974,
+            "self_cpu_on_max_wall_rank": 0.032723,
+            "inclusive_wall_mean": 5.39523,
+            "max_rank": 82,
+            "calls_global": 332
+          }
+        ],
+        "dynamics residual": [
+          {
+            "id": 2,
+            "self_wall_mean": 0.015469,
+            "self_wall_min": 0.00405636,
+            "self_wall_max": 0.022567,
+            "self_cpu_mean": 0.0152099,
+            "self_cpu_on_max_wall_rank": 0.022189,
+            "inclusive_wall_mean": 10.6234,
+            "max_rank": 50,
+            "calls_global": 664
+          },
+          {
+            "id": 2,
+            "self_wall_mean": 0.00646954,
+            "self_wall_min": 0.00113792,
+            "self_wall_max": 0.0101212,
+            "self_cpu_mean": 0.00635459,
+            "self_cpu_on_max_wall_rank": 0.009951,
+            "inclusive_wall_mean": 4.42227,
+            "max_rank": 19,
+            "calls_global": 332
+          }
+        ],
+        "adaptation residual": [
+          {
+            "id": 3,
+            "self_wall_mean": 0.20065,
+            "self_wall_min": 0.141271,
+            "self_wall_max": 0.283432,
+            "self_cpu_mean": 0.198531,
+            "self_cpu_on_max_wall_rank": 0.280104,
+            "inclusive_wall_mean": 2.2031,
+            "max_rank": 52,
+            "calls_global": 664
+          },
+          {
+            "id": 3,
+            "self_wall_mean": 0.105557,
+            "self_wall_min": 0.0820757,
+            "self_wall_max": 0.134702,
+            "self_cpu_mean": 0.104642,
+            "self_cpu_on_max_wall_rank": 0.133126,
+            "inclusive_wall_mean": 0.891494,
+            "max_rank": 56,
+            "calls_global": 332
+          }
+        ],
+        "output/checkpoint": [
+          {
+            "id": 4,
+            "self_wall_mean": 3.64517,
+            "self_wall_min": 3.64051,
+            "self_wall_max": 3.64943,
+            "self_cpu_mean": 3.27536,
+            "self_cpu_on_max_wall_rank": 3.46276,
+            "inclusive_wall_mean": 5.37882,
+            "max_rank": 73,
+            "calls_global": 664
+          },
+          {
+            "id": 4,
+            "self_wall_mean": 0.00215102,
+            "self_wall_min": 0.000313511,
+            "self_wall_max": 0.00826135,
+            "self_cpu_mean": 0.0021368,
+            "self_cpu_on_max_wall_rank": 0.008223,
+            "inclusive_wall_mean": 0.00215102,
+            "max_rank": 73,
+            "calls_global": 332
+          }
+        ],
+        "source extraction": [
+          {
+            "id": 5,
+            "self_wall_mean": 0.118377,
+            "self_wall_min": 0.0222872,
+            "self_wall_max": 0.299447,
+            "self_cpu_mean": 0.11731,
+            "self_cpu_on_max_wall_rank": 0.297005,
+            "inclusive_wall_mean": 0.211233,
+            "max_rank": 52,
+            "calls_global": 747
+          },
+          {
+            "id": 5,
+            "self_wall_mean": 0.0456552,
+            "self_wall_min": 0.00992225,
+            "self_wall_max": 0.099456,
+            "self_cpu_mean": 0.0451807,
+            "self_cpu_on_max_wall_rank": 0.09723,
+            "inclusive_wall_mean": 0.0756684,
+            "max_rank": 18,
+            "calls_global": 332
+          }
+        ],
+        "source serialization proof": [
+          {
+            "id": 6,
+            "self_wall_mean": 0.092856,
+            "self_wall_min": 0.00403447,
+            "self_wall_max": 0.16957,
+            "self_cpu_mean": 0.0921179,
+            "self_cpu_on_max_wall_rank": 0.168472,
+            "inclusive_wall_mean": 0.092856,
+            "max_rank": 52,
+            "calls_global": 747
+          },
+          {
+            "id": 6,
+            "self_wall_mean": 0.0300132,
+            "self_wall_min": 0.00354996,
+            "self_wall_max": 0.0622689,
+            "self_cpu_mean": 0.0297721,
+            "self_cpu_on_max_wall_rank": 0.061767,
+            "inclusive_wall_mean": 0.0300132,
+            "max_rank": 54,
+            "calls_global": 332
+          }
+        ],
+        "receive serialization proof": [
+          {
+            "id": 7,
+            "self_wall_mean": 0.199155,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.283121,
+            "self_cpu_mean": 0.197252,
+            "self_cpu_on_max_wall_rank": 0.280909,
+            "inclusive_wall_mean": 0.199155,
+            "max_rank": 53,
+            "calls_global": 4936
+          },
+          {
+            "id": 7,
+            "self_wall_mean": 0.069346,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.118081,
+            "self_cpu_mean": 0.0684723,
+            "self_cpu_on_max_wall_rank": 0.115511,
+            "inclusive_wall_mean": 0.069346,
+            "max_rank": 48,
+            "calls_global": 1880
+          }
+        ],
+        "local install/deep copy": [
+          {
+            "id": 8,
+            "self_wall_mean": 0.036628,
+            "self_wall_min": 0.00565762,
+            "self_wall_max": 0.0542584,
+            "self_cpu_mean": 0.0363626,
+            "self_cpu_on_max_wall_rank": 0.053775,
+            "inclusive_wall_mean": 0.178263,
+            "max_rank": 0,
+            "calls_global": 747
+          },
+          {
+            "id": 8,
+            "self_wall_mean": 0.0137429,
+            "self_wall_min": 0.00108441,
+            "self_wall_max": 0.0248143,
+            "self_cpu_mean": 0.0136338,
+            "self_cpu_on_max_wall_rank": 0.024677,
+            "inclusive_wall_mean": 0.0699719,
+            "max_rank": 1,
+            "calls_global": 332
+          }
+        ],
+        "local copy byte proof": [
+          {
+            "id": 9,
+            "self_wall_mean": 0.141635,
+            "self_wall_min": 0.0306879,
+            "self_wall_max": 0.225399,
+            "self_cpu_mean": 0.140691,
+            "self_cpu_on_max_wall_rank": 0.223321,
+            "inclusive_wall_mean": 0.141635,
+            "max_rank": 0,
+            "calls_global": 5760
+          },
+          {
+            "id": 9,
+            "self_wall_mean": 0.056229,
+            "self_wall_min": 0.00671897,
+            "self_wall_max": 0.098325,
+            "self_cpu_mean": 0.0557967,
+            "self_cpu_on_max_wall_rank": 0.097375,
+            "inclusive_wall_mean": 0.056229,
+            "max_rank": 0,
+            "calls_global": 2560
+          }
+        ],
+        "migration residual": [
+          {
+            "id": 10,
+            "self_wall_mean": 0.509906,
+            "self_wall_min": 0.119541,
+            "self_wall_max": 1.05923,
+            "self_cpu_mean": 0.507062,
+            "self_cpu_on_max_wall_rank": 1.05439,
+            "inclusive_wall_mean": 1.38933,
+            "max_rank": 82,
+            "calls_global": 747
+          },
+          {
+            "id": 10,
+            "self_wall_mean": 0.194913,
+            "self_wall_min": 0.0836931,
+            "self_wall_max": 0.388195,
+            "self_cpu_mean": 0.193845,
+            "self_cpu_on_max_wall_rank": 0.386511,
+            "inclusive_wall_mean": 0.508585,
+            "max_rank": 82,
+            "calls_global": 332
+          }
+        ],
+        "migration pack": [
+          {
+            "id": 11,
+            "self_wall_mean": 0.10909,
+            "self_wall_min": 0.00472134,
+            "self_wall_max": 0.268397,
+            "self_cpu_mean": 0.10814,
+            "self_cpu_on_max_wall_rank": 0.266521,
+            "inclusive_wall_mean": 0.10909,
+            "max_rank": 52,
+            "calls_global": 747
+          },
+          {
+            "id": 11,
+            "self_wall_mean": 0.0351013,
+            "self_wall_min": 0.00666448,
+            "self_wall_max": 0.0819458,
+            "self_cpu_mean": 0.0348106,
+            "self_cpu_on_max_wall_rank": 0.081148,
+            "inclusive_wall_mean": 0.0351013,
+            "max_rank": 54,
+            "calls_global": 332
+          }
+        ],
+        "migration unpack": [
+          {
+            "id": 12,
+            "self_wall_mean": 0.051424,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.0773961,
+            "self_cpu_mean": 0.0509126,
+            "self_cpu_on_max_wall_rank": 0.076613,
+            "inclusive_wall_mean": 0.051424,
+            "max_rank": 17,
+            "calls_global": 4936
+          },
+          {
+            "id": 12,
+            "self_wall_mean": 0.0188106,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.0325875,
+            "self_cpu_mean": 0.0185479,
+            "self_cpu_on_max_wall_rank": 0.032353,
+            "inclusive_wall_mean": 0.0188106,
+            "max_rank": 20,
+            "calls_global": 1880
+          }
+        ],
+        "migration MPI": [
+          {
+            "id": 13,
+            "self_wall_mean": 0.341493,
+            "self_wall_min": 0.182214,
+            "self_wall_max": 0.445951,
+            "self_cpu_mean": 0.338065,
+            "self_cpu_on_max_wall_rank": 0.443113,
+            "inclusive_wall_mean": 0.341493,
+            "max_rank": 81,
+            "calls_global": 747
+          },
+          {
+            "id": 13,
+            "self_wall_mean": 0.120442,
+            "self_wall_min": 0.0736064,
+            "self_wall_max": 0.148869,
+            "self_cpu_mean": 0.11937,
+            "self_cpu_on_max_wall_rank": 0.147824,
+            "inclusive_wall_mean": 0.120442,
+            "max_rank": 41,
+            "calls_global": 332
+          }
+        ],
+        "inverse residual": [
+          {
+            "id": 14,
+            "self_wall_mean": 0.0795686,
+            "self_wall_min": 0.0290934,
+            "self_wall_max": 0.204293,
+            "self_cpu_mean": 0.0784286,
+            "self_cpu_on_max_wall_rank": 0.201619,
+            "inclusive_wall_mean": 2.61462,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 14,
+            "self_wall_mean": 0.0374845,
+            "self_wall_min": 0.0135048,
+            "self_wall_max": 0.0669113,
+            "self_cpu_mean": 0.0369467,
+            "self_cpu_on_max_wall_rank": 0.066017,
+            "inclusive_wall_mean": 0.994706,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "inverse plan": [
+          {
+            "id": 15,
+            "self_wall_mean": 0.0525551,
+            "self_wall_min": 0.0316725,
+            "self_wall_max": 0.144295,
+            "self_cpu_mean": 0.051758,
+            "self_cpu_on_max_wall_rank": 0.14332,
+            "inclusive_wall_mean": 0.0525551,
+            "max_rank": 2,
+            "calls_global": 2656
+          },
+          {
+            "id": 15,
+            "self_wall_mean": 0.0243737,
+            "self_wall_min": 0.0101958,
+            "self_wall_max": 0.0449688,
+            "self_cpu_mean": 0.0240587,
+            "self_cpu_on_max_wall_rank": 0.044627,
+            "inclusive_wall_mean": 0.0243737,
+            "max_rank": 82,
+            "calls_global": 1328
+          }
+        ],
+        "inverse pack": [
+          {
+            "id": 16,
+            "self_wall_mean": 0.207569,
+            "self_wall_min": 0.100292,
+            "self_wall_max": 0.373566,
+            "self_cpu_mean": 0.206168,
+            "self_cpu_on_max_wall_rank": 0.370494,
+            "inclusive_wall_mean": 0.207569,
+            "max_rank": 30,
+            "calls_global": 120848
+          },
+          {
+            "id": 16,
+            "self_wall_mean": 0.0938679,
+            "self_wall_min": 0.0379808,
+            "self_wall_max": 0.137905,
+            "self_cpu_mean": 0.0932265,
+            "self_cpu_on_max_wall_rank": 0.136727,
+            "inclusive_wall_mean": 0.0938679,
+            "max_rank": 50,
+            "calls_global": 56108
+          }
+        ],
+        "inverse local aliases": [
+          {
+            "id": 17,
+            "self_wall_mean": 0.0268853,
+            "self_wall_min": 0.00042409,
+            "self_wall_max": 0.106932,
+            "self_cpu_mean": 0.0267212,
+            "self_cpu_on_max_wall_rank": 0.106356,
+            "inclusive_wall_mean": 0.0268853,
+            "max_rank": 30,
+            "calls_global": 43824
+          },
+          {
+            "id": 17,
+            "self_wall_mean": 0.012271,
+            "self_wall_min": 0.000197425,
+            "self_wall_max": 0.0365372,
+            "self_cpu_mean": 0.012189,
+            "self_cpu_on_max_wall_rank": 0.036218,
+            "inclusive_wall_mean": 0.012271,
+            "max_rank": 14,
+            "calls_global": 20252
+          }
+        ],
+        "inverse MPI post/self copy": [
+          {
+            "id": 18,
+            "self_wall_mean": 0.0246481,
+            "self_wall_min": 0.0129952,
+            "self_wall_max": 0.0575591,
+            "self_cpu_mean": 0.0231388,
+            "self_cpu_on_max_wall_rank": 0.054851,
+            "inclusive_wall_mean": 0.0246481,
+            "max_rank": 22,
+            "calls_global": 120848
+          },
+          {
+            "id": 18,
+            "self_wall_mean": 0.0111081,
+            "self_wall_min": 0.00412432,
+            "self_wall_max": 0.0217112,
+            "self_cpu_mean": 0.0107547,
+            "self_cpu_on_max_wall_rank": 0.02106,
+            "inclusive_wall_mean": 0.0111081,
+            "max_rank": 0,
+            "calls_global": 56108
+          }
+        ],
+        "inverse MPI wait": [
+          {
+            "id": 19,
+            "self_wall_mean": 1.07655,
+            "self_wall_min": 0.582807,
+            "self_wall_max": 1.60999,
+            "self_cpu_mean": 1.06964,
+            "self_cpu_on_max_wall_rank": 1.60151,
+            "inclusive_wall_mean": 1.07655,
+            "max_rank": 82,
+            "calls_global": 120848
+          },
+          {
+            "id": 19,
+            "self_wall_mean": 0.371291,
+            "self_wall_min": 0.187801,
+            "self_wall_max": 0.748938,
+            "self_cpu_mean": 0.36889,
+            "self_cpu_on_max_wall_rank": 0.745103,
+            "inclusive_wall_mean": 0.371291,
+            "max_rank": 82,
+            "calls_global": 56108
+          }
+        ],
+        "inverse install": [
+          {
+            "id": 20,
+            "self_wall_mean": 0.159542,
+            "self_wall_min": 0.0490633,
+            "self_wall_max": 0.228403,
+            "self_cpu_mean": 0.158512,
+            "self_cpu_on_max_wall_rank": 0.226824,
+            "inclusive_wall_mean": 0.159542,
+            "max_rank": 48,
+            "calls_global": 120848
+          },
+          {
+            "id": 20,
+            "self_wall_mean": 0.0706939,
+            "self_wall_min": 0.0196134,
+            "self_wall_max": 0.0919487,
+            "self_cpu_mean": 0.0701968,
+            "self_cpu_on_max_wall_rank": 0.091197,
+            "inclusive_wall_mean": 0.0706939,
+            "max_rank": 62,
+            "calls_global": 56108
+          }
+        ],
+        "outer inverse arithmetic": [
+          {
+            "id": 21,
+            "self_wall_mean": 0.0557892,
+            "self_wall_min": 7.5962e-05,
+            "self_wall_max": 0.166873,
+            "self_cpu_mean": 0.0553182,
+            "self_cpu_on_max_wall_rank": 0.16525,
+            "inclusive_wall_mean": 0.0557892,
+            "max_rank": 30,
+            "calls_global": 5312
+          },
+          {
+            "id": 21,
+            "self_wall_mean": 0.0218867,
+            "self_wall_min": 3.55211e-05,
+            "self_wall_max": 0.0539388,
+            "self_cpu_mean": 0.0216993,
+            "self_cpu_on_max_wall_rank": 0.053496,
+            "inclusive_wall_mean": 0.0218867,
+            "max_rank": 18,
+            "calls_global": 2324
+          }
+        ],
+        "scalar setup/storage": [
+          {
+            "id": 22,
+            "self_wall_mean": 0.222328,
+            "self_wall_min": 0.204208,
+            "self_wall_max": 0.24498,
+            "self_cpu_mean": 0.217623,
+            "self_cpu_on_max_wall_rank": 0.237695,
+            "inclusive_wall_mean": 0.225379,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 22,
+            "self_wall_mean": 0.126745,
+            "self_wall_min": 0.0872259,
+            "self_wall_max": 0.140085,
+            "self_cpu_mean": 0.125063,
+            "self_cpu_on_max_wall_rank": 0.13921,
+            "inclusive_wall_mean": 0.128968,
+            "max_rank": 80,
+            "calls_global": 1328
+          }
+        ],
+        "scalar geometry expansion": [
+          {
+            "id": 23,
+            "self_wall_mean": 0.00305118,
+            "self_wall_min": 0.000375352,
+            "self_wall_max": 0.018878,
+            "self_cpu_mean": 0.00293705,
+            "self_cpu_on_max_wall_rank": 0.018124,
+            "inclusive_wall_mean": 0.00305118,
+            "max_rank": 0,
+            "calls_global": 664
+          },
+          {
+            "id": 23,
+            "self_wall_mean": 0.00222279,
+            "self_wall_min": 6.82e-05,
+            "self_wall_max": 0.00808101,
+            "self_cpu_mean": 0.0021674,
+            "self_cpu_on_max_wall_rank": 0.007945,
+            "inclusive_wall_mean": 0.00222279,
+            "max_rank": 0,
+            "calls_global": 332
+          }
+        ],
+        "scalar transport/install": [
+          {
+            "id": 24,
+            "self_wall_mean": 0.260112,
+            "self_wall_min": 0.064272,
+            "self_wall_max": 0.375321,
+            "self_cpu_mean": 0.257111,
+            "self_cpu_on_max_wall_rank": 0.370469,
+            "inclusive_wall_mean": 0.286221,
+            "max_rank": 43,
+            "calls_global": 2656
+          },
+          {
+            "id": 24,
+            "self_wall_mean": 0.0930585,
+            "self_wall_min": 0.0179148,
+            "self_wall_max": 0.145841,
+            "self_cpu_mean": 0.0921293,
+            "self_cpu_on_max_wall_rank": 0.14427,
+            "inclusive_wall_mean": 0.10618,
+            "max_rank": 43,
+            "calls_global": 1328
+          }
+        ],
+        "scalar replay": [
+          {
+            "id": 25,
+            "self_wall_mean": 1.17188,
+            "self_wall_min": 0.243149,
+            "self_wall_max": 1.69905,
+            "self_cpu_mean": 1.16313,
+            "self_cpu_on_max_wall_rank": 1.68579,
+            "inclusive_wall_mean": 2.19455,
+            "max_rank": 59,
+            "calls_global": 2656
+          },
+          {
+            "id": 25,
+            "self_wall_mean": 0.516188,
+            "self_wall_min": 0.0388499,
+            "self_wall_max": 0.769978,
+            "self_cpu_mean": 0.512515,
+            "self_cpu_on_max_wall_rank": 0.764907,
+            "inclusive_wall_mean": 0.973584,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "shared producer residual": [
+          {
+            "id": 26,
+            "self_wall_mean": 0.368925,
+            "self_wall_min": 0.108269,
+            "self_wall_max": 0.792941,
+            "self_cpu_mean": 0.367661,
+            "self_cpu_on_max_wall_rank": 0.789189,
+            "inclusive_wall_mean": 3.41859,
+            "max_rank": 0,
+            "calls_global": 2656
+          },
+          {
+            "id": 26,
+            "self_wall_mean": 0.1859,
+            "self_wall_min": 0.0622698,
+            "self_wall_max": 0.419363,
+            "self_cpu_mean": 0.185197,
+            "self_cpu_on_max_wall_rank": 0.417443,
+            "inclusive_wall_mean": 1.45659,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "shared basic operators": [
+          {
+            "id": 27,
+            "self_wall_mean": 0.233789,
+            "self_wall_min": 0.0574757,
+            "self_wall_max": 0.584223,
+            "self_cpu_mean": 0.233222,
+            "self_cpu_on_max_wall_rank": 0.581679,
+            "inclusive_wall_mean": 1.02744,
+            "max_rank": 30,
+            "calls_global": 239040
+          },
+          {
+            "id": 27,
+            "self_wall_mean": 0.0996481,
+            "self_wall_min": 0.0290504,
+            "self_wall_max": 0.196242,
+            "self_cpu_mean": 0.0994312,
+            "self_cpu_on_max_wall_rank": 0.195469,
+            "inclusive_wall_mean": 0.39715,
+            "max_rank": 18,
+            "calls_global": 109560
+          }
+        ],
+        "Domain boundary interface": [
+          {
+            "id": 28,
+            "self_wall_mean": 0.142632,
+            "self_wall_min": 0.126132,
+            "self_wall_max": 0.158592,
+            "self_cpu_mean": 0.128944,
+            "self_cpu_on_max_wall_rank": 0.137423,
+            "inclusive_wall_mean": 2.54334,
+            "max_rank": 19,
+            "calls_global": 2939362
+          },
+          {
+            "id": 28,
+            "self_wall_mean": 0.0643657,
+            "self_wall_min": 0.0587536,
+            "self_wall_max": 0.0703887,
+            "self_cpu_mean": 0.058261,
+            "self_cpu_on_max_wall_rank": 0.062197,
+            "inclusive_wall_mean": 1.05215,
+            "max_rank": 34,
+            "calls_global": 1328830
+          }
+        ],
+        "primitive/physics preparation": [
+          {
+            "id": 29,
+            "self_wall_mean": 0.03592,
+            "self_wall_min": 0.00855376,
+            "self_wall_max": 0.0615686,
+            "self_cpu_mean": 0.0355743,
+            "self_cpu_on_max_wall_rank": 0.060963,
+            "inclusive_wall_mean": 0.03592,
+            "max_rank": 54,
+            "calls_global": 2656
+          },
+          {
+            "id": 29,
+            "self_wall_mean": 0.0154631,
+            "self_wall_min": 0.00442168,
+            "self_wall_max": 0.0246719,
+            "self_cpu_mean": 0.0153221,
+            "self_cpu_on_max_wall_rank": 0.024472,
+            "inclusive_wall_mean": 0.0154631,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "native mass": [
+          {
+            "id": 30,
+            "self_wall_mean": 0.0801672,
+            "self_wall_min": 0.0416557,
+            "self_wall_max": 0.121956,
+            "self_cpu_mean": 0.0804662,
+            "self_cpu_on_max_wall_rank": 0.121528,
+            "inclusive_wall_mean": 0.770604,
+            "max_rank": 30,
+            "calls_global": 640096
+          },
+          {
+            "id": 30,
+            "self_wall_mean": 0.0367959,
+            "self_wall_min": 0.0217061,
+            "self_wall_max": 0.0554697,
+            "self_cpu_mean": 0.0369016,
+            "self_cpu_on_max_wall_rank": 0.056252,
+            "inclusive_wall_mean": 0.29411,
+            "max_rank": 34,
+            "calls_global": 290168
+          }
+        ],
+        "native velocity": [
+          {
+            "id": 31,
+            "self_wall_mean": 0.100217,
+            "self_wall_min": 0.0244679,
+            "self_wall_max": 0.205644,
+            "self_cpu_mean": 0.0997206,
+            "self_cpu_on_max_wall_rank": 0.204383,
+            "inclusive_wall_mean": 0.100217,
+            "max_rank": 30,
+            "calls_global": 321376
+          },
+          {
+            "id": 31,
+            "self_wall_mean": 0.0471688,
+            "self_wall_min": 0.0127468,
+            "self_wall_max": 0.08885,
+            "self_cpu_mean": 0.0468804,
+            "self_cpu_on_max_wall_rank": 0.08829,
+            "inclusive_wall_mean": 0.0471688,
+            "max_rank": 18,
+            "calls_global": 150728
+          }
+        ],
+        "Domain writeback": [
+          {
+            "id": 32,
+            "self_wall_mean": 0.0440752,
+            "self_wall_min": 0.00386922,
+            "self_wall_max": 0.077932,
+            "self_cpu_mean": 0.043708,
+            "self_cpu_on_max_wall_rank": 0.077275,
+            "inclusive_wall_mean": 0.396203,
+            "max_rank": 52,
+            "calls_global": 14857
+          },
+          {
+            "id": 32,
+            "self_wall_mean": 0.0155956,
+            "self_wall_min": 0.00216092,
+            "self_wall_max": 0.0269016,
+            "self_cpu_mean": 0.0154581,
+            "self_cpu_on_max_wall_rank": 0.026668,
+            "inclusive_wall_mean": 0.133171,
+            "max_rank": 56,
+            "calls_global": 7387
+          }
+        ],
+        "block ghost pack/install": [
+          {
+            "id": 33,
+            "self_wall_mean": 0.43791,
+            "self_wall_min": 0.134158,
+            "self_wall_max": 0.639036,
+            "self_cpu_mean": 0.434161,
+            "self_cpu_on_max_wall_rank": 0.633252,
+            "inclusive_wall_mean": 1.04103,
+            "max_rank": 2,
+            "calls_global": 58681
+          },
+          {
+            "id": 33,
+            "self_wall_mean": 0.20737,
+            "self_wall_min": 0.0351912,
+            "self_wall_max": 0.258595,
+            "self_cpu_mean": 0.205488,
+            "self_cpu_on_max_wall_rank": 0.255864,
+            "inclusive_wall_mean": 0.432625,
+            "max_rank": 60,
+            "calls_global": 27473
+          }
+        ],
+        "block ghost MPI": [
+          {
+            "id": 34,
+            "self_wall_mean": 0.255445,
+            "self_wall_min": 0.0601296,
+            "self_wall_max": 0.63834,
+            "self_cpu_mean": 0.253247,
+            "self_cpu_on_max_wall_rank": 0.634529,
+            "inclusive_wall_mean": 0.255445,
+            "max_rank": 80,
+            "calls_global": 45401
+          },
+          {
+            "id": 34,
+            "self_wall_mean": 0.0911098,
+            "self_wall_min": 0.0211273,
+            "self_wall_max": 0.25382,
+            "self_cpu_mean": 0.0902983,
+            "self_cpu_on_max_wall_rank": 0.251907,
+            "inclusive_wall_mean": 0.0911098,
+            "max_rank": 39,
+            "calls_global": 21497
+          }
+        ],
+        "catalog construction": [
+          {
+            "id": 35,
+            "self_wall_mean": 0.0692519,
+            "self_wall_min": 0.00201541,
+            "self_wall_max": 0.153164,
+            "self_cpu_mean": 0.0689052,
+            "self_cpu_on_max_wall_rank": 0.152453,
+            "inclusive_wall_mean": 0.0692519,
+            "max_rank": 11,
+            "calls_global": 747
+          },
+          {
+            "id": 35,
+            "self_wall_mean": 0.0264824,
+            "self_wall_min": 0.00256823,
+            "self_wall_max": 0.061384,
+            "self_cpu_mean": 0.0263267,
+            "self_cpu_on_max_wall_rank": 0.061067,
+            "inclusive_wall_mean": 0.0264824,
+            "max_rank": 42,
+            "calls_global": 332
+          }
+        ],
+        "scalar/inner inverse kernels": [
+          {
+            "id": 36,
+            "self_wall_mean": 0.485032,
+            "self_wall_min": 0.0839286,
+            "self_wall_max": 0.682242,
+            "self_cpu_mean": 0.482025,
+            "self_cpu_on_max_wall_rank": 0.678433,
+            "inclusive_wall_mean": 0.540821,
+            "max_rank": 78,
+            "calls_global": 21248
+          },
+          {
+            "id": 36,
+            "self_wall_mean": 0.192079,
+            "self_wall_min": 0.000322585,
+            "self_wall_max": 0.25348,
+            "self_cpu_mean": 0.190941,
+            "self_cpu_on_max_wall_rank": 0.251894,
+            "inclusive_wall_mean": 0.213966,
+            "max_rank": 58,
+            "calls_global": 9296
+          }
+        ],
+        "scalar transport MPI": [
+          {
+            "id": 37,
+            "self_wall_mean": 0.806967,
+            "self_wall_min": 0.334282,
+            "self_wall_max": 1.86147,
+            "self_cpu_mean": 0.801612,
+            "self_cpu_on_max_wall_rank": 1.85126,
+            "inclusive_wall_mean": 0.806967,
+            "max_rank": 82,
+            "calls_global": 49004
+          },
+          {
+            "id": 37,
+            "self_wall_mean": 0.351957,
+            "self_wall_min": 0.126653,
+            "self_wall_max": 0.927754,
+            "self_cpu_mean": 0.349747,
+            "self_cpu_on_max_wall_rank": 0.922964,
+            "inclusive_wall_mean": 0.351957,
+            "max_rank": 82,
+            "calls_global": 22032
+          }
+        ],
+        "Domain boundary MPI wait": [
+          {
+            "id": 38,
+            "self_wall_mean": 1.40656,
+            "self_wall_min": 0.343082,
+            "self_wall_max": 2.42686,
+            "self_cpu_mean": 1.3998,
+            "self_cpu_on_max_wall_rank": 2.41614,
+            "inclusive_wall_mean": 1.40656,
+            "max_rank": 79,
+            "calls_global": 1113290
+          },
+          {
+            "id": 38,
+            "self_wall_mean": 0.539176,
+            "self_wall_min": 0.150074,
+            "self_wall_max": 1.11031,
+            "self_cpu_mean": 0.536637,
+            "self_cpu_on_max_wall_rank": 1.10534,
+            "inclusive_wall_mean": 0.539176,
+            "max_rank": 79,
+            "calls_global": 488336
+          }
+        ],
+        "native mass MPI wait": [
+          {
+            "id": 39,
+            "self_wall_mean": 0.690436,
+            "self_wall_min": 0.212489,
+            "self_wall_max": 1.15006,
+            "self_cpu_mean": 0.685758,
+            "self_cpu_on_max_wall_rank": 1.14372,
+            "inclusive_wall_mean": 0.690436,
+            "max_rank": 40,
+            "calls_global": 460680
+          },
+          {
+            "id": 39,
+            "self_wall_mean": 0.257314,
+            "self_wall_min": 0.0663473,
+            "self_wall_max": 0.426301,
+            "self_cpu_mean": 0.255561,
+            "self_cpu_on_max_wall_rank": 0.423875,
+            "inclusive_wall_mean": 0.257314,
+            "max_rank": 42,
+            "calls_global": 201360
+          }
+        ],
+        "Domain writeback MPI": [
+          {
+            "id": 40,
+            "self_wall_mean": 0.352127,
+            "self_wall_min": 0.0504311,
+            "self_wall_max": 0.766032,
+            "self_cpu_mean": 0.349692,
+            "self_cpu_on_max_wall_rank": 0.761609,
+            "inclusive_wall_mean": 0.352127,
+            "max_rank": 74,
+            "calls_global": 14857
+          },
+          {
+            "id": 40,
+            "self_wall_mean": 0.117576,
+            "self_wall_min": 0.0319579,
+            "self_wall_max": 0.328772,
+            "self_cpu_mean": 0.116812,
+            "self_cpu_on_max_wall_rank": 0.327008,
+            "inclusive_wall_mean": 0.117576,
+            "max_rank": 10,
+            "calls_global": 7387
+          }
+        ],
+        "received geometry expansion": [
+          {
+            "id": 41,
+            "self_wall_mean": 0.000210806,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.000504172,
+            "self_cpu_mean": 0.000192265,
+            "self_cpu_on_max_wall_rank": 0.00049,
+            "inclusive_wall_mean": 0.000210806,
+            "max_rank": 55,
+            "calls_global": 4449
+          },
+          {
+            "id": 41,
+            "self_wall_mean": 5.94071e-05,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.000135302,
+            "self_cpu_mean": 5.40241e-05,
+            "self_cpu_on_max_wall_rank": 0.000129,
+            "inclusive_wall_mean": 5.94071e-05,
+            "max_rank": 51,
+            "calls_global": 1869
+          }
+        ],
+        "inverse scaffold staging": [
+          {
+            "id": 42,
+            "self_wall_mean": 0.0670898,
+            "self_wall_min": 0.0222978,
+            "self_wall_max": 0.14032,
+            "self_cpu_mean": 0.0662567,
+            "self_cpu_on_max_wall_rank": 0.138735,
+            "inclusive_wall_mean": 0.54684,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 42,
+            "self_wall_mean": 0.0280605,
+            "self_wall_min": 0.0113727,
+            "self_wall_max": 0.0505637,
+            "self_cpu_mean": 0.0276818,
+            "self_cpu_on_max_wall_rank": 0.049856,
+            "inclusive_wall_mean": 0.232721,
+            "max_rank": 14,
+            "calls_global": 1328
+          }
+        ],
+        "native wavelet work": [
+          {
+            "id": 43,
+            "self_wall_mean": 0.540017,
+            "self_wall_min": 0.34287,
+            "self_wall_max": 0.66768,
+            "self_cpu_mean": 0.535781,
+            "self_cpu_on_max_wall_rank": 0.662056,
+            "inclusive_wall_mean": 0.733132,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 43,
+            "self_wall_mean": 0.219449,
+            "self_wall_min": 0.139767,
+            "self_wall_max": 0.270751,
+            "self_cpu_mean": 0.217821,
+            "self_cpu_on_max_wall_rank": 0.268905,
+            "inclusive_wall_mean": 0.292187,
+            "max_rank": 71,
+            "calls_global": 1328
+          }
+        ],
+        "native compression": [
+          {
+            "id": 44,
+            "self_wall_mean": 0.143995,
+            "self_wall_min": 0.0642417,
+            "self_wall_max": 0.202843,
+            "self_cpu_mean": 0.143157,
+            "self_cpu_on_max_wall_rank": 0.201788,
+            "inclusive_wall_mean": 0.194418,
+            "max_rank": 67,
+            "calls_global": 5312
+          },
+          {
+            "id": 44,
+            "self_wall_mean": 0.051791,
+            "self_wall_min": 0.0290029,
+            "self_wall_max": 0.0657914,
+            "self_cpu_mean": 0.0514552,
+            "self_cpu_on_max_wall_rank": 0.065406,
+            "inclusive_wall_mean": 0.0684918,
+            "max_rank": 24,
+            "calls_global": 2656
+          }
+        ],
+        "native RK assembly": [
+          {
+            "id": 45,
+            "self_wall_mean": 0.010137,
+            "self_wall_min": 0.00264683,
+            "self_wall_max": 0.0144379,
+            "self_cpu_mean": 0.0100884,
+            "self_cpu_on_max_wall_rank": 0.014292,
+            "inclusive_wall_mean": 0.010137,
+            "max_rank": 57,
+            "calls_global": 2656
+          },
+          {
+            "id": 45,
+            "self_wall_mean": 0.00428492,
+            "self_wall_min": 0.000472891,
+            "self_wall_max": 0.00548734,
+            "self_cpu_mean": 0.00426439,
+            "self_cpu_on_max_wall_rank": 0.005453,
+            "inclusive_wall_mean": 0.00428492,
+            "max_rank": 27,
+            "calls_global": 1328
+          }
+        ],
+        "RK retention/publication": [
+          {
+            "id": 46,
+            "self_wall_mean": 0.0111807,
+            "self_wall_min": 0.00255776,
+            "self_wall_max": 0.0248922,
+            "self_cpu_mean": 0.011106,
+            "self_cpu_on_max_wall_rank": 0.024711,
+            "inclusive_wall_mean": 0.0658267,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 46,
+            "self_wall_mean": 0.00491891,
+            "self_wall_min": 0.00135357,
+            "self_wall_max": 0.00913535,
+            "self_cpu_mean": 0.004891,
+            "self_cpu_on_max_wall_rank": 0.00904,
+            "inclusive_wall_mean": 0.0269697,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "tendency assembly residual": [
+          {
+            "id": 47,
+            "self_wall_mean": 0.211792,
+            "self_wall_min": 0.0982498,
+            "self_wall_max": 0.364264,
+            "self_cpu_mean": 0.210343,
+            "self_cpu_on_max_wall_rank": 0.361838,
+            "inclusive_wall_mean": 2.40634,
+            "max_rank": 8,
+            "calls_global": 2656
+          },
+          {
+            "id": 47,
+            "self_wall_mean": 0.0898987,
+            "self_wall_min": 0.0310602,
+            "self_wall_max": 0.156381,
+            "self_cpu_mean": 0.0893114,
+            "self_cpu_on_max_wall_rank": 0.155464,
+            "inclusive_wall_mean": 1.06348,
+            "max_rank": 44,
+            "calls_global": 1328
+          }
+        ],
+        "grid-change synchronization": [
+          {
+            "id": 48,
+            "self_wall_mean": 0.0113275,
+            "self_wall_min": 0.00274198,
+            "self_wall_max": 0.0277725,
+            "self_cpu_mean": 0.011263,
+            "self_cpu_on_max_wall_rank": 0.027548,
+            "inclusive_wall_mean": 0.0441256,
+            "max_rank": 52,
+            "calls_global": 664
+          },
+          {
+            "id": 48,
+            "self_wall_mean": 0.005143,
+            "self_wall_min": 0.00141013,
+            "self_wall_max": 0.00937916,
+            "self_cpu_mean": 0.00511353,
+            "self_cpu_on_max_wall_rank": 0.009322,
+            "inclusive_wall_mean": 0.0134952,
+            "max_rank": 18,
+            "calls_global": 332
+          }
+        ],
+        "trend state refresh": [
+          {
+            "id": 49,
+            "self_wall_mean": 0.0685024,
+            "self_wall_min": 0.0182166,
+            "self_wall_max": 0.0981365,
+            "self_cpu_mean": 0.0676047,
+            "self_cpu_on_max_wall_rank": 0.097494,
+            "inclusive_wall_mean": 0.0802911,
+            "max_rank": 67,
+            "calls_global": 664
+          },
+          {
+            "id": 49,
+            "self_wall_mean": 0.0267067,
+            "self_wall_min": 0.0112194,
+            "self_wall_max": 0.0630797,
+            "self_cpu_mean": 0.0263905,
+            "self_cpu_on_max_wall_rank": 0.062612,
+            "inclusive_wall_mean": 0.0327464,
+            "max_rank": 4,
+            "calls_global": 332
+          }
+        ],
+        "prognostic state refresh": [
+          {
+            "id": 50,
+            "self_wall_mean": 0.00356311,
+            "self_wall_min": 0.000971953,
+            "self_wall_max": 0.0045284,
+            "self_cpu_mean": 0.00353169,
+            "self_cpu_on_max_wall_rank": 0.004482,
+            "inclusive_wall_mean": 0.0247862,
+            "max_rank": 60,
+            "calls_global": 664
+          },
+          {
+            "id": 50,
+            "self_wall_mean": 0.00153916,
+            "self_wall_min": 0.000186079,
+            "self_wall_max": 0.0019149,
+            "self_cpu_mean": 0.00152598,
+            "self_cpu_on_max_wall_rank": 0.001908,
+            "inclusive_wall_mean": 0.0114803,
+            "max_rank": 58,
+            "calls_global": 332
+          }
+        ],
+        "scalar capture lifecycle": [
+          {
+            "id": 51,
+            "self_wall_mean": 0.000426444,
+            "self_wall_min": 0.000165496,
+            "self_wall_max": 0.000650798,
+            "self_cpu_mean": 0.000327627,
+            "self_cpu_on_max_wall_rank": 0.000481,
+            "inclusive_wall_mean": 0.512026,
+            "max_rank": 51,
+            "calls_global": 5312
+          },
+          {
+            "id": 51,
+            "self_wall_mean": 0.000182415,
+            "self_wall_min": 8.04232e-05,
+            "self_wall_max": 0.000322364,
+            "self_cpu_mean": 0.000142723,
+            "self_cpu_on_max_wall_rank": 0.000234,
+            "inclusive_wall_mean": 0.235331,
+            "max_rank": 51,
+            "calls_global": 2656
+          }
+        ],
+        "velocity remainder preparation": [
+          {
+            "id": 52,
+            "self_wall_mean": 0.0499307,
+            "self_wall_min": 0.0120656,
+            "self_wall_max": 0.13134,
+            "self_cpu_mean": 0.0493561,
+            "self_cpu_on_max_wall_rank": 0.129844,
+            "inclusive_wall_mean": 0.0499307,
+            "max_rank": 39,
+            "calls_global": 2656
+          },
+          {
+            "id": 52,
+            "self_wall_mean": 0.0194247,
+            "self_wall_min": 0.00447204,
+            "self_wall_max": 0.0525978,
+            "self_cpu_mean": 0.0192404,
+            "self_cpu_on_max_wall_rank": 0.052218,
+            "inclusive_wall_mean": 0.0194247,
+            "max_rank": 81,
+            "calls_global": 1328
+          }
+        ],
+        "RK compatibility closure": [
+          {
+            "id": 53,
+            "self_wall_mean": 0.101996,
+            "self_wall_min": 0.0119434,
+            "self_wall_max": 0.546556,
+            "self_cpu_mean": 0.101342,
+            "self_cpu_on_max_wall_rank": 0.543936,
+            "inclusive_wall_mean": 0.101996,
+            "max_rank": 9,
+            "calls_global": 2656
+          },
+          {
+            "id": 53,
+            "self_wall_mean": 0.0432891,
+            "self_wall_min": 0.00684588,
+            "self_wall_max": 0.237925,
+            "self_cpu_mean": 0.0430292,
+            "self_cpu_on_max_wall_rank": 0.236773,
+            "inclusive_wall_mean": 0.0432891,
+            "max_rank": 44,
+            "calls_global": 1328
+          }
+        ],
+        "split physics consumers": [
+          {
+            "id": 54,
+            "self_wall_mean": 0.106311,
+            "self_wall_min": 0.023146,
+            "self_wall_max": 0.271111,
+            "self_cpu_mean": 0.105811,
+            "self_cpu_on_max_wall_rank": 0.269866,
+            "inclusive_wall_mean": 0.106311,
+            "max_rank": 52,
+            "calls_global": 664
+          },
+          {
+            "id": 54,
+            "self_wall_mean": 0.0449365,
+            "self_wall_min": 0.0115079,
+            "self_wall_max": 0.0887828,
+            "self_cpu_mean": 0.0447238,
+            "self_cpu_on_max_wall_rank": 0.088347,
+            "inclusive_wall_mean": 0.0449365,
+            "max_rank": 18,
+            "calls_global": 332
+          }
+        ],
+        "vertical remap": [
+          {
+            "id": 55,
+            "self_wall_mean": 0.0103855,
+            "self_wall_min": 0.00253887,
+            "self_wall_max": 0.0165393,
+            "self_cpu_mean": 0.0102941,
+            "self_cpu_on_max_wall_rank": 0.016401,
+            "inclusive_wall_mean": 0.0243048,
+            "max_rank": 56,
+            "calls_global": 83
+          },
+          {
+            "id": 55,
+            "self_wall_mean": 0.00914045,
+            "self_wall_min": 0.00190106,
+            "self_wall_max": 0.0154881,
+            "self_cpu_mean": 0.00904329,
+            "self_cpu_on_max_wall_rank": 0.015383,
+            "inclusive_wall_mean": 0.0213171,
+            "max_rank": 43,
+            "calls_global": 83
+          }
+        ],
+        "restart bootstrap": [
+          {
+            "id": 56,
+            "self_wall_mean": 1.55594,
+            "self_wall_min": 1.55275,
+            "self_wall_max": 1.55919,
+            "self_cpu_mean": 1.16222,
+            "self_cpu_on_max_wall_rank": 1.15472,
+            "inclusive_wall_mean": 1.70327,
+            "max_rank": 4,
+            "calls_global": 83
+          }
+        ],
+        "boundary scan and pack": [
+          {
+            "id": 58,
+            "self_wall_mean": 0.293835,
+            "self_wall_min": 0.133522,
+            "self_wall_max": 0.457709,
+            "self_cpu_mean": 0.293421,
+            "self_cpu_on_max_wall_rank": 0.457402,
+            "inclusive_wall_mean": 0.293835,
+            "max_rank": 19,
+            "calls_global": 1469681
+          },
+          {
+            "id": 58,
+            "self_wall_mean": 0.130492,
+            "self_wall_min": 0.0609455,
+            "self_wall_max": 0.189115,
+            "self_cpu_mean": 0.130326,
+            "self_cpu_on_max_wall_rank": 0.188481,
+            "inclusive_wall_mean": 0.130492,
+            "max_rank": 62,
+            "calls_global": 664415
+          }
+        ],
+        "boundary receive route scan": [
+          {
+            "id": 59,
+            "self_wall_mean": 0.165285,
+            "self_wall_min": 0.0821215,
+            "self_wall_max": 0.241098,
+            "self_cpu_mean": 0.165566,
+            "self_cpu_on_max_wall_rank": 0.241706,
+            "inclusive_wall_mean": 0.165285,
+            "max_rank": 19,
+            "calls_global": 1469681
+          },
+          {
+            "id": 59,
+            "self_wall_mean": 0.0738272,
+            "self_wall_min": 0.0382581,
+            "self_wall_max": 0.100001,
+            "self_cpu_mean": 0.0739986,
+            "self_cpu_on_max_wall_rank": 0.100107,
+            "inclusive_wall_mean": 0.0738272,
+            "max_rank": 14,
+            "calls_global": 664415
+          }
+        ],
+        "boundary MPI posting": [
+          {
+            "id": 60,
+            "self_wall_mean": 0.11181,
+            "self_wall_min": 0.0586665,
+            "self_wall_max": 0.180481,
+            "self_cpu_mean": 0.114814,
+            "self_cpu_on_max_wall_rank": 0.183563,
+            "inclusive_wall_mean": 0.11181,
+            "max_rank": 34,
+            "calls_global": 1469681
+          },
+          {
+            "id": 60,
+            "self_wall_mean": 0.0506565,
+            "self_wall_min": 0.0251857,
+            "self_wall_max": 0.0881373,
+            "self_cpu_mean": 0.0519209,
+            "self_cpu_on_max_wall_rank": 0.090572,
+            "inclusive_wall_mean": 0.0506565,
+            "max_rank": 34,
+            "calls_global": 664415
+          }
+        ],
+        "boundary scan and install": [
+          {
+            "id": 61,
+            "self_wall_mean": 0.193797,
+            "self_wall_min": 0.0929378,
+            "self_wall_max": 0.28954,
+            "self_cpu_mean": 0.194189,
+            "self_cpu_on_max_wall_rank": 0.289511,
+            "inclusive_wall_mean": 0.193797,
+            "max_rank": 19,
+            "calls_global": 1469681
+          },
+          {
+            "id": 61,
+            "self_wall_mean": 0.0859177,
+            "self_wall_min": 0.042511,
+            "self_wall_max": 0.117971,
+            "self_cpu_mean": 0.086128,
+            "self_cpu_on_max_wall_rank": 0.117744,
+            "inclusive_wall_mean": 0.0859177,
+            "max_rank": 62,
+            "calls_global": 664415
+          }
+        ],
+        "boundary local copies": [
+          {
+            "id": 62,
+            "self_wall_mean": 0.031064,
+            "self_wall_min": 0.0140146,
+            "self_wall_max": 0.0757079,
+            "self_cpu_mean": 0.031154,
+            "self_cpu_on_max_wall_rank": 0.076594,
+            "inclusive_wall_mean": 0.031064,
+            "max_rank": 30,
+            "calls_global": 1469681
+          },
+          {
+            "id": 62,
+            "self_wall_mean": 0.0139451,
+            "self_wall_min": 0.00634438,
+            "self_wall_max": 0.0290709,
+            "self_cpu_mean": 0.013979,
+            "self_cpu_on_max_wall_rank": 0.029086,
+            "inclusive_wall_mean": 0.0139451,
+            "max_rank": 50,
+            "calls_global": 664415
+          }
+        ],
+        "boundary buffer allocation/zero": [
+          {
+            "id": 63,
+            "self_wall_mean": 0.198353,
+            "self_wall_min": 0.0672593,
+            "self_wall_max": 0.363275,
+            "self_cpu_mean": 0.199852,
+            "self_cpu_on_max_wall_rank": 0.365219,
+            "inclusive_wall_mean": 0.198353,
+            "max_rank": 24,
+            "calls_global": 1469681
+          },
+          {
+            "id": 63,
+            "self_wall_mean": 0.0937708,
+            "self_wall_min": 0.0327166,
+            "self_wall_max": 0.166277,
+            "self_cpu_mean": 0.0944499,
+            "self_cpu_on_max_wall_rank": 0.167046,
+            "inclusive_wall_mean": 0.0937708,
+            "max_rank": 34,
+            "calls_global": 664415
+          }
+        ],
+        "wavelet driver residual": [
+          {
+            "id": 65,
+            "self_wall_mean": 0.137224,
+            "self_wall_min": 0.114088,
+            "self_wall_max": 0.182091,
+            "self_cpu_mean": 0.134911,
+            "self_cpu_on_max_wall_rank": 0.179976,
+            "inclusive_wall_mean": 4.094,
+            "max_rank": 30,
+            "calls_global": 3320
+          },
+          {
+            "id": 65,
+            "self_wall_mean": 0.0571177,
+            "self_wall_min": 0.0468272,
+            "self_wall_max": 0.0735935,
+            "self_cpu_mean": 0.056191,
+            "self_cpu_on_max_wall_rank": 0.072227,
+            "inclusive_wall_mean": 1.56943,
+            "max_rank": 73,
+            "calls_global": 1660
+          }
+        ]
+      },
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "restriction_columns": []
+    },
+    "candidate": {
+      "filename": "run_candidate.log",
+      "sha256": "fda72966498c15e425d37f19d954da648821b94674645ea75f8c4bebf71146a8",
+      "regions": {
+        "timestep residual": [
+          {
+            "id": 1,
+            "self_wall_mean": 0.0228548,
+            "self_wall_min": 0.0066888,
+            "self_wall_max": 0.0690815,
+            "self_cpu_mean": 0.0226015,
+            "self_cpu_on_max_wall_rank": 0.061463,
+            "inclusive_wall_mean": 18.2205,
+            "max_rank": 82,
+            "calls_global": 664
+          },
+          {
+            "id": 1,
+            "self_wall_mean": 0.00920346,
+            "self_wall_min": 0.00292524,
+            "self_wall_max": 0.0265181,
+            "self_cpu_mean": 0.00914006,
+            "self_cpu_on_max_wall_rank": 0.026151,
+            "inclusive_wall_mean": 5.27927,
+            "max_rank": 82,
+            "calls_global": 332
+          }
+        ],
+        "dynamics residual": [
+          {
+            "id": 2,
+            "self_wall_mean": 0.01536,
+            "self_wall_min": 0.00413723,
+            "self_wall_max": 0.0229876,
+            "self_cpu_mean": 0.0150999,
+            "self_cpu_on_max_wall_rank": 0.022645,
+            "inclusive_wall_mean": 10.3801,
+            "max_rank": 50,
+            "calls_global": 664
+          },
+          {
+            "id": 2,
+            "self_wall_mean": 0.00646434,
+            "self_wall_min": 0.00117122,
+            "self_wall_max": 0.00870439,
+            "self_cpu_mean": 0.00634429,
+            "self_cpu_on_max_wall_rank": 0.008535,
+            "inclusive_wall_mean": 4.31948,
+            "max_rank": 58,
+            "calls_global": 332
+          }
+        ],
+        "adaptation residual": [
+          {
+            "id": 3,
+            "self_wall_mean": 0.198157,
+            "self_wall_min": 0.1372,
+            "self_wall_max": 0.279091,
+            "self_cpu_mean": 0.196042,
+            "self_cpu_on_max_wall_rank": 0.275386,
+            "inclusive_wall_mean": 2.22189,
+            "max_rank": 52,
+            "calls_global": 664
+          },
+          {
+            "id": 3,
+            "self_wall_mean": 0.100264,
+            "self_wall_min": 0.0790447,
+            "self_wall_max": 0.12857,
+            "self_cpu_mean": 0.0993752,
+            "self_cpu_on_max_wall_rank": 0.127317,
+            "inclusive_wall_mean": 0.882301,
+            "max_rank": 18,
+            "calls_global": 332
+          }
+        ],
+        "output/checkpoint": [
+          {
+            "id": 4,
+            "self_wall_mean": 3.7187,
+            "self_wall_min": 3.71342,
+            "self_wall_max": 3.72432,
+            "self_cpu_mean": 3.35134,
+            "self_cpu_on_max_wall_rank": 3.12924,
+            "inclusive_wall_mean": 5.46537,
+            "max_rank": 73,
+            "calls_global": 664
+          },
+          {
+            "id": 4,
+            "self_wall_mean": 0.00175731,
+            "self_wall_min": 0.000296393,
+            "self_wall_max": 0.00799138,
+            "self_cpu_mean": 0.0017453,
+            "self_cpu_on_max_wall_rank": 0.007955,
+            "inclusive_wall_mean": 0.00175731,
+            "max_rank": 74,
+            "calls_global": 332
+          }
+        ],
+        "source extraction": [
+          {
+            "id": 5,
+            "self_wall_mean": 0.117357,
+            "self_wall_min": 0.0221656,
+            "self_wall_max": 0.300363,
+            "self_cpu_mean": 0.116259,
+            "self_cpu_on_max_wall_rank": 0.297829,
+            "inclusive_wall_mean": 0.211757,
+            "max_rank": 52,
+            "calls_global": 747
+          },
+          {
+            "id": 5,
+            "self_wall_mean": 0.0453111,
+            "self_wall_min": 0.00984904,
+            "self_wall_max": 0.0980212,
+            "self_cpu_mean": 0.0448231,
+            "self_cpu_on_max_wall_rank": 0.097111,
+            "inclusive_wall_mean": 0.0754705,
+            "max_rank": 18,
+            "calls_global": 332
+          }
+        ],
+        "source serialization proof": [
+          {
+            "id": 6,
+            "self_wall_mean": 0.0943996,
+            "self_wall_min": 0.00416697,
+            "self_wall_max": 0.169479,
+            "self_cpu_mean": 0.0936462,
+            "self_cpu_on_max_wall_rank": 0.168409,
+            "inclusive_wall_mean": 0.0943996,
+            "max_rank": 52,
+            "calls_global": 747
+          },
+          {
+            "id": 6,
+            "self_wall_mean": 0.0301594,
+            "self_wall_min": 0.0036443,
+            "self_wall_max": 0.0626723,
+            "self_cpu_mean": 0.0298953,
+            "self_cpu_on_max_wall_rank": 0.062148,
+            "inclusive_wall_mean": 0.0301594,
+            "max_rank": 54,
+            "calls_global": 332
+          }
+        ],
+        "receive serialization proof": [
+          {
+            "id": 7,
+            "self_wall_mean": 0.199999,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.28203,
+            "self_cpu_mean": 0.198034,
+            "self_cpu_on_max_wall_rank": 0.280095,
+            "inclusive_wall_mean": 0.199999,
+            "max_rank": 7,
+            "calls_global": 4936
+          },
+          {
+            "id": 7,
+            "self_wall_mean": 0.0692103,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.12223,
+            "self_cpu_mean": 0.0684481,
+            "self_cpu_on_max_wall_rank": 0.120251,
+            "inclusive_wall_mean": 0.0692103,
+            "max_rank": 45,
+            "calls_global": 1880
+          }
+        ],
+        "local install/deep copy": [
+          {
+            "id": 8,
+            "self_wall_mean": 0.0365488,
+            "self_wall_min": 0.00577663,
+            "self_wall_max": 0.0615737,
+            "self_cpu_mean": 0.0362823,
+            "self_cpu_on_max_wall_rank": 0.060968,
+            "inclusive_wall_mean": 0.177298,
+            "max_rank": 0,
+            "calls_global": 747
+          },
+          {
+            "id": 8,
+            "self_wall_mean": 0.0136844,
+            "self_wall_min": 0.00107693,
+            "self_wall_max": 0.0247792,
+            "self_cpu_mean": 0.0135871,
+            "self_cpu_on_max_wall_rank": 0.024571,
+            "inclusive_wall_mean": 0.0693626,
+            "max_rank": 1,
+            "calls_global": 332
+          }
+        ],
+        "local copy byte proof": [
+          {
+            "id": 9,
+            "self_wall_mean": 0.140749,
+            "self_wall_min": 0.0295077,
+            "self_wall_max": 0.223278,
+            "self_cpu_mean": 0.139771,
+            "self_cpu_on_max_wall_rank": 0.221313,
+            "inclusive_wall_mean": 0.140749,
+            "max_rank": 0,
+            "calls_global": 5760
+          },
+          {
+            "id": 9,
+            "self_wall_mean": 0.0556782,
+            "self_wall_min": 0.0068883,
+            "self_wall_max": 0.0908238,
+            "self_cpu_mean": 0.0552963,
+            "self_cpu_on_max_wall_rank": 0.090141,
+            "inclusive_wall_mean": 0.0556782,
+            "max_rank": 1,
+            "calls_global": 2560
+          }
+        ],
+        "migration residual": [
+          {
+            "id": 10,
+            "self_wall_mean": 0.515031,
+            "self_wall_min": 0.119688,
+            "self_wall_max": 1.06711,
+            "self_cpu_mean": 0.512089,
+            "self_cpu_on_max_wall_rank": 1.0621,
+            "inclusive_wall_mean": 1.39886,
+            "max_rank": 82,
+            "calls_global": 747
+          },
+          {
+            "id": 10,
+            "self_wall_mean": 0.189466,
+            "self_wall_min": 0.0764213,
+            "self_wall_max": 0.381776,
+            "self_cpu_mean": 0.188394,
+            "self_cpu_on_max_wall_rank": 0.379957,
+            "inclusive_wall_mean": 0.504981,
+            "max_rank": 82,
+            "calls_global": 332
+          }
+        ],
+        "migration pack": [
+          {
+            "id": 11,
+            "self_wall_mean": 0.108709,
+            "self_wall_min": 0.00452831,
+            "self_wall_max": 0.270327,
+            "self_cpu_mean": 0.107777,
+            "self_cpu_on_max_wall_rank": 0.268493,
+            "inclusive_wall_mean": 0.108709,
+            "max_rank": 52,
+            "calls_global": 747
+          },
+          {
+            "id": 11,
+            "self_wall_mean": 0.0354469,
+            "self_wall_min": 0.00625761,
+            "self_wall_max": 0.0832885,
+            "self_cpu_mean": 0.0351533,
+            "self_cpu_on_max_wall_rank": 0.082531,
+            "inclusive_wall_mean": 0.0354469,
+            "max_rank": 56,
+            "calls_global": 332
+          }
+        ],
+        "migration unpack": [
+          {
+            "id": 12,
+            "self_wall_mean": 0.0516822,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.0769371,
+            "self_cpu_mean": 0.0511003,
+            "self_cpu_on_max_wall_rank": 0.074693,
+            "inclusive_wall_mean": 0.0516822,
+            "max_rank": 52,
+            "calls_global": 4936
+          },
+          {
+            "id": 12,
+            "self_wall_mean": 0.0187511,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.0339247,
+            "self_cpu_mean": 0.0185511,
+            "self_cpu_on_max_wall_rank": 0.033412,
+            "inclusive_wall_mean": 0.0187511,
+            "max_rank": 20,
+            "calls_global": 1880
+          }
+        ],
+        "migration MPI": [
+          {
+            "id": 13,
+            "self_wall_mean": 0.346142,
+            "self_wall_min": 0.184537,
+            "self_wall_max": 0.450395,
+            "self_cpu_mean": 0.34272,
+            "self_cpu_on_max_wall_rank": 0.447346,
+            "inclusive_wall_mean": 0.346142,
+            "max_rank": 81,
+            "calls_global": 747
+          },
+          {
+            "id": 13,
+            "self_wall_mean": 0.122743,
+            "self_wall_min": 0.0749021,
+            "self_wall_max": 0.151932,
+            "self_cpu_mean": 0.12166,
+            "self_cpu_on_max_wall_rank": 0.15071,
+            "inclusive_wall_mean": 0.122743,
+            "max_rank": 1,
+            "calls_global": 332
+          }
+        ],
+        "inverse residual": [
+          {
+            "id": 14,
+            "self_wall_mean": 0.0798153,
+            "self_wall_min": 0.028549,
+            "self_wall_max": 0.194592,
+            "self_cpu_mean": 0.0786673,
+            "self_cpu_on_max_wall_rank": 0.192371,
+            "inclusive_wall_mean": 2.62504,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 14,
+            "self_wall_mean": 0.0380072,
+            "self_wall_min": 0.0137987,
+            "self_wall_max": 0.0686428,
+            "self_cpu_mean": 0.0374241,
+            "self_cpu_on_max_wall_rank": 0.067663,
+            "inclusive_wall_mean": 0.99398,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "inverse plan": [
+          {
+            "id": 15,
+            "self_wall_mean": 0.0497726,
+            "self_wall_min": 0.0266035,
+            "self_wall_max": 0.142362,
+            "self_cpu_mean": 0.0490323,
+            "self_cpu_on_max_wall_rank": 0.141355,
+            "inclusive_wall_mean": 0.0497726,
+            "max_rank": 2,
+            "calls_global": 2656
+          },
+          {
+            "id": 15,
+            "self_wall_mean": 0.0250164,
+            "self_wall_min": 0.00988627,
+            "self_wall_max": 0.0459394,
+            "self_cpu_mean": 0.0247147,
+            "self_cpu_on_max_wall_rank": 0.04559,
+            "inclusive_wall_mean": 0.0250164,
+            "max_rank": 0,
+            "calls_global": 1328
+          }
+        ],
+        "inverse pack": [
+          {
+            "id": 16,
+            "self_wall_mean": 0.208468,
+            "self_wall_min": 0.102086,
+            "self_wall_max": 0.386439,
+            "self_cpu_mean": 0.207049,
+            "self_cpu_on_max_wall_rank": 0.383495,
+            "inclusive_wall_mean": 0.208468,
+            "max_rank": 30,
+            "calls_global": 120848
+          },
+          {
+            "id": 16,
+            "self_wall_mean": 0.0932798,
+            "self_wall_min": 0.0369445,
+            "self_wall_max": 0.140031,
+            "self_cpu_mean": 0.092633,
+            "self_cpu_on_max_wall_rank": 0.139214,
+            "inclusive_wall_mean": 0.0932798,
+            "max_rank": 18,
+            "calls_global": 56108
+          }
+        ],
+        "inverse local aliases": [
+          {
+            "id": 17,
+            "self_wall_mean": 0.0270808,
+            "self_wall_min": 0.000432041,
+            "self_wall_max": 0.107187,
+            "self_cpu_mean": 0.0269196,
+            "self_cpu_on_max_wall_rank": 0.106509,
+            "inclusive_wall_mean": 0.0270808,
+            "max_rank": 30,
+            "calls_global": 43824
+          },
+          {
+            "id": 17,
+            "self_wall_mean": 0.0123986,
+            "self_wall_min": 0.000196346,
+            "self_wall_max": 0.0365479,
+            "self_cpu_mean": 0.0123209,
+            "self_cpu_on_max_wall_rank": 0.036306,
+            "inclusive_wall_mean": 0.0123986,
+            "max_rank": 14,
+            "calls_global": 20252
+          }
+        ],
+        "inverse MPI post/self copy": [
+          {
+            "id": 18,
+            "self_wall_mean": 0.023956,
+            "self_wall_min": 0.0124074,
+            "self_wall_max": 0.0540826,
+            "self_cpu_mean": 0.0227949,
+            "self_cpu_on_max_wall_rank": 0.053032,
+            "inclusive_wall_mean": 0.023956,
+            "max_rank": 0,
+            "calls_global": 120848
+          },
+          {
+            "id": 18,
+            "self_wall_mean": 0.0112786,
+            "self_wall_min": 0.00455382,
+            "self_wall_max": 0.0222575,
+            "self_cpu_mean": 0.0109582,
+            "self_cpu_on_max_wall_rank": 0.021692,
+            "inclusive_wall_mean": 0.0112786,
+            "max_rank": 0,
+            "calls_global": 56108
+          }
+        ],
+        "inverse MPI wait": [
+          {
+            "id": 19,
+            "self_wall_mean": 1.08707,
+            "self_wall_min": 0.542771,
+            "self_wall_max": 1.65505,
+            "self_cpu_mean": 1.0802,
+            "self_cpu_on_max_wall_rank": 1.64639,
+            "inclusive_wall_mean": 1.08707,
+            "max_rank": 82,
+            "calls_global": 120848
+          },
+          {
+            "id": 19,
+            "self_wall_mean": 0.369043,
+            "self_wall_min": 0.183386,
+            "self_wall_max": 0.751285,
+            "self_cpu_mean": 0.366692,
+            "self_cpu_on_max_wall_rank": 0.747527,
+            "inclusive_wall_mean": 0.369043,
+            "max_rank": 82,
+            "calls_global": 56108
+          }
+        ],
+        "inverse install": [
+          {
+            "id": 20,
+            "self_wall_mean": 0.159275,
+            "self_wall_min": 0.0489647,
+            "self_wall_max": 0.233494,
+            "self_cpu_mean": 0.158251,
+            "self_cpu_on_max_wall_rank": 0.231727,
+            "inclusive_wall_mean": 0.159275,
+            "max_rank": 48,
+            "calls_global": 120848
+          },
+          {
+            "id": 20,
+            "self_wall_mean": 0.0708627,
+            "self_wall_min": 0.0196701,
+            "self_wall_max": 0.0952504,
+            "self_cpu_mean": 0.0703837,
+            "self_cpu_on_max_wall_rank": 0.094456,
+            "inclusive_wall_mean": 0.0708627,
+            "max_rank": 18,
+            "calls_global": 56108
+          }
+        ],
+        "outer inverse arithmetic": [
+          {
+            "id": 21,
+            "self_wall_mean": 0.0560272,
+            "self_wall_min": 7.8136e-05,
+            "self_wall_max": 0.171207,
+            "self_cpu_mean": 0.0555381,
+            "self_cpu_on_max_wall_rank": 0.16979,
+            "inclusive_wall_mean": 0.0560272,
+            "max_rank": 30,
+            "calls_global": 5312
+          },
+          {
+            "id": 21,
+            "self_wall_mean": 0.0219218,
+            "self_wall_min": 3.5513e-05,
+            "self_wall_max": 0.05447,
+            "self_cpu_mean": 0.0217315,
+            "self_cpu_on_max_wall_rank": 0.05405,
+            "inclusive_wall_mean": 0.0219218,
+            "max_rank": 18,
+            "calls_global": 2324
+          }
+        ],
+        "scalar setup/storage": [
+          {
+            "id": 22,
+            "self_wall_mean": 0.218918,
+            "self_wall_min": 0.198524,
+            "self_wall_max": 0.244122,
+            "self_cpu_mean": 0.213717,
+            "self_cpu_on_max_wall_rank": 0.23552,
+            "inclusive_wall_mean": 0.222038,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 22,
+            "self_wall_mean": 0.127703,
+            "self_wall_min": 0.0898309,
+            "self_wall_max": 0.139678,
+            "self_cpu_mean": 0.125955,
+            "self_cpu_on_max_wall_rank": 0.138539,
+            "inclusive_wall_mean": 0.129787,
+            "max_rank": 80,
+            "calls_global": 1328
+          }
+        ],
+        "scalar geometry expansion": [
+          {
+            "id": 23,
+            "self_wall_mean": 0.0031198,
+            "self_wall_min": 0.000420523,
+            "self_wall_max": 0.0190164,
+            "self_cpu_mean": 0.00301778,
+            "self_cpu_on_max_wall_rank": 0.018734,
+            "inclusive_wall_mean": 0.0031198,
+            "max_rank": 0,
+            "calls_global": 664
+          },
+          {
+            "id": 23,
+            "self_wall_mean": 0.0020836,
+            "self_wall_min": 6.974e-05,
+            "self_wall_max": 0.00659306,
+            "self_cpu_mean": 0.00203569,
+            "self_cpu_on_max_wall_rank": 0.006465,
+            "inclusive_wall_mean": 0.0020836,
+            "max_rank": 0,
+            "calls_global": 332
+          }
+        ],
+        "scalar transport/install": [
+          {
+            "id": 24,
+            "self_wall_mean": 0.259151,
+            "self_wall_min": 0.0627976,
+            "self_wall_max": 0.372202,
+            "self_cpu_mean": 0.25624,
+            "self_cpu_on_max_wall_rank": 0.367833,
+            "inclusive_wall_mean": 0.285916,
+            "max_rank": 43,
+            "calls_global": 2656
+          },
+          {
+            "id": 24,
+            "self_wall_mean": 0.09274,
+            "self_wall_min": 0.0169326,
+            "self_wall_max": 0.151469,
+            "self_cpu_mean": 0.091807,
+            "self_cpu_on_max_wall_rank": 0.149902,
+            "inclusive_wall_mean": 0.106092,
+            "max_rank": 45,
+            "calls_global": 1328
+          }
+        ],
+        "scalar replay": [
+          {
+            "id": 25,
+            "self_wall_mean": 1.05435,
+            "self_wall_min": 0.229852,
+            "self_wall_max": 1.4625,
+            "self_cpu_mean": 1.04612,
+            "self_cpu_on_max_wall_rank": 1.45019,
+            "inclusive_wall_mean": 1.9572,
+            "max_rank": 28,
+            "calls_global": 2656
+          },
+          {
+            "id": 25,
+            "self_wall_mean": 0.463586,
+            "self_wall_min": 0.0383006,
+            "self_wall_max": 0.662424,
+            "self_cpu_mean": 0.460147,
+            "self_cpu_on_max_wall_rank": 0.657912,
+            "inclusive_wall_mean": 0.87345,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "shared producer residual": [
+          {
+            "id": 26,
+            "self_wall_mean": 0.370289,
+            "self_wall_min": 0.109089,
+            "self_wall_max": 0.798626,
+            "self_cpu_mean": 0.369034,
+            "self_cpu_on_max_wall_rank": 0.794444,
+            "inclusive_wall_mean": 3.44387,
+            "max_rank": 0,
+            "calls_global": 2656
+          },
+          {
+            "id": 26,
+            "self_wall_mean": 0.186839,
+            "self_wall_min": 0.0637123,
+            "self_wall_max": 0.417879,
+            "self_cpu_mean": 0.186128,
+            "self_cpu_on_max_wall_rank": 0.415664,
+            "inclusive_wall_mean": 1.47061,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "shared basic operators": [
+          {
+            "id": 27,
+            "self_wall_mean": 0.236409,
+            "self_wall_min": 0.0579601,
+            "self_wall_max": 0.592675,
+            "self_cpu_mean": 0.235728,
+            "self_cpu_on_max_wall_rank": 0.589781,
+            "inclusive_wall_mean": 1.03969,
+            "max_rank": 30,
+            "calls_global": 239040
+          },
+          {
+            "id": 27,
+            "self_wall_mean": 0.100969,
+            "self_wall_min": 0.0308673,
+            "self_wall_max": 0.193848,
+            "self_cpu_mean": 0.100731,
+            "self_cpu_on_max_wall_rank": 0.193296,
+            "inclusive_wall_mean": 0.400358,
+            "max_rank": 18,
+            "calls_global": 109560
+          }
+        ],
+        "Domain boundary interface": [
+          {
+            "id": 28,
+            "self_wall_mean": 0.143116,
+            "self_wall_min": 0.125875,
+            "self_wall_max": 0.159095,
+            "self_cpu_mean": 0.12944,
+            "self_cpu_on_max_wall_rank": 0.137649,
+            "inclusive_wall_mean": 2.55687,
+            "max_rank": 19,
+            "calls_global": 2939362
+          },
+          {
+            "id": 28,
+            "self_wall_mean": 0.0646341,
+            "self_wall_min": 0.0584296,
+            "self_wall_max": 0.0719642,
+            "self_cpu_mean": 0.0585245,
+            "self_cpu_on_max_wall_rank": 0.064122,
+            "inclusive_wall_mean": 1.05604,
+            "max_rank": 53,
+            "calls_global": 1328830
+          }
+        ],
+        "primitive/physics preparation": [
+          {
+            "id": 29,
+            "self_wall_mean": 0.0356323,
+            "self_wall_min": 0.00891561,
+            "self_wall_max": 0.0659984,
+            "self_cpu_mean": 0.0352723,
+            "self_cpu_on_max_wall_rank": 0.065461,
+            "inclusive_wall_mean": 0.0356323,
+            "max_rank": 54,
+            "calls_global": 2656
+          },
+          {
+            "id": 29,
+            "self_wall_mean": 0.0156638,
+            "self_wall_min": 0.00450385,
+            "self_wall_max": 0.0252877,
+            "self_cpu_mean": 0.0155246,
+            "self_cpu_on_max_wall_rank": 0.025077,
+            "inclusive_wall_mean": 0.0156638,
+            "max_rank": 14,
+            "calls_global": 1328
+          }
+        ],
+        "native mass": [
+          {
+            "id": 30,
+            "self_wall_mean": 0.0803194,
+            "self_wall_min": 0.0411457,
+            "self_wall_max": 0.121496,
+            "self_cpu_mean": 0.0806625,
+            "self_cpu_on_max_wall_rank": 0.120967,
+            "inclusive_wall_mean": 0.780252,
+            "max_rank": 30,
+            "calls_global": 640096
+          },
+          {
+            "id": 30,
+            "self_wall_mean": 0.0368391,
+            "self_wall_min": 0.0216338,
+            "self_wall_max": 0.0553722,
+            "self_cpu_mean": 0.0369232,
+            "self_cpu_on_max_wall_rank": 0.056019,
+            "inclusive_wall_mean": 0.297092,
+            "max_rank": 34,
+            "calls_global": 290168
+          }
+        ],
+        "native velocity": [
+          {
+            "id": 31,
+            "self_wall_mean": 0.101159,
+            "self_wall_min": 0.0257275,
+            "self_wall_max": 0.205441,
+            "self_cpu_mean": 0.100684,
+            "self_cpu_on_max_wall_rank": 0.204081,
+            "inclusive_wall_mean": 0.101159,
+            "max_rank": 30,
+            "calls_global": 321376
+          },
+          {
+            "id": 31,
+            "self_wall_mean": 0.04756,
+            "self_wall_min": 0.0134725,
+            "self_wall_max": 0.0950779,
+            "self_cpu_mean": 0.0473522,
+            "self_cpu_on_max_wall_rank": 0.094381,
+            "inclusive_wall_mean": 0.04756,
+            "max_rank": 58,
+            "calls_global": 150728
+          }
+        ],
+        "Domain writeback": [
+          {
+            "id": 32,
+            "self_wall_mean": 0.0441126,
+            "self_wall_min": 0.00386317,
+            "self_wall_max": 0.0771113,
+            "self_cpu_mean": 0.0437436,
+            "self_cpu_on_max_wall_rank": 0.076364,
+            "inclusive_wall_mean": 0.387255,
+            "max_rank": 52,
+            "calls_global": 14857
+          },
+          {
+            "id": 32,
+            "self_wall_mean": 0.0156423,
+            "self_wall_min": 0.00215862,
+            "self_wall_max": 0.0278307,
+            "self_cpu_mean": 0.0155002,
+            "self_cpu_on_max_wall_rank": 0.02759,
+            "inclusive_wall_mean": 0.128793,
+            "max_rank": 24,
+            "calls_global": 7387
+          }
+        ],
+        "block ghost pack/install": [
+          {
+            "id": 33,
+            "self_wall_mean": 0.442982,
+            "self_wall_min": 0.136497,
+            "self_wall_max": 0.643438,
+            "self_cpu_mean": 0.439197,
+            "self_cpu_on_max_wall_rank": 0.637637,
+            "inclusive_wall_mean": 1.00427,
+            "max_rank": 2,
+            "calls_global": 58681
+          },
+          {
+            "id": 33,
+            "self_wall_mean": 0.20852,
+            "self_wall_min": 0.034463,
+            "self_wall_max": 0.285426,
+            "self_cpu_mean": 0.206652,
+            "self_cpu_on_max_wall_rank": 0.28266,
+            "inclusive_wall_mean": 0.417603,
+            "max_rank": 58,
+            "calls_global": 27473
+          }
+        ],
+        "block ghost MPI": [
+          {
+            "id": 34,
+            "self_wall_mean": 0.257258,
+            "self_wall_min": 0.0651819,
+            "self_wall_max": 0.620203,
+            "self_cpu_mean": 0.255033,
+            "self_cpu_on_max_wall_rank": 0.615852,
+            "inclusive_wall_mean": 0.257258,
+            "max_rank": 49,
+            "calls_global": 45401
+          },
+          {
+            "id": 34,
+            "self_wall_mean": 0.0904898,
+            "self_wall_min": 0.019473,
+            "self_wall_max": 0.237616,
+            "self_cpu_mean": 0.089665,
+            "self_cpu_on_max_wall_rank": 0.235818,
+            "inclusive_wall_mean": 0.0904898,
+            "max_rank": 39,
+            "calls_global": 21497
+          }
+        ],
+        "catalog construction": [
+          {
+            "id": 35,
+            "self_wall_mean": 0.0719304,
+            "self_wall_min": 0.00299893,
+            "self_wall_max": 0.154983,
+            "self_cpu_mean": 0.071538,
+            "self_cpu_on_max_wall_rank": 0.154233,
+            "inclusive_wall_mean": 0.0719304,
+            "max_rank": 11,
+            "calls_global": 747
+          },
+          {
+            "id": 35,
+            "self_wall_mean": 0.0275852,
+            "self_wall_min": 0.00350508,
+            "self_wall_max": 0.0618212,
+            "self_cpu_mean": 0.0273933,
+            "self_cpu_on_max_wall_rank": 0.061507,
+            "inclusive_wall_mean": 0.0275852,
+            "max_rank": 42,
+            "calls_global": 332
+          }
+        ],
+        "scalar/inner inverse kernels": [
+          {
+            "id": 36,
+            "self_wall_mean": 0.484789,
+            "self_wall_min": 0.0840176,
+            "self_wall_max": 0.684534,
+            "self_cpu_mean": 0.481807,
+            "self_cpu_on_max_wall_rank": 0.680822,
+            "inclusive_wall_mean": 0.540817,
+            "max_rank": 78,
+            "calls_global": 21248
+          },
+          {
+            "id": 36,
+            "self_wall_mean": 0.191862,
+            "self_wall_min": 0.000311649,
+            "self_wall_max": 0.253367,
+            "self_cpu_mean": 0.19069,
+            "self_cpu_on_max_wall_rank": 0.251749,
+            "inclusive_wall_mean": 0.213784,
+            "max_rank": 58,
+            "calls_global": 9296
+          }
+        ],
+        "scalar transport MPI": [
+          {
+            "id": 37,
+            "self_wall_mean": 0.685198,
+            "self_wall_min": 0.299546,
+            "self_wall_max": 1.67659,
+            "self_cpu_mean": 0.680377,
+            "self_cpu_on_max_wall_rank": 1.66758,
+            "inclusive_wall_mean": 0.685198,
+            "max_rank": 82,
+            "calls_global": 49004
+          },
+          {
+            "id": 37,
+            "self_wall_mean": 0.30441,
+            "self_wall_min": 0.105647,
+            "self_wall_max": 0.835965,
+            "self_cpu_mean": 0.302419,
+            "self_cpu_on_max_wall_rank": 0.831853,
+            "inclusive_wall_mean": 0.30441,
+            "max_rank": 82,
+            "calls_global": 22032
+          }
+        ],
+        "Domain boundary MPI wait": [
+          {
+            "id": 38,
+            "self_wall_mean": 1.41945,
+            "self_wall_min": 0.375224,
+            "self_wall_max": 2.41407,
+            "self_cpu_mean": 1.41262,
+            "self_cpu_on_max_wall_rank": 2.40332,
+            "inclusive_wall_mean": 1.41945,
+            "max_rank": 79,
+            "calls_global": 1113290
+          },
+          {
+            "id": 38,
+            "self_wall_mean": 0.543735,
+            "self_wall_min": 0.143169,
+            "self_wall_max": 1.11244,
+            "self_cpu_mean": 0.541128,
+            "self_cpu_on_max_wall_rank": 1.10726,
+            "inclusive_wall_mean": 0.543735,
+            "max_rank": 79,
+            "calls_global": 488336
+          }
+        ],
+        "native mass MPI wait": [
+          {
+            "id": 39,
+            "self_wall_mean": 0.699932,
+            "self_wall_min": 0.217197,
+            "self_wall_max": 1.16688,
+            "self_cpu_mean": 0.695176,
+            "self_cpu_on_max_wall_rank": 1.16094,
+            "inclusive_wall_mean": 0.699932,
+            "max_rank": 37,
+            "calls_global": 460680
+          },
+          {
+            "id": 39,
+            "self_wall_mean": 0.260252,
+            "self_wall_min": 0.0670443,
+            "self_wall_max": 0.430638,
+            "self_cpu_mean": 0.258459,
+            "self_cpu_on_max_wall_rank": 0.428303,
+            "inclusive_wall_mean": 0.260252,
+            "max_rank": 42,
+            "calls_global": 201360
+          }
+        ],
+        "Domain writeback MPI": [
+          {
+            "id": 40,
+            "self_wall_mean": 0.343143,
+            "self_wall_min": 0.057334,
+            "self_wall_max": 0.732343,
+            "self_cpu_mean": 0.340876,
+            "self_cpu_on_max_wall_rank": 0.728433,
+            "inclusive_wall_mean": 0.343143,
+            "max_rank": 74,
+            "calls_global": 14857
+          },
+          {
+            "id": 40,
+            "self_wall_mean": 0.11315,
+            "self_wall_min": 0.0304585,
+            "self_wall_max": 0.280703,
+            "self_cpu_mean": 0.112414,
+            "self_cpu_on_max_wall_rank": 0.27909,
+            "inclusive_wall_mean": 0.11315,
+            "max_rank": 10,
+            "calls_global": 7387
+          }
+        ],
+        "received geometry expansion": [
+          {
+            "id": 41,
+            "self_wall_mean": 0.000205081,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.000440759,
+            "self_cpu_mean": 0.000187289,
+            "self_cpu_on_max_wall_rank": 0.000407,
+            "inclusive_wall_mean": 0.000205081,
+            "max_rank": 63,
+            "calls_global": 4449
+          },
+          {
+            "id": 41,
+            "self_wall_mean": 5.82279e-05,
+            "self_wall_min": 0.0,
+            "self_wall_max": 0.000123096,
+            "self_cpu_mean": 5.29639e-05,
+            "self_cpu_on_max_wall_rank": 0.000107,
+            "inclusive_wall_mean": 5.82279e-05,
+            "max_rank": 42,
+            "calls_global": 1869
+          }
+        ],
+        "inverse scaffold staging": [
+          {
+            "id": 42,
+            "self_wall_mean": 0.0665493,
+            "self_wall_min": 0.0220517,
+            "self_wall_max": 0.144518,
+            "self_cpu_mean": 0.0657167,
+            "self_cpu_on_max_wall_rank": 0.142937,
+            "inclusive_wall_mean": 0.554369,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 42,
+            "self_wall_mean": 0.0282297,
+            "self_wall_min": 0.0111173,
+            "self_wall_max": 0.050814,
+            "self_cpu_mean": 0.0278553,
+            "self_cpu_on_max_wall_rank": 0.050172,
+            "inclusive_wall_mean": 0.23348,
+            "max_rank": 14,
+            "calls_global": 1328
+          }
+        ],
+        "native wavelet work": [
+          {
+            "id": 43,
+            "self_wall_mean": 0.534322,
+            "self_wall_min": 0.349327,
+            "self_wall_max": 0.669827,
+            "self_cpu_mean": 0.530113,
+            "self_cpu_on_max_wall_rank": 0.664196,
+            "inclusive_wall_mean": 0.726479,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 43,
+            "self_wall_mean": 0.217777,
+            "self_wall_min": 0.141163,
+            "self_wall_max": 0.269366,
+            "self_cpu_mean": 0.216206,
+            "self_cpu_on_max_wall_rank": 0.267453,
+            "inclusive_wall_mean": 0.29037,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "native compression": [
+          {
+            "id": 44,
+            "self_wall_mean": 0.144179,
+            "self_wall_min": 0.0647588,
+            "self_wall_max": 0.203289,
+            "self_cpu_mean": 0.143324,
+            "self_cpu_on_max_wall_rank": 0.202132,
+            "inclusive_wall_mean": 0.194735,
+            "max_rank": 67,
+            "calls_global": 5312
+          },
+          {
+            "id": 44,
+            "self_wall_mean": 0.0511285,
+            "self_wall_min": 0.0275646,
+            "self_wall_max": 0.0659439,
+            "self_cpu_mean": 0.0507685,
+            "self_cpu_on_max_wall_rank": 0.065581,
+            "inclusive_wall_mean": 0.0674036,
+            "max_rank": 40,
+            "calls_global": 2656
+          }
+        ],
+        "native RK assembly": [
+          {
+            "id": 45,
+            "self_wall_mean": 0.0102536,
+            "self_wall_min": 0.00267858,
+            "self_wall_max": 0.0136933,
+            "self_cpu_mean": 0.0102022,
+            "self_cpu_on_max_wall_rank": 0.013614,
+            "inclusive_wall_mean": 0.0102536,
+            "max_rank": 60,
+            "calls_global": 2656
+          },
+          {
+            "id": 45,
+            "self_wall_mean": 0.00435916,
+            "self_wall_min": 0.000499823,
+            "self_wall_max": 0.00557509,
+            "self_cpu_mean": 0.00434054,
+            "self_cpu_on_max_wall_rank": 0.005562,
+            "inclusive_wall_mean": 0.00435916,
+            "max_rank": 28,
+            "calls_global": 1328
+          }
+        ],
+        "RK retention/publication": [
+          {
+            "id": 46,
+            "self_wall_mean": 0.0115451,
+            "self_wall_min": 0.00264918,
+            "self_wall_max": 0.0249923,
+            "self_cpu_mean": 0.0114784,
+            "self_cpu_on_max_wall_rank": 0.024709,
+            "inclusive_wall_mean": 0.0602978,
+            "max_rank": 52,
+            "calls_global": 2656
+          },
+          {
+            "id": 46,
+            "self_wall_mean": 0.00540899,
+            "self_wall_min": 0.00146386,
+            "self_wall_max": 0.0109814,
+            "self_cpu_mean": 0.00537096,
+            "self_cpu_on_max_wall_rank": 0.010912,
+            "inclusive_wall_mean": 0.0245592,
+            "max_rank": 18,
+            "calls_global": 1328
+          }
+        ],
+        "tendency assembly residual": [
+          {
+            "id": 47,
+            "self_wall_mean": 0.206105,
+            "self_wall_min": 0.0866289,
+            "self_wall_max": 0.320469,
+            "self_cpu_mean": 0.204689,
+            "self_cpu_on_max_wall_rank": 0.318104,
+            "inclusive_wall_mean": 2.16331,
+            "max_rank": 8,
+            "calls_global": 2656
+          },
+          {
+            "id": 47,
+            "self_wall_mean": 0.0884797,
+            "self_wall_min": 0.0290724,
+            "self_wall_max": 0.134582,
+            "self_cpu_mean": 0.0879023,
+            "self_cpu_on_max_wall_rank": 0.133596,
+            "inclusive_wall_mean": 0.96193,
+            "max_rank": 44,
+            "calls_global": 1328
+          }
+        ],
+        "grid-change synchronization": [
+          {
+            "id": 48,
+            "self_wall_mean": 0.0112959,
+            "self_wall_min": 0.0026893,
+            "self_wall_max": 0.0279412,
+            "self_cpu_mean": 0.0112288,
+            "self_cpu_on_max_wall_rank": 0.027704,
+            "inclusive_wall_mean": 0.0436489,
+            "max_rank": 52,
+            "calls_global": 664
+          },
+          {
+            "id": 48,
+            "self_wall_mean": 0.0051919,
+            "self_wall_min": 0.00137705,
+            "self_wall_max": 0.00909399,
+            "self_cpu_mean": 0.00515798,
+            "self_cpu_on_max_wall_rank": 0.009021,
+            "inclusive_wall_mean": 0.0133696,
+            "max_rank": 18,
+            "calls_global": 332
+          }
+        ],
+        "trend state refresh": [
+          {
+            "id": 49,
+            "self_wall_mean": 0.0669318,
+            "self_wall_min": 0.0169728,
+            "self_wall_max": 0.102672,
+            "self_cpu_mean": 0.0660382,
+            "self_cpu_on_max_wall_rank": 0.101339,
+            "inclusive_wall_mean": 0.0789309,
+            "max_rank": 9,
+            "calls_global": 664
+          },
+          {
+            "id": 49,
+            "self_wall_mean": 0.0253971,
+            "self_wall_min": 0.0100577,
+            "self_wall_max": 0.0619568,
+            "self_cpu_mean": 0.0251031,
+            "self_cpu_on_max_wall_rank": 0.061489,
+            "inclusive_wall_mean": 0.0313315,
+            "max_rank": 3,
+            "calls_global": 332
+          }
+        ],
+        "prognostic state refresh": [
+          {
+            "id": 50,
+            "self_wall_mean": 0.00356465,
+            "self_wall_min": 0.000985104,
+            "self_wall_max": 0.00435262,
+            "self_cpu_mean": 0.00353516,
+            "self_cpu_on_max_wall_rank": 0.004285,
+            "inclusive_wall_mean": 0.0248462,
+            "max_rank": 60,
+            "calls_global": 664
+          },
+          {
+            "id": 50,
+            "self_wall_mean": 0.00154507,
+            "self_wall_min": 0.000191618,
+            "self_wall_max": 0.00194657,
+            "self_cpu_mean": 0.00153071,
+            "self_cpu_on_max_wall_rank": 0.001918,
+            "inclusive_wall_mean": 0.0114878,
+            "max_rank": 60,
+            "calls_global": 332
+          }
+        ],
+        "scalar capture lifecycle": [
+          {
+            "id": 51,
+            "self_wall_mean": 0.000430602,
+            "self_wall_min": 0.000169281,
+            "self_wall_max": 0.00075818,
+            "self_cpu_mean": 0.000332169,
+            "self_cpu_on_max_wall_rank": 0.000551,
+            "inclusive_wall_mean": 0.508385,
+            "max_rank": 48,
+            "calls_global": 5312
+          },
+          {
+            "id": 51,
+            "self_wall_mean": 0.000188279,
+            "self_wall_min": 8.3527e-05,
+            "self_wall_max": 0.000341183,
+            "self_cpu_mean": 0.000149446,
+            "self_cpu_on_max_wall_rank": 0.000249,
+            "inclusive_wall_mean": 0.236066,
+            "max_rank": 54,
+            "calls_global": 2656
+          }
+        ],
+        "velocity remainder preparation": [
+          {
+            "id": 52,
+            "self_wall_mean": 0.0500666,
+            "self_wall_min": 0.0125404,
+            "self_wall_max": 0.128874,
+            "self_cpu_mean": 0.049487,
+            "self_cpu_on_max_wall_rank": 0.128137,
+            "inclusive_wall_mean": 0.0500666,
+            "max_rank": 65,
+            "calls_global": 2656
+          },
+          {
+            "id": 52,
+            "self_wall_mean": 0.0194626,
+            "self_wall_min": 0.0042834,
+            "self_wall_max": 0.0531004,
+            "self_cpu_mean": 0.0192728,
+            "self_cpu_on_max_wall_rank": 0.052821,
+            "inclusive_wall_mean": 0.0194626,
+            "max_rank": 81,
+            "calls_global": 1328
+          }
+        ],
+        "RK compatibility closure": [
+          {
+            "id": 53,
+            "self_wall_mean": 0.0888326,
+            "self_wall_min": 0.0125582,
+            "self_wall_max": 0.429803,
+            "self_cpu_mean": 0.0882828,
+            "self_cpu_on_max_wall_rank": 0.42761,
+            "inclusive_wall_mean": 0.0888326,
+            "max_rank": 9,
+            "calls_global": 2656
+          },
+          {
+            "id": 53,
+            "self_wall_mean": 0.0383525,
+            "self_wall_min": 0.00806814,
+            "self_wall_max": 0.185894,
+            "self_cpu_mean": 0.0381081,
+            "self_cpu_on_max_wall_rank": 0.184796,
+            "inclusive_wall_mean": 0.0383525,
+            "max_rank": 44,
+            "calls_global": 1328
+          }
+        ],
+        "split physics consumers": [
+          {
+            "id": 54,
+            "self_wall_mean": 0.106518,
+            "self_wall_min": 0.0231715,
+            "self_wall_max": 0.281101,
+            "self_cpu_mean": 0.106024,
+            "self_cpu_on_max_wall_rank": 0.279789,
+            "inclusive_wall_mean": 0.106518,
+            "max_rank": 52,
+            "calls_global": 664
+          },
+          {
+            "id": 54,
+            "self_wall_mean": 0.0449796,
+            "self_wall_min": 0.0116421,
+            "self_wall_max": 0.0882197,
+            "self_cpu_mean": 0.0447726,
+            "self_cpu_on_max_wall_rank": 0.087813,
+            "inclusive_wall_mean": 0.0449796,
+            "max_rank": 18,
+            "calls_global": 332
+          }
+        ],
+        "vertical remap": [
+          {
+            "id": 55,
+            "self_wall_mean": 0.0102128,
+            "self_wall_min": 0.00263299,
+            "self_wall_max": 0.0162306,
+            "self_cpu_mean": 0.0101107,
+            "self_cpu_on_max_wall_rank": 0.016119,
+            "inclusive_wall_mean": 0.0237176,
+            "max_rank": 56,
+            "calls_global": 83
+          },
+          {
+            "id": 55,
+            "self_wall_mean": 0.00921196,
+            "self_wall_min": 0.0017642,
+            "self_wall_max": 0.0152424,
+            "self_cpu_mean": 0.00912364,
+            "self_cpu_on_max_wall_rank": 0.015121,
+            "inclusive_wall_mean": 0.0215499,
+            "max_rank": 43,
+            "calls_global": 83
+          }
+        ],
+        "restart bootstrap": [
+          {
+            "id": 56,
+            "self_wall_mean": 1.57104,
+            "self_wall_min": 1.56812,
+            "self_wall_max": 1.57464,
+            "self_cpu_mean": 1.1703,
+            "self_cpu_on_max_wall_rank": 1.12797,
+            "inclusive_wall_mean": 1.71848,
+            "max_rank": 4,
+            "calls_global": 83
+          }
+        ],
+        "boundary scan and pack": [
+          {
+            "id": 58,
+            "self_wall_mean": 0.295173,
+            "self_wall_min": 0.132224,
+            "self_wall_max": 0.45436,
+            "self_cpu_mean": 0.294755,
+            "self_cpu_on_max_wall_rank": 0.454244,
+            "inclusive_wall_mean": 0.295173,
+            "max_rank": 19,
+            "calls_global": 1469681
+          },
+          {
+            "id": 58,
+            "self_wall_mean": 0.129912,
+            "self_wall_min": 0.0605127,
+            "self_wall_max": 0.187069,
+            "self_cpu_mean": 0.129748,
+            "self_cpu_on_max_wall_rank": 0.186704,
+            "inclusive_wall_mean": 0.129912,
+            "max_rank": 34,
+            "calls_global": 664415
+          }
+        ],
+        "boundary receive route scan": [
+          {
+            "id": 59,
+            "self_wall_mean": 0.164552,
+            "self_wall_min": 0.0810822,
+            "self_wall_max": 0.2424,
+            "self_cpu_mean": 0.164844,
+            "self_cpu_on_max_wall_rank": 0.243435,
+            "inclusive_wall_mean": 0.164552,
+            "max_rank": 19,
+            "calls_global": 1469681
+          },
+          {
+            "id": 59,
+            "self_wall_mean": 0.0735776,
+            "self_wall_min": 0.0373119,
+            "self_wall_max": 0.0989036,
+            "self_cpu_mean": 0.073728,
+            "self_cpu_on_max_wall_rank": 0.098955,
+            "inclusive_wall_mean": 0.0735776,
+            "max_rank": 5,
+            "calls_global": 664415
+          }
+        ],
+        "boundary MPI posting": [
+          {
+            "id": 60,
+            "self_wall_mean": 0.111878,
+            "self_wall_min": 0.0583723,
+            "self_wall_max": 0.181824,
+            "self_cpu_mean": 0.11485,
+            "self_cpu_on_max_wall_rank": 0.184266,
+            "inclusive_wall_mean": 0.111878,
+            "max_rank": 34,
+            "calls_global": 1469681
+          },
+          {
+            "id": 60,
+            "self_wall_mean": 0.0506491,
+            "self_wall_min": 0.0253413,
+            "self_wall_max": 0.0876281,
+            "self_cpu_mean": 0.0518968,
+            "self_cpu_on_max_wall_rank": 0.089813,
+            "inclusive_wall_mean": 0.0506491,
+            "max_rank": 34,
+            "calls_global": 664415
+          }
+        ],
+        "boundary scan and install": [
+          {
+            "id": 61,
+            "self_wall_mean": 0.192971,
+            "self_wall_min": 0.0926574,
+            "self_wall_max": 0.291875,
+            "self_cpu_mean": 0.193279,
+            "self_cpu_on_max_wall_rank": 0.292616,
+            "inclusive_wall_mean": 0.192971,
+            "max_rank": 19,
+            "calls_global": 1469681
+          },
+          {
+            "id": 61,
+            "self_wall_mean": 0.0857227,
+            "self_wall_min": 0.0423318,
+            "self_wall_max": 0.116271,
+            "self_cpu_mean": 0.0858988,
+            "self_cpu_on_max_wall_rank": 0.116285,
+            "inclusive_wall_mean": 0.0857227,
+            "max_rank": 50,
+            "calls_global": 664415
+          }
+        ],
+        "boundary local copies": [
+          {
+            "id": 62,
+            "self_wall_mean": 0.0312915,
+            "self_wall_min": 0.0141312,
+            "self_wall_max": 0.0774225,
+            "self_cpu_mean": 0.0314238,
+            "self_cpu_on_max_wall_rank": 0.078136,
+            "inclusive_wall_mean": 0.0312915,
+            "max_rank": 30,
+            "calls_global": 1469681
+          },
+          {
+            "id": 62,
+            "self_wall_mean": 0.0139992,
+            "self_wall_min": 0.0063953,
+            "self_wall_max": 0.0298267,
+            "self_cpu_mean": 0.0140653,
+            "self_cpu_on_max_wall_rank": 0.029956,
+            "inclusive_wall_mean": 0.0139992,
+            "max_rank": 50,
+            "calls_global": 664415
+          }
+        ],
+        "boundary buffer allocation/zero": [
+          {
+            "id": 63,
+            "self_wall_mean": 0.198441,
+            "self_wall_min": 0.0672811,
+            "self_wall_max": 0.369194,
+            "self_cpu_mean": 0.199955,
+            "self_cpu_on_max_wall_rank": 0.372426,
+            "inclusive_wall_mean": 0.198441,
+            "max_rank": 24,
+            "calls_global": 1469681
+          },
+          {
+            "id": 63,
+            "self_wall_mean": 0.0938117,
+            "self_wall_min": 0.0331164,
+            "self_wall_max": 0.160713,
+            "self_cpu_mean": 0.0944567,
+            "self_cpu_on_max_wall_rank": 0.161603,
+            "inclusive_wall_mean": 0.0938117,
+            "max_rank": 34,
+            "calls_global": 664415
+          }
+        ],
+        "wavelet driver residual": [
+          {
+            "id": 65,
+            "self_wall_mean": 0.135676,
+            "self_wall_min": 0.109801,
+            "self_wall_max": 0.179483,
+            "self_cpu_mean": 0.133051,
+            "self_cpu_on_max_wall_rank": 0.176857,
+            "inclusive_wall_mean": 4.099,
+            "max_rank": 30,
+            "calls_global": 3320
+          },
+          {
+            "id": 65,
+            "self_wall_mean": 0.0576175,
+            "self_wall_min": 0.0432626,
+            "self_wall_max": 0.0700348,
+            "self_cpu_mean": 0.0568348,
+            "self_cpu_on_max_wall_rank": 0.069001,
+            "inclusive_wall_mean": 1.56186,
+            "max_rank": 73,
+            "calls_global": 1660
+          }
+        ]
+      },
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "restriction_columns": [
+        [
+          72648,
+          4358880,
+          130766400
+        ],
+        [
+          35312,
+          2118720,
+          63561600
+        ]
+      ]
+    }
+  },
+  "limitations": [
+    "Three measured pairs on one node and short fixture; no long-run or multi-node speedup claim.",
+    "No distributed memory/swap measurements supplied.",
+    "Checkpoint reports verified; raw checkpoints were not supplied for independent recomputation.",
+    "Expanded compilation lines supplied for the changed translation unit; complete build logs and the build-host CPU identity were not supplied."
+  ],
+  "restriction_profile": {
+    "baseline_self_wall_mean_sum": 1.688068,
+    "candidate_self_wall_mean_sum": 1.517936,
+    "reduction_percent": 10.078503946523476,
+    "scope": "Sum of rank-mean exclusive wall times across two reporting windows; not a critical-path wall-time decomposition."
+  },
+  "assessment": "Accepted for the tested Stage 189 single-node nk configuration: exact reported numerical gates and a modest consistent timing gain. CPU-flag discrepancy resolved; no rerun needed to settle it."
+}
