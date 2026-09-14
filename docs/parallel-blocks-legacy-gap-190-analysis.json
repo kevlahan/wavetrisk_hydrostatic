@@ -1,0 +1,705 @@
+{
+  "status": "passed_profile_audit",
+  "source_commit": "cdd2eb64",
+  "inputs_sha256": {
+    "/private/tmp/wavetrisk-stage190-cluster-54553/run_candidate.log": "be84f848673ce09e9a2dc73c9a3a83cc7c8013dff7b3d146f19a1c25ba68321e",
+    "/private/tmp/wavetrisk-stage190-cluster-54553/results.json": "61a6354717f6857808160b7beb8bb098849cd4351f289c1a08b7d60c22f7c8b7"
+  },
+  "campaign_summary": {
+    "baseline": {
+      "elapsed_seconds": [
+        33.7514527659805,
+        33.641190720984014,
+        33.648209365986986
+      ],
+      "ordinary_step_medians": [
+        1.49,
+        1.49,
+        1.49
+      ],
+      "median_elapsed_seconds": 33.648209365986986,
+      "median_ordinary_step_seconds": 1.49
+    },
+    "candidate": {
+      "elapsed_seconds": [
+        32.942491916008294,
+        32.9266276069975,
+        32.779283621988725
+      ],
+      "ordinary_step_medians": [
+        1.43,
+        1.43,
+        1.42
+      ],
+      "median_elapsed_seconds": 32.9266276069975,
+      "median_ordinary_step_seconds": 1.43
+    },
+    "legacy": {
+      "elapsed_seconds": [
+        22.534994302986888,
+        22.641743636020692,
+        22.520391363010276
+      ],
+      "ordinary_step_medians": [
+        0.558,
+        0.558,
+        0.555
+      ],
+      "median_elapsed_seconds": 22.534994302986888,
+      "median_ordinary_step_seconds": 0.558
+    },
+    "observed_elapsed_reduction_percent": 2.1444878422531843,
+    "block_vs_legacy": {
+      "baseline": {
+        "elapsed_ratio": 1.4931536664079432,
+        "ordinary_step_ratio": 2.6702508960573472
+      },
+      "candidate": {
+        "elapsed_ratio": 1.4611331675656674,
+        "ordinary_step_ratio": 2.562724014336917
+      }
+    },
+    "scope": "Observed timings only. Inspect node load, placement and memory/swap evidence. Warmups, correctness runs and detailed profiles are excluded."
+  },
+  "ordinary_steps": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    9,
+    10,
+    11,
+    12
+  ],
+  "ordinary_steps_with_remap": [
+    5,
+    10
+  ],
+  "profile_mean_rank_mean_step_seconds": 1.4071365399342826,
+  "profile_mean_slowest_rank_step_seconds": 1.4091289145454546,
+  "max_step_conservation_error": 1.5639000001677061e-06,
+  "groups": {
+    "Domain boundary handling": {
+      "region_ids": [
+        28,
+        38,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63
+      ],
+      "mean_rank_mean_seconds": 0.28834544626506026,
+      "mean_seconds_on_each_steps_slowest_rank": 0.30091572818181817
+    },
+    "Block reconstruction and migration": {
+      "region_ids": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        35,
+        48
+      ],
+      "mean_rank_mean_seconds": 0.17812059122012047,
+      "mean_seconds_on_each_steps_slowest_rank": 0.17829783181545455
+    },
+    "Native inverse": {
+      "region_ids": [
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        36,
+        41,
+        42
+      ],
+      "mean_rank_mean_seconds": 0.2528652741430668,
+      "mean_seconds_on_each_steps_slowest_rank": 0.24273431703
+    },
+    "Scalar input and restriction": {
+      "region_ids": [
+        22,
+        23,
+        24,
+        25,
+        37,
+        51
+      ],
+      "mean_rank_mean_seconds": 0.20194446813452355,
+      "mean_seconds_on_each_steps_slowest_rank": 0.2006910648
+    },
+    "Block ghost handling": {
+      "region_ids": [
+        33,
+        34
+      ],
+      "mean_rank_mean_seconds": 0.08285146757831326,
+      "mean_seconds_on_each_steps_slowest_rank": 0.08829592
+    },
+    "Native mass and velocity": {
+      "region_ids": [
+        30,
+        31,
+        39
+      ],
+      "mean_rank_mean_seconds": 0.09982617139101863,
+      "mean_seconds_on_each_steps_slowest_rank": 0.11237627090909091
+    },
+    "Shared Domain producers": {
+      "region_ids": [
+        26,
+        27,
+        29,
+        52
+      ],
+      "mean_rank_mean_seconds": 0.08214622842168674,
+      "mean_seconds_on_each_steps_slowest_rank": 0.06706491863636363
+    },
+    "Domain/block publication": {
+      "region_ids": [
+        32,
+        40,
+        49,
+        50
+      ],
+      "mean_rank_mean_seconds": 0.049462317602519165,
+      "mean_seconds_on_each_steps_slowest_rank": 0.058831146545454543
+    },
+    "Wavelet and compression": {
+      "region_ids": [
+        43,
+        44,
+        65
+      ],
+      "mean_rank_mean_seconds": 0.09297355667031763,
+      "mean_seconds_on_each_steps_slowest_rank": 0.08616055818181818
+    },
+    "RK and tendency assembly": {
+      "region_ids": [
+        45,
+        46,
+        47,
+        53
+      ],
+      "mean_rank_mean_seconds": 0.03471593144249726,
+      "mean_seconds_on_each_steps_slowest_rank": 0.03237192263636364
+    },
+    "Other timestep work": {
+      "region_ids": [
+        1,
+        2,
+        3,
+        4,
+        54,
+        55,
+        56,
+        57,
+        64
+      ],
+      "mean_rank_mean_seconds": 0.043885077311062434,
+      "mean_seconds_on_each_steps_slowest_rank": 0.04138914281818182
+    }
+  },
+  "proof_only_mean_seconds": 0.044185312060284775,
+  "mean_named_MPI_seconds": 0.49604241534063526,
+  "named_MPI_region_ids": [
+    13,
+    19,
+    34,
+    37,
+    38,
+    39,
+    40
+  ],
+  "ranks": {
+    "0": {
+      "mean_step_seconds": 1.4030774018181817,
+      "mean_named_MPI_seconds": 0.36940127454545457,
+      "mean_outside_named_MPI_seconds": 1.0336761272727273
+    },
+    "1": {
+      "mean_step_seconds": 1.4070004409090908,
+      "mean_named_MPI_seconds": 0.5542622090909091,
+      "mean_outside_named_MPI_seconds": 0.8527382318181819
+    },
+    "2": {
+      "mean_step_seconds": 1.4069884945454545,
+      "mean_named_MPI_seconds": 0.42635618754545457,
+      "mean_outside_named_MPI_seconds": 0.9806323069999999
+    },
+    "3": {
+      "mean_step_seconds": 1.4091189863636364,
+      "mean_named_MPI_seconds": 0.5679340545454545,
+      "mean_outside_named_MPI_seconds": 0.8411849318181818
+    },
+    "4": {
+      "mean_step_seconds": 1.4085475463636363,
+      "mean_named_MPI_seconds": 0.43936303818181816,
+      "mean_outside_named_MPI_seconds": 0.9691845081818181
+    },
+    "5": {
+      "mean_step_seconds": 1.4088654781818182,
+      "mean_named_MPI_seconds": 0.49200215454545454,
+      "mean_outside_named_MPI_seconds": 0.9168633236363637
+    },
+    "6": {
+      "mean_step_seconds": 1.4085513963636365,
+      "mean_named_MPI_seconds": 0.5351437281818182,
+      "mean_outside_named_MPI_seconds": 0.8734076681818181
+    },
+    "7": {
+      "mean_step_seconds": 1.4070155472727273,
+      "mean_named_MPI_seconds": 0.5351980527272727,
+      "mean_outside_named_MPI_seconds": 0.8718174945454545
+    },
+    "8": {
+      "mean_step_seconds": 1.4069711563636365,
+      "mean_named_MPI_seconds": 0.5463584181818182,
+      "mean_outside_named_MPI_seconds": 0.8606127381818182
+    },
+    "9": {
+      "mean_step_seconds": 1.4070486681818182,
+      "mean_named_MPI_seconds": 0.4913368181818182,
+      "mean_outside_named_MPI_seconds": 0.91571185
+    },
+    "10": {
+      "mean_step_seconds": 1.407002289090909,
+      "mean_named_MPI_seconds": 0.5516384281818182,
+      "mean_outside_named_MPI_seconds": 0.8553638609090909
+    },
+    "11": {
+      "mean_step_seconds": 1.4090017245454545,
+      "mean_named_MPI_seconds": 0.6105991854545455,
+      "mean_outside_named_MPI_seconds": 0.7984025390909091
+    },
+    "12": {
+      "mean_step_seconds": 1.4069783181818183,
+      "mean_named_MPI_seconds": 0.511957913909091,
+      "mean_outside_named_MPI_seconds": 0.8950204042727273
+    },
+    "13": {
+      "mean_step_seconds": 1.4070475536363636,
+      "mean_named_MPI_seconds": 0.46421261372727274,
+      "mean_outside_named_MPI_seconds": 0.942834939909091
+    },
+    "14": {
+      "mean_step_seconds": 1.4086918690909092,
+      "mean_named_MPI_seconds": 0.3920401612727273,
+      "mean_outside_named_MPI_seconds": 1.0166517078181818
+    },
+    "15": {
+      "mean_step_seconds": 1.4069454627272728,
+      "mean_named_MPI_seconds": 0.44069643636363637,
+      "mean_outside_named_MPI_seconds": 0.9662490263636364
+    },
+    "16": {
+      "mean_step_seconds": 1.4069715572727273,
+      "mean_named_MPI_seconds": 0.4456584527272727,
+      "mean_outside_named_MPI_seconds": 0.9613131045454545
+    },
+    "17": {
+      "mean_step_seconds": 1.4070342200000001,
+      "mean_named_MPI_seconds": 0.42683528818181815,
+      "mean_outside_named_MPI_seconds": 0.9801989318181819
+    },
+    "18": {
+      "mean_step_seconds": 1.4069824763636363,
+      "mean_named_MPI_seconds": 0.28814336636363636,
+      "mean_outside_named_MPI_seconds": 1.11883911
+    },
+    "19": {
+      "mean_step_seconds": 1.4069379636363637,
+      "mean_named_MPI_seconds": 0.29428048181818184,
+      "mean_outside_named_MPI_seconds": 1.1126574818181818
+    },
+    "20": {
+      "mean_step_seconds": 1.406961749090909,
+      "mean_named_MPI_seconds": 0.3554722672727273,
+      "mean_outside_named_MPI_seconds": 1.0514894818181817
+    },
+    "21": {
+      "mean_step_seconds": 1.4069703009090908,
+      "mean_named_MPI_seconds": 0.42643824545454545,
+      "mean_outside_named_MPI_seconds": 0.9805320554545455
+    },
+    "22": {
+      "mean_step_seconds": 1.4071646236363637,
+      "mean_named_MPI_seconds": 0.38824534909090913,
+      "mean_outside_named_MPI_seconds": 1.0189192745454545
+    },
+    "23": {
+      "mean_step_seconds": 1.407033649090909,
+      "mean_named_MPI_seconds": 0.43151774909090906,
+      "mean_outside_named_MPI_seconds": 0.9755159
+    },
+    "24": {
+      "mean_step_seconds": 1.4069656799999999,
+      "mean_named_MPI_seconds": 0.4157178454545455,
+      "mean_outside_named_MPI_seconds": 0.9912478345454545
+    },
+    "25": {
+      "mean_step_seconds": 1.4070457763636364,
+      "mean_named_MPI_seconds": 0.4118576709090909,
+      "mean_outside_named_MPI_seconds": 0.9951881054545455
+    },
+    "26": {
+      "mean_step_seconds": 1.4069696245454546,
+      "mean_named_MPI_seconds": 0.5088101636363637,
+      "mean_outside_named_MPI_seconds": 0.8981594609090909
+    },
+    "27": {
+      "mean_step_seconds": 1.4069960763636364,
+      "mean_named_MPI_seconds": 0.4353137409090909,
+      "mean_outside_named_MPI_seconds": 0.9716823354545454
+    },
+    "28": {
+      "mean_step_seconds": 1.4069823427272727,
+      "mean_named_MPI_seconds": 0.5014504754545455,
+      "mean_outside_named_MPI_seconds": 0.9055318672727273
+    },
+    "29": {
+      "mean_step_seconds": 1.4070935609090909,
+      "mean_named_MPI_seconds": 0.5781948190909091,
+      "mean_outside_named_MPI_seconds": 0.8288987418181818
+    },
+    "30": {
+      "mean_step_seconds": 1.4069681336363635,
+      "mean_named_MPI_seconds": 0.2739045672727273,
+      "mean_outside_named_MPI_seconds": 1.1330635663636364
+    },
+    "31": {
+      "mean_step_seconds": 1.4070877345454544,
+      "mean_named_MPI_seconds": 0.46136794545454546,
+      "mean_outside_named_MPI_seconds": 0.945719789090909
+    },
+    "32": {
+      "mean_step_seconds": 1.4068949145454546,
+      "mean_named_MPI_seconds": 0.6005548545454545,
+      "mean_outside_named_MPI_seconds": 0.80634006
+    },
+    "33": {
+      "mean_step_seconds": 1.4070901063636363,
+      "mean_named_MPI_seconds": 0.46137151818181815,
+      "mean_outside_named_MPI_seconds": 0.9457185881818182
+    },
+    "34": {
+      "mean_step_seconds": 1.4070106345454545,
+      "mean_named_MPI_seconds": 0.30204847272727275,
+      "mean_outside_named_MPI_seconds": 1.1049621618181817
+    },
+    "35": {
+      "mean_step_seconds": 1.4071400936363636,
+      "mean_named_MPI_seconds": 0.4951298,
+      "mean_outside_named_MPI_seconds": 0.9120102936363637
+    },
+    "36": {
+      "mean_step_seconds": 1.4070013263636363,
+      "mean_named_MPI_seconds": 0.3921509190909091,
+      "mean_outside_named_MPI_seconds": 1.0148504072727274
+    },
+    "37": {
+      "mean_step_seconds": 1.4069903,
+      "mean_named_MPI_seconds": 0.567614,
+      "mean_outside_named_MPI_seconds": 0.8393763000000001
+    },
+    "38": {
+      "mean_step_seconds": 1.4069767627272727,
+      "mean_named_MPI_seconds": 0.47800784545454544,
+      "mean_outside_named_MPI_seconds": 0.9289689172727272
+    },
+    "39": {
+      "mean_step_seconds": 1.4070878272727272,
+      "mean_named_MPI_seconds": 0.5292205909090909,
+      "mean_outside_named_MPI_seconds": 0.8778672363636364
+    },
+    "40": {
+      "mean_step_seconds": 1.4070458636363636,
+      "mean_named_MPI_seconds": 0.5244119163636364,
+      "mean_outside_named_MPI_seconds": 0.8826339472727273
+    },
+    "41": {
+      "mean_step_seconds": 1.4069479027272727,
+      "mean_named_MPI_seconds": 0.5700518,
+      "mean_outside_named_MPI_seconds": 0.8368961027272727
+    },
+    "42": {
+      "mean_step_seconds": 1.4069693109090908,
+      "mean_named_MPI_seconds": 0.6141018154545455,
+      "mean_outside_named_MPI_seconds": 0.7928674954545455
+    },
+    "43": {
+      "mean_step_seconds": 1.4069960345454546,
+      "mean_named_MPI_seconds": 0.5784618781818182,
+      "mean_outside_named_MPI_seconds": 0.8285341563636364
+    },
+    "44": {
+      "mean_step_seconds": 1.4070159745454545,
+      "mean_named_MPI_seconds": 0.5698028218181818,
+      "mean_outside_named_MPI_seconds": 0.8372131527272727
+    },
+    "45": {
+      "mean_step_seconds": 1.4069896545454545,
+      "mean_named_MPI_seconds": 0.5325188272727273,
+      "mean_outside_named_MPI_seconds": 0.8744708272727273
+    },
+    "46": {
+      "mean_step_seconds": 1.4070468681818182,
+      "mean_named_MPI_seconds": 0.48034961,
+      "mean_outside_named_MPI_seconds": 0.9266972581818181
+    },
+    "47": {
+      "mean_step_seconds": 1.4069967290909091,
+      "mean_named_MPI_seconds": 0.5202563090909091,
+      "mean_outside_named_MPI_seconds": 0.88674042
+    },
+    "48": {
+      "mean_step_seconds": 1.4087291572727272,
+      "mean_named_MPI_seconds": 0.406624,
+      "mean_outside_named_MPI_seconds": 1.0021051572727273
+    },
+    "49": {
+      "mean_step_seconds": 1.4069992354545455,
+      "mean_named_MPI_seconds": 0.40998437272727273,
+      "mean_outside_named_MPI_seconds": 0.9970148627272727
+    },
+    "50": {
+      "mean_step_seconds": 1.406957778181818,
+      "mean_named_MPI_seconds": 0.2845825190909091,
+      "mean_outside_named_MPI_seconds": 1.122375259090909
+    },
+    "51": {
+      "mean_step_seconds": 1.4070960972727273,
+      "mean_named_MPI_seconds": 0.45678105454545453,
+      "mean_outside_named_MPI_seconds": 0.9503150427272727
+    },
+    "52": {
+      "mean_step_seconds": 1.4070098936363638,
+      "mean_named_MPI_seconds": 0.2438067909090909,
+      "mean_outside_named_MPI_seconds": 1.1632031027272727
+    },
+    "53": {
+      "mean_step_seconds": 1.407009969090909,
+      "mean_named_MPI_seconds": 0.4308433181818182,
+      "mean_outside_named_MPI_seconds": 0.9761666509090909
+    },
+    "54": {
+      "mean_step_seconds": 1.4080971254545454,
+      "mean_named_MPI_seconds": 0.34790205636363636,
+      "mean_outside_named_MPI_seconds": 1.060195069090909
+    },
+    "55": {
+      "mean_step_seconds": 1.40696197,
+      "mean_named_MPI_seconds": 0.5057974272727273,
+      "mean_outside_named_MPI_seconds": 0.9011645427272728
+    },
+    "56": {
+      "mean_step_seconds": 1.4069413672727273,
+      "mean_named_MPI_seconds": 0.47566274636363637,
+      "mean_outside_named_MPI_seconds": 0.9312786209090909
+    },
+    "57": {
+      "mean_step_seconds": 1.4069985381818182,
+      "mean_named_MPI_seconds": 0.42116749063636366,
+      "mean_outside_named_MPI_seconds": 0.9858310475454546
+    },
+    "58": {
+      "mean_step_seconds": 1.4071076236363638,
+      "mean_named_MPI_seconds": 0.36429437909090906,
+      "mean_outside_named_MPI_seconds": 1.0428132445454545
+    },
+    "59": {
+      "mean_step_seconds": 1.4069451481818183,
+      "mean_named_MPI_seconds": 0.48028187272727274,
+      "mean_outside_named_MPI_seconds": 0.9266632754545454
+    },
+    "60": {
+      "mean_step_seconds": 1.4070916645454545,
+      "mean_named_MPI_seconds": 0.4260288272727273,
+      "mean_outside_named_MPI_seconds": 0.9810628372727273
+    },
+    "61": {
+      "mean_step_seconds": 1.4070402636363637,
+      "mean_named_MPI_seconds": 0.31857759090909094,
+      "mean_outside_named_MPI_seconds": 1.0884626727272726
+    },
+    "62": {
+      "mean_step_seconds": 1.4069575027272727,
+      "mean_named_MPI_seconds": 0.3942879981818182,
+      "mean_outside_named_MPI_seconds": 1.0126695045454546
+    },
+    "63": {
+      "mean_step_seconds": 1.4070195972727273,
+      "mean_named_MPI_seconds": 0.4797347727272727,
+      "mean_outside_named_MPI_seconds": 0.9272848245454546
+    },
+    "64": {
+      "mean_step_seconds": 1.4069708809090908,
+      "mean_named_MPI_seconds": 0.57539797,
+      "mean_outside_named_MPI_seconds": 0.8315729109090909
+    },
+    "65": {
+      "mean_step_seconds": 1.40705855,
+      "mean_named_MPI_seconds": 0.5257011481818182,
+      "mean_outside_named_MPI_seconds": 0.8813574018181818
+    },
+    "66": {
+      "mean_step_seconds": 1.4077979709090909,
+      "mean_named_MPI_seconds": 0.6008484781818182,
+      "mean_outside_named_MPI_seconds": 0.8069494927272727
+    },
+    "67": {
+      "mean_step_seconds": 1.4070505672727274,
+      "mean_named_MPI_seconds": 0.5534418427272727,
+      "mean_outside_named_MPI_seconds": 0.8536087245454546
+    },
+    "68": {
+      "mean_step_seconds": 1.40700603,
+      "mean_named_MPI_seconds": 0.5665016590909091,
+      "mean_outside_named_MPI_seconds": 0.8405043709090909
+    },
+    "69": {
+      "mean_step_seconds": 1.4069622754545454,
+      "mean_named_MPI_seconds": 0.6038079427272727,
+      "mean_outside_named_MPI_seconds": 0.8031543327272728
+    },
+    "70": {
+      "mean_step_seconds": 1.4073910636363636,
+      "mean_named_MPI_seconds": 0.6813092163636364,
+      "mean_outside_named_MPI_seconds": 0.7260818472727273
+    },
+    "71": {
+      "mean_step_seconds": 1.4069512881818182,
+      "mean_named_MPI_seconds": 0.5879711145454546,
+      "mean_outside_named_MPI_seconds": 0.8189801736363637
+    },
+    "72": {
+      "mean_step_seconds": 1.4071279581818181,
+      "mean_named_MPI_seconds": 0.4811670190909091,
+      "mean_outside_named_MPI_seconds": 0.9259609390909092
+    },
+    "73": {
+      "mean_step_seconds": 1.40695484,
+      "mean_named_MPI_seconds": 0.5461323054545455,
+      "mean_outside_named_MPI_seconds": 0.8608225345454545
+    },
+    "74": {
+      "mean_step_seconds": 1.40700464,
+      "mean_named_MPI_seconds": 0.6705431463636363,
+      "mean_outside_named_MPI_seconds": 0.7364614936363636
+    },
+    "75": {
+      "mean_step_seconds": 1.4069983363636365,
+      "mean_named_MPI_seconds": 0.6759567316363636,
+      "mean_outside_named_MPI_seconds": 0.7310416047272728
+    },
+    "76": {
+      "mean_step_seconds": 1.40704499,
+      "mean_named_MPI_seconds": 0.5444312818181818,
+      "mean_outside_named_MPI_seconds": 0.8626137081818182
+    },
+    "77": {
+      "mean_step_seconds": 1.40699875,
+      "mean_named_MPI_seconds": 0.61585621,
+      "mean_outside_named_MPI_seconds": 0.7911425400000001
+    },
+    "78": {
+      "mean_step_seconds": 1.407019719090909,
+      "mean_named_MPI_seconds": 0.6279693045454545,
+      "mean_outside_named_MPI_seconds": 0.7790504145454545
+    },
+    "79": {
+      "mean_step_seconds": 1.4069541345454546,
+      "mean_named_MPI_seconds": 0.7532842727272727,
+      "mean_outside_named_MPI_seconds": 0.6536698618181819
+    },
+    "80": {
+      "mean_step_seconds": 1.406933480909091,
+      "mean_named_MPI_seconds": 0.7170513036363636,
+      "mean_outside_named_MPI_seconds": 0.6898821772727273
+    },
+    "81": {
+      "mean_step_seconds": 1.4069904227272727,
+      "mean_named_MPI_seconds": 0.7450230909090909,
+      "mean_outside_named_MPI_seconds": 0.6619673318181819
+    },
+    "82": {
+      "mean_step_seconds": 1.4069358781818182,
+      "mean_named_MPI_seconds": 0.8650071363636364,
+      "mean_outside_named_MPI_seconds": 0.5419287418181818
+    }
+  },
+  "whole_profile_window_counters": {
+    "source proof payload bytes": 11326613376,
+    "receive proof payload bytes": 11326613376,
+    "copy proof payload bytes": 13862170508,
+    "local geometry doubles written": 5942112,
+    "local scalar field samples": 7382624,
+    "received geometry doubles copied": 13835712,
+    "inverse plan builds": 996,
+    "inverse plan reuses": 2988,
+    "boundary doubles sent": 2014206995,
+    "boundary doubles received": 2014206995,
+    "boundary posted requests": 21192112,
+    "boundary pack candidates": 5193344911,
+    "boundary route candidates": 5193344911,
+    "boundary install candidates": 5193344911,
+    "boundary buffer doubles zeroed": 208806015978,
+    "boundary fields per start": 4161122
+  },
+  "whole_profile_window_boundary_callers": {
+    "dynamics residual": {
+      "wall_rank_mean_sum": 0.02309552,
+      "global_calls": 1328
+    },
+    "adaptation residual": {
+      "wall_rank_mean_sum": 0.23797590000000002,
+      "global_calls": 17928
+    },
+    "output/checkpoint": {
+      "wall_rank_mean_sum": 0.0242106,
+      "global_calls": 40172
+    },
+    "shared producer residual": {
+      "wall_rank_mean_sum": 2.220649,
+      "global_calls": 3486000
+    },
+    "shared basic operators": {
+      "wall_rank_mean_sum": 0.46927800000000003,
+      "global_calls": 697200
+    },
+    "vertical remap": {
+      "wall_rank_mean_sum": 0.015901949999999998,
+      "global_calls": 664
+    },
+    "restart bootstrap": {
+      "wall_rank_mean_sum": 0.0197012,
+      "global_calls": 1494
+    },
+    "wavelet driver residual": {
+      "wall_rank_mean_sum": 0.521649,
+      "global_calls": 23406
+    }
+  },
+  "limitations": [
+    "The campaign ratio uses unprofiled medians; phase attribution uses means of 11 profiled non-checkpoint steps.",
+    "Remap steps remain ordinary, matching the campaign definition.",
+    "Named MPI times include spin and arrival imbalance; outside-named-MPI time may include unclassified MPI.",
+    "Phase groups are disjoint block costs, not measured excess over the legacy phases.",
+    "No legacy phase profile or controlled ablation was supplied. Do not claim a causal decomposition of the entire gap.",
+    "Whole-window counters and boundary caller totals include the checkpoint step and possible between-step work."
+  ]
+}
