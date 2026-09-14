@@ -1,0 +1,890 @@
+{
+  "job": 54561,
+  "status": "passed_review",
+  "source_hashes_match_local_candidate": true,
+  "results_sha256": "e87652cf09f387d86042416bc03ba4cefc36663c3fa288c0e51b08bac8b13932",
+  "build_identity_sha256": "b0cb45aa6a4a141b4df0fa2362163c1f6003f59856dd33d8a892be8037b09afc",
+  "build_logs": {
+    "baseline": {
+      "sha256": "304bc206b4539b9993997d0212101bdd95e9ae46a6b597a0f8f5be40387372ab",
+      "compiler_commands_verified": 55
+    },
+    "candidate": {
+      "sha256": "75dd32195fc87605743f7e1c0648cd1566f7f6ebb74f8359547a1c71be7a079c",
+      "compiler_commands_verified": 55
+    },
+    "checked": {
+      "sha256": "369d082deaa836ce34810a878f6bf26d5cd81097652d9f0bf96dc13cb801906e",
+      "compiler_commands_verified": 55
+    },
+    "legacy": {
+      "sha256": "c518844fcdccc59e82b5b94bf82a6c0d88fe1771b2215c516be58890984e41a5",
+      "compiler_commands_verified": 47
+    },
+    "legacy_profile": {
+      "sha256": "a592ccd0c42f15bc32f9ff637931134e3c7e693d55cf9ef34ee5d57c8aaa660f",
+      "compiler_commands_verified": 49
+    }
+  },
+  "gate_counts": {
+    "exact": 35,
+    "workload": 31,
+    "legacy_screen": 8
+  },
+  "maximum_legacy_field_differences": {
+    "velocity": 3.723243935382925e-12,
+    "mass": 2.5011104298755527e-12,
+    "temperature": 7.8580342233181e-10
+  },
+  "summary": {
+    "baseline": {
+      "elapsed_seconds": [
+        32.823226635024184,
+        32.95585766498698,
+        33.10558128001867,
+        32.90912794400356,
+        32.87072383999475,
+        32.82612104099826
+      ],
+      "ordinary_step_medians": [
+        1.42,
+        1.42,
+        1.43,
+        1.43,
+        1.42,
+        1.43
+      ],
+      "median_elapsed_seconds": 32.889925891999155,
+      "median_ordinary_step_seconds": 1.4249999999999998
+    },
+    "candidate": {
+      "elapsed_seconds": [
+        31.790778973983834,
+        31.85982361799688,
+        31.85800950799603,
+        31.810695213993313,
+        31.75595859900932,
+        31.849940343992785
+      ],
+      "ordinary_step_medians": [
+        1.34,
+        1.34,
+        1.34,
+        1.34,
+        1.34,
+        1.34
+      ],
+      "median_elapsed_seconds": 31.83031777899305,
+      "median_ordinary_step_seconds": 1.34
+    },
+    "legacy": {
+      "elapsed_seconds": [
+        22.87416242598556,
+        22.539908949984238,
+        22.553644547006115,
+        22.430512589984573,
+        22.45787546300562,
+        22.460334717005026
+      ],
+      "ordinary_step_medians": [
+        0.569,
+        0.559,
+        0.554,
+        0.558,
+        0.556,
+        0.556
+      ],
+      "median_elapsed_seconds": 22.50012183349463,
+      "median_ordinary_step_seconds": 0.557
+    },
+    "observed_elapsed_reduction_percent": 3.22167984350451,
+    "block_vs_legacy": {
+      "baseline": {
+        "elapsed_ratio": 1.4617665688830992,
+        "ordinary_step_ratio": 2.5583482944344698
+      },
+      "candidate": {
+        "elapsed_ratio": 1.414673129974305,
+        "ordinary_step_ratio": 2.405745062836625
+      }
+    },
+    "ablations": {
+      "install-only": {
+        "elapsed_seconds": [
+          31.863400628993986,
+          31.772406384989154,
+          31.790202256990597
+        ],
+        "ordinary_step_medians": [
+          1.34,
+          1.34,
+          1.34
+        ],
+        "median_elapsed_seconds": 31.790202256990597,
+        "median_ordinary_step_seconds": 1.34
+      },
+      "overlap-only": {
+        "elapsed_seconds": [
+          32.918648248014506,
+          32.98929015098838,
+          33.19118850902305
+        ],
+        "ordinary_step_medians": [
+          1.43,
+          1.43,
+          1.44
+        ],
+        "median_elapsed_seconds": 32.98929015098838,
+        "median_ordinary_step_seconds": 1.43
+      }
+    },
+    "scope": "Observed timings only. Inspect node load, placement and memory/swap evidence. Warmups, correctness runs and detailed profiles are excluded."
+  },
+  "ordinary_step_reduction_percent": 5.964912280701739,
+  "fraction_of_excess_over_legacy_removed_percent": 9.792626728110573,
+  "memory": {
+    "checked-off": {
+      "max_rank_rss_mib": 387.59765625,
+      "sum_rank_peak_rss_gib": 22.39459991455078,
+      "major_faults_sum": 5531,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "checked-on": {
+      "max_rank_rss_mib": 701.47265625,
+      "sum_rank_peak_rss_gib": 41.170658111572266,
+      "major_faults_sum": 5753,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-warmup": {
+      "max_rank_rss_mib": 398.9609375,
+      "sum_rank_peak_rss_gib": 22.990875244140625,
+      "major_faults_sum": 2361,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-warmup": {
+      "max_rank_rss_mib": 381.09765625,
+      "sum_rank_peak_rss_gib": 21.660781860351562,
+      "major_faults_sum": 1426,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-warmup": {
+      "max_rank_rss_mib": 165.51171875,
+      "sum_rank_peak_rss_gib": 11.021507263183594,
+      "major_faults_sum": 808,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-1": {
+      "max_rank_rss_mib": 400.7890625,
+      "sum_rank_peak_rss_gib": 23.05031967163086,
+      "major_faults_sum": 2085,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-1": {
+      "max_rank_rss_mib": 381.7421875,
+      "sum_rank_peak_rss_gib": 21.681049346923828,
+      "major_faults_sum": 1861,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-1": {
+      "max_rank_rss_mib": 168.9765625,
+      "sum_rank_peak_rss_gib": 11.02859115600586,
+      "major_faults_sum": 1168,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-2": {
+      "max_rank_rss_mib": 379.54296875,
+      "sum_rank_peak_rss_gib": 21.67104721069336,
+      "major_faults_sum": 2111,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-2": {
+      "max_rank_rss_mib": 166.6015625,
+      "sum_rank_peak_rss_gib": 11.012275695800781,
+      "major_faults_sum": 1219,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-2": {
+      "max_rank_rss_mib": 398.69921875,
+      "sum_rank_peak_rss_gib": 23.021732330322266,
+      "major_faults_sum": 1909,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-3": {
+      "max_rank_rss_mib": 166.3359375,
+      "sum_rank_peak_rss_gib": 11.013694763183594,
+      "major_faults_sum": 1060,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-3": {
+      "max_rank_rss_mib": 399.50390625,
+      "sum_rank_peak_rss_gib": 22.994792938232422,
+      "major_faults_sum": 2082,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-3": {
+      "max_rank_rss_mib": 378.7265625,
+      "sum_rank_peak_rss_gib": 21.686603546142578,
+      "major_faults_sum": 1883,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-4": {
+      "max_rank_rss_mib": 398.32421875,
+      "sum_rank_peak_rss_gib": 22.994224548339844,
+      "major_faults_sum": 2311,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-4": {
+      "max_rank_rss_mib": 380.10546875,
+      "sum_rank_peak_rss_gib": 21.676040649414062,
+      "major_faults_sum": 1841,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-4": {
+      "max_rank_rss_mib": 167.29296875,
+      "sum_rank_peak_rss_gib": 11.030467987060547,
+      "major_faults_sum": 1133,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-5": {
+      "max_rank_rss_mib": 379.28125,
+      "sum_rank_peak_rss_gib": 21.682674407958984,
+      "major_faults_sum": 1882,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-5": {
+      "max_rank_rss_mib": 167.42578125,
+      "sum_rank_peak_rss_gib": 11.03436279296875,
+      "major_faults_sum": 1103,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-5": {
+      "max_rank_rss_mib": 397.91796875,
+      "sum_rank_peak_rss_gib": 23.006244659423828,
+      "major_faults_sum": 1995,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-6": {
+      "max_rank_rss_mib": 164.19921875,
+      "sum_rank_peak_rss_gib": 11.012092590332031,
+      "major_faults_sum": 1178,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-6": {
+      "max_rank_rss_mib": 399.171875,
+      "sum_rank_peak_rss_gib": 23.014141082763672,
+      "major_faults_sum": 1951,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-6": {
+      "max_rank_rss_mib": 381.9296875,
+      "sum_rank_peak_rss_gib": 21.6812744140625,
+      "major_faults_sum": 2037,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-control": {
+      "max_rank_rss_mib": 397.71875,
+      "sum_rank_peak_rss_gib": 22.995399475097656,
+      "major_faults_sum": 2013,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "install-only-1": {
+      "max_rank_rss_mib": 379.09765625,
+      "sum_rank_peak_rss_gib": 21.659996032714844,
+      "major_faults_sum": 2063,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "overlap-only-1": {
+      "max_rank_rss_mib": 399.609375,
+      "sum_rank_peak_rss_gib": 23.043731689453125,
+      "major_faults_sum": 1848,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "overlap-only-2": {
+      "max_rank_rss_mib": 397.640625,
+      "sum_rank_peak_rss_gib": 23.005096435546875,
+      "major_faults_sum": 1893,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "install-only-2": {
+      "max_rank_rss_mib": 381.60546875,
+      "sum_rank_peak_rss_gib": 21.68572998046875,
+      "major_faults_sum": 1965,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "install-only-3": {
+      "max_rank_rss_mib": 381.91796875,
+      "sum_rank_peak_rss_gib": 21.699851989746094,
+      "major_faults_sum": 1901,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "overlap-only-3": {
+      "max_rank_rss_mib": 394.484375,
+      "sum_rank_peak_rss_gib": 23.016334533691406,
+      "major_faults_sum": 1980,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-profile": {
+      "max_rank_rss_mib": 400.28125,
+      "sum_rank_peak_rss_gib": 23.04183578491211,
+      "major_faults_sum": 2070,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-profile": {
+      "max_rank_rss_mib": 379.99609375,
+      "sum_rank_peak_rss_gib": 21.708179473876953,
+      "major_faults_sum": 1990,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-profile": {
+      "max_rank_rss_mib": 166.78515625,
+      "sum_rank_peak_rss_gib": 11.035079956054688,
+      "major_faults_sum": 1172,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    }
+  },
+  "timing_memory_summary": {
+    "baseline": {
+      "max_rank_rss_mib_range": [
+        397.91796875,
+        400.7890625
+      ],
+      "median_sum_rank_peak_rss_gib": 23.01019287109375
+    },
+    "candidate": {
+      "max_rank_rss_mib_range": [
+        378.7265625,
+        381.9296875
+      ],
+      "median_sum_rank_peak_rss_gib": 21.681161880493164
+    },
+    "legacy": {
+      "max_rank_rss_mib_range": [
+        164.19921875,
+        168.9765625
+      ],
+      "median_sum_rank_peak_rss_gib": 11.021142959594727
+    }
+  },
+  "profiles": {
+    "baseline": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 1.4098046561336255,
+      "mean_self_wall_by_region": [
+        0.00261324156407448,
+        0.0018603801916757942,
+        0.024500570974808324,
+        0.0006603064118291347,
+        0.012923409353778751,
+        0.009369893558466593,
+        0.019628752142387733,
+        0.0041187727415115,
+        0.015197456204819278,
+        0.0547058582694414,
+        0.011056871822694414,
+        0.005943148117196057,
+        0.036170060460021906,
+        0.009610669309967141,
+        0.006731714961664841,
+        0.025931791073384447,
+        0.0031879862326396496,
+        0.0031358823756845564,
+        0.11695632322015334,
+        0.019193237283680175,
+        0.0065944156276889375,
+        0.02984078455640745,
+        0.00043232750163198246,
+        0.028967495334063526,
+        0.09650108154435925,
+        0.04417598630887185,
+        0.02817189800657174,
+        0.016448654545454546,
+        0.004256275005476451,
+        0.009731414852135816,
+        0.011895236845564075,
+        0.005090298539978094,
+        0.05521604499452355,
+        0.02790811695728368,
+        0.007517814225629792,
+        0.055792325189266155,
+        0.04656662090909091,
+        0.15312585158817085,
+        0.07830105271631982,
+        0.03593997033844469,
+        2.0861721226725083e-05,
+        0.007169431281489595,
+        0.061363955202628696,
+        0.016021575498357064,
+        0.001380160200438116,
+        0.0017478720832420592,
+        0.023363579452354875,
+        0.0013490642212486308,
+        0.0079219726067908,
+        0.00042531689277108435,
+        5.0804409748083245e-05,
+        0.005767339555312158,
+        0.008519992378970427,
+        0.012511126089813801,
+        0.0017555373493975904,
+        0.0,
+        0.0,
+        0.03483875147864184,
+        0.019755604841182915,
+        0.01335199187294633,
+        0.02286017916757941,
+        0.0037332118291347207,
+        0.023904762464403068,
+        0.0,
+        0.016021575246440305
+      ],
+      "max_conservation_error": 1.636099999924312e-06,
+      "whole_window_counters": {
+        "source proof payload bytes": 11326613376,
+        "receive proof payload bytes": 11326613376,
+        "copy proof payload bytes": 13862170508,
+        "local geometry doubles written": 5942112,
+        "local scalar field samples": 7382624,
+        "received geometry doubles copied": 13835712,
+        "inverse plan builds": 996,
+        "inverse plan reuses": 2988,
+        "boundary doubles sent": 2014206995,
+        "boundary doubles received": 2014206995,
+        "boundary posted requests": 21192112,
+        "boundary pack candidates": 5193344911,
+        "boundary route candidates": 5193344911,
+        "boundary install candidates": 5193344911,
+        "boundary buffer doubles zeroed": 208806015978,
+        "boundary fields per start": 4161122
+      }
+    },
+    "candidate": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 1.3337555972398685,
+      "mean_self_wall_by_region": [
+        0.0025519840251916758,
+        0.0018638895038335158,
+        0.02807261161007667,
+        0.0004437650952902519,
+        0.00989732708652793,
+        0.0,
+        0.0,
+        1.5946452102957284e-05,
+        0.0,
+        0.028454900985761228,
+        0.010698668305662651,
+        0.005459239007667032,
+        0.03631119638554217,
+        0.009517383559693319,
+        0.006683189200438116,
+        0.025902635421686748,
+        0.0031524759729463308,
+        0.0030999562617743705,
+        0.11528341763417306,
+        0.019260500624315443,
+        0.006610223815805038,
+        0.029116352026286967,
+        0.0004564566155312158,
+        0.028963334151150055,
+        0.096302629550931,
+        0.04429528543263965,
+        0.028067312880613364,
+        0.01639248499452355,
+        0.0043425333855421685,
+        0.012431348543263965,
+        0.012008475750273823,
+        0.005247680706462213,
+        0.05583740507119387,
+        0.027906442530120482,
+        0.008848451767798467,
+        0.05583818893384447,
+        0.045078439441401975,
+        0.1538253251916758,
+        0.07595980519167579,
+        0.03565602800219058,
+        2.542740127053669e-05,
+        0.007168951916757941,
+        0.06116535487404162,
+        0.016099199189485214,
+        0.0013068889025191677,
+        0.0019183777973713035,
+        0.023022766067907995,
+        0.0013562550503833516,
+        0.007661457743702081,
+        0.00042402173055859806,
+        5.105666757940854e-05,
+        0.005642829299014239,
+        0.008530130932092005,
+        0.012451995016429353,
+        0.0018030411938663746,
+        0.0,
+        0.0,
+        0.03490276418400876,
+        0.01978878030668127,
+        0.013307372935377875,
+        0.022831768948521357,
+        0.0037163003285870756,
+        0.023858034107338444,
+        0.0,
+        0.016869532311062432
+      ],
+      "max_conservation_error": 1.507989999982584e-06,
+      "whole_window_counters": {
+        "source proof payload bytes": 0,
+        "receive proof payload bytes": 0,
+        "copy proof payload bytes": 0,
+        "local geometry doubles written": 5942112,
+        "local scalar field samples": 7382624,
+        "received geometry doubles copied": 13835712,
+        "inverse plan builds": 996,
+        "inverse plan reuses": 2988,
+        "boundary doubles sent": 2014206995,
+        "boundary doubles received": 2014206995,
+        "boundary posted requests": 21192112,
+        "boundary pack candidates": 5193344911,
+        "boundary route candidates": 5193344911,
+        "boundary install candidates": 5193344911,
+        "boundary buffer doubles zeroed": 208806015978,
+        "boundary fields per start": 4161122,
+        "install moved payload bytes": 13862170508,
+        "install copied payload bytes": 0
+      }
+    },
+    "legacy": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 0.6090956802343743,
+      "mean_self_wall_by_region": [
+        0.008648011935531821,
+        0.00038027722595834865,
+        0.012348005226319798,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.017415959186585995,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.016105852076752664,
+        0.020022321212074087,
+        0.02557476416894139,
+        0.023668166916254604,
+        0.0,
+        0.0,
+        0.031166351210614892,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.24203102442646054,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0011757025155361216,
+        0.005375153230785505,
+        0.0,
+        0.003189574388336025,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.012219935010368645,
+        0.0007877823955232537,
+        0.0,
+        0.0,
+        0.05254387803946194,
+        0.033650431797850155,
+        0.019350490067759834,
+        0.03835997929225211,
+        0.005899279015688307,
+        0.03300011637708609,
+        0.0,
+        0.006182624518232234
+      ]
+    }
+  },
+  "profile_groups": {
+    "Domain boundary handling": {
+      "baseline": 0.28801900778751366,
+      "candidate": 0.28862283099671415,
+      "legacy": 0.4485033659328136
+    },
+    "Block reconstruction and migration": {
+      "baseline": 0.17798110111719606,
+      "candidate": 0.10104198504144579,
+      "legacy": 0.0
+    },
+    "Native inverse": {
+      "baseline": 0.25432463827684554,
+      "candidate": 0.25254235074270537,
+      "legacy": 0.017415959186585995
+    },
+    "Scalar input and restriction": {
+      "baseline": 0.2023591142553012,
+      "candidate": 0.19996826845288063,
+      "legacy": 0.016105852076752664
+    },
+    "Block ghost handling": {
+      "baseline": 0.08312416195180723,
+      "candidate": 0.08374384760131436,
+      "legacy": 0.0
+    },
+    "Native mass and velocity": {
+      "baseline": 0.09992770441401971,
+      "candidate": 0.10039962948521358,
+      "legacy": 0.031166351210614892
+    },
+    "Shared Domain producers": {
+      "baseline": 0.0823714988762322,
+      "candidate": 0.08234796099780942,
+      "legacy": 0.04559708538101548
+    },
+    "Domain/block publication": {
+      "baseline": 0.049377558377984666,
+      "candidate": 0.04898918818291347,
+      "legacy": 0.0
+    },
+    "Wavelet and compression": {
+      "baseline": 0.09340710594742607,
+      "candidate": 0.09413408637458927,
+      "legacy": 0.007358327033768356
+    },
+    "RK and tendency assembly": {
+      "baseline": 0.03501160411500548,
+      "candidate": 0.03477816369989047,
+      "legacy": 0.00856472761912153
+    },
+    "Other timestep work": {
+      "baseline": 0.043901162581599124,
+      "candidate": 0.047187286444687844,
+      "legacy": 0.03438401179370187
+    }
+  },
+  "limitations": [
+    "Checkpoint payloads and executables are absent: validate supplied reports/hashes, not re-execution.",
+    "One short 83-rank nk J5/J7 RK4 campaign; no general multi-node or longer-run claim.",
+    "Legacy phase boundaries differ, notably boundary work split out of inverse/scalar phases. Group differences are not a causal excess decomposition.",
+    "Profile means exclude checkpoint steps but are instrumented runs; timing medians exclude all profiles.",
+    "Summed rank peaks are not simultaneous node memory; resource collection excludes waiting Python parents.",
+    "Ablations follow the rotating timing triples; overlap has no demonstrated gain here, not proof it can never help."
+  ],
+  "review_archive_sha256": "98312894f8574bf2e8529a26a81c5914cde2fd470ab00befaa8c6cd531d2c181"
+}

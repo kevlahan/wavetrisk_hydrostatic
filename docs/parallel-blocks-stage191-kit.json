@@ -1,0 +1,30 @@
+{
+  "kit": "/private/tmp/wavetrisk-stage191-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage191-cluster-kit.tar.gz",
+  "sha256": "7b7c108b85cebe0f116c2a5ee4686ca20b708bb30994abd65d529b8994d99e14",
+  "candidate_patch_sha256": "429da444b54af54de87f110ee22ea030e31adffe2cfff8cdeeb8ca9b58ae15d6",
+  "baseline": "cdd2eb643119fbf176d753a88c745ea90a455f3b",
+  "status": "ready_for_cluster_validation",
+  "cluster_performance": "Job 54561 reviewed; see cluster_validation",
+  "initial_archive_sha256": "71157fe85796320aa47f2b8762f5813313678f66a2e58840e10e5654b72e576d",
+  "runner_fix": {
+    "job": 54560,
+    "archive": "/private/tmp/wavetrisk-stage191-runner-fix.tar.gz",
+    "sha256": "395724dbd306599a3bae4a6072de400ddaac70be58fd54589405b14c6934782d",
+    "files": {
+      "cluster_191.py": "3619607bf412b0e2070fd9f4a7146dee34e2051c2d86075fd31e4768f1982caa",
+      "submit_restriction_191.py": "ab6342ae0ae01c80aa2d6f236a261cb88b6292f0709be9b612992d6e4bb7bf59"
+    },
+    "tests": "11 helper tests, one MPI test skipped; real child launch with >512 KiB provenance verified",
+    "scope": "Runner only: no numerical source, build, binary or gate changes"
+  },
+  "cluster_validation": {
+    "job": 54561,
+    "status": "passed",
+    "gates": 74,
+    "runs": 33,
+    "report": "parallel-blocks-cluster-191-54561.md",
+    "ordinary_step_reduction_percent": 5.964912280701739,
+    "scope": "Installation gain; no demonstrated mass-overlap gain; 83 ranks nk J5/J7 RK4"
+  }
+}

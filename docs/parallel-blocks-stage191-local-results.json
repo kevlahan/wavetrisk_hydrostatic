@@ -1,0 +1,813 @@
+{
+  "stage": 191,
+  "baseline": "cdd2eb64",
+  "implemented": [
+    "A: transfer installation storage and gate serialization proofs",
+    "C: mass begin/finish overlap"
+  ],
+  "not_implemented": [
+    "B: retain unchanged subtree storage/plans",
+    "remove Domain/block representation transfers"
+  ],
+  "optimized": {
+    "status": "passed",
+    "binary": "/private/tmp/wavetrisk-stage191-build-01/bin-191-opt/climate",
+    "binary_sha256": "1f3af683a7510196bb44ff9fe2efd6cf4223f24a7bdbd95a6110e973627370b6",
+    "parameters": {
+      "test_case": "climate",
+      "physics_type": "Simple",
+      "run_id": "localJ4J6",
+      "max_level": "6",
+      "zlevels": "30",
+      "Nsoil": "10",
+      "NCAR_topo": "F",
+      "sso": "F",
+      "topo_file": "J05J07_120.0km",
+      "topo_min_level": "5",
+      "topo_max_level": "7",
+      "tol": "2.5e-2",
+      "dt_write": "0.02",
+      "CP_EVERY": "1",
+      "time_end": "0.33",
+      "resume": "2"
+    },
+    "param": "param_J4",
+    "ranks": 4,
+    "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+    "grids": {
+      "files": 39,
+      "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+    },
+    "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+    "reloads": [
+      2,
+      3
+    ],
+    "remaps": 2,
+    "run_log_sha256": "d2c689a8361ac7927a062bddbcc2b05aaaf8b9d90aa7584d2035cbf89b0357ed",
+    "step_count": 12,
+    "memory": {
+      "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+      "vm_delta_bytes": {
+        "Decompressions": 44113936384,
+        "Compressions": 56995545088,
+        "Swapins": 131072,
+        "Swapouts": 0
+      },
+      "sampled_simultaneous_rss_peak_kib": 4918736,
+      "usable_for_local_timing": false,
+      "reasons": [
+        "More than 1 GiB system-wide decompression during run"
+      ]
+    },
+    "sources": {
+      "src/main.f90": "c083e128e564555b274860f3896b517b59a2bb542db6331c97610b621c1b965c",
+      "src/multi_level.f90": "03d89ddccd20cc66bff017506dc7f59c80fc6355af1f556f24df5466cc47beef",
+      "src/parallel_block.f90": "f5d89259b92ca3e7c8455374ecb3f5f00e3c4670ee67cc9338233ac8e3c399af",
+      "src/parallel_block_build.f90": "f3af8d87af3a59e4a9cefdd49b0bdec06aee9929c00bed9c03bd023aea8d9174",
+      "src/parallel_block_mpi.f90": "496a3a65a4241a428724902d81f78f0de6e34dc64e58650aff4e26a790b16065",
+      "src/parallel_block_profile.f90": "05f6e80f587833dd2fa1cfbb1388bb376ee4bd4cc087f7e05ade7f343c0e6567"
+    }
+  },
+  "checked": {
+    "status": "passed",
+    "binary": "/private/tmp/wavetrisk-stage191-build-01/bin-191-check/climate",
+    "binary_sha256": "324fb843bcf25cddde24145af9c512b171d6754f34c000ad5a80cb2d229fa664",
+    "parameters": {
+      "test_case": "climate",
+      "physics_type": "Simple",
+      "run_id": "localJ4J6",
+      "max_level": "6",
+      "zlevels": "30",
+      "Nsoil": "10",
+      "NCAR_topo": "F",
+      "sso": "F",
+      "topo_file": "J05J07_120.0km",
+      "topo_min_level": "5",
+      "topo_max_level": "7",
+      "tol": "2.5e-2",
+      "dt_write": "0.02",
+      "CP_EVERY": "1",
+      "time_end": "0.33",
+      "resume": "2"
+    },
+    "param": "param_J4",
+    "ranks": 4,
+    "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+    "grids": {
+      "files": 39,
+      "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+    },
+    "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+    "reloads": [
+      2,
+      3
+    ],
+    "remaps": 2,
+    "run_log_sha256": "3c2f68d8d3c52bd1b88294ea4735100ca718f74b981c123d89a1efba6be41bae",
+    "step_count": 12,
+    "memory": {
+      "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+      "vm_delta_bytes": {
+        "Decompressions": 80277225472,
+        "Compressions": 89732284416,
+        "Swapins": 851968,
+        "Swapouts": 0
+      },
+      "sampled_simultaneous_rss_peak_kib": 4676112,
+      "usable_for_local_timing": false,
+      "reasons": [
+        "More than 1 GiB system-wide decompression during run"
+      ]
+    },
+    "sources": {
+      "src/main.f90": "c083e128e564555b274860f3896b517b59a2bb542db6331c97610b621c1b965c",
+      "src/multi_level.f90": "03d89ddccd20cc66bff017506dc7f59c80fc6355af1f556f24df5466cc47beef",
+      "src/parallel_block.f90": "f5d89259b92ca3e7c8455374ecb3f5f00e3c4670ee67cc9338233ac8e3c399af",
+      "src/parallel_block_build.f90": "f3af8d87af3a59e4a9cefdd49b0bdec06aee9929c00bed9c03bd023aea8d9174",
+      "src/parallel_block_mpi.f90": "496a3a65a4241a428724902d81f78f0de6e34dc64e58650aff4e26a790b16065",
+      "src/parallel_block_profile.f90": "05f6e80f587833dd2fa1cfbb1388bb376ee4bd4cc087f7e05ade7f343c0e6567"
+    }
+  },
+  "legacy_profile": {
+    "status": "passed",
+    "binary": "/private/tmp/wavetrisk-stage191-legacy-profile-local/bin-191-profile/climate",
+    "binary_sha256": "0831739844919f39696332cf513e5dbbc5787006780f64ee646d398a1e25aead",
+    "parameters": {
+      "test_case": "climate",
+      "physics_type": "Simple",
+      "run_id": "localJ4J6",
+      "max_level": "6",
+      "zlevels": "30",
+      "Nsoil": "10",
+      "NCAR_topo": "F",
+      "sso": "F",
+      "topo_file": "J05J07_120.0km",
+      "topo_min_level": "5",
+      "topo_max_level": "7",
+      "tol": "2.5e-2",
+      "dt_write": "0.02",
+      "CP_EVERY": "1",
+      "time_end": "0.33",
+      "resume": "2"
+    },
+    "param": "param_J4",
+    "ranks": 4,
+    "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+    "grids": {
+      "files": 39,
+      "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+    },
+    "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+    "reloads": [
+      2,
+      3
+    ],
+    "remaps": 2,
+    "run_log_sha256": "9981edaaf485e317ad532bc958f79d671278eeffdd33a3792132de899b067ba6",
+    "step_count": 12,
+    "memory": {
+      "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+      "vm_delta_bytes": {
+        "Decompressions": 31651020800,
+        "Compressions": 33203126272,
+        "Swapins": 15630336,
+        "Swapouts": 970522624
+      },
+      "sampled_simultaneous_rss_peak_kib": 1962224,
+      "usable_for_local_timing": false,
+      "reasons": [
+        "More than 1 GiB system-wide decompression during run",
+        "More than 64 MiB system-wide swapout during run"
+      ]
+    }
+  },
+  "comparisons": {
+    "stage190": {
+      "passed": true,
+      "exact": true,
+      "failures": [],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-stage190-opt-run-01/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage191-check-run-01/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    },
+    "stage191-opt": {
+      "passed": true,
+      "exact": true,
+      "failures": [],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-stage191-opt-run-02/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage191-check-run-01/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    },
+    "oracle": {
+      "passed": true,
+      "exact": true,
+      "failures": [],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-stage186-acceptance-01/rk4-oracle/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage191-check-run-01/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    },
+    "legacy": {
+      "passed": true,
+      "exact": false,
+      "failures": [],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-stage190-legacy-run-01/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage191-check-run-01/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 32414,
+            "nonfinite": 0,
+            "max_abs": 8.455458555545192e-13,
+            "worst": {
+              "domain": 35,
+              "record": 0,
+              "k": 30,
+              "index": 35,
+              "left": -21.211996961219022,
+              "right": -21.211996961218176
+            }
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 5334,
+            "nonfinite": 0,
+            "max_abs": 1.8189894035458565e-12,
+            "worst": {
+              "domain": 36,
+              "record": 0,
+              "k": 10,
+              "index": 13,
+              "left": 837.5220891133997,
+              "right": 837.5220891134015
+            }
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 5690,
+            "nonfinite": 0,
+            "max_abs": 5.238689482212067e-10,
+            "worst": {
+              "domain": 36,
+              "record": 0,
+              "k": 10,
+              "index": 13,
+              "left": 239689.6031407293,
+              "right": 239689.60314072983
+            }
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 730546,
+            "nonfinite": 0,
+            "max_abs": 8.331113576787175e-12,
+            "worst": {
+              "domain": 4,
+              "record": 50,
+              "k": 30,
+              "index": 32,
+              "left": 0.04407844185251264,
+              "right": 0.04407844186084375
+            }
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 98253,
+            "nonfinite": 0,
+            "max_abs": 3.296918293926865e-12,
+            "worst": {
+              "domain": 12,
+              "record": 6,
+              "k": 10,
+              "index": 4,
+              "left": 0.10273147034331487,
+              "right": 0.10273147034001795
+            }
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 97738,
+            "nonfinite": 0,
+            "max_abs": 1.622538547962904e-09,
+            "worst": {
+              "domain": 19,
+              "record": 58,
+              "k": 30,
+              "index": 7,
+              "left": -234.11598448472432,
+              "right": -234.11598448310178
+            }
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    }
+  },
+  "legacy_profile_exact": {
+    "passed": true,
+    "failures": [],
+    "report": {
+      "left": "/private/tmp/wavetrisk-stage190-legacy-run-01/localJ4J6_checkpoint_0003.bin.zst",
+      "right": "/private/tmp/wavetrisk-stage191-legacy-profile-run-01/localJ4J6_checkpoint_0003.bin.zst",
+      "header_differences": 0,
+      "topology_differences": 0,
+      "threshold_max_abs": 0.0,
+      "threshold_nonfinite": 0,
+      "fields": {
+        "coarse/velocity/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/velocity/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/mass/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/temperature/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/velocity/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/velocity/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/mass/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/temperature/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/mass/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/temperature/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        }
+      }
+    }
+  },
+  "production_installation": {
+    "source proof payload bytes": 0,
+    "receive proof payload bytes": 0,
+    "copy proof payload bytes": 0,
+    "install copied payload bytes": 0,
+    "install moved payload bytes": 8611644132
+  },
+  "legacy_profile_coverage": {
+    "ranks": 4,
+    "steps": 12,
+    "regions": 65,
+    "exclusive_time_conservation": "passed"
+  },
+  "additional_full_oracle": {
+    "status": "stopped_by_agent",
+    "reason": "Optional full-oracle rerun stopped for local cost/memory pressure after initial steps; not counted as a pass. Fresh full oracle/restart remains required on cluster.",
+    "completed_printed_steps": 3,
+    "run_log_sha256": "a02e3dd08f8899ea78407045cd4702435980d94dea5ce6d01c0656407d3d8b96"
+  },
+  "tests": {
+    "helper_suite": "96 tests, one MPI test skipped in the sandbox (see separate MPI execution)",
+    "mpi_components": "2 tests passed at O0/O2: move all 36 allocations; delayed two-rank exchange, pending reuse and wrong-layer rejection",
+    "component_log_sha256": "7572a0078b243be931c43c0ae342ac8376c7d3c5d4c85b3e1558c4974f4e3b04"
+  },
+  "limitations": [
+    "Local timing invalid under VM compression; no Stage 191 speedup established.",
+    "Exact comparisons cover the saved checkpoint, with completed reload/remap trajectory; fresh full oracle campaign still required.",
+    "No unchanged-subtree reuse or producer ownership migration implemented.",
+    "Legacy numerical tolerance screen is unchanged, not a proof of exact legacy equivalence."
+  ]
+}
