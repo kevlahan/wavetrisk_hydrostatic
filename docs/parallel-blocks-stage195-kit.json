@@ -1,0 +1,27 @@
+{
+  "kit": "/private/tmp/wavetrisk-stage195-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage195-cluster-kit.tar.gz",
+  "sha256": "f74bac21cf21a281de1efb84fd71d6037f9991b2d9a75b5ee22be4dd318725dc",
+  "baseline_commit": "adb2e91e0d1c16dd21a9bf1597816e42891da719",
+  "observer_sha256": "d301a18345aa20b90af842aa77139002d70e87f6583655dcd621771e17699f58",
+  "block_patch_sha256": "46b3b5c7ecfd357222b05300e16632fd28e4c4f806b991ca679bd3e9fd268501",
+  "legacy_probe_patch_sha256": "75e2388885ee77ee70fa428bf3c028d213b6e283e626be6f704b5ee7b78af0d6",
+  "validation": "Both patches reconstruct verified source manifests; common observer identical; observer-only transformation restores original source bytes; shell syntax and standalone imports pass.",
+  "helpers_sha256": {
+    "rank_launch_190.py": "2406f55cc9fc5d90b5000156d888abf33e4e42a75e7c8f7d2157c0724a48e201",
+    "rank_metrics_190.py": "942aae917d711db30b40706e1b5e323ca1d74ff92227cf87a9793c4f347635ab",
+    "cluster_195.sbatch": "c79036b345434b97ba68714ad8fabc1bd6469f927dbbe449171f4bb375adc266",
+    "build_195.sbatch": "3855c2de12e31bd9d0335364440a0cfb66a5500092760ea2b20124db3b2ca95e",
+    "cluster_195.py": "52c52f2b8dee0284a6738a0b213501dc896b81878c2299493f3fdb4a2936319f",
+    "compare_restart_checkpoints.py": "8e63c8d1f448f38c2f782c6f73132dff8b7bbaf7265456bfa97d528105d73fbd",
+    "analyze_workflow_195.py": "d1323a4d03612700a088d055a912d9d6ecc9403c638197c59e9c0cee465ce90e",
+    "experiment.py": "e93022b31a37e7627f20d42237a0e75450bd8a6ee6ace1ea07f38fde352877f2",
+    "checkpoint_gate.py": "58fa8678c2bfa0f0aa04da01f93ab1b44e51aaa6bc9c1d1a5ed3d898842e5251",
+    "profile_protocol.py": "71f24a8d636489786f9a3380be975f79b38a349c9aea485fe09b323bfcd6266a",
+    "build_restriction_195.py": "6a02edf2a3411215b551649e2c4e6ea0a8810acb815a8ebdd9aa00bcd28abf49",
+    "collect_cluster_logs.py": "996b404a4d2ce563045b30e3d0fcbbdfae8230c339697defa982e0b4a4b91336",
+    "submit_restriction_195.py": "57e5bcc67714da029f47753fca8ec47ff59af40a6d63a41129b114756a6bde96",
+    "legacy_metrics_191.py": "7769073ef1ba3fba5fae1d7502efb023c36fff6bfdaabfb359800cb14484e2ec",
+    "analyze.py": "b8123a73ec3c57137050e1f15e52c2faf873e6f1baa054cacdbbee3dc66fb425"
+  }
+}

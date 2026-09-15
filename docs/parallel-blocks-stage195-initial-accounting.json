@@ -1,0 +1,1690 @@
+{
+  "status": "accounted_not_causally_explained",
+  "campaign_sha256": "40425edcb565071f9ad0263e335d1250ac79213c27f0accacb9056873829b3b2",
+  "headline": {
+    "block_seconds": 1.26,
+    "legacy_seconds": 0.558,
+    "gap_seconds": 0.702
+  },
+  "profiling_calibration": {
+    "candidate": {
+      "uninstrumented_median_of_step_medians": 1.26,
+      "profile_step_median": 1.31,
+      "profile_difference_percent": 3.9682539682539764,
+      "timing_run_count": 6
+    },
+    "legacy": {
+      "uninstrumented_median_of_step_medians": 0.558,
+      "profile_step_median": 0.627,
+      "profile_difference_percent": 12.365591397849451,
+      "timing_run_count": 6
+    }
+  },
+  "paired_profile_accounting": {
+    "steps": [
+      {
+        "sequence": 1,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.3301254789156627,
+            "legacy": 0.6446820343721865
+          },
+          "gap_seconds": 0.6854434445434762,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.30447292156626504,
+              "legacy": 0.4813814781085835,
+              "difference_seconds": -0.17690855654231846
+            },
+            "Block reconstruction and migration": {
+              "block": 0.10324535151903615,
+              "legacy": 0.0,
+              "difference_seconds": 0.10324535151903615
+            },
+            "Native inverse": {
+              "block": 0.19448691604975904,
+              "legacy": 0.018262233035302305,
+              "difference_seconds": 0.17622468301445673
+            },
+            "Scalar input and restriction": {
+              "block": 0.21315179177108434,
+              "legacy": 0.017070042234508837,
+              "difference_seconds": 0.1960817495365755
+            },
+            "Block ghost handling": {
+              "block": 0.08334618353012048,
+              "legacy": 0.0,
+              "difference_seconds": 0.08334618353012048
+            },
+            "Native mass and velocity": {
+              "block": 0.11531621855421686,
+              "legacy": 0.03327105665847334,
+              "difference_seconds": 0.08204516189574353
+            },
+            "Shared Domain producers": {
+              "block": 0.08576998457831325,
+              "legacy": 0.048005710705534096,
+              "difference_seconds": 0.037764273872779155
+            },
+            "Domain/block publication": {
+              "block": 0.052840099060240966,
+              "legacy": 0.0,
+              "difference_seconds": 0.052840099060240966
+            },
+            "Wavelet and compression": {
+              "block": 0.10311736144578314,
+              "legacy": 0.0080897627469904,
+              "difference_seconds": 0.09502759869879274
+            },
+            "RK and tendency assembly": {
+              "block": 0.036883220036144575,
+              "legacy": 0.008994479252359303,
+              "difference_seconds": 0.02788874078378527
+            },
+            "Other timestep work": {
+              "block": 0.037495474987951805,
+              "legacy": 0.02960727163043479,
+              "difference_seconds": 0.007888203357517016
+            }
+          },
+          "rounding_residual_seconds": -4.418325294519576e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.36145495,
+            "legacy": 0.6697843529982492
+          },
+          "gap_seconds": 0.6916705970017507,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.35706643,
+              "legacy": 0.5420993640145753,
+              "difference_seconds": -0.18503293401457527
+            },
+            "Block reconstruction and migration": {
+              "block": 0.10318888,
+              "legacy": 0.0,
+              "difference_seconds": 0.10318888
+            },
+            "Native inverse": {
+              "block": 0.1973177761,
+              "legacy": 0.011918426054762676,
+              "difference_seconds": 0.18539935004523733
+            },
+            "Scalar input and restriction": {
+              "block": 0.2064376891,
+              "legacy": 0.017606847948627546,
+              "difference_seconds": 0.18883084115137244
+            },
+            "Block ghost handling": {
+              "block": 0.0920009,
+              "legacy": 0.0,
+              "difference_seconds": 0.0920009
+            },
+            "Native mass and velocity": {
+              "block": 0.08841561,
+              "legacy": 0.03087422178941779,
+              "difference_seconds": 0.05754138821058222
+            },
+            "Shared Domain producers": {
+              "block": 0.06484505,
+              "legacy": 0.03184614423662424,
+              "difference_seconds": 0.03299890576337576
+            },
+            "Domain/block publication": {
+              "block": 0.083083392,
+              "legacy": 0.0,
+              "difference_seconds": 0.083083392
+            },
+            "Wavelet and compression": {
+              "block": 0.0976003,
+              "legacy": 0.006641897925874218,
+              "difference_seconds": 0.09095840207412578
+            },
+            "RK and tendency assembly": {
+              "block": 0.04052597,
+              "legacy": 0.0049136620364151895,
+              "difference_seconds": 0.03561230796358481
+            },
+            "Other timestep work": {
+              "block": 0.030973121000000003,
+              "legacy": 0.023883788991952315,
+              "difference_seconds": 0.007089332008047688
+            }
+          },
+          "rounding_residual_seconds": -1.682000000391426e-07,
+          "selected_ranks": {
+            "block": 12,
+            "legacy": 56
+          }
+        }
+      },
+      {
+        "sequence": 2,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.2934228678313253,
+            "legacy": 0.6242913469985683
+          },
+          "gap_seconds": 0.6691315208327571,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.293339935060241,
+              "legacy": 0.46484930618211673,
+              "difference_seconds": -0.17150937112187575
+            },
+            "Block reconstruction and migration": {
+              "block": 0.10440006172301206,
+              "legacy": 0.0,
+              "difference_seconds": 0.10440006172301206
+            },
+            "Native inverse": {
+              "block": 0.19049283849144577,
+              "legacy": 0.018268702685670275,
+              "difference_seconds": 0.1722241358057755
+            },
+            "Scalar input and restriction": {
+              "block": 0.20909223627228915,
+              "legacy": 0.016048241134575873,
+              "difference_seconds": 0.19304399513771328
+            },
+            "Block ghost handling": {
+              "block": 0.08069600778313253,
+              "legacy": 0.0,
+              "difference_seconds": 0.08069600778313253
+            },
+            "Native mass and velocity": {
+              "block": 0.10602526927710844,
+              "legacy": 0.03190967022141172,
+              "difference_seconds": 0.07411559905569672
+            },
+            "Shared Domain producers": {
+              "block": 0.08216058461445783,
+              "legacy": 0.04675790662870249,
+              "difference_seconds": 0.03540267798575534
+            },
+            "Domain/block publication": {
+              "block": 0.04985288461445783,
+              "legacy": 0.0,
+              "difference_seconds": 0.04985288461445783
+            },
+            "Wavelet and compression": {
+              "block": 0.09881596313253012,
+              "legacy": 0.007670908642116463,
+              "difference_seconds": 0.09114505449041366
+            },
+            "RK and tendency assembly": {
+              "block": 0.03556400689156626,
+              "legacy": 0.008849986002034318,
+              "difference_seconds": 0.026714020889531943
+            },
+            "Other timestep work": {
+              "block": 0.0429830441686747,
+              "legacy": 0.02993662550194043,
+              "difference_seconds": 0.013046418666734266
+            }
+          },
+          "rounding_residual_seconds": 3.5802409703578064e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.29342853,
+            "legacy": 0.6242993959749583
+          },
+          "gap_seconds": 0.6691291340250416,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.32044612,
+              "legacy": 0.42143470904557034,
+              "difference_seconds": -0.10098858904557034
+            },
+            "Block reconstruction and migration": {
+              "block": 0.10895306199,
+              "legacy": 0.0,
+              "difference_seconds": 0.10895306199
+            },
+            "Native inverse": {
+              "block": 0.18000820081,
+              "legacy": 0.02309488592436537,
+              "difference_seconds": 0.15691331488563462
+            },
+            "Scalar input and restriction": {
+              "block": 0.203939642,
+              "legacy": 0.028128850826760754,
+              "difference_seconds": 0.17581079117323925
+            },
+            "Block ghost handling": {
+              "block": 0.0966298,
+              "legacy": 0.0,
+              "difference_seconds": 0.0966298
+            },
+            "Native mass and velocity": {
+              "block": 0.12755663,
+              "legacy": 0.044139211444417015,
+              "difference_seconds": 0.08341741855558299
+            },
+            "Shared Domain producers": {
+              "block": 0.06548792,
+              "legacy": 0.05474134293035604,
+              "difference_seconds": 0.010746577069643964
+            },
+            "Domain/block publication": {
+              "block": 0.054648420999999996,
+              "legacy": 0.0,
+              "difference_seconds": 0.054648420999999996
+            },
+            "Wavelet and compression": {
+              "block": 0.0783985,
+              "legacy": 0.010864536016015336,
+              "difference_seconds": 0.06753396398398466
+            },
+            "RK and tendency assembly": {
+              "block": 0.024546109,
+              "legacy": 0.009991292929043993,
+              "difference_seconds": 0.014554816070956007
+            },
+            "Other timestep work": {
+              "block": 0.032813722000000003,
+              "legacy": 0.03190456685842946,
+              "difference_seconds": 0.0009091551415705418
+            }
+          },
+          "rounding_residual_seconds": 4.0319999994320455e-07,
+          "selected_ranks": {
+            "block": 81,
+            "legacy": 57
+          }
+        }
+      },
+      {
+        "sequence": 3,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.304272768192771,
+            "legacy": 0.6235476642042673
+          },
+          "gap_seconds": 0.6807251039885037,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.2956582626506024,
+              "legacy": 0.46438444794593264,
+              "difference_seconds": -0.16872618529533023
+            },
+            "Block reconstruction and migration": {
+              "block": 0.11055885241096386,
+              "legacy": 0.0,
+              "difference_seconds": 0.11055885241096386
+            },
+            "Native inverse": {
+              "block": 0.19241692823506024,
+              "legacy": 0.018351602401017738,
+              "difference_seconds": 0.1740653258340425
+            },
+            "Scalar input and restriction": {
+              "block": 0.20851617418192772,
+              "legacy": 0.016298097907214884,
+              "difference_seconds": 0.19221807627471282
+            },
+            "Block ghost handling": {
+              "block": 0.08070975692771085,
+              "legacy": 0.0,
+              "difference_seconds": 0.08070975692771085
+            },
+            "Native mass and velocity": {
+              "block": 0.10492256975903613,
+              "legacy": 0.03219586257655903,
+              "difference_seconds": 0.0727267071824771
+            },
+            "Shared Domain producers": {
+              "block": 0.08303678434939758,
+              "legacy": 0.04690757274756724,
+              "difference_seconds": 0.036129211601830344
+            },
+            "Domain/block publication": {
+              "block": 0.04970864860240964,
+              "legacy": 0.0,
+              "difference_seconds": 0.04970864860240964
+            },
+            "Wavelet and compression": {
+              "block": 0.09813170542168674,
+              "legacy": 0.007686950394347961,
+              "difference_seconds": 0.09044475502733879
+            },
+            "RK and tendency assembly": {
+              "block": 0.03652358608433735,
+              "legacy": 0.008880483407698325,
+              "difference_seconds": 0.02764310267663903
+            },
+            "Other timestep work": {
+              "block": 0.04408948407228916,
+              "legacy": 0.028842646823929487,
+              "difference_seconds": 0.015246837248359672
+            }
+          },
+          "rounding_residual_seconds": 1.549734940375913e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.30427713,
+            "legacy": 0.6235494920110796
+          },
+          "gap_seconds": 0.6807276379889204,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.29826563,
+              "legacy": 0.49340491055045277,
+              "difference_seconds": -0.19513928055045276
+            },
+            "Block reconstruction and migration": {
+              "block": 0.11179487998000001,
+              "legacy": 0.0,
+              "difference_seconds": 0.11179487998000001
+            },
+            "Native inverse": {
+              "block": 0.20919762890000002,
+              "legacy": 0.011107417696621269,
+              "difference_seconds": 0.19809021120337875
+            },
+            "Scalar input and restriction": {
+              "block": 0.2057002429,
+              "legacy": 0.023188553022919223,
+              "difference_seconds": 0.18251168987708077
+            },
+            "Block ghost handling": {
+              "block": 0.09255759999999999,
+              "legacy": 0.0,
+              "difference_seconds": 0.09255759999999999
+            },
+            "Native mass and velocity": {
+              "block": 0.12996425,
+              "legacy": 0.032044986059190705,
+              "difference_seconds": 0.0979192639408093
+            },
+            "Shared Domain producers": {
+              "block": 0.06989355,
+              "legacy": 0.029031143960310146,
+              "difference_seconds": 0.04086240603968985
+            },
+            "Domain/block publication": {
+              "block": 0.036695411,
+              "legacy": 0.0,
+              "difference_seconds": 0.036695411
+            },
+            "Wavelet and compression": {
+              "block": 0.0876886,
+              "legacy": 0.005180610954994336,
+              "difference_seconds": 0.08250798904500567
+            },
+            "RK and tendency assembly": {
+              "block": 0.030331419999999998,
+              "legacy": 0.004880005755694583,
+              "difference_seconds": 0.025451414244305415
+            },
+            "Other timestep work": {
+              "block": 0.03218838,
+              "legacy": 0.024711864010896534,
+              "difference_seconds": 0.007476515989103469
+            }
+          },
+          "rounding_residual_seconds": -4.6277999998789454e-07,
+          "selected_ranks": {
+            "block": 3,
+            "legacy": 68
+          }
+        }
+      },
+      {
+        "sequence": 4,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.310869590240964,
+            "legacy": 0.6270215514344613
+          },
+          "gap_seconds": 0.6838480388065027,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.3011388695180723,
+              "legacy": 0.46798452934887014,
+              "difference_seconds": -0.16684565983079785
+            },
+            "Block reconstruction and migration": {
+              "block": 0.10753739892674699,
+              "legacy": 0.0,
+              "difference_seconds": 0.10753739892674699
+            },
+            "Native inverse": {
+              "block": 0.19129371212530122,
+              "legacy": 0.018388953246106114,
+              "difference_seconds": 0.1729047588791951
+            },
+            "Scalar input and restriction": {
+              "block": 0.20818935943614458,
+              "legacy": 0.016338685044951468,
+              "difference_seconds": 0.1918506743911931
+            },
+            "Block ghost handling": {
+              "block": 0.08060236877108434,
+              "legacy": 0.0,
+              "difference_seconds": 0.08060236877108434
+            },
+            "Native mass and velocity": {
+              "block": 0.10887773132530121,
+              "legacy": 0.03215686215581485,
+              "difference_seconds": 0.07672086916948637
+            },
+            "Shared Domain producers": {
+              "block": 0.08360578742168674,
+              "legacy": 0.04696175860765626,
+              "difference_seconds": 0.036644028814030484
+            },
+            "Domain/block publication": {
+              "block": 0.05079925113253012,
+              "legacy": 0.0,
+              "difference_seconds": 0.05079925113253012
+            },
+            "Wavelet and compression": {
+              "block": 0.09923193662650602,
+              "legacy": 0.0077372574519523115,
+              "difference_seconds": 0.09149467917455371
+            },
+            "RK and tendency assembly": {
+              "block": 0.0360247395060241,
+              "legacy": 0.008915241269453665,
+              "difference_seconds": 0.027109498236570433
+            },
+            "Other timestep work": {
+              "block": 0.043568411108433736,
+              "legacy": 0.028538264309656412,
+              "difference_seconds": 0.015030146798777323
+            }
+          },
+          "rounding_residual_seconds": 2.4343132620785468e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.31087342,
+            "legacy": 0.6270228830107953
+          },
+          "gap_seconds": 0.6838505369892047,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.24522917,
+              "legacy": 0.5389388356124982,
+              "difference_seconds": -0.2937096656124982
+            },
+            "Block reconstruction and migration": {
+              "block": 0.09825005099999999,
+              "legacy": 0.0,
+              "difference_seconds": 0.09825005099999999
+            },
+            "Native inverse": {
+              "block": 0.1991288591,
+              "legacy": 0.009955868066754192,
+              "difference_seconds": 0.1891729910332458
+            },
+            "Scalar input and restriction": {
+              "block": 0.209021723,
+              "legacy": 0.005520831706235185,
+              "difference_seconds": 0.2035008912937648
+            },
+            "Block ghost handling": {
+              "block": 0.08998249999999999,
+              "legacy": 0.0,
+              "difference_seconds": 0.08998249999999999
+            },
+            "Native mass and velocity": {
+              "block": 0.0917472,
+              "legacy": 0.014169291651342064,
+              "difference_seconds": 0.07757790834865794
+            },
+            "Shared Domain producers": {
+              "block": 0.14559682000000002,
+              "legacy": 0.027358727995306253,
+              "difference_seconds": 0.11823809200469376
+            },
+            "Domain/block publication": {
+              "block": 0.023239852,
+              "legacy": 0.0,
+              "difference_seconds": 0.023239852
+            },
+            "Wavelet and compression": {
+              "block": 0.102598,
+              "legacy": 0.003364689036970958,
+              "difference_seconds": 0.09923331096302904
+            },
+            "RK and tendency assembly": {
+              "block": 0.04233269,
+              "legacy": 0.004191113024717197,
+              "difference_seconds": 0.0381415769752828
+            },
+            "Other timestep work": {
+              "block": 0.063746891,
+              "legacy": 0.023523525916971266,
+              "difference_seconds": 0.040223365083028734
+            }
+          },
+          "rounding_residual_seconds": -3.360999999424408e-07,
+          "selected_ranks": {
+            "block": 19,
+            "legacy": 64
+          }
+        }
+      },
+      {
+        "sequence": 5,
+        "remap": true,
+        "rank_mean": {
+          "wall": {
+            "block": 1.3242661902409638,
+            "legacy": 0.638943957906856
+          },
+          "gap_seconds": 0.6853222323341078,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.30082313373493974,
+              "legacy": 0.46952374954111814,
+              "difference_seconds": -0.1687006158061784
+            },
+            "Block reconstruction and migration": {
+              "block": 0.10861790099903615,
+              "legacy": 0.0,
+              "difference_seconds": 0.10861790099903615
+            },
+            "Native inverse": {
+              "block": 0.19218951748518073,
+              "legacy": 0.01844437744297334,
+              "difference_seconds": 0.1737451400422074
+            },
+            "Scalar input and restriction": {
+              "block": 0.2066531896566265,
+              "legacy": 0.01632549492284622,
+              "difference_seconds": 0.19032769473378028
+            },
+            "Block ghost handling": {
+              "block": 0.08159099614457832,
+              "legacy": 0.0,
+              "difference_seconds": 0.08159099614457832
+            },
+            "Native mass and velocity": {
+              "block": 0.1050294004819277,
+              "legacy": 0.032237917397673385,
+              "difference_seconds": 0.07279148308425432
+            },
+            "Shared Domain producers": {
+              "block": 0.08259397825301205,
+              "legacy": 0.04700550585297912,
+              "difference_seconds": 0.03558847240003293
+            },
+            "Domain/block publication": {
+              "block": 0.05463102760240964,
+              "legacy": 0.0,
+              "difference_seconds": 0.05463102760240964
+            },
+            "Wavelet and compression": {
+              "block": 0.09879447180722892,
+              "legacy": 0.007720373311789751,
+              "difference_seconds": 0.09107409849543917
+            },
+            "RK and tendency assembly": {
+              "block": 0.035497863048192774,
+              "legacy": 0.008929402945796028,
+              "difference_seconds": 0.026568460102396746
+            },
+            "Other timestep work": {
+              "block": 0.05784477936144578,
+              "legacy": 0.03875713649167994,
+              "difference_seconds": 0.019087642869765845
+            }
+          },
+          "rounding_residual_seconds": -6.83336145446134e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.3242781,
+            "legacy": 0.6389480619982351
+          },
+          "gap_seconds": 0.6853300380017648,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.32818625,
+              "legacy": 0.37766869404003955,
+              "difference_seconds": -0.04948244404003954
+            },
+            "Block reconstruction and migration": {
+              "block": 0.11304846202,
+              "legacy": 0.0,
+              "difference_seconds": 0.11304846202
+            },
+            "Native inverse": {
+              "block": 0.1791178309,
+              "legacy": 0.03239739505806938,
+              "difference_seconds": 0.14672043584193062
+            },
+            "Scalar input and restriction": {
+              "block": 0.199468222,
+              "legacy": 0.03742475211038254,
+              "difference_seconds": 0.16204346988961746
+            },
+            "Block ghost handling": {
+              "block": 0.0975119,
+              "legacy": 0.0,
+              "difference_seconds": 0.0975119
+            },
+            "Native mass and velocity": {
+              "block": 0.1293535,
+              "legacy": 0.05491993384202942,
+              "difference_seconds": 0.07443356615797059
+            },
+            "Shared Domain producers": {
+              "block": 0.06534749,
+              "legacy": 0.06833696941612288,
+              "difference_seconds": -0.0029894794161228894
+            },
+            "Domain/block publication": {
+              "block": 0.059906212,
+              "legacy": 0.0,
+              "difference_seconds": 0.059906212
+            },
+            "Wavelet and compression": {
+              "block": 0.07847169999999999,
+              "legacy": 0.012874383013695478,
+              "difference_seconds": 0.06559731698630451
+            },
+            "RK and tendency assembly": {
+              "block": 0.025836046,
+              "legacy": 0.014336324646137655,
+              "difference_seconds": 0.011499721353862347
+            },
+            "Other timestep work": {
+              "block": 0.04803,
+              "legacy": 0.04098960987175815,
+              "difference_seconds": 0.007040390128241855
+            }
+          },
+          "rounding_residual_seconds": 4.870799998890618e-07,
+          "selected_ranks": {
+            "block": 81,
+            "legacy": 24
+          }
+        }
+      },
+      {
+        "sequence": 6,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.325335003012048,
+            "legacy": 0.6435484179633625
+          },
+          "gap_seconds": 0.6817865850486856,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.29917516759036145,
+              "legacy": 0.46537546125235013,
+              "difference_seconds": -0.16620029366198869
+            },
+            "Block reconstruction and migration": {
+              "block": 0.11268771488,
+              "legacy": 0.0,
+              "difference_seconds": 0.11268771488
+            },
+            "Native inverse": {
+              "block": 0.19315001514807228,
+              "legacy": 0.018947799449873504,
+              "difference_seconds": 0.17420221569819877
+            },
+            "Scalar input and restriction": {
+              "block": 0.20757354338313252,
+              "legacy": 0.0163378020859301,
+              "difference_seconds": 0.19123574129720242
+            },
+            "Block ghost handling": {
+              "block": 0.08303346969879519,
+              "legacy": 0.0,
+              "difference_seconds": 0.08303346969879519
+            },
+            "Native mass and velocity": {
+              "block": 0.1033348256626506,
+              "legacy": 0.03213244879545352,
+              "difference_seconds": 0.07120237686719708
+            },
+            "Shared Domain producers": {
+              "block": 0.08391157255421687,
+              "legacy": 0.04721809899383954,
+              "difference_seconds": 0.03669347356037733
+            },
+            "Domain/block publication": {
+              "block": 0.0518161675060241,
+              "legacy": 0.0,
+              "difference_seconds": 0.0518161675060241
+            },
+            "Wavelet and compression": {
+              "block": 0.09975478253012048,
+              "legacy": 0.007769480051685977,
+              "difference_seconds": 0.0919853024784345
+            },
+            "RK and tendency assembly": {
+              "block": 0.035941262819277106,
+              "legacy": 0.008972144572075501,
+              "difference_seconds": 0.026969118247201607
+            },
+            "Other timestep work": {
+              "block": 0.054956459060240964,
+              "legacy": 0.046795182762154185,
+              "difference_seconds": 0.00816127629808678
+            }
+          },
+          "rounding_residual_seconds": 2.217915651137048e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.32534472,
+            "legacy": 0.6435532099858392
+          },
+          "gap_seconds": 0.6817915100141607,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.28229556,
+              "legacy": 0.39424712836625986,
+              "difference_seconds": -0.11195156836625986
+            },
+            "Block reconstruction and migration": {
+              "block": 0.11288716001,
+              "legacy": 0.0,
+              "difference_seconds": 0.11288716001
+            },
+            "Native inverse": {
+              "block": 0.193074252,
+              "legacy": 0.03752307198010385,
+              "difference_seconds": 0.15555118001989615
+            },
+            "Scalar input and restriction": {
+              "block": 0.20942732,
+              "legacy": 0.014883739437209442,
+              "difference_seconds": 0.19454358056279056
+            },
+            "Block ghost handling": {
+              "block": 0.08158989999999999,
+              "legacy": 0.0,
+              "difference_seconds": 0.08158989999999999
+            },
+            "Native mass and velocity": {
+              "block": 0.1064026,
+              "legacy": 0.040382750041317195,
+              "difference_seconds": 0.0660198499586828
+            },
+            "Shared Domain producers": {
+              "block": 0.09514235,
+              "legacy": 0.08250594552373514,
+              "difference_seconds": 0.012636404476264865
+            },
+            "Domain/block publication": {
+              "block": 0.047719663,
+              "legacy": 0.0,
+              "difference_seconds": 0.047719663
+            },
+            "Wavelet and compression": {
+              "block": 0.1015523,
+              "legacy": 0.010590079007670283,
+              "difference_seconds": 0.09096222099232971
+            },
+            "RK and tendency assembly": {
+              "block": 0.03558734,
+              "legacy": 0.014664161688415334,
+              "difference_seconds": 0.02092317831158467
+            },
+            "Other timestep work": {
+              "block": 0.059666001,
+              "legacy": 0.048756333941128105,
+              "difference_seconds": 0.010909667058871898
+            }
+          },
+          "rounding_residual_seconds": 2.7398999991046225e-07,
+          "selected_ranks": {
+            "block": 35,
+            "legacy": 19
+          }
+        }
+      },
+      {
+        "sequence": 7,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.4307321587951807,
+            "legacy": 0.7123810775070984
+          },
+          "gap_seconds": 0.7183510812880822,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.32196858566265063,
+              "legacy": 0.5379590180948662,
+              "difference_seconds": -0.2159904324322156
+            },
+            "Block reconstruction and migration": {
+              "block": 0.1187310910360241,
+              "legacy": 0.0,
+              "difference_seconds": 0.1187310910360241
+            },
+            "Native inverse": {
+              "block": 0.2116663294193976,
+              "legacy": 0.02021398425595947,
+              "difference_seconds": 0.19145234516343812
+            },
+            "Scalar input and restriction": {
+              "block": 0.2237175734746988,
+              "legacy": 0.01757377256738886,
+              "difference_seconds": 0.20614380090730994
+            },
+            "Block ghost handling": {
+              "block": 0.08365389927710844,
+              "legacy": 0.0,
+              "difference_seconds": 0.08365389927710844
+            },
+            "Native mass and velocity": {
+              "block": 0.12521241180722892,
+              "legacy": 0.033152735674282514,
+              "difference_seconds": 0.09205967613294641
+            },
+            "Shared Domain producers": {
+              "block": 0.08820183440963855,
+              "legacy": 0.0502061017284714,
+              "difference_seconds": 0.037995732681167155
+            },
+            "Domain/block publication": {
+              "block": 0.0601154913253012,
+              "legacy": 0.0,
+              "difference_seconds": 0.0601154913253012
+            },
+            "Wavelet and compression": {
+              "block": 0.10613186807228916,
+              "legacy": 0.008219453790898334,
+              "difference_seconds": 0.09791241428139083
+            },
+            "RK and tendency assembly": {
+              "block": 0.04136160210843374,
+              "legacy": 0.009209752933498114,
+              "difference_seconds": 0.032151849174935625
+            },
+            "Other timestep work": {
+              "block": 0.0499714234939759,
+              "legacy": 0.03584625846173345,
+              "difference_seconds": 0.014125165032242454
+            }
+          },
+          "rounding_residual_seconds": 4.8708433508792837e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.43073896,
+            "legacy": 0.7123875709949061
+          },
+          "gap_seconds": 0.7183513890050939,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.32794462,
+              "legacy": 0.5356543443049304,
+              "difference_seconds": -0.2077097243049304
+            },
+            "Block reconstruction and migration": {
+              "block": 0.12069354001,
+              "legacy": 0.0,
+              "difference_seconds": 0.12069354001
+            },
+            "Native inverse": {
+              "block": 0.2003107712,
+              "legacy": 0.022619242081418633,
+              "difference_seconds": 0.17769152911858135
+            },
+            "Scalar input and restriction": {
+              "block": 0.218119651,
+              "legacy": 0.01217324091703631,
+              "difference_seconds": 0.2059464100829637
+            },
+            "Block ghost handling": {
+              "block": 0.102829,
+              "legacy": 0.0,
+              "difference_seconds": 0.102829
+            },
+            "Native mass and velocity": {
+              "block": 0.09773029999999999,
+              "legacy": 0.031509320164332166,
+              "difference_seconds": 0.06622097983566783
+            },
+            "Shared Domain producers": {
+              "block": 0.09738912,
+              "legacy": 0.054636610351735726,
+              "difference_seconds": 0.04275250964826427
+            },
+            "Domain/block publication": {
+              "block": 0.049923501999999995,
+              "legacy": 0.0,
+              "difference_seconds": 0.049923501999999995
+            },
+            "Wavelet and compression": {
+              "block": 0.1231506,
+              "legacy": 0.008695911063114181,
+              "difference_seconds": 0.11445468893688582
+            },
+            "RK and tendency assembly": {
+              "block": 0.03955194,
+              "legacy": 0.010327508061891422,
+              "difference_seconds": 0.02922443193810858
+            },
+            "Other timestep work": {
+              "block": 0.053095611,
+              "legacy": 0.03677139405044727,
+              "difference_seconds": 0.01632421694955273
+            }
+          },
+          "rounding_residual_seconds": 3.04790000016375e-07,
+          "selected_ranks": {
+            "block": 60,
+            "legacy": 31
+          }
+        }
+      },
+      {
+        "sequence": 9,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.0193030245421686,
+            "legacy": 0.40509114172260546
+          },
+          "gap_seconds": 0.6142118828195631,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.21330351192771083,
+              "legacy": 0.28803006138200926,
+              "difference_seconds": -0.07472654945429844
+            },
+            "Block reconstruction and migration": {
+              "block": 0.0754129923492771,
+              "legacy": 0.0,
+              "difference_seconds": 0.0754129923492771
+            },
+            "Native inverse": {
+              "block": 0.14219198162421687,
+              "legacy": 0.013694152205127728,
+              "difference_seconds": 0.12849782941908913
+            },
+            "Scalar input and restriction": {
+              "block": 0.2012685236686747,
+              "legacy": 0.014029744323847973,
+              "difference_seconds": 0.18723877934482674
+            },
+            "Block ghost handling": {
+              "block": 0.05970456934939759,
+              "legacy": 0.0,
+              "difference_seconds": 0.05970456934939759
+            },
+            "Native mass and velocity": {
+              "block": 0.06780765638554218,
+              "legacy": 0.017299570215456413,
+              "difference_seconds": 0.05050808617008576
+            },
+            "Shared Domain producers": {
+              "block": 0.07402453771084337,
+              "legacy": 0.03838737846102498,
+              "difference_seconds": 0.03563715924981839
+            },
+            "Domain/block publication": {
+              "block": 0.03701559927710844,
+              "legacy": 0.0,
+              "difference_seconds": 0.03701559927710844
+            },
+            "Wavelet and compression": {
+              "block": 0.07880734987951807,
+              "legacy": 0.006424863540486107,
+              "difference_seconds": 0.07238248633903197
+            },
+            "RK and tendency assembly": {
+              "block": 0.03086913179518072,
+              "legacy": 0.00681966354233123,
+              "difference_seconds": 0.02404946825284949
+            },
+            "Other timestep work": {
+              "block": 0.03889718355421687,
+              "legacy": 0.020405708052321753,
+              "difference_seconds": 0.018491475501895116
+            }
+          },
+          "rounding_residual_seconds": -1.2979518237976606e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.01997154,
+            "legacy": 0.40520828700391576
+          },
+          "gap_seconds": 0.6147632529960843,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.21560780000000002,
+              "legacy": 0.24858745821984485,
+              "difference_seconds": -0.03297965821984483
+            },
+            "Block reconstruction and migration": {
+              "block": 0.074589316,
+              "legacy": 0.0,
+              "difference_seconds": 0.074589316
+            },
+            "Native inverse": {
+              "block": 0.1350003999,
+              "legacy": 0.022373619925929233,
+              "difference_seconds": 0.11262677997407078
+            },
+            "Scalar input and restriction": {
+              "block": 0.203167331,
+              "legacy": 0.022172705619595945,
+              "difference_seconds": 0.18099462538040406
+            },
+            "Block ghost handling": {
+              "block": 0.046982800000000005,
+              "legacy": 0.0,
+              "difference_seconds": 0.046982800000000005
+            },
+            "Native mass and velocity": {
+              "block": 0.0640258,
+              "legacy": 0.01887428216286935,
+              "difference_seconds": 0.045151517837130645
+            },
+            "Shared Domain producers": {
+              "block": 0.07733754,
+              "legacy": 0.05165891221258789,
+              "difference_seconds": 0.025678627787412103
+            },
+            "Domain/block publication": {
+              "block": 0.041611652,
+              "legacy": 0.0,
+              "difference_seconds": 0.041611652
+            },
+            "Wavelet and compression": {
+              "block": 0.0873884,
+              "legacy": 0.008544372132746503,
+              "difference_seconds": 0.0788440278672535
+            },
+            "RK and tendency assembly": {
+              "block": 0.028339896,
+              "legacy": 0.009576378768542781,
+              "difference_seconds": 0.01876351723145722
+            },
+            "Other timestep work": {
+              "block": 0.04592066,
+              "legacy": 0.023420557961799204,
+              "difference_seconds": 0.022500102038200798
+            }
+          },
+          "rounding_residual_seconds": -5.489999999053197e-08,
+          "selected_ranks": {
+            "block": 65,
+            "legacy": 22
+          }
+        }
+      },
+      {
+        "sequence": 10,
+        "remap": true,
+        "rank_mean": {
+          "wall": {
+            "block": 1.0573699828915664,
+            "legacy": 0.5364786585177862
+          },
+          "gap_seconds": 0.5208913243737802,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.2482179018072289,
+              "legacy": 0.3826932200523099,
+              "difference_seconds": -0.13447531824508097
+            },
+            "Block reconstruction and migration": {
+              "block": 0.08304761195228916,
+              "legacy": 0.0,
+              "difference_seconds": 0.08304761195228916
+            },
+            "Native inverse": {
+              "block": 0.14594397170084336,
+              "legacy": 0.014209711810234508,
+              "difference_seconds": 0.13173425989060886
+            },
+            "Scalar input and restriction": {
+              "block": 0.16178867592409638,
+              "legacy": 0.015664687455233455,
+              "difference_seconds": 0.14612398846886293
+            },
+            "Block ghost handling": {
+              "block": 0.07613005710843374,
+              "legacy": 0.0,
+              "difference_seconds": 0.07613005710843374
+            },
+            "Native mass and velocity": {
+              "block": 0.07375668192771084,
+              "legacy": 0.03299743055081253,
+              "difference_seconds": 0.040759251376898314
+            },
+            "Shared Domain producers": {
+              "block": 0.07620906862650602,
+              "legacy": 0.041114501543595534,
+              "difference_seconds": 0.035094567082910484
+            },
+            "Domain/block publication": {
+              "block": 0.03453918416987952,
+              "legacy": 0.0,
+              "difference_seconds": 0.03453918416987952
+            },
+            "Wavelet and compression": {
+              "block": 0.07662242385542169,
+              "legacy": 0.006366323191933447,
+              "difference_seconds": 0.07025610066348824
+            },
+            "RK and tendency assembly": {
+              "block": 0.03046405039759036,
+              "legacy": 0.007589273074086396,
+              "difference_seconds": 0.022874777323503962
+            },
+            "Other timestep work": {
+              "block": 0.05065036418072289,
+              "legacy": 0.03584351083958039,
+              "difference_seconds": 0.014806853341142498
+            }
+          },
+          "rounding_residual_seconds": -8.759156622240027e-09
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.0573806,
+            "legacy": 0.5364819929818623
+          },
+          "gap_seconds": 0.5208986070181376,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.26817791,
+              "legacy": 0.39365874871145934,
+              "difference_seconds": -0.12548083871145932
+            },
+            "Block reconstruction and migration": {
+              "block": 0.082925463,
+              "legacy": 0.0,
+              "difference_seconds": 0.082925463
+            },
+            "Native inverse": {
+              "block": 0.13771322589999999,
+              "legacy": 0.011724765121471137,
+              "difference_seconds": 0.12598846077852885
+            },
+            "Scalar input and restriction": {
+              "block": 0.166294209,
+              "legacy": 0.023880971886683255,
+              "difference_seconds": 0.14241323711331674
+            },
+            "Block ghost handling": {
+              "block": 0.0689672,
+              "legacy": 0.0,
+              "difference_seconds": 0.0689672
+            },
+            "Native mass and velocity": {
+              "block": 0.08722084,
+              "legacy": 0.03194989889743738,
+              "difference_seconds": 0.055270941102562615
+            },
+            "Shared Domain producers": {
+              "block": 0.04724034,
+              "legacy": 0.031130745221162215,
+              "difference_seconds": 0.016109594778837784
+            },
+            "Domain/block publication": {
+              "block": 0.039395741,
+              "legacy": 0.0,
+              "difference_seconds": 0.039395741
+            },
+            "Wavelet and compression": {
+              "block": 0.0844516,
+              "legacy": 0.006790801067836583,
+              "difference_seconds": 0.07766079893216342
+            },
+            "RK and tendency assembly": {
+              "block": 0.025554975,
+              "legacy": 0.004628842085367069,
+              "difference_seconds": 0.020926132914632932
+            },
+            "Other timestep work": {
+              "block": 0.04943909,
+              "legacy": 0.0327172199904453,
+              "difference_seconds": 0.016721870009554697
+            }
+          },
+          "rounding_residual_seconds": 6.099999838582448e-09,
+          "selected_ranks": {
+            "block": 70,
+            "legacy": 26
+          }
+        }
+      },
+      {
+        "sequence": 11,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.1399319220481927,
+            "legacy": 0.5669905645183725
+          },
+          "gap_seconds": 0.5729413575298202,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.2679417040963855,
+              "legacy": 0.4020927347763896,
+              "difference_seconds": -0.1341510306800041
+            },
+            "Block reconstruction and migration": {
+              "block": 0.10334147239759037,
+              "legacy": 0.0,
+              "difference_seconds": 0.10334147239759037
+            },
+            "Native inverse": {
+              "block": 0.16264768560722892,
+              "legacy": 0.015291023565700322,
+              "difference_seconds": 0.14735666204152859
+            },
+            "Scalar input and restriction": {
+              "block": 0.16774883943493976,
+              "legacy": 0.015656014623510347,
+              "difference_seconds": 0.1520928248114294
+            },
+            "Block ghost handling": {
+              "block": 0.07487767096385542,
+              "legacy": 0.0,
+              "difference_seconds": 0.07487767096385542
+            },
+            "Native mass and velocity": {
+              "block": 0.08947223180722891,
+              "legacy": 0.032801759166990865,
+              "difference_seconds": 0.05667047264023804
+            },
+            "Shared Domain producers": {
+              "block": 0.07758962195180723,
+              "legacy": 0.041255451312445734,
+              "difference_seconds": 0.03633417063936149
+            },
+            "Domain/block publication": {
+              "block": 0.03268042773493976,
+              "legacy": 0.0,
+              "difference_seconds": 0.03268042773493976
+            },
+            "Wavelet and compression": {
+              "block": 0.0784570821686747,
+              "legacy": 0.006404408399248496,
+              "difference_seconds": 0.0720526737694262
+            },
+            "RK and tendency assembly": {
+              "block": 0.029934574578313253,
+              "legacy": 0.007607667779140399,
+              "difference_seconds": 0.022326906799172853
+            },
+            "Other timestep work": {
+              "block": 0.055240578542168677,
+              "legacy": 0.04588150489494676,
+              "difference_seconds": 0.009359073647221917
+            }
+          },
+          "rounding_residual_seconds": 3.2765060331563234e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.13993573,
+            "legacy": 0.5669931620068382
+          },
+          "gap_seconds": 0.5729425679931617,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.26251019999999997,
+              "legacy": 0.41240594125702046,
+              "difference_seconds": -0.1498957412570205
+            },
+            "Block reconstruction and migration": {
+              "block": 0.10611538000000001,
+              "legacy": 0.0,
+              "difference_seconds": 0.10611538000000001
+            },
+            "Native inverse": {
+              "block": 0.16574326099,
+              "legacy": 0.01169593192753382,
+              "difference_seconds": 0.15404732906246618
+            },
+            "Scalar input and restriction": {
+              "block": 0.16533052,
+              "legacy": 0.024565604602685198,
+              "difference_seconds": 0.1407649153973148
+            },
+            "Block ghost handling": {
+              "block": 0.0848688,
+              "legacy": 0.0,
+              "difference_seconds": 0.0848688
+            },
+            "Native mass and velocity": {
+              "block": 0.0488389,
+              "legacy": 0.031908977223793045,
+              "difference_seconds": 0.016929922776206953
+            },
+            "Shared Domain producers": {
+              "block": 0.11688942,
+              "legacy": 0.031067223637364805,
+              "difference_seconds": 0.08582219636263519
+            },
+            "Domain/block publication": {
+              "block": 0.012472852,
+              "legacy": 0.0,
+              "difference_seconds": 0.012472852
+            },
+            "Wavelet and compression": {
+              "block": 0.0859365,
+              "legacy": 0.007083272997988388,
+              "difference_seconds": 0.07885322700201161
+            },
+            "RK and tendency assembly": {
+              "block": 0.03273464,
+              "legacy": 0.005332062428351492,
+              "difference_seconds": 0.02740257757164851
+            },
+            "Other timestep work": {
+              "block": 0.05849555,
+              "legacy": 0.04293414793210104,
+              "difference_seconds": 0.01556140206789896
+            }
+          },
+          "rounding_residual_seconds": -2.9299000003923936e-07,
+          "selected_ranks": {
+            "block": 2,
+            "legacy": 26
+          }
+        }
+      },
+      {
+        "sequence": 12,
+        "remap": false,
+        "rank_mean": {
+          "wall": {
+            "block": 1.3126859654216867,
+            "legacy": 0.6528915220717983
+          },
+          "gap_seconds": 0.6597944433498883,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.3141749838554217,
+              "legacy": 0.48746336242170013,
+              "difference_seconds": -0.17328837856627843
+            },
+            "Block reconstruction and migration": {
+              "block": 0.09649446953096386,
+              "legacy": 0.0,
+              "difference_seconds": 0.09649446953096386
+            },
+            "Native inverse": {
+              "block": 0.19385363302963857,
+              "legacy": 0.01797521224207559,
+              "difference_seconds": 0.17587842078756297
+            },
+            "Scalar input and restriction": {
+              "block": 0.19701103526144578,
+              "legacy": 0.016610808285859313,
+              "difference_seconds": 0.18040022697558647
+            },
+            "Block ghost handling": {
+              "block": 0.08139935265060241,
+              "legacy": 0.0,
+              "difference_seconds": 0.08139935265060241
+            },
+            "Native mass and velocity": {
+              "block": 0.12719977445783132,
+              "legacy": 0.03285162363878833,
+              "difference_seconds": 0.09434815081904299
+            },
+            "Shared Domain producers": {
+              "block": 0.0879806923493976,
+              "legacy": 0.0459422461512493,
+              "difference_seconds": 0.042038446198148297
+            },
+            "Domain/block publication": {
+              "block": 0.04286790772289156,
+              "legacy": 0.0,
+              "difference_seconds": 0.04286790772289156
+            },
+            "Wavelet and compression": {
+              "block": 0.09084451771084337,
+              "legacy": 0.007248391721997949,
+              "difference_seconds": 0.08359612598884542
+            },
+            "RK and tendency assembly": {
+              "block": 0.03499740139759036,
+              "legacy": 0.008274643299035189,
+              "difference_seconds": 0.02672275809855517
+            },
+            "Other timestep work": {
+              "block": 0.0458621336626506,
+              "legacy": 0.03652523431109254,
+              "difference_seconds": 0.009336899351558063
+            }
+          },
+          "rounding_residual_seconds": 6.37924095769904e-08
+        },
+        "slowest_rank": {
+          "wall": {
+            "block": 1.3126889,
+            "legacy": 0.6528930040076375
+          },
+          "gap_seconds": 0.6597958959923624,
+          "groups": {
+            "Domain boundary handling": {
+              "block": 0.29046117,
+              "legacy": 0.4416161997942254,
+              "difference_seconds": -0.1511550297942254
+            },
+            "Block reconstruction and migration": {
+              "block": 0.09732333,
+              "legacy": 0.0,
+              "difference_seconds": 0.09732333
+            },
+            "Native inverse": {
+              "block": 0.161463346,
+              "legacy": 0.03005253290757537,
+              "difference_seconds": 0.13141081309242464
+            },
+            "Scalar input and restriction": {
+              "block": 0.198494285,
+              "legacy": 0.017919120815349743,
+              "difference_seconds": 0.18057516418465025
+            },
+            "Block ghost handling": {
+              "block": 0.0842904,
+              "legacy": 0.0,
+              "difference_seconds": 0.0842904
+            },
+            "Native mass and velocity": {
+              "block": 0.14855569999999998,
+              "legacy": 0.04197815028601326,
+              "difference_seconds": 0.10657754971398672
+            },
+            "Shared Domain producers": {
+              "block": 0.08763142,
+              "legacy": 0.06306367181241512,
+              "difference_seconds": 0.02456774818758488
+            },
+            "Domain/block publication": {
+              "block": 0.084601673,
+              "legacy": 0.0,
+              "difference_seconds": 0.084601673
+            },
+            "Wavelet and compression": {
+              "block": 0.0822158,
+              "legacy": 0.008344206027686596,
+              "difference_seconds": 0.07387159397231341
+            },
+            "RK and tendency assembly": {
+              "block": 0.035352100000000004,
+              "legacy": 0.007447924348525703,
+              "difference_seconds": 0.0279041756514743
+            },
+            "Other timestep work": {
+              "block": 0.042299500000000004,
+              "legacy": 0.04247119801584631,
+              "difference_seconds": -0.00017169801584630828
+            }
+          },
+          "rounding_residual_seconds": 1.7599999990736137e-07,
+          "selected_ranks": {
+            "block": 7,
+            "legacy": 68
+          }
+        }
+      }
+    ],
+    "summaries": {
+      "all_ordinary": {
+        "steps": 11,
+        "rank_mean": {
+          "block_seconds": 1.2589377229211391,
+          "legacy_seconds": 0.6068970852015785,
+          "gap_seconds": 0.6520406377195607,
+          "group_differences_seconds": {
+            "Domain boundary handling": -0.1592293083305788,
+            "Block reconstruction and migration": 0.10218862888408543,
+            "Native inverse": 0.16529870696146398,
+            "Scalar input and restriction": 0.18425068653447207,
+            "Block ghost handling": 0.07870403020043812,
+            "Native mass and velocity": 0.07126798494491515,
+            "Shared Domain producers": 0.0368474740078374,
+            "Domain/block publication": 0.04698788079529025,
+            "Wavelet and compression": 0.08612466267337775,
+            "RK and tendency assembly": 0.026456245507740193,
+            "Other timestep work": 0.013143635646663723
+          },
+          "rounding_residual_seconds": 9.893855391528528e-09
+        },
+        "slowest_rank": {
+          "block_seconds": 1.2618520527272727,
+          "legacy_seconds": 0.6091928557249379,
+          "gap_seconds": 0.6526591970023348,
+          "group_differences_seconds": {
+            "Domain boundary handling": -0.1457750430833524,
+            "Block reconstruction and migration": 0.10270632036454545,
+            "Native inverse": 0.15760112682321772,
+            "Scalar input and restriction": 0.17799414691877408,
+            "Block ghost handling": 0.08529189090909091,
+            "Native mass and velocity": 0.06791457331253097,
+            "Shared Domain producers": 0.03703850751838905,
+            "Domain/block publication": 0.04848167009090909,
+            "Wavelet and compression": 0.08367977643230974,
+            "RK and tendency assembly": 0.024582168202445236,
+            "Other timestep work": 0.013144028950747733
+          },
+          "rounding_residual_seconds": 3.056272722779984e-08
+        }
+      },
+      "without_remap": {
+        "steps": 9,
+        "rank_mean": {
+          "block_seconds": 1.2740754198888888,
+          "legacy_seconds": 0.6111605911991912,
+          "gap_seconds": 0.6629148286896976,
+          "group_differences_seconds": {
+            "Domain boundary handling": -0.16092738417612307,
+            "Block reconstruction and migration": 0.10360104497484605,
+            "Native inverse": 0.16808959740480972,
+            "Scalar input and restriction": 0.1878117631862833,
+            "Block ghost handling": 0.07866925321686748,
+            "Native mass and velocity": 0.07448856665921266,
+            "Shared Domain producers": 0.03718213051147422,
+            "Domain/block publication": 0.0475218307751004,
+            "Wavelet and compression": 0.08733789891646976,
+            "RK and tendency assembly": 0.026841718128804603,
+            "Other timestep work": 0.012298388433599178
+          },
+          "rounding_residual_seconds": 2.0658353385963025e-08
+        },
+        "slowest_rank": {
+          "block_seconds": 1.2776348755555555,
+          "legacy_seconds": 0.6139657064438021,
+          "gap_seconds": 0.6636691691117533,
+          "group_differences_seconds": {
+            "Domain boundary handling": -0.15872913235170863,
+            "Block reconstruction and migration": 0.10375506655444444,
+            "Native inverse": 0.16232261093721506,
+            "Scalar input and restriction": 0.18371987878928675,
+            "Block ghost handling": 0.08574796666666666,
+            "Native mass and velocity": 0.0685950887974786,
+            "Shared Domain producers": 0.04381149637106274,
+            "Domain/block publication": 0.04822182422222222,
+            "Wavelet and compression": 0.08635771387077103,
+            "RK and tendency assembly": 0.02644199955093359,
+            "Other timestep work": 0.01342467314671428
+          },
+          "rounding_residual_seconds": -1.7443333357982894e-08
+        }
+      },
+      "with_remap": {
+        "steps": 2,
+        "rank_mean": {
+          "block_seconds": 1.190818086566265,
+          "legacy_seconds": 0.5877113082123211,
+          "gap_seconds": 0.603106778353944,
+          "group_differences_seconds": {
+            "Domain boundary handling": -0.15158796702562968,
+            "Block reconstruction and migration": 0.09583275647566265,
+            "Native inverse": 0.15273969996640813,
+            "Scalar input and restriction": 0.1682258416013216,
+            "Block ghost handling": 0.07886052662650603,
+            "Native mass and velocity": 0.056775367230576315,
+            "Shared Domain producers": 0.035341519741471705,
+            "Domain/block publication": 0.04458510588614458,
+            "Wavelet and compression": 0.0806650995794637,
+            "RK and tendency assembly": 0.024721618712950352,
+            "Other timestep work": 0.01694724810545417
+          },
+          "rounding_residual_seconds": -3.854638558342671e-08
+        },
+        "slowest_rank": {
+          "block_seconds": 1.19082935,
+          "legacy_seconds": 0.5877150274900487,
+          "gap_seconds": 0.6031143225099512,
+          "group_differences_seconds": {
+            "Domain boundary handling": -0.08748164137574943,
+            "Block reconstruction and migration": 0.09798696251,
+            "Native inverse": 0.13635444831022975,
+            "Scalar input and restriction": 0.1522283535014671,
+            "Block ghost handling": 0.08323955,
+            "Native mass and velocity": 0.0648522536302666,
+            "Shared Domain producers": 0.006560057681357447,
+            "Domain/block publication": 0.0496509765,
+            "Wavelet and compression": 0.07162905795923397,
+            "RK and tendency assembly": 0.01621292713424764,
+            "Other timestep work": 0.011881130068898276
+          },
+          "rounding_residual_seconds": 2.4658999986382213e-07
+        }
+      }
+    },
+    "interpretation": "An exact accounting of instrumented time, not a causal or recoverable-overhead decomposition. Shared labels do not guarantee matched numerical boundaries. Slowest-rank groups come from the same actual slowest rank per implementation/step; never sum independent per-region maxima."
+  },
+  "whole_window_including_checkpoint": {
+    "rank_mean_step_wall_sums": {
+      "block": 20.59025588213253,
+      "legacy": 12.610063658748103
+    },
+    "gap_seconds": 7.980192223384428,
+    "matched_wavelet_gap_seconds": 3.369981457653259,
+    "outside_wavelet_gap_seconds": 4.6102107657311695,
+    "wavelet_calls": 4980,
+    "scope": "Inclusive matched WT_after_step envelope and all remaining step time. Contains checkpoint; do not divide to infer ordinary-step or headline percentages."
+  },
+  "limitations": [
+    "Single detailed profile per implementation; calibration includes run variation and is not an overhead correction.",
+    "Printed CPU timestep medians and rank wall-clock profile means are different statistics; never force them to reconcile.",
+    "Signed profile groups account for totals but do not prove redundant computations or avoidable costs.",
+    "MPI timing can include waiting, progress and local work. Process CPU can include spinning.",
+    "No rank-synchronized event chronology or hardware-counter evidence is present.",
+    "Source/binary provenance and checkpoint reports are audited separately by analyze_stage194_campaign.py."
+  ]
+}
