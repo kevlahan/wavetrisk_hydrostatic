@@ -1,0 +1,28 @@
+{
+  "kit": "/private/tmp/wavetrisk-stage196-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage196-cluster-kit.tar.gz",
+  "sha256": "ce182004fc335e592dc7c8badd0d7af758bc8980f1d34cb988c6487e09d6267c",
+  "baseline_commit": "5dfe0db17b6ab5c17b28f41d7d1eeba90ef3ad35",
+  "observer_sha256": "4a7fceac0492a325ff87af72a0afcae5f1f796cae639a236cb6c69e84a33813f",
+  "candidate_patch_sha256": "3ee389a40af896280a972354e1ee1e2b169a67d844c5dca1ddf0c31ba694ccf7",
+  "legacy_profile_patch_sha256": "12c13cbf25c73251a5513f4db178a119bd8f622d00a0e15ef21ee07449f0be8b",
+  "helpers_sha256": {
+    "build_restriction_196.py": "dbc4acc5165bb0c096d37269277b71679104cd4b655ad43cb5a10ad57c1b38cb",
+    "build_196.sbatch": "66c2397f8246df733d86c1b77a1daa4d6b3aacf3ef259e8cb2b403fef7ba7146",
+    "submit_restriction_196.py": "d92a49d31b7b04c622bcf1c71bf3bf8720fc5203cba01b21d66141f9d9372001",
+    "cluster_196.py": "b14ec0f2dd903d860377bf89cab0c371f8d008ba0eda5c23f16b31ca3a927de7",
+    "cluster_196.sbatch": "4d3449be4bcfcd6f5e57637eb7ed94e149f2e34ddeb13291fd09f83bda0ab487",
+    "rank_metrics_190.py": "942aae917d711db30b40706e1b5e323ca1d74ff92227cf87a9793c4f347635ab",
+    "rank_launch_190.py": "2406f55cc9fc5d90b5000156d888abf33e4e42a75e7c8f7d2157c0724a48e201",
+    "analyze.py": "b8123a73ec3c57137050e1f15e52c2faf873e6f1baa054cacdbbee3dc66fb425",
+    "checkpoint_gate.py": "58fa8678c2bfa0f0aa04da01f93ab1b44e51aaa6bc9c1d1a5ed3d898842e5251",
+    "compare_restart_checkpoints.py": "8e63c8d1f448f38c2f782c6f73132dff8b7bbaf7265456bfa97d528105d73fbd",
+    "profile_protocol.py": "71f24a8d636489786f9a3380be975f79b38a349c9aea485fe09b323bfcd6266a",
+    "experiment.py": "e93022b31a37e7627f20d42237a0e75450bd8a6ee6ace1ea07f38fde352877f2",
+    "legacy_metrics_191.py": "7769073ef1ba3fba5fae1d7502efb023c36fff6bfdaabfb359800cb14484e2ec",
+    "collect_cluster_logs.py": "996b404a4d2ce563045b30e3d0fcbbdfae8230c339697defa982e0b4a4b91336",
+    "analyze_workflow_195.py": "d1323a4d03612700a088d055a912d9d6ecc9403c638197c59e9c0cee465ce90e",
+    "analyze_operations_196.py": "461d6f6002e0b1f30267a00b0691658eb7d0e2d8e88a25e9b21a59dc81e8461c"
+  },
+  "validation": "Both patches reconstruct verified source manifests; observer identical on both sides; stripping additions restores input numerical source bytes; standalone imports and shell syntax pass."
+}
