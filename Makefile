@@ -13,6 +13,7 @@ DEBUG         ?= false
 FP_CONTRACT   ?= off
 # Experimental Stage 202 batching; use fresh build directories for each value.
 STAGE202      ?= off
+STAGE203      ?= off
 TEST_CASE     ?= climate
 PARAM         ?= param_J5
 MPIF90        ?= mpif90
@@ -127,6 +128,20 @@ endif
 # Optional arithmetic control for solver code; external physics keeps its flags.
 ifeq ($(filter $(FP_CONTRACT),default off fast),)
 $(error Unknown FP_CONTRACT='$(FP_CONTRACT)'; use default, off, or fast)
+endif
+ifeq ($(filter $(STAGE203),off fields inverse on),)
+$(error Unknown STAGE203='$(STAGE203)'; use off, fields, inverse, or on)
+endif
+ifneq ($(STAGE203),off)
+ifneq ($(STAGE202),on)
+$(error STAGE203 requires STAGE202=on)
+endif
+endif
+ifneq ($(filter $(STAGE203),fields on),)
+FFLAGS += -DSTAGE203_FIELDS
+endif
+ifneq ($(filter $(STAGE203),inverse on),)
+FFLAGS += -DSTAGE203_INVERSE
 endif
 ifeq ($(filter $(STAGE202),off records inverse on),)
 $(error Unknown STAGE202='$(STAGE202)'; use off, records, inverse, or on)

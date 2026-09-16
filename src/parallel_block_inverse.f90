@@ -12,7 +12,7 @@ module parallel_block_inverse_mod
   use kind_mod, only : dp
   use shared_mod, only : EDGE, AT_NODE, AT_EDGE, N_VARIABLE, N_BDRY, N_CHDRN, &
        scalars, S_VELO, zlevels, n_domain, level_start, level_end, end_pt, opp_no, hex_sides, hex_s_offs, &
-       RT, UP, NORTHEAST, NORTHWEST, IMINUSJPLUS, IPLUSJMINUS, IJMINUS
+       DG, FROZEN, LORT, UPLT, TRIAG, RT, UP, NORTHEAST, NORTHWEST, IMINUSJPLUS, IPLUSJMINUS, IJMINUS
   use domain_mod, only : grid, sol, Float_Field, idx, ed_idx, get_offs_Domain, chd_offs
   use patch_mod, only : PATCH_SIZE, LAST
   use arch_mod, only : comm, rank, n_process, glo_id, loc_id, owner, block_catalog, abort_run
@@ -77,6 +77,31 @@ module parallel_block_inverse_mod
   real(dp), allocatable :: value(:,:,:,:)
   integer(int64) :: plan_generation=-1_int64
   integer :: nnode=0,noperation=0,nscalar=0
+  ! The selector is compile-time; the original path remains the default.
+#ifdef STAGE203_INVERSE
+  logical, parameter, public :: stage203_inverse=.true.
+#else
+  logical, parameter, public :: stage203_inverse=.false.
+#endif
+  public :: begin_inverse203, end_inverse203, scalar_inverse203, inner_inverse203, install_inverse203
+#ifdef STAGE203_LEDGER
+  logical, parameter, public :: ledger203=.true.
+#else
+  logical, parameter, public :: ledger203=.false.
+#endif
+  logical :: resident203=.false., oracle203=.false.
+  type :: Scalar203
+     integer :: d=0,level=0,phase=0,target=0,base=0,area=0,mask=0,n=0
+     integer :: source(11)=0,geometry(11)=0
+  end type
+  type :: Inner203
+     integer :: d=0,level=0,node(32)=0,edge(32)=0,source(32)=0,target(6)=0
+  end type
+  type(Scalar203), allocatable :: scalar203_ops(:)
+  type(Inner203), allocatable :: inner203_ops(:)
+  integer, allocatable :: restore203_index(:),restore203_slot(:)
+  real(dp), allocatable :: restore203(:,:,:),saved203(:,:,:)
+  integer(int64), public :: work203(6)=0_int64
   real(dp), parameter :: base_weight(9) = &
        [16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp,-1.0_dp,-1.0_dp,1.0_dp,1.0_dp]/16.0_dp
 
@@ -172,6 +197,7 @@ contains
     type(Boundary_Manifest) :: manifest
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
+    resident203=.false.
     call configure_stage192
     call detail_enter(DP_INVERSE_PLAN)
     timing=profile
@@ -211,6 +237,7 @@ contains
           next_patch=0
           call map_patch(block_catalog(b)%root_patch)
        end do
+       if (stage203_inverse) call compile203(total)
        allocate(aliases(2,level_start-1:level_end))
        call compile_aliases
        do q=1,2
@@ -372,6 +399,20 @@ contains
           n=n+1
           scaffold_slot(n)=p
        end do
+       if (stage203_inverse) then
+          if (allocated(restore203_index)) deallocate(restore203_index,restore203_slot,restore203,saved203)
+          allocate(restore203_index(nnode));restore203_index=0
+          n=0
+          do p=1,nnode
+             if (nodes(node_domain(p))%key(1,node_id(p)+1)<=0) cycle
+             if (.not.btest(node_flags(p),0).and..not.btest(node_flags(p),1)) cycle
+             n=n+1;restore203_index(p)=n
+          end do
+          allocate(restore203_slot(n),restore203(nscalar+EDGE,zlevels,n),saved203(nscalar+EDGE,zlevels,n))
+          do p=1,nnode
+             if (restore203_index(p)>0) restore203_slot(restore203_index(p))=p
+          end do
+       end if
        plan_generation=generation
     else
        call detail_add(DC_INVERSE_REUSE,1_int64)
@@ -418,6 +459,11 @@ contains
           call native_inverse_gather(q,b,.false.)
        end do
     end do
+    if (stage203_inverse) then
+       do q=1,size(restore203_slot)
+          restore203(:,:,q)=value(:,:,restore203_slot(q),1)
+       end do
+    end if
     do q=1,2
        call native_inverse_boundary(q,2,level_start,level_end)
        call native_inverse_boundary(q,1,first_level,level_end)
@@ -695,6 +741,18 @@ contains
           value(first:last,:,scaffold_slot(q),family)=scaffold_value(first:last,:,q)
        end do
     end if
+    if (resident203) then
+       first=merge(1,nscalar+1,component==1);last=merge(nscalar,nscalar+EDGE,component==1)
+       do q=1,size(restore203_slot)
+          value(first:last,:,restore203_slot(q),family)=restore203(first:last,:,q)
+       end do
+       if (family/=BLOCK_PAYLOAD_SOL) call die('resident gather family')
+       if (.not.present(changed_level)) call die('resident gather requires phase')
+       if (oracle203) call check_gather203(level_interior(component,changed_level),component,family)
+       if(ledger203) work203(5)=work203(5)+int(size(restore203_slot),int64)*(last-first+1)*zlevels
+       if(ledger203) work203(1)=work203(1)+1_int64
+       return
+    end if
     if (present(changed_level)) then
        if (changed_level<level_start-2 .or. changed_level>level_end) call die('gather level range')
        call transfer_nodes(level_interior(component,changed_level),component,family,.false.)
@@ -707,6 +765,14 @@ contains
     integer, intent(in) :: component,family
     logical, intent(in) :: interiors
     integer, optional, intent(in) :: changed_level
+    if (resident203) then
+       if (interiors) then
+          if (.not.present(changed_level)) call die('resident outer install requires level')
+          call remember_outer203(outer_install(changed_level))
+       end if
+       if(ledger203) work203(2)=work203(2)+1_int64
+       if (.not.oracle203) return
+    end if
     if (present(changed_level)) then
        if (changed_level<level_start-2 .or. changed_level>level_end) call die('scatter level range')
        if (interiors) then
@@ -1489,4 +1555,284 @@ contains
     call detail_leave(DP_OUTER_KERNEL)
 
   end subroutine
+
+  subroutine begin_inverse203(oracle)
+    logical, intent(in) :: oracle
+    if(stage203_inverse.and.sparse_outer_install) call die("Stage203 requires sparse outer off")
+    resident203=stage203_inverse
+    oracle203=oracle
+    work203=0_int64
+  end subroutine
+
+  subroutine end_inverse203
+    resident203=.false.
+  end subroutine
+
+  subroutine check_gather203(plan,component,family)
+    type(Transfer_Plan), intent(in) :: plan
+    integer, intent(in) :: component,family
+    integer :: lo,hi,p,k,v
+    real(dp), allocatable :: expected(:,:,:)
+    lo=merge(1,nscalar+1,component==1);hi=merge(nscalar,nscalar+EDGE,component==1)
+    allocate(expected(lo:hi,zlevels,size(plan%slot)))
+    do p=1,size(plan%slot)
+       expected(:,:,p)=value(lo:hi,:,plan%slot(p),family)
+    end do
+    call transfer_nodes(plan,component,family,.false.)
+    do p=1,size(plan%slot)
+       do k=1,zlevels
+          do v=lo,hi
+             if (transfer_bits(expected(v,k,p))/=transfer_bits(value(v,k,plan%slot(p),family))) then
+                write(error_unit,*) 'Stage203 phase mismatch rank/component/node/k/v ',rank,component,plan%slot(p),k,v
+                write(error_unit,*) expected(v,k,p),value(v,k,plan%slot(p),family)
+                call die('resident phase differs from independent block kernel')
+             end if
+          end do
+       end do
+    end do
+  end subroutine
+
+  subroutine remember_outer203(plan)
+    type(Transfer_Plan), intent(in) :: plan
+    integer :: p,q,s
+    if (plan%edgewise) call die('Stage203 requires Stage192 sparse outer off')
+    do p=1,size(plan%slot)
+       s=plan%slot(p);q=restore203_index(s)
+       if(q>0) restore203(nscalar+1:nscalar+EDGE,:,q)=value(nscalar+1:nscalar+EDGE,:,s,1)
+    end do
+  end subroutine
+
+  subroutine store203(slot,component,k,x)
+    integer, intent(in) :: slot,component,k
+    real(dp), intent(in) :: x
+    integer :: q
+    value(component,k,slot,1)=x
+    q=restore203_index(slot)
+    if(q>0) restore203(component,k,q)=x
+  end subroutine
+
+  subroutine install_inverse203
+    ! Install canonical interiors without exporting alias-overwritten values.
+    ! Boundary views keep the latest dependency epoch; physics aliases have
+    ! their independent consumer snapshot just as in Stage202.
+    integer :: q,c
+    if (.not.resident203) return
+    do q=1,size(restore203_slot)
+       saved203(:,:,q)=value(:,:,restore203_slot(q),1)
+       value(:,:,restore203_slot(q),1)=restore203(:,:,q)
+    end do
+    if(ledger203) work203(6)=work203(6)+int(size(interior_plan%slot),int64)*(nscalar+EDGE)*zlevels
+    do c=1,2
+       call transfer_nodes(interior_plan,c,BLOCK_PAYLOAD_SOL,.true.)
+    end do
+    do q=1,size(restore203_slot)
+       value(:,:,restore203_slot(q),1)=saved203(:,:,q)
+    end do
+    do c=1,2
+       call transfer_nodes(boundary_plan,c,BLOCK_PAYLOAD_SOL,.true.)
+    end do
+  end subroutine
+
+  subroutine compile203(total)
+    integer, intent(in) :: total
+    integer :: d,l,p,pi,c,ch,i,j,x,y,ip,jp,n,m,t,a,offp(N_BDRY+1),offc(N_BDRY+1)
+    integer :: dimp(2,N_BDRY+1),dimc(2,N_BDRY+1),sx(11),sy(11),q,baseid
+    integer :: tx(4),ty(4),wi(11)
+    type(Scalar203) :: op
+    type(Inner203) :: cell
+    if (allocated(scalar203_ops)) deallocate(scalar203_ops,inner203_ops)
+    allocate(scalar203_ops(max(1,2*total)),inner203_ops(max(1,total)))
+    n=0;m=0
+    wi=[1,2,3,1,2,3,4,1,2,3,4]
+    do l=level_start,level_end-1
+       do d=1,size(grid)
+          do pi=1,grid(d)%lev(l)%length
+             p=grid(d)%lev(l)%elts(pi)
+             if (.not.any(grid(d)%patch%elts(p+1)%children>0)) cycle
+             call get_offs_Domain(grid(d),p,offp,dimp)
+             do c=1,N_CHDRN
+                ch=grid(d)%patch%elts(p+1)%children(c)
+                if(ch==0) cycle
+                call get_offs_Domain(grid(d),ch,offc,dimc)
+                do j=1,PATCH_SIZE/2
+                   y=2*(j-1);jp=j-1+chd_offs(2,c)
+                   do i=1,PATCH_SIZE/2
+                      x=2*(i-1);ip=i-1+chd_offs(1,c)
+                      tx=[x,x+1,x+1,x];ty=[y,y,y+1,y+1]
+                      do t=1,4
+                         op=Scalar203(d=d,level=l,phase=merge(1,2,t==1))
+                         op%target=node_slot(d,idx(tx(t),ty(t),offc,dimc))
+                         op%mask=idx(x,y,offc,dimc)
+                         if(t==1) then
+                            op%n=11;sx=x+[1,1,2,0,-1,-1,-2,-1,0,-1,1]
+                            sy=y+[0,1,1,1,0,1,-1,-1,-1,-2,-1]
+                            baseid=idx(ip,jp,offp,dimp)
+                            op%base=node_slot(d,baseid);op%area=baseid
+                         else
+                            op%n=4
+                            select case(t)
+                            case(2)
+                               sx(:4)=[x,x+2,x+2,x];sy(:4)=[y,y,y+2,y-2]
+                            case(3)
+                               sx(:4)=[x+2,x,x+2,x];sy(:4)=[y+2,y,y,y+2]
+                            case(4)
+                               sx(:4)=[x,x,x-2,x+2];sy(:4)=[y,y+2,y,y+2]
+                            end select
+                            op%base=op%target;op%area=idx(tx(t),ty(t),offc,dimc)
+                         end if
+                         do q=1,op%n
+                            a=idx(sx(q),sy(q),offc,dimc)
+                            op%source(q)=node_slot(d,a)
+                            op%geometry(q)=merge(a,op%area,t==1)
+                         end do
+                         n=n+1
+                         if(n>size(scalar203_ops)) call die('scalar tape capacity')
+                         scalar203_ops(n)=op
+                      end do
+                      cell=Inner203(d=d,level=l)
+                      do t=LORT,UPLT
+                         call edge_geom(4*(t-LORT)+1,ip,jp,DG,.true.)
+                         call edge_geom(4*(t-LORT)+2,ip-t+1,jp,UP,.true.)
+                         call edge_geom(4*(t-LORT)+3,ip,jp+t,RT,.true.)
+                         call triangle_geom(4*(t-LORT)+4,ip,jp,t,.true.)
+                      end do
+                      call triangle_geom(9,x,y,LORT,.false.)
+                      call edge_geom(10,x,y,RT,.false.)
+                      call edge_geom(11,x,y,DG,.false.)
+                      call edge_geom(12,x+1,y,UP,.false.)
+                      call triangle_geom(13,x+1,y,LORT,.false.)
+                      call edge_geom(14,x+1,y,RT,.false.)
+                      call edge_geom(15,x+2,y,UP,.false.)
+                      call edge_geom(16,x+1,y,DG,.false.)
+                      call triangle_geom(17,x+1,y+1,LORT,.false.)
+                      call edge_geom(18,x+1,y+1,DG,.false.)
+                      call edge_geom(19,x+2,y+1,UP,.false.)
+                      call edge_geom(20,x+1,y+1,RT,.false.)
+                      call triangle_geom(21,x,y,UPLT,.false.)
+                      call edge_geom(22,x,y,UP,.false.)
+                      call edge_geom(23,x,y,DG,.false.)
+                      call edge_geom(24,x,y+1,RT,.false.)
+                      call triangle_geom(25,x,y+1,UPLT,.false.)
+                      call edge_geom(26,x,y+1,UP,.false.)
+                      call edge_geom(27,x,y+2,RT,.false.)
+                      call edge_geom(28,x,y+1,DG,.false.)
+                      call triangle_geom(29,x+1,y+1,UPLT,.false.)
+                      call edge_geom(30,x+1,y+1,DG,.false.)
+                      call edge_geom(31,x+1,y+2,RT,.false.)
+                      call edge_geom(32,x+1,y+1,UP,.false.)
+                      cell%target=cell%source([12,16,20,24,28,32])
+                      m=m+1
+                      if(m>size(inner203_ops)) call die('inner tape capacity')
+                      inner203_ops(m)=cell
+                   end do
+                end do
+             end do
+          end do
+       end do
+    end do
+    scalar203_ops=scalar203_ops(:n);inner203_ops=inner203_ops(:m)
+  contains
+    subroutine edge_geom(slot,xx,yy,e,parent)
+      integer, intent(in) :: slot,xx,yy,e
+      logical, intent(in) :: parent
+      integer :: id
+      if(parent) then
+         id=idx(xx,yy,offp,dimp)
+      else
+         id=idx(xx,yy,offc,dimc)
+      end if
+      cell%node(slot)=id;cell%edge(slot)=e
+      cell%source(slot)=edge_slot(d,EDGE*id+e)
+    end subroutine
+    subroutine triangle_geom(slot,xx,yy,e,parent)
+      integer, intent(in) :: slot,xx,yy,e
+      logical, intent(in) :: parent
+      if(parent) then
+         cell%node(slot)=idx(xx,yy,offp,dimp)
+      else
+         cell%node(slot)=idx(xx,yy,offc,dimc)
+      end if
+      cell%edge(slot)=e
+    end subroutine
+  end subroutine
+
+  subroutine scalar_inverse203(level,phase)
+    integer, intent(in) :: level,phase
+    integer :: p,k,v,q,d
+    integer, parameter :: wi(11)=[1,2,3,1,2,3,4,1,2,3,4]
+    real(dp) :: w(11),area,s,x
+    if(.not.resident203) return
+    do p=1,size(scalar203_ops)
+       associate(op=>scalar203_ops(p))
+         if(op%level/=level.or.op%phase/=phase) cycle
+         d=op%d
+         if(phase==1) then
+            if(grid(d)%mask_n%elts(op%mask+1)==FROZEN) cycle
+         end if
+         area=grid(d)%areas%elts(op%area+1)%hex_inv
+         do q=1,op%n
+            w(q)=grid(d)%overl_areas%elts(op%geometry(q)+1)%a(merge(wi(q),q,phase==1))
+         end do
+         do v=1,nscalar
+            do k=1,zlevels
+               s=0.0_dp
+               do q=1,op%n
+                  s=s+value(v,k,op%source(q),merge(2,1,phase==1))*w(q)
+               end do
+               if(phase==1) then
+                  x=value(v,k,op%base,1)-s*area
+               else
+                  x=s*area+value(v,k,op%base,2)
+               end if
+               call store203(op%target,v,k,x)
+            end do
+         end do
+         if(ledger203) work203(3)=work203(3)+int(zlevels,int64)*nscalar
+       end associate
+    end do
+  end subroutine
+
+  subroutine inner_inverse203(level)
+    integer, intent(in) :: level
+    integer :: p,k,q,t,d,id,e,s,slot,comp
+    integer, parameter :: triangles(8)=[4,8,9,13,17,21,25,29]
+    integer, parameter :: inputs(18)=[1,2,3,5,6,7,10,11,14,15,18,19,22,23,26,27,30,31]
+    real(dp) :: g(32),u(32),curl(LORT:UPLT),x(6)
+    if(.not.resident203) return
+    do p=1,size(inner203_ops)
+       associate(op=>inner203_ops(p))
+         if(op%level/=level) cycle
+         d=op%d
+         do q=1,32
+            id=op%node(q);e=op%edge(q)
+            if(any(triangles==q)) then
+               g(q)=grid(d)%triarea%elts(TRIAG*id+e+1)
+            else
+               g(q)=grid(d)%len%elts(EDGE*id+e+1)
+            end if
+         end do
+         do k=1,zlevels
+            do q=1,size(inputs)
+               t=inputs(q);u(t)=alias_value(op%source(t),2,1,k,1)
+            end do
+            do t=LORT,UPLT
+               s=4*(t-LORT)
+               curl(t)=(u(s+1)*g(s+1)+u(s+2)*g(s+2)+u(s+3)*g(s+3))/g(s+4)
+            end do
+            x(1)=(g(9)*curl(LORT)-u(10)*g(10)-u(11)*g(11))/g(12)
+            x(2)=(g(13)*curl(LORT)-u(14)*g(14)-u(15)*g(15))/g(16)
+            x(3)=(g(17)*curl(LORT)-u(18)*g(18)-u(19)*g(19))/g(20)
+            x(4)=(g(21)*curl(UPLT)-u(22)*g(22)-u(23)*g(23))/g(24)
+            x(5)=(g(25)*curl(UPLT)-u(26)*g(26)-u(27)*g(27))/g(28)
+            x(6)=(g(29)*curl(UPLT)-u(30)*g(30)-u(31)*g(31))/g(32)
+            do q=1,6
+               slot=(op%target(q)-1)/EDGE+1;comp=nscalar+mod(op%target(q)-1,EDGE)+1
+               call store203(slot,comp,k,x(q)+value(comp,k,slot,2))
+            end do
+         end do
+         if(ledger203) work203(4)=work203(4)+int(zlevels,int64)
+       end associate
+    end do
+  end subroutine
+
 end module parallel_block_inverse_mod

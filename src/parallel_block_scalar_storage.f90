@@ -8,6 +8,8 @@ module parallel_block_scalar_storage_mod
   public :: Scalar_Record_Storage, scalar_allocate, scalar_release, scalar_extent, scalar_capacity
   public :: scalar_geometry_capacity, scalar_read, scalar_read_range, scalar_write, scalar_write_range, scalar_fill
   public :: scalar_read_column, scalar_write_column, scalar_write_field_records
+  public :: scalar_geometry_patch203
+  public :: scalar_pack_fields203, scalar_unpack_fields203, scalar_copy_fields203
   public :: scalar_is_allocated
   public :: scalar_seed_patch
   public :: scalar_install_geometry, scalar_share_inactive, scalar_fill_fields
@@ -488,5 +490,108 @@ contains
     if (.not.store%compact.or.first<1.or.last>store%samples) error stop 'scalar field fill extent invalid'
     store%field(:,first:last)=value
   end subroutine scalar_fill_fields
+
+
+  subroutine scalar_geometry_patch203(store,first,count,slots,buffer)
+    type(Scalar_Record_Storage), intent(in) :: store
+    integer, intent(in) :: first,count,slots(:)
+    real(dp), intent(out) :: buffer(size(slots),count)
+    integer :: rows(size(slots)),node,zone,field,i,j
+    if(first<1.or.count<0.or.first+count-1>store%samples) error stop 'geometry patch extent'
+    if(any(slots<1).or.any(slots>SCALAR_RECORD_WIDTH)) error stop 'geometry slot extent'
+    rows=-slot_map(slots)
+    if(any(rows<=0)) error stop 'geometry patch requires shared slots'
+    if(mod(first-1,store%stride)+count>store%stride) error stop 'geometry patch crosses field'
+    if(store%compact) then
+       call shared_address(store,first-1,node,zone,field)
+       do i=1,count
+          do j=1,size(slots)
+             buffer(j,i)=store%geometry(rows(j),zone,node+i-1)
+          end do
+       end do
+    else
+       do i=1,count
+          do j=1,size(slots)
+             buffer(j,i)=store%full((first+i-2)*SCALAR_RECORD_WIDTH+slots(j))
+          end do
+       end do
+    end if
+  end subroutine
+
+  subroutine field_rows203(store,first,count,slots,rows)
+    type(Scalar_Record_Storage), intent(in) :: store
+    integer, intent(in) :: first,count,slots(:)
+    integer, intent(out) :: rows(size(slots))
+    if(first<1.or.count<0.or.first+count-1>store%samples) error stop 'field block extent invalid'
+    if(any(slots<1).or.any(slots>SCALAR_RECORD_WIDTH)) error stop 'field block slot invalid'
+    rows=slot_map(slots)
+    if(any(rows<=0)) error stop 'field block requires dynamic slots'
+  end subroutine
+
+  subroutine scalar_pack_fields203(store,first,count,slots,buffer)
+    type(Scalar_Record_Storage), intent(in) :: store
+    integer, intent(in) :: first,count,slots(:)
+    real(dp), intent(out) :: buffer(:)
+    integer :: rows(size(slots)),i,j,n
+    call field_rows203(store,first,count,slots,rows)
+    if(size(buffer)/=count*size(slots)) error stop 'field pack extent invalid'
+    n=0
+    do i=first,first+count-1
+       do j=1,size(slots)
+          n=n+1
+          if(store%compact) then
+             buffer(n)=store%field(rows(j),i)
+          else
+             buffer(n)=store%full((i-1)*SCALAR_RECORD_WIDTH+slots(j))
+          end if
+       end do
+    end do
+  end subroutine
+
+  subroutine scalar_unpack_fields203(store,first,count,slots,buffer)
+    type(Scalar_Record_Storage), intent(inout) :: store
+    integer, intent(in) :: first,count,slots(:)
+    real(dp), intent(in) :: buffer(:)
+    integer :: rows(size(slots)),i,j,n
+    call field_rows203(store,first,count,slots,rows)
+    if(size(buffer)/=count*size(slots)) error stop 'field unpack extent invalid'
+    n=0
+    do i=first,first+count-1
+       do j=1,size(slots)
+          n=n+1
+          if(store%compact) then
+             store%field(rows(j),i)=buffer(n)
+          else
+             store%full((i-1)*SCALAR_RECORD_WIDTH+slots(j))=buffer(n)
+          end if
+       end do
+    end do
+  end subroutine
+
+  subroutine scalar_copy_fields203(source,first,destination,target,count,slots)
+    ! Source patch and destination ghost are distinct store objects. This
+    ! interface deliberately does not permit in-place overlapping copies.
+    type(Scalar_Record_Storage), intent(in) :: source
+    type(Scalar_Record_Storage), intent(inout) :: destination
+    integer, intent(in) :: first,target,count,slots(:)
+    integer :: sr(size(slots)),dr(size(slots)),i,j
+    real(dp) :: x
+    call field_rows203(source,first,count,slots,sr)
+    call field_rows203(destination,target,count,slots,dr)
+    do i=0,count-1
+       do j=1,size(slots)
+          if(source%compact) then
+             x=source%field(sr(j),first+i)
+          else
+             x=source%full((first+i-1)*SCALAR_RECORD_WIDTH+slots(j))
+          end if
+          if(destination%compact) then
+             destination%field(dr(j),target+i)=x
+          else
+             destination%full((target+i-1)*SCALAR_RECORD_WIDTH+slots(j))=x
+          end if
+       end do
+    end do
+  end subroutine
 
 end module parallel_block_scalar_storage_mod

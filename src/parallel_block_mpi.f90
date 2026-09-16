@@ -19,6 +19,8 @@ module parallel_block_mpi_mod
        compare_native_inverse, publish_native_inverse, native_inverse_seconds, &
        capture_native_inverse_consumer_aliases, &
        native_inverse_calls, native_inverse_messages, native_inverse_bytes
+  use parallel_block_inverse_mod, only : stage203_inverse, begin_inverse203, end_inverse203, &
+       scalar_inverse203, inner_inverse203, install_inverse203, work203, ledger203
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
        AT_EDGE, AT_NODE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, &
@@ -1693,6 +1695,12 @@ contains
     if (low/=high) call fail("inconsistent Stage 197 options across ranks")
     stage197_ready=.true.
     if(rank==0) write(6,'(a,i0)') 'Stage 197 requested resident wavelets = ',selected
+#ifdef STAGE203_INVERSE
+    if (rank==0) write(*,'(a)') "Stage203 inverse workspace = on"
+#endif
+#ifdef STAGE203_FIELDS
+    if (rank==0) write(*,'(a)') "Stage203 scalar fields = on"
+#endif
 #ifdef STAGE202_RECORDS
     if(rank==0) write(6,'(a)') 'Stage 202 record batching = on'
 #else
@@ -14725,6 +14733,7 @@ end subroutine build_parallel_block_catalog
        inverse_stencil_generation=block_writeback_plan_generation
     end if
     production_block_inverse_active = .true.
+    call begin_inverse203(validate_oracle)
     allocation_before = block_writeback_plan_allocation_count()
     writeback_before = block_domain_production_writeback_count()
 
@@ -14750,7 +14759,8 @@ end subroutine build_parallel_block_catalog
             target_level=inverse_level,phase=1)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
        call detail_enter(DP_SCALAR_INVERSE_KERNEL)
-       call apply_local_block_field_producer( &
+       call scalar_inverse203(inverse_level,scalar_statistics%phase)
+       if (.not.stage203_inverse.or.validate_oracle) call apply_local_block_field_producer( &
             reconstruct_block_scalar_level,scalar_statistics)
        call detail_leave(DP_SCALAR_INVERSE_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
@@ -14778,7 +14788,8 @@ end subroutine build_parallel_block_catalog
             target_level=inverse_level,phase=2)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
        call detail_enter(DP_SCALAR_INVERSE_KERNEL)
-       call apply_local_block_field_producer( &
+       call scalar_inverse203(inverse_level,scalar_statistics%phase)
+       if (.not.stage203_inverse.or.validate_oracle) call apply_local_block_field_producer( &
             reconstruct_block_scalar_level,scalar_statistics)
        call detail_leave(DP_SCALAR_INVERSE_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
@@ -14794,7 +14805,8 @@ end subroutine build_parallel_block_catalog
             target_level=inverse_level)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
        call detail_enter(DP_INNER_VECTOR_KERNEL)
-       call apply_local_block_field_producer( &
+       call inner_inverse203(inverse_level)
+       if (.not.stage203_inverse.or.validate_oracle) call apply_local_block_field_producer( &
             reconstruct_block_inner_vector_level,vector_statistics)
        call detail_leave(DP_INNER_VECTOR_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
@@ -14867,6 +14879,7 @@ end subroutine build_parallel_block_catalog
     end if
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_INSTALL)
+    call install_inverse203
     call publish_native_inverse(domain_scaling)
     if (.not. validate_oracle) then
        call publish_native_inverse(domain_wavelet,BLOCK_PAYLOAD_WAV_COEFF)
@@ -14895,6 +14908,7 @@ end subroutine build_parallel_block_catalog
        end if
        call native_inverse_scatter(1,BLOCK_PAYLOAD_SOL,.false.)
        call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.false.)
+       call install_inverse203
        domain_scaling%bdry_uptodate=.true.
        call block_profile_leave(BLOCK_PROFILE_INVERSE_BOUNDARY)
     end if
@@ -14920,6 +14934,9 @@ end subroutine build_parallel_block_catalog
        production_complete_vector_wavelet_validated = .false.
        production_native_wavelet_output_activated = .false.
     end if
+    if (stage203_inverse.and.ledger203) write(*,'(a,i0,a,6(1x,i0))') &
+         'Stage203 inverse rank=',rank,' work=',work203
+    call end_inverse203
     production_block_inverse_active = .false.
     production_inverse_completed_mode=merge(1,2,provisional_transform)
     production_inverse_consumer_aliases_pending=final_transform
@@ -14965,7 +14982,7 @@ end subroutine build_parallel_block_catalog
     if (block_dynamics_validation_enabled()) call compare_native_inverse(domain_scaling,1)
     call native_inverse_scatter(1,BLOCK_PAYLOAD_SOL,.false.,changed_level=level)
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
-    call exchange_block_scalar_ghost_payloads( &
+    if (.not.stage203_inverse.or.block_dynamics_validation_enabled()) call exchange_block_scalar_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_GHOST)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_BOUNDARY)
@@ -14998,7 +15015,7 @@ end subroutine build_parallel_block_catalog
     if (block_dynamics_validation_enabled()) call compare_native_inverse(domain_scaling,2)
     call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.false.,changed_level=level)
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
-    call exchange_block_vector_ghost_payloads( &
+    if (.not.stage203_inverse.or.block_dynamics_validation_enabled()) call exchange_block_vector_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_GHOST)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_BOUNDARY)
@@ -15404,7 +15421,7 @@ end subroutine build_parallel_block_catalog
     call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.true.,changed_level=fine_level)
     if (.not. preserve_checkpoint) call invalidate_local_block_tendency_products
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
-    call exchange_block_vector_ghost_payloads( &
+    if (.not.stage203_inverse.or.block_dynamics_validation_enabled()) call exchange_block_vector_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_GHOST)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_BOUNDARY)
@@ -22165,7 +22182,9 @@ end subroutine build_parallel_block_catalog
     integer :: sample
     integer :: sample_count
     integer :: slot
+#ifndef STAGE203_FIELDS
     integer :: source_start
+#endif
 
     integer(int64) :: allocation_before
 
@@ -22316,6 +22335,11 @@ end subroutine build_parallel_block_catalog
                 call fail( &
                      "compact scalar-divergence received extent is invalid")
              end if
+#ifdef STAGE203_FIELDS
+             call scalar_unpack_fields203(block_scalar_tendency(local_index)%patch,1,sample_count, &
+                  [(BLOCK_SCALAR_PHYSICS_START+sample,sample=0,EDGE-1)], &
+                  block_scalar_divergence_plan%send_buffer(data_start:data_start+data_count-1))
+#else
              do sample = 0,sample_count-1
                 source_start = data_start + &
                      BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample
@@ -22324,6 +22348,7 @@ end subroutine build_parallel_block_catalog
                      BLOCK_SCALAR_PHYSICS_START+EDGE-1,block_scalar_divergence_plan%send_buffer( source_start: &
                      source_start+BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1))
              end do
+#endif
           end if
           block_scalar_tendency(local_index)%covered = .true.
           data_start = data_start + data_count
@@ -23798,12 +23823,29 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: component
 
       integer :: source_index
+#ifdef STAGE203_FIELDS
+      integer :: f,nf,ib,ng,src,dst,slots(4),ns
+#endif
 
       source_index = catalog_local_block(source)
       if (source_index < 1 .or. &
            source_index > size(block_scalar_tendency)) then
          call fail("local scalar-restriction source is invalid")
       end if
+#ifdef STAGE203_FIELDS
+      if (.not.full_payload) then
+         call fields203_slots(component,slots,ns)
+         ib=catalog_local_block(destination);ng=local_block_ghost_count(destination)
+         nf=ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2
+         do f=0,nf-1
+            src=source_patch*ghost_exchange_plan%scalar_n_value+f*PATCH_SIZE**2+1
+            dst=(f*ng+destination_ghost-1)*PATCH_SIZE**2+1
+            call scalar_copy_fields203(block_scalar_tendency(source_index)%patch,src, &
+                 block_scalar_tendency(ib)%ghost,dst,PATCH_SIZE**2,slots(:ns))
+         end do
+         return
+      end if
+#endif
       call pack_patch_record( &
            source_index,source_patch, &
            block_scalar_restriction_exchange%ghost_patch_buffer,1, &
@@ -23829,6 +23871,9 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: component
 
       integer :: data_count
+#ifdef STAGE203_FIELDS
+      integer :: slots203(4),ns203
+#endif
       integer :: destination_start
       integer :: field_sample
       integer :: payload_count
@@ -23850,6 +23895,15 @@ end subroutine build_parallel_block_catalog
            1 .or. data_start+data_count-1 > size(buffer)) then
          call fail("scalar-restriction ghost pack extent is invalid")
       end if
+#ifdef STAGE203_FIELDS
+      if (.not.full_payload) then
+         call fields203_slots(component,slots203,ns203)
+         call scalar_pack_fields203(block_scalar_tendency(local_index)%patch, &
+              (source_start-1)/BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT+1,ghost_exchange_plan%scalar_n_value, &
+              slots203(:ns203),buffer(data_start:data_start+data_count-1))
+         return
+      end if
+#endif
       if (full_payload) then
          if (.not. block_dynamics_validation_enabled()) then
             call pack_production_restriction_ghost(local_index,source_start,buffer,data_start)
@@ -23902,6 +23956,9 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: component
 
       integer :: destination_index
+#ifdef STAGE203_FIELDS
+      integer :: slots203(4),ns203,src203,dst203
+#endif
       integer :: destination_start
       integer :: field_sample
       integer :: n_ghost
@@ -23919,6 +23976,18 @@ end subroutine build_parallel_block_catalog
       if (destination_ghost < 1 .or. destination_ghost > n_ghost) then
          call fail("scalar-restriction destination ghost is invalid")
       end if
+#ifdef STAGE203_FIELDS
+      if (.not.full_payload) then
+         call fields203_slots(component,slots203,ns203)
+         do field_sample=0,ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2-1
+            dst203=(field_sample*n_ghost+destination_ghost-1)*PATCH_SIZE**2+1
+            src203=data_start+field_sample*PATCH_SIZE**2*ns203
+            call scalar_unpack_fields203(block_scalar_tendency(destination_index)%ghost,dst203, &
+                 PATCH_SIZE**2,slots203(:ns203),buffer(src203:src203+ns203*PATCH_SIZE**2-1))
+         end do
+         return
+      end if
+#endif
       if (full_payload) then
          if (.not. block_dynamics_validation_enabled()) then
             call install_production_restriction_ghost(destination_index,destination_ghost,n_ghost,buffer,data_start)
@@ -23962,6 +24031,19 @@ end subroutine build_parallel_block_catalog
 
     end subroutine install_buffer_ghost
 
+#ifdef STAGE203_FIELDS
+    subroutine fields203_slots(component,slots,n)
+      integer, intent(in) :: component
+      integer, intent(out) :: slots(4),n
+      slots=[BLOCK_SCALAR_DIRECT_FLUX_START,BLOCK_SCALAR_DIRECT_FLUX_START+1, &
+           BLOCK_SCALAR_DIRECT_FLUX_START+2,BLOCK_SCALAR_NATIVE_DSCALAR_INDEX]
+      n=4
+      if(component==BLOCK_GHOST_DYNAMIC_FLUX) n=3
+      if(component==BLOCK_GHOST_DYNAMIC_DSCALAR) then
+         n=1;slots(1)=BLOCK_SCALAR_NATIVE_DSCALAR_INDEX
+      end if
+    end subroutine
+#endif
   end subroutine exchange_block_scalar_restriction_ghosts
 
 
@@ -23981,12 +24063,19 @@ end subroutine build_parallel_block_catalog
     end do
     at = data_start+BLOCK_SCALAR_FULL_SHARED_COUNT*PATCH_SIZE**2
     do f=0,nf-1
+#ifdef STAGE203_FIELDS
+       src=(source_start-1)/BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT+f*PATCH_SIZE**2+1
+       call scalar_pack_fields203(block_scalar_tendency(ib)%patch,src,PATCH_SIZE**2, &
+            BLOCK_SCALAR_GHOST_FIELD_INDEX,buffer(at:at+BLOCK_SCALAR_GHOST_FIELD_COUNT*PATCH_SIZE**2-1))
+       at=at+BLOCK_SCALAR_GHOST_FIELD_COUNT*PATCH_SIZE**2
+#else
        do q=0,PATCH_SIZE**2-1
           src = source_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(f*PATCH_SIZE**2+q)
           buffer(at:at+BLOCK_SCALAR_GHOST_FIELD_COUNT-1)= &
                scalar_read(block_scalar_tendency(ib)%patch,src+BLOCK_SCALAR_GHOST_FIELD_INDEX-1)
           at=at+BLOCK_SCALAR_GHOST_FIELD_COUNT
        end do
+#endif
     end do
     if (at /= data_start+restriction_ghost_wire_size()) call fail("production ghost pack extent differs")
   end subroutine pack_production_restriction_ghost
@@ -23996,7 +24085,10 @@ end subroutine build_parallel_block_catalog
     implicit none
     integer, intent(in) :: ib,ghost,nghost,data_start
     real(dp), intent(in) :: buffer(:)
-    integer :: nf,q,f,dst,at,nvalue,first_sample
+    integer :: nf,f,at,nvalue,first_sample
+#ifndef STAGE203_FIELDS
+    integer :: q,dst
+#endif
     nf = ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2
     nvalue = restriction_ghost_wire_size()
     if (data_start < 1 .or. data_start+nvalue-1 > size(buffer)) &
@@ -24008,12 +24100,18 @@ end subroutine build_parallel_block_catalog
        first_sample=(f*nghost+ghost-1)*PATCH_SIZE**2+1
        call scalar_fill_fields(block_scalar_tendency(ib)%ghost, &
             first_sample,first_sample+PATCH_SIZE**2-1,BLOCK_GHOST_POISON)
+#ifdef STAGE203_FIELDS
+       call scalar_unpack_fields203(block_scalar_tendency(ib)%ghost,first_sample,PATCH_SIZE**2, &
+            BLOCK_SCALAR_GHOST_FIELD_INDEX,buffer(at:at+BLOCK_SCALAR_GHOST_FIELD_COUNT*PATCH_SIZE**2-1))
+       at=at+BLOCK_SCALAR_GHOST_FIELD_COUNT*PATCH_SIZE**2
+#else
        do q=0,PATCH_SIZE**2-1
           dst = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*((f*nghost+ghost-1)*PATCH_SIZE**2+q)+1
           call scalar_write(block_scalar_tendency(ib)%ghost,dst+BLOCK_SCALAR_GHOST_FIELD_INDEX-1, &
                buffer(at:at+BLOCK_SCALAR_GHOST_FIELD_COUNT-1))
           at=at+BLOCK_SCALAR_GHOST_FIELD_COUNT
        end do
+#endif
     end do
     if (at /= data_start+nvalue) call fail("production ghost install extent differs")
   end subroutine install_production_restriction_ghost
@@ -24055,6 +24153,12 @@ end subroutine build_parallel_block_catalog
     real(dp) :: scalar_neighbor
     real(dp) :: u_dual
 
+#ifdef STAGE203_FIELDS
+    integer :: first203
+    real(dp) :: physics203(EDGE*PATCH_SIZE**2),geometry203(EDGE,PATCH_SIZE**2)
+    real(dp) :: flux203(EDGE*PATCH_SIZE**2),mass203(PATCH_SIZE**2)
+#endif
+
     local_index = catalog_local_block(catalog_index)
     if (local_index < 1 .or. &
          local_index > size(block_scalar_tendency)) then
@@ -24081,6 +24185,30 @@ end subroutine build_parallel_block_catalog
           do scalar_slot = 0,block%n_scalar_variable-1
              do level_slot = 1,block%n_field_level
                 field_level = block%field_level+level_slot-1
+#ifdef STAGE203_FIELDS
+                first203=(p-1)*block_writeback_plan%scalar_patch_nvalue+ &
+                     (scalar_slot*block%n_field_level+level_slot-1)*PATCH_SIZE**2+1
+                if (.not.statistics%validate_oracle) then
+                   if (.not.all(block_scalar_tendency(local_index)%covered(first203:first203+PATCH_SIZE**2-1))) &
+                        call fail("direct scalar-flux patch coverage incomplete")
+                   if(block%scalar_variable+scalar_slot==S_MASS) then
+                      call scalar_pack_fields203(block_scalar_tendency(local_index)%patch,first203,PATCH_SIZE**2, &
+                           [BLOCK_SCALAR_PHYSICS_START],mass203)
+                      call scalar_unpack_fields203(block_scalar_tendency(local_index)%patch,first203,PATCH_SIZE**2, &
+                           [BLOCK_SCALAR_NATIVE_DSCALAR_INDEX],mass203)
+                      statistics%sample_count=statistics%sample_count+PATCH_SIZE**2
+                      cycle
+                   end if
+                   if(field_level<1.or.field_level>zlevels) then
+                      statistics%sample_count=statistics%sample_count+PATCH_SIZE**2
+                      cycle
+                   end if
+                   call scalar_pack_fields203(block_scalar_tendency(local_index)%patch,first203,PATCH_SIZE**2, &
+                        [BLOCK_SCALAR_PHYSICS_START,BLOCK_SCALAR_PHYSICS_START+1,BLOCK_SCALAR_PHYSICS_START+2],physics203)
+                   call scalar_geometry_patch203(block_scalar_tendency(local_index)%patch,first203,PATCH_SIZE**2, &
+                        [BLOCK_SCALAR_PEDLEN_START,BLOCK_SCALAR_PEDLEN_START+1,BLOCK_SCALAR_PEDLEN_START+2],geometry203)
+                end if
+#endif
                 do q = 0,PATCH_SIZE**2-1
                    statistics%sample_count = &
                         statistics%sample_count+1_int64
@@ -24120,12 +24248,18 @@ end subroutine build_parallel_block_catalog
                       scalar_input=scalar_read_range(block_scalar_tendency(local_index)%patch,remainder_index, &
                            remainder_index+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
                    else
+#ifdef STAGE203_FIELDS
+                      scalar_input(BLOCK_SCALAR_PEDLEN_START:BLOCK_SCALAR_PEDLEN_START+EDGE-1)=geometry203(:,q+1)
+                      scalar_input(BLOCK_SCALAR_PHYSICS_START:BLOCK_SCALAR_PHYSICS_START+EDGE-1)= &
+                           physics203(EDGE*q+1:EDGE*(q+1))
+#else
                       scalar_input(BLOCK_SCALAR_PEDLEN_START:BLOCK_SCALAR_PEDLEN_START+EDGE-1)= &
                            scalar_read_range(block_scalar_tendency(local_index)%patch, &
                            remainder_index+BLOCK_SCALAR_PEDLEN_START-1,remainder_index+BLOCK_SCALAR_PEDLEN_START+EDGE-2)
                       scalar_input(BLOCK_SCALAR_PHYSICS_START:BLOCK_SCALAR_PHYSICS_START+EDGE-1)= &
                            scalar_read_range(block_scalar_tendency(local_index)%patch, &
                            remainder_index+BLOCK_SCALAR_PHYSICS_START-1,remainder_index+BLOCK_SCALAR_PHYSICS_START+EDGE-2)
+#endif
                    end if
 #else
                    scalar_input = scalar_read_range(block_scalar_tendency(local_index)%patch,remainder_index, &
@@ -24213,10 +24347,19 @@ end subroutine build_parallel_block_catalog
                                  "block-native direct scalar flux differs")
                          end if
                       end if
+#ifdef STAGE203_FIELDS
+                      flux203(EDGE*q+flux_slot)=native_flux
+#else
                       call scalar_write(block_scalar_tendency(local_index)%patch, remainder_index+ &
                            BLOCK_SCALAR_DIRECT_FLUX_START+flux_slot-2,native_flux)
+#endif
                    end do
                 end do
+#ifdef STAGE203_FIELDS
+                if(field_level>=1.and.field_level<=zlevels) call scalar_unpack_fields203( &
+                     block_scalar_tendency(local_index)%patch,first203,PATCH_SIZE**2, &
+                     [BLOCK_SCALAR_DIRECT_FLUX_START,BLOCK_SCALAR_DIRECT_FLUX_START+1,BLOCK_SCALAR_DIRECT_FLUX_START+2],flux203)
+#endif
              end do
           end do
        end do

@@ -1,0 +1,10 @@
+{
+  "stage": 203,
+  "kit": "/private/tmp/wavetrisk-stage203-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage203-cluster-kit.tar.gz",
+  "sha256": "69709f2fc69d71dd33f95c907794873a36c584266466dc6aab0880c6061746f4",
+  "baseline_commit": "9bc3a19556dab79b3cba3944cf5df53517389da3",
+  "reference_patch_sha256": "5f6761cf7e0ce1d154f6a7114841d8750d2bfb091067911f5992dabf2363ef7f",
+  "candidate_patch_sha256": "ec2aaef92ecf7d5075b8181e1753cd912a00eb1473c723c82ceffa4117a93adc",
+  "scope": "Seven fresh J5 builds, 18 solver runs, 83 ranks/two sockets; frozen Stage202 baseline and legacy; >=0.10 s/step prototype screen."
+}

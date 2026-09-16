@@ -1,0 +1,166 @@
+{
+  "stage": 203,
+  "status": "passed",
+  "scope": "J4/J6, four ranks, 12 steps: final optimized, runtime-checked, optimized independent-oracle and isolated observer all pass exact Stage202 checkpoint, workload, restart and post-restart remap gates. Candidate initially overlapped superseded diagnostics; no local timing claim. Combined runtime-check-plus-oracle remains a mandatory cluster gate.",
+  "runs": {
+    "candidate": {
+      "path": "/private/tmp/stage203-local-candidate",
+      "status": "passed",
+      "binary_sha256": "313bb4a3c75cce77930409b795cb3289d172b16925d299f42de3118cb3bf1814",
+      "exact_to_stage202": true,
+      "reloads": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "steps": 12
+    },
+    "runtime": {
+      "path": "/private/tmp/stage203-local-runtime-final",
+      "status": "passed",
+      "binary_sha256": "5c2b2472886f4fc68ddebbc69ba50dfde5d7156f91de6a9d23517befc2fe5647",
+      "exact_to_stage202": true,
+      "reloads": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "steps": 12
+    },
+    "oracle": {
+      "path": "/private/tmp/stage203-local-oracle-final",
+      "status": "passed",
+      "binary_sha256": "313bb4a3c75cce77930409b795cb3289d172b16925d299f42de3118cb3bf1814",
+      "exact_to_stage202": true,
+      "reloads": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "steps": 12
+    },
+    "observer": {
+      "path": "/private/tmp/stage203-local-observer-final",
+      "status": "passed",
+      "binary_sha256": "4e0aea58b2d9794e1ee82291383f241e28f75674b3c3b5513c2c0a79acb1a62c",
+      "exact_to_stage202": true,
+      "reloads": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "steps": 12,
+      "hardware_rank_coverage": 4,
+      "coarse_clock_consistency": "passed",
+      "inverse_ledger": {
+        "columns": [
+          "replaced_gather_calls",
+          "replaced_scatter_calls",
+          "scalar_outputs",
+          "inner_cells",
+          "canonical_restored_values",
+          "exit_interior_scalar_values"
+        ],
+        "per_rank_totals": {
+          "0": [
+            504,
+            504,
+            25647360,
+            3205920,
+            0,
+            121077600
+          ],
+          "3": [
+            504,
+            504,
+            25509120,
+            3188640,
+            0,
+            118860000
+          ],
+          "2": [
+            504,
+            504,
+            25259520,
+            3157440,
+            0,
+            119380800
+          ],
+          "1": [
+            504,
+            504,
+            26519040,
+            3314880,
+            0,
+            123278400
+          ]
+        },
+        "transactions_per_rank": 48,
+        "scope": "Whole-run diagnostic work, including checkpoint steps. Counts are not seconds; do not add waiting savings to producer savings."
+      }
+    }
+  },
+  "legacy_screen": {
+    "passed": true,
+    "reference": "/private/tmp/stage201-local-legacy-control-packaged",
+    "scope": "Existing fixed numerical screen; not bitwise equivalence."
+  },
+  "prototype_sources": {
+    "Makefile": "08b82fd4ac7b6799689b01493e3e6b68fb997ad083ae894894648b6b44c6efe2",
+    "src/parallel_block.f90": "8c0604de952cd44c2283cd31aeb795cad2873b3bb79020e55b0177cf50c7ead3",
+    "src/parallel_block_inverse.f90": "54cee9e27a51fc16e6b40b56d49ad721e3b1d5967bc76f9b5f688f9c9a3a0b08",
+    "src/parallel_block_mpi.f90": "81d93593052f60d16ccea3f965e8eee77f716c4da69f97f96a025865148c454c",
+    "src/parallel_block_scalar_storage.f90": "4ed2294d198a6bef11f0c1fd2622981b572902d22d86b15de2ba7a90a39e7452"
+  },
+  "builds": {
+    "candidate": {
+      "log": "/private/tmp/stage203-build-on.log",
+      "sha256": "0fc78f46b254889e00792fb599713272cd1dfa9e859bb21f51c8564255a00770",
+      "param": "param_J4",
+      "fp_contract": "off",
+      "stage202": "on",
+      "stage203": "on",
+      "debug": "false",
+      "fresh_object_directory": "build-203-on"
+    },
+    "runtime": {
+      "log": "/private/tmp/stage203-build-checked.log",
+      "sha256": "a4e93c1c3737c855ece71d4b579e65bcbaf80302c6dae7b343be20de66c83d2b",
+      "param": "param_J4",
+      "fp_contract": "off",
+      "stage202": "on",
+      "stage203": "on",
+      "debug": "check",
+      "fresh_object_directory": "build-203-checked"
+    },
+    "observer": {
+      "log": "/private/tmp/stage203-build-observer.log",
+      "sha256": "6b0643f71a7fff8c8fb76a21e81481e727b910b3b95a43596d4db4f057ff3e36",
+      "param": "param_J4",
+      "fp_contract": "off",
+      "stage202": "on",
+      "stage203": "on",
+      "debug": "false",
+      "fresh_object_directory": "build-203-observer"
+    }
+  },
+  "excluded_diagnostics": [
+    {
+      "path": "/private/tmp/stage203-local-inverse",
+      "reason": "MPI socket sandbox denial before solver launch; rerun outside sandbox passed."
+    },
+    {
+      "path": "/private/tmp/stage203-inverse-oracle",
+      "reason": "Superseded inverse-only diagnostic stopped intentionally to remove concurrent memory pressure; not counted as completed. Final combined oracle passes."
+    },
+    {
+      "path": "/private/tmp/stage203-local-runtime",
+      "reason": "Superseded build stopped intentionally to remove concurrent memory pressure; final checked run passes."
+    }
+  ],
+  "supplemental_inverse_only": {
+    "path": "/private/tmp/stage203-local-inverse-01",
+    "exact_checkpoint_to_stage202": true,
+    "scope": "Earlier inverse-only implementation, before final diagnostic/persistent scratch refinements. Not substituted for final combined validation."
+  }
+}
