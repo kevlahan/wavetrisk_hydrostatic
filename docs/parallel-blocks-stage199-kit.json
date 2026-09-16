@@ -1,0 +1,30 @@
+{
+  "kit": "/private/tmp/wavetrisk-stage199-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage199-cluster-kit.tar.gz",
+  "sha256": "6ad7bd844e88549143f629027f8f03d3a2bea546b33097a89f9cb3e0d1a9a54d",
+  "baseline_commit": "9bc3a19556dab79b3cba3944cf5df53517389da3",
+  "numerical_candidate_stage": 197,
+  "numerical_candidate_patch_sha256": "2e24c7a280c32bbd8195c4a4a3685d28e632a6a898ec524e3fad74792abcb26f",
+  "observer_patch_sha256": "be0d08b54d7003a0fe8029cda22143486786bfb0a39ed772c39162505256f111",
+  "legacy_profile_patch_sha256": "03afc4568cad1f8104128b35771a3bc736a5c6422458739a5504fee1552d4d8f",
+  "helpers_sha256": {
+    "build_restriction_199.py": "ee0987a376b0b8434106b971892ef56adcd98d4721a3d7eb748c9ead20a9f05e",
+    "build_199.sbatch": "62c77f5995ff28a7c3ae9ad8026712e1d5edc73e98db2e8993b499c589ee2036",
+    "submit_restriction_199.py": "486f6c5d579e404d56debe806c962c6586b641d44f54fd4aa8f4dbd498a03f56",
+    "cluster_199.py": "cfb79139e7a7ff3cf49de6eeb97e49f431279dfb17cf018e8d414811040546ae",
+    "cluster_199.sbatch": "4e0ffe7c376cf7dc8ca000b6c0006a1b899a116b4d24b3d5d10adaac5e2344d8",
+    "analyze_operations_199.py": "1fd759b373d77593753df6c8aab8b822b9d97a557f4b46d84812c891b92704a3",
+    "rank_metrics_190.py": "942aae917d711db30b40706e1b5e323ca1d74ff92227cf87a9793c4f347635ab",
+    "rank_launch_190.py": "2406f55cc9fc5d90b5000156d888abf33e4e42a75e7c8f7d2157c0724a48e201",
+    "analyze.py": "b8123a73ec3c57137050e1f15e52c2faf873e6f1baa054cacdbbee3dc66fb425",
+    "checkpoint_gate.py": "58fa8678c2bfa0f0aa04da01f93ab1b44e51aaa6bc9c1d1a5ed3d898842e5251",
+    "compare_restart_checkpoints.py": "8e63c8d1f448f38c2f782c6f73132dff8b7bbaf7265456bfa97d528105d73fbd",
+    "profile_protocol.py": "71f24a8d636489786f9a3380be975f79b38a349c9aea485fe09b323bfcd6266a",
+    "experiment.py": "e93022b31a37e7627f20d42237a0e75450bd8a6ee6ace1ea07f38fde352877f2",
+    "legacy_metrics_191.py": "7769073ef1ba3fba5fae1d7502efb023c36fff6bfdaabfb359800cb14484e2ec",
+    "collect_cluster_logs_199.py": "98d40208abe04271a2c85e307323ee3be21931c8e73e59d7b4ee982d81b7fc65",
+    "analyze_workflow_195.py": "d1323a4d03612700a088d055a912d9d6ecc9403c638197c59e9c0cee465ce90e",
+    "analyze_batches_199.py": "c733c92ac019c74c24f8c5bc948ca9d9ea2281516a4d78a9af532a13de3d3c73"
+  },
+  "validation_record": "LOCAL_VALIDATION.json"
+}

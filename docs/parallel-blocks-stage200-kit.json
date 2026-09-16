@@ -1,0 +1,11 @@
+{
+  "stage": 200,
+  "kit": "/private/tmp/wavetrisk-stage200-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage200-cluster-kit.tar.gz",
+  "sha256": "3860d81fc5418c75996312f8a0d779387e48cd7969c998bc1bb06d7e5e491c82",
+  "baseline_commit": "9bc3a19556dab79b3cba3944cf5df53517389da3",
+  "numerical_candidate_patch_sha256": "2e24c7a280c32bbd8195c4a4a3685d28e632a6a898ec524e3fad74792abcb26f",
+  "observer_patch_sha256": "24862df62052d8c72d54d87666b6f96494911e03720b007dba1c5364edb7804c",
+  "legacy_profile_patch_sha256": "574fd7caf85b1487c66f1aa96bf3283d13eb0ec6e8116dd5c6e6d67715dc3ee5",
+  "scope": "Five builds, unchanged numerical candidate/legacy; 42 sequential solver runs in four configurations."
+}

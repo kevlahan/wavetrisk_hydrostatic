@@ -1,0 +1,85 @@
+{
+  "stage": 200,
+  "status": "passed",
+  "scope": "Local J4/J6 correctness, restart/remap, workload and observer coverage only; no cluster performance or Linux Slurm affinity claim. Four- and three-rank cases, with uneven 40-Domain ownership at three ranks.",
+  "tests": {
+    "protocol_and_compiled_observer_tests": 5,
+    "kit_patch_reconstruction": "passed for block and legacy; locally tested observer module and C helper match kit source hashes"
+  },
+  "runs": {
+    "block-0": {
+      "status": "passed",
+      "reference": "/private/tmp/stage199-final-block-2c",
+      "exact": true,
+      "workload": true,
+      "ordinary_steps": 11,
+      "path": "/private/tmp/stage200-local-block-0-final",
+      "binary_sha256": "beed2ceabdafa0da15c2694c004535bc7f4a1a58d1bc657e20ebb920ca44e7fd"
+    },
+    "block-1": {
+      "status": "passed",
+      "reference": "/private/tmp/stage199-final-block-2c",
+      "exact": true,
+      "workload": true,
+      "ordinary_steps": 11,
+      "path": "/private/tmp/stage200-local-block-1-final",
+      "binary_sha256": "beed2ceabdafa0da15c2694c004535bc7f4a1a58d1bc657e20ebb920ca44e7fd"
+    },
+    "legacy-0": {
+      "status": "passed",
+      "reference": "/private/tmp/stage199-final-legacy-2",
+      "exact": true,
+      "workload": true,
+      "ordinary_steps": 11,
+      "path": "/private/tmp/stage200-local-legacy-0-final",
+      "binary_sha256": "49c2d4a3e127a100e0dfec6d8669c40ee38f3b162ca64ca4b02ee870865eb4b1"
+    },
+    "legacy-1": {
+      "status": "passed",
+      "reference": "/private/tmp/stage199-final-legacy-2",
+      "exact": true,
+      "workload": true,
+      "ordinary_steps": 11,
+      "path": "/private/tmp/stage200-local-legacy-1-final",
+      "binary_sha256": "49c2d4a3e127a100e0dfec6d8669c40ee38f3b162ca64ca4b02ee870865eb4b1"
+    },
+    "block-3r": {
+      "status": "passed",
+      "path": "/private/tmp/stage200-local-block-3r",
+      "ranks": 3,
+      "mode": 1,
+      "reference": "/private/tmp/stage200-local-block-1-final",
+      "binary_sha256": "beed2ceabdafa0da15c2694c004535bc7f4a1a58d1bc657e20ebb920ca44e7fd",
+      "workload": true,
+      "cross_rank_fixed_screen": true,
+      "cross_rank_exact": true,
+      "ordinary_steps": 11,
+      "restart_indices": [
+        2,
+        3
+      ],
+      "post_restart_remap": true
+    },
+    "legacy-3r": {
+      "status": "passed",
+      "path": "/private/tmp/stage200-local-legacy-3r",
+      "ranks": 3,
+      "mode": 1,
+      "reference": "/private/tmp/stage200-local-legacy-1-final",
+      "binary_sha256": "49c2d4a3e127a100e0dfec6d8669c40ee38f3b162ca64ca4b02ee870865eb4b1",
+      "workload": true,
+      "cross_rank_fixed_screen": true,
+      "cross_rank_exact": true,
+      "ordinary_steps": 11,
+      "restart_indices": [
+        2,
+        3
+      ],
+      "post_restart_remap": true
+    }
+  },
+  "cross_legacy_fixed_screen_ranks": [
+    3,
+    4
+  ]
+}

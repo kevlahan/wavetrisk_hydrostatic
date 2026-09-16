@@ -1,0 +1,44 @@
+{
+  "stage": 201,
+  "status": "passed",
+  "scope": "Local J4/J6 restart and timeline correctness. Native Linux PMU/raw events and perf sampling unavailable on macOS; will be tested in mandatory bb13 preflight. No cluster-performance claim.",
+  "tests": {
+    "protocol_compiled_observer_tests": 7,
+    "kit_patch_reconstruction": "Both baseline-to-observer patches reconstructed and all source hashes verified; observer Fortran/C match locally built copies",
+    "batch_script_syntax": "passed",
+    "standalone_kit_imports": "passed"
+  },
+  "runs": {
+    "block": {
+      "status": "passed",
+      "path": "/private/tmp/stage201-local-block-control-packaged",
+      "reference": "/private/tmp/stage200-local-block-0-final",
+      "same_implementation_exact": true,
+      "restart_indices": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "hardware_rank_coverage": 4,
+      "hardware_step_coverage": "matched common phases; restart excluded",
+      "binary_sha256": "e0ec0b06cb985dfdea6ef3a328d143265fc3b3883bda33211823df1bb767d9f4"
+    },
+    "legacy": {
+      "status": "passed",
+      "path": "/private/tmp/stage201-local-legacy-control-packaged",
+      "reference": "/private/tmp/stage200-local-legacy-0-final",
+      "same_implementation_exact": true,
+      "restart_indices": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "hardware_rank_coverage": 4,
+      "hardware_step_coverage": "matched common phases; restart excluded",
+      "binary_sha256": "982e190a69c161593403aa80c7ec1aaf307aa501b6208d28150455eab31e07d9"
+    }
+  },
+  "cross_legacy_fixed_screen": true,
+  "c_helper_sha256": "7360c9f77fb2382cc1b76d658264baa26f8152ee13d5ed395151f29c8a7b34b8",
+  "observer_sha256": "c0015a5fe4a1998d1f774e978e25f32e62a1502c274a4fd9ea3afab730a67f21"
+}

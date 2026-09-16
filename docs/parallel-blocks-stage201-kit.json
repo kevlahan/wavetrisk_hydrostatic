@@ -1,0 +1,21 @@
+{
+  "stage": 201,
+  "kit": "/private/tmp/wavetrisk-stage201-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage201-cluster-kit.tar.gz",
+  "sha256": "915c84592297125b0ace7a8e404495ebc176d4fc8c8c4422160ae27c274e5a07",
+  "baseline_commit": "9bc3a19556dab79b3cba3944cf5df53517389da3",
+  "numerical_candidate_patch_sha256": "2e24c7a280c32bbd8195c4a4a3685d28e632a6a898ec524e3fad74792abcb26f",
+  "observer_patch_sha256": "ac6322b2f8ac21e7639db2dda449ba713dd13693e9fa0cb6d5227caa87b58ac2",
+  "legacy_profile_patch_sha256": "41b85befbf1663c21f4cc62d830267af14c1e6b5880f18ed2d5e510134580abd",
+  "sample_ranks": [
+    19,
+    46,
+    52,
+    63,
+    65,
+    79,
+    82
+  ],
+  "scope": "Five fresh builds; capability preflight and 20 solver runs at fixed83 two-socket placement. No numerical change.",
+  "bytes": 58124618
+}
