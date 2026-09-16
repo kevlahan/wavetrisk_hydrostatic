@@ -1,0 +1,1948 @@
+{
+  "stage": 197,
+  "status": "passed",
+  "scope": "Local correctness and measurement-path validation only; no speedup estimate. Four MPI ranks, J4/J6, RK4, FP_CONTRACT=off. Cluster J5/J7 campaign pending.",
+  "baseline_commit": "9bc3a19556dab79b3cba3944cf5df53517389da3",
+  "candidate_patch_sha256": "2e24c7a280c32bbd8195c4a4a3685d28e632a6a898ec524e3fad74792abcb26f",
+  "observer_patch_sha256": "6f9a1476bba984882b45b009e46c7e144ae9362353197f41d174c0b5c8a4a6fa",
+  "legacy_profile_patch_sha256": "ce11be777455385be697ef403a7e789072887b2492b26c9ec5178b6954f8bcf0",
+  "observer_sha256": "b9cb9f7557bed821c76a7b1f10d1d6f48e8a687e2571835073e97cf8d8fa9f8c",
+  "compiler": "GNU Fortran (Homebrew GCC 15.2.0) 15.2.0",
+  "sources_match_frozen_kit": {
+    "candidate_sources": true,
+    "profiled_sources": true,
+    "legacy_profile_sources": true
+  },
+  "common_physics_objects": {
+    "accelerator.o": "8a32ae74604aa98db8d728df34b8f7c5b3981adb7e4ca8ffe2bdbcd35c0f0d92",
+    "astronomy.o": "20b4d772f78b2531556027993562378a4da95a23e9bc6810822fed318f5e51b7",
+    "callkeys.o": "970a4e6b09cecaff4c9c20041c1eb18bdef705bd4ecad292769c1a6fc167b39e",
+    "comgeomfi.o": "48d7e724536e6aac1f517f4eab699a026eafdafe448e6477bf0048153d8ed595",
+    "convection.o": "255fb394c813fb8122a692d3dca4792bfcae9f5751da4926c072535e027a863b",
+    "error_mod.o": "9ad13b39eac8cf4d1e118c0edf97eac2617301b604735c971b90114580111840",
+    "iniphyparam_mod.o": "529959650fffc1fef6743a62db3904761679bb8f9b20ab07a4656e1220adcbff",
+    "logging.o": "5ae24ae85ac8e063cd6a0ffbe4a2b9a61566fe058fd6de53de78733653725bbb",
+    "mellor_yamada.o": "d9ba47f56aaa035c299923bdb4af1cfd267671bd2e35582f7e9820f5057a13a5",
+    "phyparam_mod.o": "c9d39809921f9e6f25e1b1acbbbf773d0c8170a642d5adc3a46a262697a8178b",
+    "phys_const.o": "6d2bbf27990a45f8ffae8424964f37aafa0179e91cf001c2171bcb795d781a56",
+    "planet.o": "b878aa9d4cb0d5be6b64e70b9ca2461b82fd9b7eecb6410c03c40332a92b5126",
+    "profiling.o": "28cb368e274e13c6fd10c9c4746843a96578ac25e3d7f60ff51c3382963da516",
+    "radiative_lw.o": "41d9f76b015ee18615f414b9e2c1790a54df1e6148378519013bdd3358068390",
+    "radiative_mod.o": "c435001cd4c5f17ee8d2d312ce76aae3f2779f12014b7ebdb55c209dc1f086bf",
+    "radiative_sw.o": "1aba55a84ef44a52cda9ded02b977be7bd126b59a5b7da86190b3417eed779b5",
+    "read_param_mod.o": "7894316301a691bec468f0b5e934440f1d8e8536d605ea7c109cc08a2ef74524",
+    "restart.o": "e318efd2c5c93bd2de274ecc13c086d905b363b4082c8059d8963baa08ea902a",
+    "single_column_mod.o": "884f00e163ce06e0c43b8420e6f8aa6915e415c4ed238dc578c6ae6d7e25f5ae",
+    "soil_mod.o": "6095ec5d9c444231dd923a7ad334c35ba24fffe39fd4a6945d5485078c4bfa31",
+    "solar.o": "3fae7a8f7d590c17aec5b706005eed694dd2d00ff5ac639ec97989620df7b1b3",
+    "turbulence.o": "468c7a85d600800f995a6bcb1d6cfca64bb5947a895976c1c15d0585cba1b0b3",
+    "writefield_mod.o": "0ac36c703db91ec1ebfa03413b6a7d11ddfc52cae1ca6c4853819f222032a28e"
+  },
+  "references": {
+    "block": {
+      "directory": "/private/tmp/stage196-final-block-detail",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "log_sha256": "6a39d376c96e2029de2f33b12b00230f2cb35ffb151a5cb15894827ce6c6213a"
+    },
+    "legacy": {
+      "directory": "/private/tmp/stage196-final-legacy-detail",
+      "checkpoint_sha256": "959d42ee0a921005e86bc1d2e9883d784319bf7f04662ff4c254dfc57c325f4a",
+      "log_sha256": "abf5205f1fdd211095ed0723480e21955d83cc6e48ccb2d7495c689ec98d5803"
+    }
+  },
+  "runs": {
+    "on": {
+      "binary": "/private/tmp/stage197-local-source/bin-197-opt/climate",
+      "binary_sha256": "b10ab1fa89d07488379f1d65319a874de83662b4f06bf432c3e15b863026d664",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "WAVETRISK_STAGE191_INSTALL": "1",
+        "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+        "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+        "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+        "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+        "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+        "WAVETRISK_WORKFLOW195": "1",
+        "WAVETRISK_OPERATIONS197": "0"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "directory": "/private/tmp/stage197-local-on",
+      "log_sha256": "23e009c046f98bd73d43f4272788e3813bc93a12511ac025c7b6c8ea6150cf31",
+      "raw_results_sha256": "f1c547fdc85b669949f5a6ef9b2fa0ae278e082d05f8162ee6c84d2e4539f619",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "steps": 12,
+      "completed": true,
+      "exact_reference": "block",
+      "exact_gate": {
+        "passed": true,
+        "report": {
+          "left": "/private/tmp/stage196-final-block-detail/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/stage197-local-on/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "workload_gate": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      }
+    },
+    "off": {
+      "binary": "/private/tmp/stage197-local-source/bin-197-opt/climate",
+      "binary_sha256": "b10ab1fa89d07488379f1d65319a874de83662b4f06bf432c3e15b863026d664",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "WAVETRISK_STAGE191_INSTALL": "1",
+        "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+        "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+        "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+        "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+        "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "0",
+        "WAVETRISK_WORKFLOW195": "1",
+        "WAVETRISK_OPERATIONS197": "0"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "directory": "/private/tmp/stage197-local-off",
+      "log_sha256": "040f09518a592423cff497ba71843a5532cffa5fd4f59582fe660acaca2e8839",
+      "raw_results_sha256": "b3bf3dfd56fa30a1f4636246c2ec6bc0711f4e6b1058543d21688ce6032c534b",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "steps": 12,
+      "completed": true,
+      "exact_reference": "block",
+      "exact_gate": {
+        "passed": true,
+        "report": {
+          "left": "/private/tmp/stage196-final-block-detail/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/stage197-local-off/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "workload_gate": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      }
+    },
+    "checked": {
+      "binary": "/private/tmp/stage197-local-source/bin-197-check/climate",
+      "binary_sha256": "bdb147cf19a5fbc5b3f82b91abcb693f144064ec9917422db70a9e074909f222",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "WAVETRISK_STAGE191_INSTALL": "1",
+        "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+        "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+        "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+        "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+        "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+        "WAVETRISK_WORKFLOW195": "1",
+        "WAVETRISK_OPERATIONS197": "0"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "directory": "/private/tmp/stage197-local-checked",
+      "log_sha256": "96a379f76869e49d80232fca68a9377a2ed37ed36ac3f20644e98d7a6bfd0c10",
+      "raw_results_sha256": "bccf92c5088d71408197aa698b650e7cd2054ba21ee27d49cee8452c6321fc20",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "steps": 12,
+      "completed": true,
+      "exact_reference": "block",
+      "exact_gate": {
+        "passed": true,
+        "report": {
+          "left": "/private/tmp/stage196-final-block-detail/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/stage197-local-checked/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "workload_gate": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      }
+    },
+    "oracle": {
+      "binary": "/private/tmp/stage197-local-source/bin-197-opt/climate",
+      "binary_sha256": "b10ab1fa89d07488379f1d65319a874de83662b4f06bf432c3e15b863026d664",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "1",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "1",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "1",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "WAVETRISK_STAGE191_INSTALL": "1",
+        "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+        "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+        "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+        "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+        "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+        "WAVETRISK_WORKFLOW195": "1",
+        "WAVETRISK_OPERATIONS197": "0"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "directory": "/private/tmp/stage197-local-oracle",
+      "log_sha256": "ead1e0e504ae08b584eaefd341f53eade4d166377976f828866db87ea028220c",
+      "raw_results_sha256": "c60314930d6a078dc3f980626288d2d88612eaf987f0bcab22f1ef4327d1d62b",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "steps": 12,
+      "completed": true,
+      "exact_reference": "block",
+      "exact_gate": {
+        "passed": true,
+        "report": {
+          "left": "/private/tmp/stage196-final-block-detail/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/stage197-local-oracle/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "workload_gate": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      }
+    },
+    "profile-on-final": {
+      "binary": "/private/tmp/stage197-local-profile-source/bin-197-profile/climate",
+      "binary_sha256": "154e4c01dd1835e551311bd2d668a85a18d675bdb3faab5bbc7873f535903a56",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "WAVETRISK_STAGE191_INSTALL": "1",
+        "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+        "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+        "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+        "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+        "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+        "WAVETRISK_WORKFLOW195": "1",
+        "WAVETRISK_OPERATIONS197": "2"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "directory": "/private/tmp/stage197-local-profile-on-final",
+      "log_sha256": "11100aa88ff88bc3bb10edbf360cc58ac31843043d859f236a99fc2d2ff9790b",
+      "raw_results_sha256": "2d1a21e90be326d0afe5ab4601bd14fc35fee793f4383a300d40321207a88ae9",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "steps": 12,
+      "completed": true,
+      "exact_reference": "block",
+      "exact_gate": {
+        "passed": true,
+        "report": {
+          "left": "/private/tmp/stage196-final-block-detail/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/stage197-local-profile-on-final/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "workload_gate": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      },
+      "profile": {
+        "conservation_and_coverage_passed": true,
+        "resident_path_coverage_passed": true,
+        "steps": 12,
+        "ordinary_counters_per_rank_step": {
+          "WT": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            3.0,
+            1324270.9090909092,
+            1324270.9090909092,
+            24.0,
+            1324270.9090909092,
+            1324270.9090909092,
+            1324270.9090909092,
+            1840430.3636363635,
+            360.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            289477.2727272727,
+            2380.4545454545455,
+            669124.7272727273,
+            4542.818181818182,
+            136.0,
+            7807890.909090909,
+            4.0,
+            4.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "outside_WT": [
+            0.0,
+            0.0,
+            0.0,
+            609024.0,
+            756666.1818181818,
+            9708.0,
+            0.0,
+            0.0,
+            4299683.181818182,
+            4299683.181818182,
+            12309.272727272728,
+            14468848.636363637,
+            14468848.636363637,
+            14468848.636363637,
+            994124567.9545455,
+            2937.2727272727275,
+            0.0,
+            0.0,
+            1529918.1818181819,
+            1529918.1818181819,
+            9913385.454545455,
+            5432.727272727273,
+            410093.0,
+            0.0,
+            334562.36363636365,
+            2271.409090909091,
+            68.0,
+            0.0,
+            0.0,
+            0.0,
+            3123156.3636363638,
+            193382.72727272726,
+            1142618.1818181819,
+            558720.0,
+            1142618.1818181819
+          ]
+        },
+        "dependency_records": 8736,
+        "dependency_scope": "Rank-local elapsed intervals, not synchronized arrival or useful-computation time. Zero-request completions retained. Keys=context/kind/component/family/first/last/tag; -999 means all/unspecified levels.",
+        "record_sha256": {
+          "workflow195-rank-0.txt": "ef488580e22521e2c6f8d9fbea5ba3f8ff054c19c4cf1ecd55e0a45c099f1eb7",
+          "workflow195-rank-1.txt": "c7957996952ee678c4d511e18d2a1e541e32f530833a4481317c8a43432e28bb",
+          "workflow195-rank-2.txt": "589296480bb5069a8d13e14150fd9749d284eedf00c7258115fc169353b32e52",
+          "workflow195-rank-3.txt": "b6816eccd1bff249fc6e2599e65d6ec7a1f9ae5d902e81d2edfc960918f9324a",
+          "dependencies197-rank-0.txt": "7d4b8a2234e972ce6d2ed7b23df5c9d8ec8808dcd554b56e41eb39bde14ae865",
+          "dependencies197-rank-1.txt": "a8946ef32232f6c4b4a1c537269cd89304c78a5be0b3884f75a59effec4f3b8f",
+          "dependencies197-rank-2.txt": "1880c81cd17da2078e6f60481e13c44627e57c5f4a70cf102ce46cdb5c38ce8f",
+          "dependencies197-rank-3.txt": "edfe77298b8c6cbb31bbb9de9bb8485ab323af7096fe75b189dfdf1fc4f97978",
+          "operations197-rank-0.txt": "bff621b53e53fd89d83a710b2ee5931590f904b40a3edf01e16ebcbb435ba43f",
+          "operations197-rank-1.txt": "0fc38ff6f5eb4ce63b94b18eb82ea81d2492477eed3ec6bb346e8984fbf7322d",
+          "operations197-rank-2.txt": "a19bbf970d42dd71cdfa979d3e4a4eb760f9424fa895749f4bc524bae198ff4d",
+          "operations197-rank-3.txt": "91ff8d69bdecf1633a87e09f5960e516bfb10b95a33a83025cbf0babd5ee0166"
+        }
+      }
+    },
+    "profile-off-final": {
+      "binary": "/private/tmp/stage197-local-profile-source/bin-197-profile/climate",
+      "binary_sha256": "154e4c01dd1835e551311bd2d668a85a18d675bdb3faab5bbc7873f535903a56",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "WAVETRISK_STAGE191_INSTALL": "1",
+        "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+        "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+        "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+        "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+        "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "0",
+        "WAVETRISK_WORKFLOW195": "1",
+        "WAVETRISK_OPERATIONS197": "2"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "directory": "/private/tmp/stage197-local-profile-off-final",
+      "log_sha256": "9863266d42cea4ad2ff49459c37365c34195453bb3e5f0353f3c0af523661b3d",
+      "raw_results_sha256": "0ce19862fbab45b3131828834385edc59fd52bf06c00091e11d1ff24079d8f25",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "steps": 12,
+      "completed": true,
+      "exact_reference": "block",
+      "exact_gate": {
+        "passed": true,
+        "report": {
+          "left": "/private/tmp/stage196-final-block-detail/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/stage197-local-profile-off-final/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "workload_gate": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      },
+      "profile": {
+        "conservation_and_coverage_passed": true,
+        "resident_path_coverage_passed": true,
+        "steps": 12,
+        "ordinary_counters_per_rank_step": {
+          "WT": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            3.0,
+            1324270.9090909092,
+            1324270.9090909092,
+            24.0,
+            1324270.9090909092,
+            1324270.9090909092,
+            1324270.9090909092,
+            1840430.3636363635,
+            360.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            964925.8181818182,
+            4760.909090909091,
+            669124.7272727273,
+            4542.818181818182,
+            136.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "outside_WT": [
+            0.0,
+            0.0,
+            0.0,
+            609024.0,
+            756666.1818181818,
+            9708.0,
+            0.0,
+            0.0,
+            4299683.181818182,
+            4299683.181818182,
+            12309.272727272728,
+            14468848.636363637,
+            14468848.636363637,
+            14468848.636363637,
+            994124567.9545455,
+            2937.2727272727275,
+            0.0,
+            0.0,
+            1529918.1818181819,
+            1529918.1818181819,
+            9913385.454545455,
+            5432.727272727273,
+            410093.0,
+            0.0,
+            334562.36363636365,
+            2271.409090909091,
+            68.0,
+            0.0,
+            0.0,
+            0.0,
+            3123156.3636363638,
+            193382.72727272726,
+            1142618.1818181819,
+            558720.0,
+            1142618.1818181819
+          ]
+        },
+        "dependency_records": 8736,
+        "dependency_scope": "Rank-local elapsed intervals, not synchronized arrival or useful-computation time. Zero-request completions retained. Keys=context/kind/component/family/first/last/tag; -999 means all/unspecified levels.",
+        "record_sha256": {
+          "workflow195-rank-0.txt": "03bf5977e89d234162c55d04d24e0eec746b736dbdfab383b3bd5df00c2aef5f",
+          "workflow195-rank-1.txt": "ddae663458d809a78f3a9bf665b8f2018306ddfd60ab2f1230c2f29d9c90a155",
+          "workflow195-rank-2.txt": "66e0cd8d8e8ce8e1169a1e45ebbd4638f3651294dcfd26cfec72cc3933ac3048",
+          "workflow195-rank-3.txt": "082dd56a2d85a07c68ec2b355966a4d8925eb39b2fa98ac6618fa7f903fbb417",
+          "dependencies197-rank-0.txt": "e12fbc5e81078cb0a962cd26f43087cab821e4ff910984dee7d68f6ced3db667",
+          "dependencies197-rank-1.txt": "4514e0ac98480d8418ea4950d277d471c715a6a701889fd3958eb9612bdb34f3",
+          "dependencies197-rank-2.txt": "07fc63bb395d5b0279ae166bc58b626f3e92909123bb0b0ee96648fb02e8edb2",
+          "dependencies197-rank-3.txt": "8eb187337be53790d980825625396d114916c8cb09493e7b4b0a81106ed9b3d7",
+          "operations197-rank-0.txt": "996a1ea5a1a4e995947bd34d870cd6fabd16c0aa1ca449232f40844d4688d21d",
+          "operations197-rank-1.txt": "db69dd6fd455c750bf9c662fb7b61310390a6b77b6ae656c50a775aa41c175cb",
+          "operations197-rank-2.txt": "eef516e2a5393692d73d9713514a8da5c84bf9935827399d65755c343f2d8a2e",
+          "operations197-rank-3.txt": "21e7513d247d66e7c0174d269738321e96f8f1f9f003e9a5f56db8b4408ffb14"
+        }
+      }
+    },
+    "legacy-profile": {
+      "binary": "/private/tmp/stage197-local-legacy-profile-source/bin-197-profile/climate",
+      "binary_sha256": "0afedd009732827dd049b757907f0e32a91a8b963fee9d7bfa70badeea19e711",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1",
+        "WAVETRISK_STAGE191_INSTALL": "1",
+        "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+        "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+        "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+        "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+        "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+        "WAVETRISK_WORKFLOW195": "1",
+        "WAVETRISK_OPERATIONS197": "2"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "directory": "/private/tmp/stage197-local-legacy-profile",
+      "log_sha256": "a34b27ba5614e162acdc6d8f13460c1051f5531f5414f6d44edaea185d0bf34f",
+      "raw_results_sha256": "2a5cb1c77c3a51072bb249abebac34973fa384d66c011c2fee73f7ba87048a20",
+      "checkpoint_sha256": "959d42ee0a921005e86bc1d2e9883d784319bf7f04662ff4c254dfc57c325f4a",
+      "steps": 12,
+      "completed": true,
+      "exact_reference": "legacy",
+      "exact_gate": {
+        "passed": true,
+        "report": {
+          "left": "/private/tmp/stage196-final-legacy-detail/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/stage197-local-legacy-profile/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "workload_gate": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33690",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33487",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33792",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44298",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42222",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38415",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38275",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39498",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47771",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43986"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      },
+      "profile": {
+        "conservation_and_coverage_passed": true,
+        "resident_path_coverage_passed": false,
+        "steps": 12,
+        "ordinary_counters_per_rank_step": {
+          "WT": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            4936003.636363637,
+            4936003.636363637,
+            184.72727272727272,
+            7411636.363636363,
+            7411636.363636363,
+            7411636.363636363,
+            14723442.909090908,
+            1920.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "outside_WT": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            8415620.454545455,
+            8415620.454545455,
+            17761.090909090908,
+            26076309.545454547,
+            26076309.545454547,
+            26076309.545454547,
+            1437295254.5454545,
+            5143.636363636364,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            2731745.4545454546,
+            1160296.3636363635,
+            2498498.1818181816,
+            1242201.8181818181,
+            1365872.7272727273
+          ]
+        },
+        "dependency_records": 0,
+        "dependency_scope": "Rank-local elapsed intervals, not synchronized arrival or useful-computation time. Zero-request completions retained. Keys=context/kind/component/family/first/last/tag; -999 means all/unspecified levels.",
+        "record_sha256": {
+          "workflow195-rank-0.txt": "946adc185b42fa4371a7bd401fa8244cec83adc47ddc02d5cbe953d78621c13e",
+          "workflow195-rank-1.txt": "78e48c70450288e9931ddb5ca326b8843d7f8af96b24931fc9bfb67e06492a3a",
+          "workflow195-rank-2.txt": "ca06152cfc5658d01572ae28dac5707808f6c7ee7728eda25ea28e8d5d7d6a56",
+          "workflow195-rank-3.txt": "be217e3ee7010a2ee01cb7091684b66de3917baaf3df24f1a2163f3ca2adcacf",
+          "dependencies197-rank-0.txt": "97b0cc85666a656617a1c93c58ee5492393784d85b3a22b2d1eb176131ff64d2",
+          "dependencies197-rank-1.txt": "151a56fe75ed88d6358827d302387d266724c53bf3c213473ba2c22cea7fac39",
+          "dependencies197-rank-2.txt": "44b05f81c1a1802f2a23477d312a193fdd123896e0b2027f536e32b9bc6bcf65",
+          "dependencies197-rank-3.txt": "477b445b6659787289c3b0b8cfb84b7a74734dfca28a901404a724713c7cfdca",
+          "operations197-rank-0.txt": "2ce34ae84962a12c8ea704e3230679c3f60ada762f24f95394f0bdf342fd7eee",
+          "operations197-rank-1.txt": "f9182e79ec141b0ca796645250a8070d03e87067dbe4948c855ba3739c774b4b",
+          "operations197-rank-2.txt": "8fdc9d7ceaa6e9d1bfd0fc300d0b19526faa97beefc801ec7eb99e5500b39d9d",
+          "operations197-rank-3.txt": "116b995f3b91547c2966e0e8d4347133bd92539811b36b2e6ed1b38dd40d8a93"
+        }
+      }
+    }
+  },
+  "legacy_cross_screen": {
+    "passed": true,
+    "policy": {
+      "id": "stage180-local-v1",
+      "atmosphere_absolute": {
+        "velocity": 1e-10,
+        "mass": 1e-10,
+        "temperature": 1e-07
+      },
+      "soil_absolute": 0.0
+    },
+    "report": {
+      "left": "/private/tmp/stage196-final-legacy-detail/localJ4J6_checkpoint_0003.bin.zst",
+      "right": "/private/tmp/stage197-local-on/localJ4J6_checkpoint_0003.bin.zst",
+      "header_differences": 0,
+      "topology_differences": 0,
+      "threshold_max_abs": 0.0,
+      "threshold_nonfinite": 0,
+      "fields": {
+        "coarse/velocity/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/velocity/atmosphere": {
+          "different": 32414,
+          "nonfinite": 0,
+          "max_abs": 8.455458555545192e-13,
+          "worst": {
+            "domain": 35,
+            "record": 0,
+            "k": 30,
+            "index": 35,
+            "left": -21.211996961219022,
+            "right": -21.211996961218176
+          }
+        },
+        "coarse/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/mass/atmosphere": {
+          "different": 5334,
+          "nonfinite": 0,
+          "max_abs": 1.8189894035458565e-12,
+          "worst": {
+            "domain": 36,
+            "record": 0,
+            "k": 10,
+            "index": 13,
+            "left": 837.5220891133997,
+            "right": 837.5220891134015
+          }
+        },
+        "coarse/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/temperature/atmosphere": {
+          "different": 5690,
+          "nonfinite": 0,
+          "max_abs": 5.238689482212067e-10,
+          "worst": {
+            "domain": 36,
+            "record": 0,
+            "k": 10,
+            "index": 13,
+            "left": 239689.6031407293,
+            "right": 239689.60314072983
+          }
+        },
+        "wavelet/velocity/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/velocity/atmosphere": {
+          "different": 730546,
+          "nonfinite": 0,
+          "max_abs": 8.331113576787175e-12,
+          "worst": {
+            "domain": 4,
+            "record": 50,
+            "k": 30,
+            "index": 32,
+            "left": 0.04407844185251264,
+            "right": 0.04407844186084375
+          }
+        },
+        "wavelet/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/mass/atmosphere": {
+          "different": 98253,
+          "nonfinite": 0,
+          "max_abs": 3.296918293926865e-12,
+          "worst": {
+            "domain": 12,
+            "record": 6,
+            "k": 10,
+            "index": 4,
+            "left": 0.10273147034331487,
+            "right": 0.10273147034001795
+          }
+        },
+        "wavelet/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/temperature/atmosphere": {
+          "different": 97738,
+          "nonfinite": 0,
+          "max_abs": 1.622538547962904e-09,
+          "worst": {
+            "domain": 19,
+            "record": 58,
+            "k": 30,
+            "index": 7,
+            "left": -234.11598448472432,
+            "right": -234.11598448310178
+          }
+        },
+        "pole/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/mass/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/temperature/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        }
+      }
+    },
+    "scope": "Fixed numerical screen and identical printed workload; not bitwise legacy equivalence."
+  },
+  "tests": {
+    "status": "passed",
+    "count": 10,
+    "scope": "Nine build/runner/compiled-observer tests plus new divergence-coverage rejection; updated observer suite rerun at O0/O2. Cluster execution mocked; real MPI validation listed above.",
+    "logs": {
+      "/private/tmp/stage197-tests-final4.log": "816a7010ecd22c39dbaf6a7f2298e90bdcbba6b6bae40f58555d8a1a395f61c7",
+      "/private/tmp/stage197-counter-tests.log": "ba5a51e5a886d8ac19fade82226480511c51886a68353917758b5d2f5883c38f"
+    }
+  },
+  "kit_verification": {
+    "passed": true,
+    "log_sha256": "568dfa1097989154ad8a541f9aa4540bfe6e1275cbcc972f72f26d6cb64ac83c",
+    "scope": "Reconstructed and hashed baseline/candidate/profile and original/IOfixed/profile legacy; standalone imports and shell syntax; helper/archive identities."
+  },
+  "build_logs": {
+    "/private/tmp/stage197-local-rebuild.log": "74a8fea2cd37d8045a6f581ca444846c494665c40ef02563ce09667b09d5f16d",
+    "/private/tmp/stage197-local-checked-build.log": "73e0148fd9590fde6ed4eb5dbb7904b232d518878567d8b00f46d7c9d41011e8",
+    "/private/tmp/stage197-profile-counts-build.log": "d1192f06871d59ec94f7d594ad674e0dbc04c9251795a4b2f1452dcad32f520f",
+    "/private/tmp/stage197-legacy-profile-final-build.log": "25001f61c87d7a6b6c855bd20aa6b6239c5b452b17ac028ed4798002fd38ef9b"
+  }
+}

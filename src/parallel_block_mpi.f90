@@ -551,6 +551,9 @@ module parallel_block_mpi_mod
   integer(int64), save :: scalar_inverse_work(6)=0_int64
   integer(int64), save :: inner_geometry_work(4)=0_int64
   logical, save :: stage194_ready=.false., stage194_inner_geometry=.false.
+  logical, save :: stage197_ready=.false., stage197_resident=.false.
+  logical, save :: stage197_coefficients_ready=.false.
+  integer(int64), save :: stage197_coefficient_generation=-1_int64
   logical, save :: stage193_ready=.false., stage193_scalar_columns=.false.
   integer(int64), save :: production_block_compression_writeback_before = &
        0_int64
@@ -1663,6 +1666,34 @@ contains
     stage194_ready=.true.
     if(rank==0) write(6,'(a,i0)') 'Stage 194 requested inner inverse geometry = ',selected
   end subroutine configure_stage194
+
+  subroutine configure_stage197
+    ! Called at the collective inverse entry, never inside a per-block callback.
+    character(16) :: value
+    integer :: status,length,selected,low,high,ierr
+    if (stage197_ready) return
+    call get_environment_variable('WAVETRISK_STAGE197_RESIDENT_WAVELETS',value,length,status)
+    if (status==0.and.length>0) then
+       select case(trim(value))
+       case('0')
+          stage197_resident=.false.
+       case('1')
+          stage197_resident=.true.
+       case default
+          call fail("Stage 197 resident wavelets require 0 or 1")
+       end select
+    else if (status/=0.and.status/=1) then
+       call fail("unable to read Stage 197 resident wavelets option")
+    end if
+    selected=merge(1,0,stage197_resident)
+    call MPI_Allreduce(selected,low,1,MPI_INTEGER,MPI_MIN,comm,ierr)
+    call check_mpi(ierr,"Stage 197 option minimum")
+    call MPI_Allreduce(selected,high,1,MPI_INTEGER,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"Stage 197 option maximum")
+    if (low/=high) call fail("inconsistent Stage 197 options across ranks")
+    stage197_ready=.true.
+    if(rank==0) write(6,'(a,i0)') 'Stage 197 requested resident wavelets = ',selected
+  end subroutine configure_stage197
 
 
   logical function block_stage191_option(option) result(enabled)
@@ -7743,6 +7774,8 @@ end subroutine build_parallel_block_catalog
     production_complete_vector_wavelet_validated = .false.
     production_native_wavelet_output_activated = .false.
     production_block_wavelet_compression_ready = .false.
+    stage197_coefficients_ready=.false.
+    stage197_coefficient_generation=-1_int64
     production_block_compression_writeback_before = 0_int64
     production_block_compression_allocation_before = 0_int64
     production_multistage_final_snapshot_consumed = .false.
@@ -10225,6 +10258,7 @@ end subroutine build_parallel_block_catalog
        call fail("invalid Domain-to-block payload family")
     end if
     if (transfer_vector_only .and. &
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
          payload_family /= BLOCK_PAYLOAD_NATIVE_VELOCITY_TENDENCY .and. &
          payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS) then
        call fail("vector-only Domain-to-block payload family is invalid")
@@ -10268,7 +10302,8 @@ end subroutine build_parallel_block_catalog
                d,block_catalog(b)%root_patch,payload_family, &
                block_writeback_plan%scalar_recv_buffer,pos_scalar, &
                block_writeback_plan%vector_recv_buffer,pos_vector, &
-               n_patch,domain_sol)
+               n_patch,domain_sol, &
+               skip_scalar=transfer_vector_only.and.payload_family==BLOCK_PAYLOAD_WAV_COEFF)
 
           if (use_tags) then
              do i = scalar_start,pos_scalar-1
@@ -10334,7 +10369,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine import_domain_field_family_to_blocks ( &
-       payload_family,domain_sol,preserve_checkpoint)
+       payload_family,domain_sol,preserve_checkpoint,vector_only)
     ! Preflight and install one complete Domain prognostic family into every
     ! final-owner block patch using the persistent reverse-route buffers.
 
@@ -10343,7 +10378,7 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: payload_family
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
-    logical, optional, intent(in) :: preserve_checkpoint
+    logical, optional, intent(in) :: preserve_checkpoint,vector_only
 
     integer :: b
     integer :: d
@@ -10366,7 +10401,12 @@ end subroutine build_parallel_block_catalog
     logical :: plan_ready
     logical :: store_ready
     logical :: trial_active
+    logical :: transfer_vector_only
 
+    transfer_vector_only=.false.
+    if (present(vector_only)) transfer_vector_only=vector_only
+    if (transfer_vector_only.and.payload_family/=BLOCK_PAYLOAD_WAV_COEFF) &
+         call fail("resident import requires wavelet coefficients")
     keep_checkpoint = .false.
     if (present(preserve_checkpoint)) then
        keep_checkpoint = preserve_checkpoint
@@ -10479,7 +10519,7 @@ end subroutine build_parallel_block_catalog
     end do
 
     call exchange_domain_to_block_payloads( &
-         payload_family,domain_sol=domain_sol)
+         payload_family,domain_sol=domain_sol,vector_only=transfer_vector_only)
 
     imported_patch_count = 0
     do local_index = 1,n_local_blocks()
@@ -10513,7 +10553,7 @@ end subroutine build_parallel_block_catalog
                   size(block_writeback_plan%vector_send_buffer)) then
                 call fail("Domain prognostic import payload is truncated")
              end if
-             call set_local_block_scalar_patch_family_values( &
+             if (.not.transfer_vector_only) call set_local_block_scalar_patch_family_values( &
                   b,local_patch,payload_family, &
                   block_writeback_plan%scalar_send_buffer( &
                   pos_scalar:pos_scalar+ &
@@ -10604,14 +10644,14 @@ end subroutine build_parallel_block_catalog
            d,p,payload_family, &
            ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
            ghost_exchange_plan%vector_patch_buffer,vector_pos, &
-           domain_sol)
+           domain_sol,skip_scalar=transfer_vector_only)
       if (scalar_pos /= &
            size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
            vector_pos /= &
            size(ghost_exchange_plan%vector_patch_buffer)+1) then
          call fail("retained Domain prognostic patch extent mismatch")
       end if
-      call set_local_block_scalar_patch_family_values( &
+      if (.not.transfer_vector_only) call set_local_block_scalar_patch_family_values( &
            b,local_patch,payload_family, &
            ghost_exchange_plan%scalar_patch_buffer)
       call set_local_block_vector_patch_family_values( &
@@ -14197,8 +14237,14 @@ end subroutine build_parallel_block_catalog
     ! The native-mode caller has zeroed the output. Import that structural
     ! zero image to clear inactive compact coefficients while preserving the
     ! RK rollback checkpoint; active coefficients are produced below.
-    call import_domain_field_family_to_blocks( &
-         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet,.true.)
+    call configure_stage197
+    if (stage197_coefficients_ready) call fail("Stage 197 unconsumed coefficient generation")
+    if (stage197_resident) then
+       call apply_local_block_field_producer(zero_resident_wavelets,statistics)
+    else
+       call import_domain_field_family_to_blocks( &
+            BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet,.true.)
+    end if
 
     statistics%first_level = first_level
     statistics%last_level = level_end-1
@@ -14383,8 +14429,12 @@ end subroutine build_parallel_block_catalog
     ! This transaction installs the native scalar patch coefficients.  Its
     ! vector payload is the structural-zero initialization and is replaced
     ! immediately below by the complete independently produced vector stage.
-    call write_block_field_family_to_domains( &
-         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
+    if (.not.stage197_resident.or.block_dynamics_validation_enabled()) then
+       call write_block_field_family_to_domains( &
+            BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
+    end if
+    stage197_coefficients_ready=stage197_resident
+    stage197_coefficient_generation=block_writeback_plan_generation
 
     do d = 1,size(grid)
        n_edge_value = &
@@ -14473,9 +14523,14 @@ end subroutine build_parallel_block_catalog
     ! The independently produced vector family has already been activated on
     ! Domain owners, so the conservative reverse route installs the complete
     ! family in compact final-owner storage without repeating mathematics.
+    if (stage197_resident) then
+       if (.not.stage197_coefficients_ready.or. &
+            stage197_coefficient_generation/=block_writeback_plan_generation) &
+            call fail("Stage 197 stale resident coefficients")
+    end if
     call import_domain_field_family_to_blocks( &
          BLOCK_PAYLOAD_WAV_COEFF, &
-         preserve_checkpoint=provisional_transform)
+         preserve_checkpoint=provisional_transform,vector_only=stage197_resident)
     if (validate_oracle) then
        call block_profile_enter(BLOCK_PROFILE_ORACLE)
        call assert_block_domain_field_family_match( &
@@ -14566,6 +14621,8 @@ end subroutine build_parallel_block_catalog
     end if
 
     production_block_wavelet_compression_ready = .false.
+    stage197_coefficients_ready=.false.
+    stage197_coefficient_generation=-1_int64
     production_block_compression_writeback_before = 0_int64
     production_block_compression_allocation_before = 0_int64
 
@@ -14848,7 +14905,8 @@ end subroutine build_parallel_block_catalog
     if (provisional_transform) then
        production_multistage_native_transform_writeback_count = &
             production_multistage_native_transform_writeback_count + &
-            block_domain_production_writeback_count()-writeback_before+2_int64
+            block_domain_production_writeback_count()-writeback_before+ &
+            int(merge(1,2,stage197_resident.and..not.validate_oracle),int64)
        production_complete_vector_wavelet_validated = .false.
        production_native_wavelet_output_activated = .false.
     end if
@@ -16200,6 +16258,21 @@ end subroutine build_parallel_block_catalog
     block%wavelet_vector(field_index) = value
 
   end subroutine set_block_vector_wavelet_value
+
+
+  subroutine zero_resident_wavelets(catalog_index,block,context)
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(inout) :: block
+    class(*), intent(inout) :: context
+    if (catalog_local_block(catalog_index)<1) call fail("resident zero block is invalid")
+    select type(context)
+    type is (Block_Scalar_Wavelet_Context)
+       block%wavelet_scalar=0.0_dp
+       block%wavelet_vector=0.0_dp
+    class default
+       call fail("resident zero context is invalid")
+    end select
+  end subroutine zero_resident_wavelets
 
 
   subroutine produce_block_scalar_wavelets (catalog_index,block,context)
@@ -29945,7 +30018,7 @@ end subroutine build_parallel_block_catalog
     end if
     if (block_domain_production_writeback_count() /= &
          production_multistage_writeback_before + &
-         1_int64 + &
+         int(merge(0,1,stage197_resident.and..not.validate_oracle),int64) + &
          production_multistage_native_transform_writeback_count) then
        call fail( &
             "accepted production multistage writeback count is invalid")
@@ -29984,7 +30057,7 @@ end subroutine build_parallel_block_catalog
 
   recursive subroutine pack_domain_subtree_prognostic ( &
        d,p,payload_family,scalar_payload,scalar_pos, &
-       vector_payload,vector_pos,n_patch,domain_sol)
+       vector_payload,vector_pos,n_patch,domain_sol,skip_scalar)
     ! Pack one Domain field-family subtree in compact block preorder.
 
     implicit none
@@ -29999,6 +30072,7 @@ end subroutine build_parallel_block_catalog
     integer, intent(inout) :: n_patch
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: skip_scalar
 
     integer :: c
     integer :: p_child
@@ -30010,7 +30084,7 @@ end subroutine build_parallel_block_catalog
 
     call pack_domain_patch_prognostic( &
          d,p,payload_family,scalar_payload,scalar_pos, &
-         vector_payload,vector_pos,domain_sol)
+         vector_payload,vector_pos,domain_sol,skip_scalar)
 
     n_patch = n_patch + 1
 
@@ -30019,7 +30093,7 @@ end subroutine build_parallel_block_catalog
        if (p_child <= 0) cycle
        call pack_domain_subtree_prognostic( &
             d,p_child,payload_family,scalar_payload,scalar_pos, &
-            vector_payload,vector_pos,n_patch,domain_sol)
+            vector_payload,vector_pos,n_patch,domain_sol,skip_scalar)
     end do
 
   end subroutine pack_domain_subtree_prognostic
@@ -30027,7 +30101,7 @@ end subroutine build_parallel_block_catalog
 
   subroutine pack_domain_patch_prognostic ( &
        d,p,payload_family,scalar_payload,scalar_pos, &
-       vector_payload,vector_pos,domain_sol)
+       vector_payload,vector_pos,domain_sol,skip_scalar)
     ! Pack one active Domain patch in compact field-family order.
 
     implicit none
@@ -30041,7 +30115,9 @@ end subroutine build_parallel_block_catalog
     integer, intent(inout) :: vector_pos
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: skip_scalar
 
+    logical :: omit_scalar
     integer :: field_level
     integer :: first_field_level
     integer :: level_slot
@@ -30263,6 +30339,13 @@ end subroutine build_parallel_block_catalog
        return
     end if
 
+    omit_scalar=.false.
+    if (present(skip_scalar)) omit_scalar=skip_scalar
+    if (omit_scalar.and.payload_family/=BLOCK_PAYLOAD_WAV_COEFF) &
+         call fail("scalar-free packing requires wavelet coefficients")
+    if (omit_scalar) then
+       scalar_pos=scalar_pos+n_scalar_patch
+    else
     start = mult_scalar*grid(d)%patch%elts(p+1)%elts_start
     n_value = mult_scalar*PATCH_SIZE**2
 
@@ -30330,6 +30413,8 @@ end subroutine build_parallel_block_catalog
           scalar_pos = scalar_pos + n_value
        end do
     end do
+
+    end if
 
     start = mult_vector*grid(d)%patch%elts(p+1)%elts_start
     n_value = mult_vector*PATCH_SIZE**2

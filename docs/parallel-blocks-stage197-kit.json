@@ -1,0 +1,30 @@
+{
+  "kit": "/private/tmp/wavetrisk-stage197-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage197-cluster-kit.tar.gz",
+  "sha256": "c62cdea9ea76d15dfc1c02d4ef2fff93dbd8e8d56743cf2b96b2e802de235248",
+  "baseline_commit": "9bc3a19556dab79b3cba3944cf5df53517389da3",
+  "candidate_patch_sha256": "2e24c7a280c32bbd8195c4a4a3685d28e632a6a898ec524e3fad74792abcb26f",
+  "observer_patch_sha256": "6f9a1476bba984882b45b009e46c7e144ae9362353197f41d174c0b5c8a4a6fa",
+  "legacy_profile_patch_sha256": "ce11be777455385be697ef403a7e789072887b2492b26c9ec5178b6954f8bcf0",
+  "observer_sha256": "b9cb9f7557bed821c76a7b1f10d1d6f48e8a687e2571835073e97cf8d8fa9f8c",
+  "helpers_sha256": {
+    "build_restriction_197.py": "d99f5c56d026c73a7190729f38576669e8f4e52217d82ceb4396e9650d0f811d",
+    "build_197.sbatch": "909ea2b24c9e3d1bb91c05cb635ce3598e28b770057966748c35d82dd4d5a1b2",
+    "submit_restriction_197.py": "85287bc3e870347b5f2b1e962d0c0e1c0cf8baf90f5d1e7c96e72d9ac2df6613",
+    "cluster_197.py": "82e44a6690e5d92e3c6f5fd4717509ac2152e645e1580ef73a0ae54eb17c65b6",
+    "cluster_197.sbatch": "b268a344beca1f6b44cfd68653250a4fe24056ee6c7587e3988a593a7b57d33d",
+    "rank_metrics_190.py": "942aae917d711db30b40706e1b5e323ca1d74ff92227cf87a9793c4f347635ab",
+    "rank_launch_190.py": "2406f55cc9fc5d90b5000156d888abf33e4e42a75e7c8f7d2157c0724a48e201",
+    "analyze.py": "b8123a73ec3c57137050e1f15e52c2faf873e6f1baa054cacdbbee3dc66fb425",
+    "checkpoint_gate.py": "58fa8678c2bfa0f0aa04da01f93ab1b44e51aaa6bc9c1d1a5ed3d898842e5251",
+    "compare_restart_checkpoints.py": "8e63c8d1f448f38c2f782c6f73132dff8b7bbaf7265456bfa97d528105d73fbd",
+    "profile_protocol.py": "71f24a8d636489786f9a3380be975f79b38a349c9aea485fe09b323bfcd6266a",
+    "experiment.py": "e93022b31a37e7627f20d42237a0e75450bd8a6ee6ace1ea07f38fde352877f2",
+    "legacy_metrics_191.py": "7769073ef1ba3fba5fae1d7502efb023c36fff6bfdaabfb359800cb14484e2ec",
+    "collect_cluster_logs.py": "996b404a4d2ce563045b30e3d0fcbbdfae8230c339697defa982e0b4a4b91336",
+    "analyze_workflow_195.py": "d1323a4d03612700a088d055a912d9d6ecc9403c638197c59e9c0cee465ce90e",
+    "analyze_operations_197.py": "eaf8a66ef98e5381d439221922d67b521c78c5e04b4565ec2f6a1c46dfb8b40d"
+  },
+  "previous_archive_sha256": "4a31185d5b0a83c87a05a7944f2ec46888b310d106716a1642ce6f4f9725c289",
+  "revision": "Submission guard repair: compare final observer Makefile with profiled_sources. Numerical patches and binaries unchanged; no rebuild needed."
+}

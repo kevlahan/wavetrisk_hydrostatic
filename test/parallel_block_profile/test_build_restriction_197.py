@@ -1,0 +1,156 @@
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import tempfile
+import tarfile
+import unittest
+from unittest.mock import patch
+
+from build_restriction_197 import build, digest
+from submit_restriction_197 import submit
+
+
+class BuildRestriction197(unittest.TestCase):
+    def fixture(self, root):
+        kit, tree = root / 'kit', root / 'tree'
+        kit.mkdir(); (tree / 'src').mkdir(parents=True)
+        source = tree / 'src/example.f90'
+        source.write_text('baseline\n')
+        (tree / 'Makefile').write_text('build configuration\n')
+        (kit / 'physics-Makefile.inc').write_text('physics include\n')
+        (kit / 'stage197-candidate.patch').write_text(
+            '--- a/src/example.f90\n+++ b/src/example.f90\n@@ -1 +1 @@\n-baseline\n+candidate\n')
+        manifest = {'baseline_commit': 'test-base', 'baseline_sources': {'src/example.f90': digest(source)},
+                    'candidate_sources': {'src/example.f90': hashlib.sha256(b'candidate\n').hexdigest()},
+                    'makefile_sha256': digest(tree / 'Makefile'),
+                    'candidate_patch_sha256': digest(kit / 'stage197-candidate.patch')}
+        archive_source=root/'legacy-fixture'
+        (archive_source/'src').mkdir(parents=True)
+        (archive_source/'src/checkpoint.f90').write_text('old io\n')
+        (archive_source/'src/numerics.f90').write_text('unchanged numerical code\n')
+        (archive_source/'Makefile').write_text('legacy flags\n')
+        before={str(f.relative_to(archive_source)):digest(f) for f in archive_source.rglob('*') if f.is_file()}
+        with tarfile.open(kit/'legacy-source.tar.gz','w:gz') as tar:
+            for name in before:tar.add(archive_source/name,arcname=name)
+        (kit/'legacy_checkpoint_io_190.patch').write_text(
+            '--- a/src/checkpoint.f90\n+++ b/src/checkpoint.f90\n@@ -1 +1 @@\n-old io\n+fixed io\n')
+        after=dict(before);after['src/checkpoint.f90']=hashlib.sha256(b'fixed io\n').hexdigest()
+        manifest.update(legacy_original_sources=before,legacy_io_sources=after,legacy_revision='legacy-ref',
+                        legacy_io_patch_sha256=digest(kit/'legacy_checkpoint_io_190.patch'),
+                        legacy_archive_sha256=digest(kit/'legacy-source.tar.gz'))
+        (kit/'legacy-profile-197.patch').write_text('--- a/src/numerics.f90\n+++ b/src/numerics.f90\n@@ -1 +1 @@\n-unchanged numerical code\n+instrumented numerical code\n')
+        profiled=dict(after);profiled['src/numerics.f90']=hashlib.sha256(b'instrumented numerical code\n').hexdigest()
+        manifest.update(legacy_profile_sources=profiled,legacy_profile_patch_sha256=digest(kit/'legacy-profile-197.patch'))
+        manifest['baseline_sources']['Makefile']=digest(tree/'Makefile')
+        manifest['candidate_sources']['Makefile']=digest(tree/'Makefile')
+        manifest['candidate_makefile_sha256']=digest(tree/'Makefile')
+        (kit/'stage197-observer.patch').write_text('--- a/src/example.f90\n+++ b/src/example.f90\n@@ -1 +1 @@\n-candidate\n+observer\n'
+            '--- a/Makefile\n+++ b/Makefile\n@@ -1 +1 @@\n-build configuration\n+observer build configuration\n')
+        manifest['observer_patch_sha256']=digest(kit/'stage197-observer.patch')
+        manifest['profiled_sources']={**manifest['candidate_sources'],'src/example.f90':hashlib.sha256(b'observer\n').hexdigest(),
+            'Makefile':hashlib.sha256(b'observer build configuration\n').hexdigest()}
+        (kit / 'stage197-sources.json').write_text(json.dumps(manifest))
+        return kit, tree
+
+    def fake_run(self, tree, mutate_physics=False):
+        real_run = subprocess.run
+        def run(command, **kwargs):
+            if command[0] == 'make':
+                if any(c.startswith('BIN_DIR=bin-197-legacy') for c in command):
+                    self.assertIn('-f', command)
+                    self.assertEqual((kwargs['cwd']/'stage197-flags.mk').read_text(),'FFLAGS += -ffp-contract=off\n')
+                else: self.assertIn('FP_CONTRACT=off', command)
+                self.assertIn('PARAM=param_J5', command)
+                self.assertIn('-j1', command)
+                name = next(c.split('=', 1)[1] for c in command if c.startswith('BIN_DIR='))
+                if 'legacy' in name:
+                    build_tree=kwargs['cwd']
+                    self.assertEqual((build_tree/'src/checkpoint.f90').read_text(),'fixed io\n')
+                    self.assertEqual((build_tree/'src/numerics.f90').read_text(),
+                        'instrumented numerical code\n' if name.endswith('profile') else 'unchanged numerical code\n')
+                else: build_tree=tree
+                expected = 'baseline\n' if name.endswith('baseline') else 'observer\n' if 'profile' in name or 'legacy' in name else 'candidate\n'
+                self.assertEqual((tree / 'src/example.f90').read_text(), expected)
+                (build_tree / name).mkdir()
+                (build_tree / name / 'climate').write_text(name)
+                objects = build_tree / 'src/physics/simple_physics/phyparam/obj'
+                objects.mkdir(parents=True, exist_ok=True)
+                for i in range(23):
+                    (objects / f'{i}.o').write_text(str(i))
+                if mutate_physics and name.endswith('candidate'):
+                    (objects / '0.o').write_text('changed')
+                return subprocess.CompletedProcess(command, 0)
+            if command[0] in ('bash', 'mpirun', 'lscpu'):
+                return subprocess.CompletedProcess(command, 0, stdout='MPI version', stderr='')
+            return real_run(command, **kwargs)
+        return run
+
+    def test_build_order_flags_and_physics_guard(self):
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as tmp:
+                kit, tree = self.fixture(Path(tmp))
+                with patch('build_restriction_197.subprocess.run', side_effect=self.fake_run(tree, changed)), \
+                        patch('build_restriction_197.subprocess.check_output', return_value='test compiler'):
+                    if changed:
+                        with self.assertRaisesRegex(ValueError, 'identical external physics'):
+                            build(kit, tree)
+                    else:
+                        build(kit, tree)
+                record = json.loads((tree / 'restriction-197-builds.json').read_text())
+                self.assertEqual(record['status'], 'failed' if changed else 'passed')
+                if not changed:
+                    self.assertEqual(list(record['builds']), ['baseline', 'candidate', 'checked', 'candidate_profile', 'legacy', 'legacy_profile'])
+                    self.assertEqual(len(record['physics_objects']), 23)
+
+    def test_stale_build_is_rejected_before_any_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            kit, tree = self.fixture(Path(tmp))
+            (tree / 'build-197-baseline').mkdir()
+            with patch('build_restriction_197.subprocess.run') as run:
+                with self.assertRaisesRegex(ValueError, 'Fresh build'):
+                    build(kit, tree)
+                run.assert_not_called()
+
+    def test_submission_checks_binary_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); kit, tree = self.fixture(root)
+            with patch('build_restriction_197.subprocess.run', side_effect=self.fake_run(tree)), \
+                    patch('build_restriction_197.subprocess.check_output', return_value='test compiler'):
+                build(kit, tree)
+            fixture = root / 'fixture'; fixture.mkdir()
+            identity_path = tree / 'restriction-197-builds.json'
+            identity = json.loads(identity_path.read_text())
+            identity['large_provenance'] = 'x' * (512 * 1024)
+            identity_path.write_text(json.dumps(identity))
+            with patch('submit_restriction_197.subprocess.run') as run:
+                submit(kit, tree, fixture, root / 'out')
+                command = run.call_args.args[0]
+                self.assertIn('--profiles', command)
+                self.assertNotIn('--build-notes', command)
+                self.assertEqual(command[command.index('--build-notes-file')+1], str(identity_path.resolve()))
+                self.assertLess(max(map(len, command)), 4096)
+            # Actually spawn a child and parse the real campaign arguments. Large
+            # provenance must survive the handoff without entering any argument.
+            (kit / 'cluster_197.py').write_text(
+                'import sys,json\nfrom pathlib import Path\n'
+                f'sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})\n'
+                'from cluster_197 import parse_args,read_build_notes\n'
+                'a=parse_args()\n'
+                'a.out.write_text(read_build_notes(a))\n')
+            submit(kit, tree, fixture, root / 'captured.json')
+            self.assertEqual(json.loads((root / 'captured.json').read_text()), identity)
+            makefile = tree / 'Makefile'
+            built_makefile = makefile.read_text()
+            self.assertEqual(built_makefile, 'observer build configuration\n')
+            makefile.write_text('unexpected edit\n')
+            with patch('submit_restriction_197.subprocess.run') as run:
+                with self.assertRaisesRegex(ValueError, 'Unexpected source content: Makefile'):
+                    submit(kit, tree, fixture, root / 'out')
+                run.assert_not_called()
+            makefile.write_text(built_makefile)
+            (tree / 'bin-197-candidate/climate').write_text('stale replacement')
+            with patch('submit_restriction_197.subprocess.run') as run:
+                with self.assertRaisesRegex(ValueError, 'Executable changed'):
+                    submit(kit, tree, fixture, root / 'out')
+                run.assert_not_called()
