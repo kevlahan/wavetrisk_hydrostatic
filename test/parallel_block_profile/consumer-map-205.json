@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "goal": "Identify a coherent, calibrated, non-overlapping avoidable cost budget of at least 0.10 s/ordinary step before selecting a prototype.",
+  "scope": "Static contracts for interpreting the frozen source call-site map and runtime tape; these are hypotheses to audit, not instructions to remove work.",
+  "contracts": [
+    {
+      "object": "scalar capture/restriction/temperature plans",
+      "producer": ["prepare_scalar_divergence_plan", "prepare_block_scalar_restriction_exchange", "prepare_temperature_edge_plan"],
+      "consumer": ["finalize_block_scalar_divergence_capture", "evaluate_candidate_block_scalar_restriction", "exchange_temperature_edges"],
+      "lifetime": "Existing generation predicates compare each cached plan to block_writeback_plan_generation.",
+      "events": [1, 2, 3],
+      "falsification": "Predominantly reused requests with small total construction time rule out frequent unnecessary plan construction as a large target.",
+      "proof_needed": "A rebuild may follow real topology, ownership, allocation or layout changes. Equal block counts do not prove equal topology."
+    },
+    {
+      "object": "cached geometry and scalar physical residuals",
+      "producer": ["prepare_block_scalar_capture_addresses", "seed_scalar_producer_geometry", "capture_block_scalar_physics_patch"],
+      "consumer": ["finalize_block_scalar_divergence_capture", "compute_block_scalar_direct_flux", "recompute_block_scalar_divergence_level"],
+      "lifetime": "Full transport seeds geometry after invalidation; compact captures still need live physical residuals. Existing cumulative producer counters are sampled only at batch boundaries.",
+      "events": [4, 5, 10, 11, 13],
+      "falsification": "Geometry seeded once per necessary generation, with later stages carrying live residuals, refutes repeated unchanged full-record transport.",
+      "proof_needed": "Before deleting a repeated seed, establish unchanged geometry inputs AND retained destination storage. Same plan generation does not prove unchanged live physical fields."
+    },
+    {
+      "object": "Domain/block field materialization",
+      "producer": ["exchange_domain_to_block_payloads", "write_block_field_family_to_domains", "capture_block_domain_multistage_candidate_tendency", "begin_block_domain_multistage_candidate_stage"],
+      "consumer": ["evaluate_candidate_block_velocity_recomposition", "validate_complete_block_vector_wavelets", "prepare_block_native_inverse_boundaries", "basic_operators", "physics_simple_step", "remap_vertical_coordinates"],
+      "lifetime": "Record payload family, stage and generation in order. Publication can serve multiple actual consumers; import can be preceded by a required Domain producer.",
+      "events": [6, 7, 8, 9, 15, 40],
+      "falsification": "Every materialization precedes a required consumer after a genuine value change, or aggregate eligible cost is too small.",
+      "proof_needed": "Audit all writes and consumers of the specific field family before declaring a repeated transition redundant. This campaign deliberately does not add point-level value comparisons or assume stage identity is a value-version proof."
+    },
+    {
+      "object": "migration consistency checks",
+      "producer": ["check_block_migration_manifest", "exchange_block_migration_sizes", "exchange_block_migration_payloads"],
+      "consumer": ["install_local_blocks", "build_block_ghost_exchange_plan", "build_block_writeback_plan"],
+      "lifetime": "Four manifest, six size and three payload reductions plus payload checksum scans execute in the existing migration protocol. Full validation selector does not disable these.",
+      "events": [3, 12, 14, 40, 41],
+      "falsification": "Validation scans/reductions are too small, or moving/batching them cannot preserve global rejection and installation ordering.",
+      "proof_needed": "Separate integrity checks from payload exchanges and convergence/dependency reductions; preserve error detection and safe collective ordering. Never remove checks based only on their names."
+    }
+  ],
+  "rules": [
+    "Retain negative differences and unselected remainder. Never add nested inclusive timers.",
+    "Selected MPI wait includes progress and producer imbalance; no automatic communication savings estimate.",
+    "Per-site send/receive totals are datatype elements, not DRAM bytes or values necessarily used by every consumer.",
+    "Profiler calibration is required but does not itself prove removability or critical-path speedup.",
+    "If no candidate supports the target, reject this hypothesis rather than accumulate unrelated one-percent changes."
+  ]
+}

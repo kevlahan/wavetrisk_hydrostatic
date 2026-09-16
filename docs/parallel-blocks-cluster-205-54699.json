@@ -1,0 +1,6621 @@
+{
+  "integrity": {
+    "files": 6528,
+    "sha256": "273b4e25ce387b34e662f8781d07f866b35ddd05d1345013b3c97d96142dcc62"
+  },
+  "stage": 205,
+  "job": 54699,
+  "raw_reconstruction_passed": true,
+  "runs": [
+    [
+      "n83-s2-candidate-checked-0",
+      2.84,
+      12
+    ],
+    [
+      "n83-s2-candidate-checked-1",
+      13.4,
+      12
+    ],
+    [
+      "n83-s2-baseline-warmup",
+      0.925,
+      12
+    ],
+    [
+      "n83-s2-candidate-warmup",
+      0.882,
+      12
+    ],
+    [
+      "n83-s2-legacy-warmup",
+      0.54,
+      12
+    ],
+    [
+      "n83-s2-baseline-bare-1",
+      0.925,
+      12
+    ],
+    [
+      "n83-s2-candidate-bare-1",
+      0.878,
+      12
+    ],
+    [
+      "n83-s2-legacy-bare-1",
+      0.542,
+      12
+    ],
+    [
+      "n83-s2-legacy-bare-2",
+      0.544,
+      12
+    ],
+    [
+      "n83-s2-candidate-bare-2",
+      0.881,
+      12
+    ],
+    [
+      "n83-s2-baseline-bare-2",
+      0.93,
+      12
+    ],
+    [
+      "n83-s2-baseline-coarse-1",
+      0.931,
+      12
+    ],
+    [
+      "n83-s2-baseline-operations-1",
+      0.928,
+      12
+    ],
+    [
+      "n83-s2-legacy-coarse-1",
+      0.553,
+      12
+    ],
+    [
+      "n83-s2-legacy-operations-1",
+      0.556,
+      12
+    ],
+    [
+      "n83-s2-legacy-operations-2",
+      0.552,
+      12
+    ],
+    [
+      "n83-s2-legacy-coarse-2",
+      0.546,
+      12
+    ],
+    [
+      "n83-s2-baseline-operations-2",
+      0.935,
+      12
+    ],
+    [
+      "n83-s2-baseline-coarse-2",
+      0.928,
+      12
+    ]
+  ],
+  "gates": 41,
+  "summary": {
+    "bare": {
+      "baseline": {
+        "samples": [
+          0.925,
+          0.93
+        ],
+        "median_seconds": 0.9275
+      },
+      "candidate": {
+        "samples": [
+          0.878,
+          0.881
+        ],
+        "median_seconds": 0.8795
+      },
+      "legacy": {
+        "samples": [
+          0.542,
+          0.544
+        ],
+        "median_seconds": 0.543
+      }
+    },
+    "calibration": {
+      "baseline": [
+        {
+          "label": "n83-s2-baseline-coarse-1",
+          "control": "n83-s2-baseline-coarse-1",
+          "printed_change_percent": 0.37735849056603765,
+          "phase_changes_seconds": {
+            "whole step": 0.0,
+            "dynamics WT": 0.0,
+            "dynamics outside WT": 0.0,
+            "adaptation/reconstruction": 0.0,
+            "step setup": 0.0,
+            "physics": 0.0,
+            "remap": 0.0,
+            "output/restart": 0.0
+          },
+          "flags": []
+        },
+        {
+          "label": "n83-s2-baseline-operations-1",
+          "control": "n83-s2-baseline-coarse-1",
+          "printed_change_percent": 0.05390835579515141,
+          "phase_changes_seconds": {
+            "whole step": -0.0032775951204819798,
+            "dynamics WT": -0.0016818465706462116,
+            "dynamics outside WT": -0.000893373326396496,
+            "adaptation/reconstruction": -0.0015189031401971476,
+            "step setup": 5.204676889375672e-07,
+            "physics": 4.041235815991154e-05,
+            "remap": 0.0007040987272727266,
+            "output/restart": 7.149636363636364e-05
+          },
+          "flags": []
+        },
+        {
+          "label": "n83-s2-baseline-coarse-2",
+          "control": "n83-s2-baseline-coarse-2",
+          "printed_change_percent": 0.05390835579515141,
+          "phase_changes_seconds": {
+            "whole step": 0.0,
+            "dynamics WT": 0.0,
+            "dynamics outside WT": 0.0,
+            "adaptation/reconstruction": 0.0,
+            "step setup": 0.0,
+            "physics": 0.0,
+            "remap": 0.0,
+            "output/restart": 0.0
+          },
+          "flags": []
+        },
+        {
+          "label": "n83-s2-baseline-operations-2",
+          "control": "n83-s2-baseline-coarse-2",
+          "printed_change_percent": 0.8086253369272267,
+          "phase_changes_seconds": {
+            "whole step": 0.010296194749178533,
+            "dynamics WT": 0.0015644296210295672,
+            "dynamics outside WT": 0.006984930153340618,
+            "adaptation/reconstruction": 0.001359989037239856,
+            "step setup": 3.4442497261774366e-07,
+            "physics": 4.923636363636345e-05,
+            "remap": 0.00028506919277108446,
+            "output/restart": 5.219595618838991e-05
+          },
+          "flags": []
+        }
+      ],
+      "legacy": [
+        {
+          "label": "n83-s2-legacy-coarse-1",
+          "control": "n83-s2-legacy-coarse-1",
+          "printed_change_percent": 1.8416206261510082,
+          "phase_changes_seconds": {
+            "whole step": 0.0,
+            "dynamics WT": 0.0,
+            "dynamics outside WT": 0.0,
+            "adaptation/reconstruction": 0.0,
+            "step setup": 0.0,
+            "physics": 0.0,
+            "remap": 0.0,
+            "output/restart": 0.0
+          },
+          "flags": []
+        },
+        {
+          "label": "n83-s2-legacy-operations-1",
+          "control": "n83-s2-legacy-coarse-1",
+          "printed_change_percent": 2.3941068139963217,
+          "phase_changes_seconds": {
+            "whole step": 0.0004478281730557754,
+            "dynamics WT": -0.0006511836166484125,
+            "dynamics outside WT": 0.0014330569693318806,
+            "adaptation/reconstruction": -0.00012456355750273956,
+            "step setup": -2.6340865279299023e-06,
+            "physics": -2.0885251916758288e-05,
+            "remap": -0.00014402482584884892,
+            "output/restart": -4.193745783132529e-05
+          },
+          "flags": []
+        },
+        {
+          "label": "n83-s2-legacy-coarse-2",
+          "control": "n83-s2-legacy-coarse-2",
+          "printed_change_percent": 0.5524861878453136,
+          "phase_changes_seconds": {
+            "whole step": 0.0,
+            "dynamics WT": 0.0,
+            "dynamics outside WT": 0.0,
+            "adaptation/reconstruction": 0.0,
+            "step setup": 0.0,
+            "physics": 0.0,
+            "remap": 0.0,
+            "output/restart": 0.0
+          },
+          "flags": []
+        },
+        {
+          "label": "n83-s2-legacy-operations-2",
+          "control": "n83-s2-legacy-coarse-2",
+          "printed_change_percent": 1.6574585635359185,
+          "phase_changes_seconds": {
+            "whole step": 0.004029856853231095,
+            "dynamics WT": 0.001401923288061338,
+            "dynamics outside WT": 0.0014569749550931155,
+            "adaptation/reconstruction": 0.000988863061336255,
+            "step setup": -7.231653888280462e-08,
+            "physics": 4.990492880612915e-06,
+            "remap": 0.0001392996757940846,
+            "output/restart": 3.7877696604600246e-05
+          },
+          "flags": [
+            "dynamics WT"
+          ]
+        }
+      ]
+    },
+    "signed_locations": [
+      {
+        "context": 2,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.07733017258214675,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.12209818485925525,
+          "legacy": 0.0
+        },
+        "difference": 0.07733017258214675,
+        "paired_difference": [
+          0.07738550585432638,
+          0.07727483930996713
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 0.14496175847809423,
+          "legacy": 0.07140655283187294
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.07355520564622128,
+        "paired_difference": [
+          0.07322826435487412,
+          0.07388214693756842
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.03271407575848853,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.03271407575848853,
+          "legacy": 0.0
+        },
+        "difference": 0.03271407575848853,
+        "paired_difference": [
+          0.032541609253011916,
+          0.03288654226396514
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.024827201472070064,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.024827201472070064,
+          "legacy": 0.0
+        },
+        "difference": 0.024827201472070064,
+        "paired_difference": [
+          0.0248958738904709,
+          0.02475852905366923
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.024767760574479693,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.024767760574479693,
+          "legacy": 0.0
+        },
+        "difference": 0.024767760574479693,
+        "paired_difference": [
+          0.024418022489594588,
+          0.025117498659364794
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.023544799280941886,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.023544799280941886,
+          "legacy": 0.0
+        },
+        "difference": 0.023544799280941886,
+        "paired_difference": [
+          0.02313721878532322,
+          0.023952379776560548
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.020874251185104102,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.04905849867415113,
+          "legacy": 0.0
+        },
+        "difference": 0.020874251185104102,
+        "paired_difference": [
+          0.02085844018729447,
+          0.02089006218291373
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.01826923037732743,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.024083576188389896,
+          "legacy": 0.0
+        },
+        "difference": 0.01826923037732743,
+        "paired_difference": [
+          0.018241659657174128,
+          0.018296801097480733
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 0.04935152199616645,
+          "legacy": 0.03250775024096385
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.016843771755202602,
+        "paired_difference": [
+          0.016283872309967126,
+          0.017403671200438092
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.014330876686199295,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.03032534160952899,
+          "legacy": 0.0
+        },
+        "difference": 0.014330876686199295,
+        "paired_difference": [
+          0.014319359009857608,
+          0.014342394362540981
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 0.014302002060240918,
+          "legacy": 0.0002699837431544162
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.014032018317086501,
+        "paired_difference": [
+          0.014043448907995665,
+          0.014020587726177338
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.01314005232092002,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.01314005232092002,
+          "legacy": 0.0
+        },
+        "difference": 0.01314005232092002,
+        "paired_difference": [
+          0.013165409801752423,
+          0.013114694840087619
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.011477707865826883,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.011477707865826883,
+          "legacy": 0.0
+        },
+        "difference": 0.011477707865826883,
+        "paired_difference": [
+          0.011283492492880551,
+          0.011671923238773214
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.010192389668674659,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.05813993805750273,
+          "legacy": 0.0
+        },
+        "difference": 0.010192389668674659,
+        "paired_difference": [
+          0.010211730803943116,
+          0.010173048533406202
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.009708596048740449,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.010034379236582697,
+          "legacy": 0.0
+        },
+        "difference": 0.009708596048740449,
+        "paired_difference": [
+          0.009667814409638618,
+          0.009749377687842278
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.007281803047645103,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.007281803047645103,
+          "legacy": 0.0
+        },
+        "difference": 0.007281803047645103,
+        "paired_difference": [
+          0.007290481052573906,
+          0.0072731250427163
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.006795248598576103,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.006795248598576103,
+          "legacy": 0.0
+        },
+        "difference": 0.006795248598576103,
+        "paired_difference": [
+          0.0066662335914567375,
+          0.0069242636056954686
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.006271271274370202,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.006271271274370202,
+          "legacy": 0.0
+        },
+        "difference": 0.006271271274370202,
+        "paired_difference": [
+          0.006276660607886075,
+          0.0062658819408543285
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 0.005591782530668055,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.022391536789156542,
+          "legacy": 0.0
+        },
+        "difference": 0.005591782530668055,
+        "paired_difference": [
+          0.005595792109529092,
+          0.005587772951807018
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.07641488010186165,
+          "legacy": 0.07143893121029549
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.07641488010186165,
+          "legacy": 0.07143893121029549
+        },
+        "difference": 0.004975948891566162,
+        "paired_difference": [
+          0.003019960843372735,
+          0.006931936939759589
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.00465871042223446,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.01398791441347209,
+          "legacy": 0.0
+        },
+        "difference": 0.00465871042223446,
+        "paired_difference": [
+          0.004672722986856645,
+          0.004644697857612275
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.003902516883351557,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.009594826416757934,
+          "legacy": 0.0
+        },
+        "difference": 0.003902516883351557,
+        "paired_difference": [
+          0.0039005621478640775,
+          0.0039044716188390365
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 0.0026204728855421192,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.006312599243154408,
+          "legacy": 0.0
+        },
+        "difference": 0.0026204728855421192,
+        "paired_difference": [
+          0.002615531506024022,
+          0.002625414265060217
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.001690910791347249,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.020281116039978092,
+          "legacy": 0.0
+        },
+        "difference": 0.001690910791347249,
+        "paired_difference": [
+          0.0016726328181818884,
+          0.0017091887645126094
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.0015716635262869765,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0015716635262869765,
+          "legacy": 0.0
+        },
+        "difference": 0.0015716635262869765,
+        "paired_difference": [
+          0.0015501807667031992,
+          0.0015931462858707539
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0011116105854326766,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0011116105854326766,
+          "legacy": 0.0
+        },
+        "difference": 0.0011116105854326766,
+        "paired_difference": [
+          0.0011128574742607046,
+          0.0011103636966046488
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0011005018159912874,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.004634740055312184,
+          "legacy": 0.0
+        },
+        "difference": 0.0011005018159912874,
+        "paired_difference": [
+          0.001099834253012054,
+          0.0011011693789705207
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0006548981166484674,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.025123403991237685,
+          "legacy": 0.0
+        },
+        "difference": 0.0006548981166484674,
+        "paired_difference": [
+          0.0006538683055860436,
+          0.0006559279277108911
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0005747843384447677,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.006410851502190626,
+          "legacy": 0.0
+        },
+        "difference": 0.0005747843384447677,
+        "paired_difference": [
+          0.0005753551412925122,
+          0.0005742135355970231
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.0005258268450164178,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0005258268450164178,
+          "legacy": 0.0
+        },
+        "difference": 0.0005258268450164178,
+        "paired_difference": [
+          0.0005260220558597959,
+          0.0005256316341730397
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.00047513046823654734,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.004110884606243131,
+          "legacy": 0.0
+        },
+        "difference": 0.00047513046823654734,
+        "paired_difference": [
+          0.00047568061664838624,
+          0.00047458031982470844
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0003134169737130264,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0003134169737130264,
+          "legacy": 0.0
+        },
+        "difference": 0.0003134169737130264,
+        "paired_difference": [
+          0.00031144553450162957,
+          0.0003153884129244232
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.002234278495071214,
+          "legacy": 0.002011658300657196
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.005337400736035062,
+          "legacy": 0.002011658300657196
+        },
+        "difference": 0.00022262019441401807,
+        "paired_difference": [
+          0.00022438650054761467,
+          0.00022085388828042103
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 0.012214488006024097,
+          "legacy": 0.012032589293537784
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.00018189871248631279,
+        "paired_difference": [
+          0.00018685512595835972,
+          0.00017694229901426585
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.00011877740197156392,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.004756766379518088,
+          "legacy": 0.0
+        },
+        "difference": 0.00011877740197156392,
+        "paired_difference": [
+          0.00012093383351592042,
+          0.00011662097042720741
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 8.238528696605506e-05,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0006082121319824728,
+          "legacy": 0.0
+        },
+        "difference": 8.238528696605506e-05,
+        "paired_difference": [
+          8.220952026287878e-05,
+          8.256105366923133e-05
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 3.4510186199375146e-05,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 3.4510186199375146e-05,
+          "legacy": 0.0
+        },
+        "difference": 3.4510186199375146e-05,
+        "paired_difference": [
+          3.329061117200553e-05,
+          3.572976122674476e-05
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 2.559978477542869e-05,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.00020620016045998603,
+          "legacy": 0.0
+        },
+        "difference": 2.559978477542869e-05,
+        "paired_difference": [
+          2.6045943044875645e-05,
+          2.5153626505981735e-05
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 1.85232447973756e-05,
+          "legacy": 1.2377780941949807e-05
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 6.145463855425793e-06,
+        "paired_difference": [
+          6.475876232178744e-06,
+          5.815051478672847e-06
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 4.750924424985994e-06,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 4.6074744249718325e-05,
+          "legacy": 0.0
+        },
+        "difference": 4.750924424985994e-06,
+        "paired_difference": [
+          4.744784227761405e-06,
+          4.757064622210583e-06
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 1.4427842278510005e-06,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 5.616015607886049e-05,
+          "legacy": 0.0
+        },
+        "difference": 1.4427842278510005e-06,
+        "paired_difference": [
+          1.4392256298653452e-06,
+          1.4463428258366556e-06
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 0,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 1,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 4,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 5,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 6,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 1,
+        "name": "catalog construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 2,
+        "name": "source block construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 3,
+        "name": "migration transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 4,
+        "name": "manifest validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 5,
+        "name": "migration size routing/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 6,
+        "name": "migration payload/validation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 7,
+        "name": "payload checksum scan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 8,
+        "name": "ghost plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 9,
+        "name": "writeback plan construction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 10,
+        "name": "scalar capture plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 11,
+        "name": "restriction exchange plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 12,
+        "name": "temperature routing plan",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 13,
+        "name": "scalar geometry preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 14,
+        "name": "scalar capture setup",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 15,
+        "name": "scalar capture finish",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 16,
+        "name": "Domain to block transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 17,
+        "name": "block to Domain transaction",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 18,
+        "name": "RK tendency capture",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 19,
+        "name": "RK candidate assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 20,
+        "name": "forward vector transform",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 21,
+        "name": "inverse preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 22,
+        "name": "Domain RK assembly",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 24,
+        "name": "temperature boundary preparation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 25,
+        "name": "writeback invalidation",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 26,
+        "name": "selected MPI payload/metadata",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 27,
+        "name": "selected MPI reduction/dependency",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 28,
+        "name": "reserved (no per-message post clocks)",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 29,
+        "name": "selected MPI completion",
+        "exclusive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": 0.0,
+        "paired_difference": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "context": 8,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 0.0002971103707557399,
+          "legacy": 0.0008099163789704123
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": -0.0005128060082146724,
+        "paired_difference": [
+          -0.0004707100536692521,
+          -0.0005549019627600928
+        ]
+      },
+      {
+        "context": 3,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 0.02570835483954,
+          "legacy": 0.02802855122836803
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": -0.0023201963888280323,
+        "paired_difference": [
+          -0.002415543943044881,
+          -0.002224848834611187
+        ]
+      },
+      {
+        "context": 7,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 0.005396709017524653,
+          "legacy": 0.008724911262322024
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": -0.0033282022447973705,
+        "paired_difference": [
+          -0.0030986594742606673,
+          -0.0035577450153340745
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 23,
+        "name": "Domain basic operators",
+        "exclusive": {
+          "baseline": 0.039843039555859966,
+          "legacy": 0.055800785869660745
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.08624897555859795,
+          "legacy": 0.12723971707995624
+        },
+        "difference": -0.01595774631380078,
+        "paired_difference": [
+          -0.015898816302299584,
+          -0.01601667632530198
+        ]
+      },
+      {
+        "context": 2,
+        "operation": 0,
+        "name": "unselected",
+        "exclusive": {
+          "baseline": 0.20424662355859813,
+          "legacy": 0.24742914661555304
+        },
+        "inclusive_nonadditive": {
+          "baseline": 0.0,
+          "legacy": 0.0
+        },
+        "difference": -0.04318252305695491,
+        "paired_difference": [
+          -0.04458491359255193,
+          -0.041780132521357954
+        ]
+      }
+    ],
+    "lifecycle": {
+      "baseline": [
+        {
+          "schema": 1,
+          "ranks": 83,
+          "mode": 1,
+          "event_counts": {
+            "15": 3652,
+            "1": 12782,
+            "40": 123172,
+            "4": 3652,
+            "5": 913,
+            "13": 3652,
+            "10": 3652,
+            "6": 8217,
+            "8": 3652,
+            "11": 3652,
+            "9": 3652,
+            "7": 16600,
+            "3": 1826,
+            "12": 913,
+            "14": 913,
+            "41": 913,
+            "2": 913
+          },
+          "plans": {
+            "1": {
+              "requests": 3652,
+              "reused": 2739,
+              "rebuilt": 913,
+              "rank_generation_count": 913
+            },
+            "2": {
+              "requests": 3652,
+              "reused": 2739,
+              "rebuilt": 913,
+              "rank_generation_count": 913
+            },
+            "3": {
+              "requests": 3652,
+              "reused": 2739,
+              "rebuilt": 913,
+              "rank_generation_count": 913
+            },
+            "4": {
+              "requests": 1826,
+              "reused": 913,
+              "rebuilt": 913,
+              "rank_generation_count": 1079
+            }
+          },
+          "field_transitions": {
+            "6:14:1": {
+              "events": 3652,
+              "max_visits_in_same_rank_step_stage_generation": 1,
+              "repeat_visits": 0
+            },
+            "6:8:0": {
+              "events": 913,
+              "max_visits_in_same_rank_step_stage_generation": 1,
+              "repeat_visits": 0
+            },
+            "7:1:3": {
+              "events": 3652,
+              "max_visits_in_same_rank_step_stage_generation": 1,
+              "repeat_visits": 0
+            },
+            "7:1:0": {
+              "events": 8383,
+              "max_visits_in_same_rank_step_stage_generation": 3,
+              "repeat_visits": 4565
+            },
+            "6:2:1": {
+              "events": 3652,
+              "max_visits_in_same_rank_step_stage_generation": 1,
+              "repeat_visits": 0
+            },
+            "7:2:0": {
+              "events": 4565,
+              "max_visits_in_same_rank_step_stage_generation": 2,
+              "repeat_visits": 913
+            }
+          },
+          "geometry_reseeds": [],
+          "scope": "Counts and lifecycle predicates, not proof that live fields are unchanged. Site volumes use the MPI datatype at that site, not inferred DRAM bytes."
+        },
+        {
+          "schema": 1,
+          "ranks": 83,
+          "mode": 1,
+          "event_counts": {
+            "15": 3652,
+            "1": 12782,
+            "40": 123172,
+            "4": 3652,
+            "5": 913,
+            "13": 3652,
+            "10": 3652,
+            "6": 8217,
+            "8": 3652,
+            "11": 3652,
+            "9": 3652,
+            "7": 16600,
+            "3": 1826,
+            "12": 913,
+            "14": 913,
+            "41": 913,
+            "2": 913
+          },
+          "plans": {
+            "1": {
+              "requests": 3652,
+              "reused": 2739,
+              "rebuilt": 913,
+              "rank_generation_count": 913
+            },
+            "2": {
+              "requests": 3652,
+              "reused": 2739,
+              "rebuilt": 913,
+              "rank_generation_count": 913
+            },
+            "3": {
+              "requests": 3652,
+              "reused": 2739,
+              "rebuilt": 913,
+              "rank_generation_count": 913
+            },
+            "4": {
+              "requests": 1826,
+              "reused": 913,
+              "rebuilt": 913,
+              "rank_generation_count": 1079
+            }
+          },
+          "field_transitions": {
+            "6:14:1": {
+              "events": 3652,
+              "max_visits_in_same_rank_step_stage_generation": 1,
+              "repeat_visits": 0
+            },
+            "6:8:0": {
+              "events": 913,
+              "max_visits_in_same_rank_step_stage_generation": 1,
+              "repeat_visits": 0
+            },
+            "7:1:3": {
+              "events": 3652,
+              "max_visits_in_same_rank_step_stage_generation": 1,
+              "repeat_visits": 0
+            },
+            "7:1:0": {
+              "events": 8383,
+              "max_visits_in_same_rank_step_stage_generation": 3,
+              "repeat_visits": 4565
+            },
+            "6:2:1": {
+              "events": 3652,
+              "max_visits_in_same_rank_step_stage_generation": 1,
+              "repeat_visits": 0
+            },
+            "7:2:0": {
+              "events": 4565,
+              "max_visits_in_same_rank_step_stage_generation": 2,
+              "repeat_visits": 913
+            }
+          },
+          "geometry_reseeds": [],
+          "scope": "Counts and lifecycle predicates, not proof that live fields are unchanged. Site volumes use the MPI datatype at that site, not inferred DRAM bytes."
+        }
+      ],
+      "legacy": [
+        {
+          "schema": 1,
+          "ranks": 83,
+          "mode": 1,
+          "event_counts": {},
+          "plans": {},
+          "field_transitions": {},
+          "geometry_reseeds": [],
+          "scope": "Counts and lifecycle predicates, not proof that live fields are unchanged. Site volumes use the MPI datatype at that site, not inferred DRAM bytes."
+        },
+        {
+          "schema": 1,
+          "ranks": 83,
+          "mode": 1,
+          "event_counts": {},
+          "plans": {},
+          "field_transitions": {},
+          "geometry_reseeds": [],
+          "scope": "Counts and lifecycle predicates, not proof that live fields are unchanged. Site volumes use the MPI datatype at that site, not inferred DRAM bytes."
+        }
+      ]
+    },
+    "scope": "Selected batch accounting only. Unselected includes required computation and unobserved MPI. Inclusive parents overlap; do not add. Timing/trace evidence does not prove removability.",
+    "instrumented_rank_mean_excess": 0.3711012642612267,
+    "decision": "observer_effects_require_review",
+    "optimization_authorized": false,
+    "next_gate": "Calibrated, non-overlapping avoidable costs plus explicit consumer/dependency proof must support >=0.10 s/step before selecting a prototype. Bare runs must then validate actual savings."
+  },
+  "memory": {
+    "n83-s2-baseline-bare-1": {
+      "rss_sum_gib": 21.754562377929688,
+      "major_faults": 2192,
+      "swap_in": 0,
+      "swap_out": 0,
+      "min_available_gib": 1490.0234336853027,
+      "load_before": "60.69 48.17 23.62 1/2742 972220",
+      "load_after": "72.80 52.24 25.75 1/2773 973151"
+    },
+    "n83-s2-candidate-bare-1": {
+      "rss_sum_gib": 21.758602142333984,
+      "major_faults": 2484,
+      "swap_in": 0,
+      "swap_out": 0,
+      "min_available_gib": 1489.9424629211426,
+      "load_before": "67.05 51.39 25.62 1/2774 973161",
+      "load_after": "77.24 55.28 27.73 1/2770 974055"
+    },
+    "n83-s2-legacy-bare-1": {
+      "rss_sum_gib": 11.064456939697266,
+      "major_faults": 1221,
+      "swap_in": 0,
+      "swap_out": 0,
+      "min_available_gib": 1489.9143257141113,
+      "load_before": "71.14 54.37 27.58 1/2769 974067",
+      "load_after": "70.60 55.43 28.64 1/2777 974967"
+    },
+    "n83-s2-legacy-bare-2": {
+      "rss_sum_gib": 11.089988708496094,
+      "major_faults": 1070,
+      "swap_in": 0,
+      "swap_out": 0,
+      "min_available_gib": 1491.1853294372559,
+      "load_before": "59.90 53.64 28.34 1/2775 974973",
+      "load_after": "70.19 56.32 29.76 1/2778 975865"
+    },
+    "n83-s2-candidate-bare-2": {
+      "rss_sum_gib": 21.769405364990234,
+      "major_faults": 2837,
+      "swap_in": 0,
+      "swap_out": 0,
+      "min_available_gib": 1489.8797760009766,
+      "load_before": "59.55 54.50 29.45 1/2776 975876",
+      "load_after": "67.62 56.80 30.88 1/2793 976785"
+    },
+    "n83-s2-baseline-bare-2": {
+      "rss_sum_gib": 21.763477325439453,
+      "major_faults": 2382,
+      "swap_in": 0,
+      "swap_out": 0,
+      "min_available_gib": 1489.8532752990723,
+      "load_before": "57.37 54.97 30.56 1/2792 976792",
+      "load_after": "67.05 57.56 32.20 1/2771 977702"
+    }
+  },
+  "source_identity": "All six recorded source inventories and build logs match frozen Stage205 kit; executable hashes match every run record; payload binaries/checkpoints are not included in review archive.",
+  "derived": {
+    "plans": {
+      "samples": [
+        {
+          "exclusive": 0.009195945527929905,
+          "selected_mpi": 0.023271896279298918,
+          "nonoverlapping_total": 0.03246784180722882
+        },
+        {
+          "exclusive": 0.00916552439320921,
+          "selected_mpi": 0.023614929780941894,
+          "nonoverlapping_total": 0.032780454174151104
+        }
+      ],
+      "mean": {
+        "exclusive": 0.009180734960569557,
+        "selected_mpi": 0.023443413030120406,
+        "nonoverlapping_total": 0.03262414799068997
+      }
+    },
+    "geometry": {
+      "samples": [
+        {
+          "exclusive": 0.00031144553450162957,
+          "selected_mpi": 0,
+          "nonoverlapping_total": 0.00031144553450162957
+        },
+        {
+          "exclusive": 0.0003153884129244232,
+          "selected_mpi": 0,
+          "nonoverlapping_total": 0.0003153884129244232
+        }
+      ],
+      "mean": {
+        "exclusive": 0.0003134169737130264,
+        "selected_mpi": 0,
+        "nonoverlapping_total": 0.0003134169737130264
+      }
+    },
+    "capture": {
+      "samples": [
+        {
+          "exclusive": 0.019914292475356015,
+          "selected_mpi": 0.005845127004381185,
+          "nonoverlapping_total": 0.0257594194797372
+        },
+        {
+          "exclusive": 0.020005989861993343,
+          "selected_mpi": 0.005783564617743781,
+          "nonoverlapping_total": 0.025789554479737124
+        }
+      ],
+      "mean": {
+        "exclusive": 0.01996014116867468,
+        "selected_mpi": 0.005814345811062483,
+        "nonoverlapping_total": 0.025774486979737162
+      }
+    },
+    "imports": {
+      "samples": [
+        {
+          "exclusive": 0.0016751893943045663,
+          "selected_mpi": 0.009288013381160955,
+          "nonoverlapping_total": 0.010963202775465522
+        },
+        {
+          "exclusive": 0.0016753829145675437,
+          "selected_mpi": 0.009452597424972566,
+          "nonoverlapping_total": 0.01112798033954011
+        }
+      ],
+      "mean": {
+        "exclusive": 0.0016752861544360549,
+        "selected_mpi": 0.00937030540306676,
+        "nonoverlapping_total": 0.011045591557502815
+      }
+    },
+    "publications": {
+      "samples": [
+        {
+          "exclusive": 0.008293533135815993,
+          "selected_mpi": 0.020792984187294496,
+          "nonoverlapping_total": 0.02908651732311049
+        },
+        {
+          "exclusive": 0.008295748270536467,
+          "selected_mpi": 0.021242430734939897,
+          "nonoverlapping_total": 0.029538179005476364
+        }
+      ],
+      "mean": {
+        "exclusive": 0.00829464070317623,
+        "selected_mpi": 0.021017707461117197,
+        "nonoverlapping_total": 0.029312348164293428
+      }
+    },
+    "checks": {
+      "samples": [
+        {
+          "exclusive": 0.007950533368017576,
+          "selected_mpi": 0.017060755464402964,
+          "nonoverlapping_total": 0.025011288832420542
+        },
+        {
+          "exclusive": 0.007935256377875238,
+          "selected_mpi": 0.017504732572836752,
+          "nonoverlapping_total": 0.025439988950711992
+        }
+      ],
+      "mean": {
+        "exclusive": 0.007942894872946407,
+        "selected_mpi": 0.01728274401861986,
+        "nonoverlapping_total": 0.025225638891566267
+      }
+    },
+    "phase_differences": {
+      "dynamics_wavelets": 0.1732831564299014,
+      "dynamics_other": 0.11186341873548726,
+      "adaptation": 0.08899944104052573,
+      "other": -0.0030447519446878315
+    },
+    "traces": [
+      {
+        "run": "n83-s2-baseline-operations-1",
+        "counts": {
+          "capture:(1, 1, 0, 1)": 484,
+          "capture:(2, 0, 1, 0)": 913,
+          "capture:(3, 0, 1, 0)": 913,
+          "capture:(4, 0, 1, 0)": 913,
+          "checksum_bytes": 19262044352,
+          "capture:(1, 1, 0, 0)": 429
+        },
+        "checksum_scan_mean": 0.007290481052573906,
+        "checksum_reductions_mean": 0.011042656122672443,
+        "checksum_scan_first_reduction_correlation": -0.7920929426637172,
+        "checksum_scan_plus_all_reductions_rankstep_minmax": [
+          0.009336354000000213,
+          0.033166291999999986
+        ],
+        "rank0_step1_tape": [
+          [
+            1,
+            0,
+            0,
+            1,
+            15,
+            0,
+            0,
+            1,
+            4,
+            0
+          ],
+          [
+            35,
+            2,
+            14,
+            1,
+            4,
+            1,
+            1,
+            1,
+            0,
+            1
+          ],
+          [
+            36,
+            2,
+            13,
+            1,
+            5,
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            41,
+            2,
+            16,
+            1,
+            6,
+            0,
+            1,
+            14,
+            1,
+            0
+          ],
+          [
+            43,
+            2,
+            18,
+            1,
+            8,
+            0,
+            1,
+            1,
+            4,
+            0
+          ],
+          [
+            45,
+            2,
+            16,
+            1,
+            6,
+            0,
+            1,
+            8,
+            0,
+            0
+          ],
+          [
+            48,
+            2,
+            19,
+            1,
+            9,
+            0,
+            1,
+            1,
+            4,
+            0
+          ],
+          [
+            50,
+            0,
+            17,
+            1,
+            7,
+            0,
+            1,
+            1,
+            3,
+            0
+          ],
+          [
+            52,
+            1,
+            17,
+            1,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            56,
+            1,
+            16,
+            1,
+            6,
+            0,
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            58,
+            1,
+            17,
+            1,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            73,
+            1,
+            17,
+            1,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            76,
+            0,
+            0,
+            2,
+            15,
+            0,
+            0,
+            2,
+            4,
+            0
+          ],
+          [
+            80,
+            2,
+            14,
+            2,
+            4,
+            1,
+            1,
+            0,
+            1,
+            0
+          ],
+          [
+            85,
+            2,
+            16,
+            2,
+            6,
+            0,
+            1,
+            14,
+            1,
+            0
+          ],
+          [
+            87,
+            2,
+            18,
+            2,
+            8,
+            0,
+            1,
+            2,
+            4,
+            0
+          ],
+          [
+            89,
+            2,
+            19,
+            2,
+            9,
+            0,
+            1,
+            2,
+            4,
+            0
+          ],
+          [
+            91,
+            0,
+            17,
+            2,
+            7,
+            0,
+            1,
+            1,
+            3,
+            0
+          ],
+          [
+            93,
+            1,
+            17,
+            2,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            97,
+            1,
+            16,
+            2,
+            6,
+            0,
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            99,
+            1,
+            17,
+            2,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            102,
+            1,
+            17,
+            2,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            105,
+            0,
+            0,
+            3,
+            15,
+            0,
+            0,
+            3,
+            4,
+            0
+          ],
+          [
+            109,
+            2,
+            14,
+            3,
+            4,
+            1,
+            1,
+            0,
+            1,
+            0
+          ],
+          [
+            114,
+            2,
+            16,
+            3,
+            6,
+            0,
+            1,
+            14,
+            1,
+            0
+          ],
+          [
+            116,
+            2,
+            18,
+            3,
+            8,
+            0,
+            1,
+            3,
+            4,
+            0
+          ],
+          [
+            118,
+            2,
+            19,
+            3,
+            9,
+            0,
+            1,
+            3,
+            4,
+            0
+          ],
+          [
+            120,
+            0,
+            17,
+            3,
+            7,
+            0,
+            1,
+            1,
+            3,
+            0
+          ],
+          [
+            122,
+            1,
+            17,
+            3,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            126,
+            1,
+            16,
+            3,
+            6,
+            0,
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            128,
+            1,
+            17,
+            3,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            131,
+            1,
+            17,
+            3,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            134,
+            0,
+            0,
+            4,
+            15,
+            0,
+            0,
+            4,
+            4,
+            0
+          ],
+          [
+            138,
+            2,
+            14,
+            4,
+            4,
+            1,
+            1,
+            0,
+            1,
+            0
+          ],
+          [
+            143,
+            2,
+            16,
+            4,
+            6,
+            0,
+            1,
+            14,
+            1,
+            0
+          ],
+          [
+            145,
+            2,
+            18,
+            4,
+            8,
+            0,
+            1,
+            4,
+            4,
+            0
+          ],
+          [
+            147,
+            2,
+            19,
+            4,
+            9,
+            0,
+            1,
+            4,
+            4,
+            0
+          ],
+          [
+            149,
+            0,
+            17,
+            4,
+            7,
+            0,
+            1,
+            1,
+            3,
+            0
+          ],
+          [
+            151,
+            1,
+            17,
+            4,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            160,
+            1,
+            16,
+            4,
+            6,
+            0,
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            162,
+            1,
+            17,
+            4,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            165,
+            1,
+            17,
+            4,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            168,
+            0,
+            17,
+            4,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            171,
+            0,
+            17,
+            4,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ]
+        ]
+      },
+      {
+        "run": "n83-s2-baseline-operations-2",
+        "counts": {
+          "capture:(1, 1, 0, 1)": 484,
+          "capture:(2, 0, 1, 0)": 913,
+          "capture:(3, 0, 1, 0)": 913,
+          "capture:(4, 0, 1, 0)": 913,
+          "checksum_bytes": 19262044352,
+          "capture:(1, 1, 0, 0)": 429
+        },
+        "checksum_scan_mean": 0.0072731250427163,
+        "checksum_reductions_mean": 0.011479621033953957,
+        "checksum_scan_first_reduction_correlation": -0.7985914723675945,
+        "checksum_scan_plus_all_reductions_rankstep_minmax": [
+          0.009152214000000214,
+          0.0336590739999999
+        ],
+        "rank0_step1_tape": [
+          [
+            1,
+            0,
+            0,
+            1,
+            15,
+            0,
+            0,
+            1,
+            4,
+            0
+          ],
+          [
+            35,
+            2,
+            14,
+            1,
+            4,
+            1,
+            1,
+            1,
+            0,
+            1
+          ],
+          [
+            36,
+            2,
+            13,
+            1,
+            5,
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            41,
+            2,
+            16,
+            1,
+            6,
+            0,
+            1,
+            14,
+            1,
+            0
+          ],
+          [
+            43,
+            2,
+            18,
+            1,
+            8,
+            0,
+            1,
+            1,
+            4,
+            0
+          ],
+          [
+            45,
+            2,
+            16,
+            1,
+            6,
+            0,
+            1,
+            8,
+            0,
+            0
+          ],
+          [
+            48,
+            2,
+            19,
+            1,
+            9,
+            0,
+            1,
+            1,
+            4,
+            0
+          ],
+          [
+            50,
+            0,
+            17,
+            1,
+            7,
+            0,
+            1,
+            1,
+            3,
+            0
+          ],
+          [
+            52,
+            1,
+            17,
+            1,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            56,
+            1,
+            16,
+            1,
+            6,
+            0,
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            58,
+            1,
+            17,
+            1,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            73,
+            1,
+            17,
+            1,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            76,
+            0,
+            0,
+            2,
+            15,
+            0,
+            0,
+            2,
+            4,
+            0
+          ],
+          [
+            80,
+            2,
+            14,
+            2,
+            4,
+            1,
+            1,
+            0,
+            1,
+            0
+          ],
+          [
+            85,
+            2,
+            16,
+            2,
+            6,
+            0,
+            1,
+            14,
+            1,
+            0
+          ],
+          [
+            87,
+            2,
+            18,
+            2,
+            8,
+            0,
+            1,
+            2,
+            4,
+            0
+          ],
+          [
+            89,
+            2,
+            19,
+            2,
+            9,
+            0,
+            1,
+            2,
+            4,
+            0
+          ],
+          [
+            91,
+            0,
+            17,
+            2,
+            7,
+            0,
+            1,
+            1,
+            3,
+            0
+          ],
+          [
+            93,
+            1,
+            17,
+            2,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            97,
+            1,
+            16,
+            2,
+            6,
+            0,
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            99,
+            1,
+            17,
+            2,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            102,
+            1,
+            17,
+            2,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            105,
+            0,
+            0,
+            3,
+            15,
+            0,
+            0,
+            3,
+            4,
+            0
+          ],
+          [
+            109,
+            2,
+            14,
+            3,
+            4,
+            1,
+            1,
+            0,
+            1,
+            0
+          ],
+          [
+            114,
+            2,
+            16,
+            3,
+            6,
+            0,
+            1,
+            14,
+            1,
+            0
+          ],
+          [
+            116,
+            2,
+            18,
+            3,
+            8,
+            0,
+            1,
+            3,
+            4,
+            0
+          ],
+          [
+            118,
+            2,
+            19,
+            3,
+            9,
+            0,
+            1,
+            3,
+            4,
+            0
+          ],
+          [
+            120,
+            0,
+            17,
+            3,
+            7,
+            0,
+            1,
+            1,
+            3,
+            0
+          ],
+          [
+            122,
+            1,
+            17,
+            3,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            126,
+            1,
+            16,
+            3,
+            6,
+            0,
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            128,
+            1,
+            17,
+            3,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            131,
+            1,
+            17,
+            3,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            134,
+            0,
+            0,
+            4,
+            15,
+            0,
+            0,
+            4,
+            4,
+            0
+          ],
+          [
+            138,
+            2,
+            14,
+            4,
+            4,
+            1,
+            1,
+            0,
+            1,
+            0
+          ],
+          [
+            143,
+            2,
+            16,
+            4,
+            6,
+            0,
+            1,
+            14,
+            1,
+            0
+          ],
+          [
+            145,
+            2,
+            18,
+            4,
+            8,
+            0,
+            1,
+            4,
+            4,
+            0
+          ],
+          [
+            147,
+            2,
+            19,
+            4,
+            9,
+            0,
+            1,
+            4,
+            4,
+            0
+          ],
+          [
+            149,
+            0,
+            17,
+            4,
+            7,
+            0,
+            1,
+            1,
+            3,
+            0
+          ],
+          [
+            151,
+            1,
+            17,
+            4,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            160,
+            1,
+            16,
+            4,
+            6,
+            0,
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            162,
+            1,
+            17,
+            4,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            165,
+            1,
+            17,
+            4,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            168,
+            0,
+            17,
+            4,
+            7,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            171,
+            0,
+            17,
+            4,
+            7,
+            0,
+            1,
+            2,
+            0,
+            0
+          ]
+        ]
+      }
+    ],
+    "calibration_flag": {
+      "coarse_seconds": 0.06993091452245345,
+      "delta_seconds": 0.001401923288061338,
+      "delta_percent": 2.00472608950539,
+      "threshold_seconds": 0.001398618290449069,
+      "excess_over_threshold_seconds": 3.304997612269033e-06
+    }
+  },
+  "numerical_reports_rechecked": true,
+  "scope_limits": [
+    "Archive contains comparator reports and recorded binary hashes, not checkpoint or executable payloads.",
+    "One legacy wavelet observer calibration fails; do not claim full calibration.",
+    "Elapsed operation costs and rank-mean correlations are not recoverable critical-path savings.",
+    "Secondary scaling tied ranks reconciled against identical raw whole-step clocks; Stage205 operation analysis reproduced deterministic tie selection."
+  ],
+  "decision": "Reject plan/geometry/validation-only optimization as a justified >=0.10 s/step target. Direct import/publication costs do not establish a >=0.10 s/step target either. Audit equivalent numerical wavelet work next; do not implement an unproven optimization."
+}
