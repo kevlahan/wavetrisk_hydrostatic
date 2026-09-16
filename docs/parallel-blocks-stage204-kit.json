@@ -1,0 +1,8 @@
+{
+  "stage": 204,
+  "kit": "/private/tmp/wavetrisk-stage204-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage204-cluster-kit.tar.gz",
+  "sha256": "5ad1c89cc4c5e9160c5455d18f16251045331cacd680cbdae10d2441e245940a",
+  "baseline_commit": "9bc3a19556dab79b3cba3944cf5df53517389da3",
+  "scope": "Frozen Stage202/203/legacy; seven builds, 20 runs, clocks only; no numerical changes."
+}
