@@ -65,5 +65,6 @@
     "storage_disabled_binary_over_minimal": 4.7808764940239,
     "storage_sampling_over_disabled_binary": 5.703422053231932
   },
-  "conclusion": "The measured gap is systemic: extra block-native and compatibility pipelines, rank-local work imbalance exposed as MPI wait, and block lifecycle construction/migration. Selected arithmetic counts do not show wholesale legacy computation duplication. Recoverable time remains unresolved; no optimization is authorized by this result alone."
+  "conclusion": "The measured gap is systemic: extra block-native and compatibility pipelines, rank-local work imbalance exposed as MPI wait, and block lifecycle construction/migration. Selected arithmetic counts do not show wholesale legacy computation duplication. Recoverable time remains unresolved; no optimization is authorized by this result alone.",
+  "relative_cpu_imbalance_note": "Aggregate max-minus-mean CPU / mean CPU: wavelets approximately 49% blocks vs 76% legacy; tendency 40% vs 66%. Larger absolute block delays do not establish worse relative load balance. Extra CPU workload is demonstrated; balancing causes remain hypotheses."
 }

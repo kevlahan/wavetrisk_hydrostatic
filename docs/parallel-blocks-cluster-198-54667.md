@@ -84,7 +84,7 @@ their sum has only a 29.4 ms rank range. The analogous compute/communication
 figures are 189.4/152.5 ms for dynamics wavelets and 102.7/50.2 ms for adaptation
 remainder.
 
-This is the signature of synchronization absorbing rank-local work imbalance.
+This is consistent with synchronization absorbing rank-local work imbalance.
 It does not show that the transport is free, nor separate arrival delay from
 network latency, but it rules out assigning the entire wait interval to message
 volume. Work-volume correlations identify concrete sources of the imbalance:
@@ -92,6 +92,21 @@ wavelet non-MPI time correlates about 0.955 with inverse values sent; tendency
 non-MPI time correlates about 0.850 with boundary candidates and 0.833 with
 native-mass send values; adaptation CPU time correlates about 0.756 with migrated
 bytes. These are correlations, not independently recoverable-time estimates.
+
+Absolute spread alone must not be called worse load balance. Normalize the
+maximum-minus-mean CPU time by the corresponding mean CPU time:
+
+| Context | Legacy mean CPU, ms | Block mean CPU, ms | Legacy max-minus-mean, ms | Block max-minus-mean, ms | Relative excess, legacy / block |
+|---|---:|---:|---:|---:|---:|
+| Dynamics wavelets | 51.1 | 189.4 | 38.8 | 92.5 | 76% / 49% |
+| Tendency tag | 199.7 | 374.3 | 131.4 | 148.1 | 66% / 40% |
+
+On this aggregate context measure, blocks are relatively more balanced, while
+performing much more CPU work. The larger absolute wavelet spread therefore does
+not demonstrate a degraded balancing algorithm. Neither these aggregate spreads
+nor negative compute/wait correlations resolve individual dependency arrival
+causes. Extra representation work remains the primary demonstrated difference;
+load-model inadequacy is a hypothesis requiring producer-level evidence.
 
 The native inverse performs about 177.27 dependency completions per rank/step.
 Its 90 ms wait is distributed over gather, scatter and boundary dependencies:
