@@ -1,0 +1,250 @@
+{
+  "stage": 198,
+  "status": "passed",
+  "scope": "Local four-rank J4/J6 correctness and observation coverage only; no cluster speedup claim. Numerical candidate unchanged Stage197. Initial SYSTEM_CLOCK runs superseded after backward adjustable-clock reading. Final runs use identical CLOCK_MONOTONIC observer.",
+  "runs": {
+    "block-0": {
+      "status": "passed",
+      "path": "/private/tmp/stage198-final-block-0",
+      "binary_sha256": "1fc4f197b82925ad265f20d02a56c9e4df87cdcc9218c668709c7090f558dabd",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "exact_reference": "/private/tmp/stage196-final-block-detail",
+      "exact_checkpoint": true,
+      "workload": true,
+      "steps": 12,
+      "ordinary_steps": 11,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "mode": 0,
+      "full_step_conservation": "passed",
+      "required_scope_coverage": "disabled",
+      "inverse_dependency_records": 0,
+      "storage_sample_count": 0
+    },
+    "legacy-0": {
+      "status": "passed",
+      "path": "/private/tmp/stage198-final-legacy-0",
+      "binary_sha256": "55b2637e46833111b0f25c8ad5118bc5760cf90a5bf3032d76ff1833443b487c",
+      "checkpoint_sha256": "959d42ee0a921005e86bc1d2e9883d784319bf7f04662ff4c254dfc57c325f4a",
+      "exact_reference": "/private/tmp/stage196-final-legacy-detail",
+      "exact_checkpoint": true,
+      "workload": true,
+      "steps": 12,
+      "ordinary_steps": 11,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "mode": 0,
+      "full_step_conservation": "passed",
+      "required_scope_coverage": "disabled",
+      "inverse_dependency_records": 0,
+      "storage_sample_count": 0
+    },
+    "block-1": {
+      "status": "passed",
+      "path": "/private/tmp/stage198-final-block-1",
+      "binary_sha256": "1fc4f197b82925ad265f20d02a56c9e4df87cdcc9218c668709c7090f558dabd",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "exact_reference": "/private/tmp/stage196-final-block-detail",
+      "exact_checkpoint": true,
+      "workload": true,
+      "steps": 12,
+      "ordinary_steps": 11,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "mode": 1,
+      "full_step_conservation": "passed",
+      "required_scope_coverage": "passed",
+      "inverse_dependency_records": 0,
+      "storage_sample_count": 0
+    },
+    "legacy-1": {
+      "status": "passed",
+      "path": "/private/tmp/stage198-final-legacy-1",
+      "binary_sha256": "55b2637e46833111b0f25c8ad5118bc5760cf90a5bf3032d76ff1833443b487c",
+      "checkpoint_sha256": "959d42ee0a921005e86bc1d2e9883d784319bf7f04662ff4c254dfc57c325f4a",
+      "exact_reference": "/private/tmp/stage196-final-legacy-detail",
+      "exact_checkpoint": true,
+      "workload": true,
+      "steps": 12,
+      "ordinary_steps": 11,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "mode": 1,
+      "full_step_conservation": "passed",
+      "required_scope_coverage": "passed",
+      "inverse_dependency_records": 0,
+      "storage_sample_count": 0
+    },
+    "block-2": {
+      "status": "passed",
+      "path": "/private/tmp/stage198-final-block-2",
+      "binary_sha256": "1fc4f197b82925ad265f20d02a56c9e4df87cdcc9218c668709c7090f558dabd",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "exact_reference": "/private/tmp/stage196-final-block-detail",
+      "exact_checkpoint": true,
+      "workload": true,
+      "steps": 12,
+      "ordinary_steps": 11,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "mode": 2,
+      "full_step_conservation": "passed",
+      "required_scope_coverage": "passed",
+      "inverse_dependency_records": 8736,
+      "storage_sample_count": 0
+    },
+    "legacy-2": {
+      "status": "passed",
+      "path": "/private/tmp/stage198-final-legacy-2",
+      "binary_sha256": "55b2637e46833111b0f25c8ad5118bc5760cf90a5bf3032d76ff1833443b487c",
+      "checkpoint_sha256": "959d42ee0a921005e86bc1d2e9883d784319bf7f04662ff4c254dfc57c325f4a",
+      "exact_reference": "/private/tmp/stage196-final-legacy-detail",
+      "exact_checkpoint": true,
+      "workload": true,
+      "steps": 12,
+      "ordinary_steps": 11,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "mode": 2,
+      "full_step_conservation": "passed",
+      "required_scope_coverage": "passed",
+      "inverse_dependency_records": 0,
+      "storage_sample_count": 0
+    },
+    "storage-0": {
+      "status": "passed",
+      "path": "/private/tmp/stage198-final-storage-0",
+      "binary_sha256": "c0712ca43573602e720dca0eca03c3a3f3e90c495d6eb382517845d2677466f1",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "exact_reference": "/private/tmp/stage196-final-block-detail",
+      "exact_checkpoint": true,
+      "workload": true,
+      "steps": 12,
+      "ordinary_steps": 11,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "mode": 0,
+      "full_step_conservation": "passed",
+      "required_scope_coverage": "disabled",
+      "inverse_dependency_records": 0,
+      "storage_sample_count": 0
+    },
+    "storage-3": {
+      "status": "passed",
+      "path": "/private/tmp/stage198-final-storage-3",
+      "binary_sha256": "c0712ca43573602e720dca0eca03c3a3f3e90c495d6eb382517845d2677466f1",
+      "checkpoint_sha256": "7f9b30f582c02afee1e0b6cbd863e73bbf70063698482dfae1eb19fb7319b599",
+      "exact_reference": "/private/tmp/stage196-final-block-detail",
+      "exact_checkpoint": true,
+      "workload": true,
+      "steps": 12,
+      "ordinary_steps": 11,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "mode": 3,
+      "full_step_conservation": "passed",
+      "required_scope_coverage": "passed",
+      "inverse_dependency_records": 8736,
+      "storage_sample_count": 97510600
+    }
+  },
+  "legacy_screen": {
+    "passed": true,
+    "exact_required": false,
+    "policy": "stage180-local-v1",
+    "field_max_abs": {
+      "coarse/velocity/soil": 0.0,
+      "coarse/velocity/atmosphere": 8.455458555545192e-13,
+      "coarse/mass/soil": 0.0,
+      "coarse/mass/atmosphere": 1.8189894035458565e-12,
+      "coarse/temperature/soil": 0.0,
+      "coarse/temperature/atmosphere": 5.238689482212067e-10,
+      "wavelet/velocity/soil": 0.0,
+      "wavelet/velocity/atmosphere": 8.331113576787175e-12,
+      "wavelet/mass/soil": 0.0,
+      "wavelet/mass/atmosphere": 3.296918293926865e-12,
+      "wavelet/temperature/soil": 0.0,
+      "wavelet/temperature/atmosphere": 1.622538547962904e-09,
+      "pole/mass/soil": 0.0,
+      "pole/mass/atmosphere": 0.0,
+      "pole/temperature/soil": 0.0,
+      "pole/temperature/atmosphere": 0.0
+    }
+  },
+  "common_physics_object_count": 23,
+  "physics_sha256": {
+    "radiative_sw.o": "1aba55a84ef44a52cda9ded02b977be7bd126b59a5b7da86190b3417eed779b5",
+    "phyparam_mod.o": "c9d39809921f9e6f25e1b1acbbbf773d0c8170a642d5adc3a46a262697a8178b",
+    "single_column_mod.o": "884f00e163ce06e0c43b8420e6f8aa6915e415c4ed238dc578c6ae6d7e25f5ae",
+    "comgeomfi.o": "48d7e724536e6aac1f517f4eab699a026eafdafe448e6477bf0048153d8ed595",
+    "accelerator.o": "8a32ae74604aa98db8d728df34b8f7c5b3981adb7e4ca8ffe2bdbcd35c0f0d92",
+    "turbulence.o": "468c7a85d600800f995a6bcb1d6cfca64bb5947a895976c1c15d0585cba1b0b3",
+    "writefield_mod.o": "0ac36c703db91ec1ebfa03413b6a7d11ddfc52cae1ca6c4853819f222032a28e",
+    "logging.o": "5ae24ae85ac8e063cd6a0ffbe4a2b9a61566fe058fd6de53de78733653725bbb",
+    "astronomy.o": "20b4d772f78b2531556027993562378a4da95a23e9bc6810822fed318f5e51b7",
+    "iniphyparam_mod.o": "529959650fffc1fef6743a62db3904761679bb8f9b20ab07a4656e1220adcbff",
+    "restart.o": "e318efd2c5c93bd2de274ecc13c086d905b363b4082c8059d8963baa08ea902a",
+    "callkeys.o": "970a4e6b09cecaff4c9c20041c1eb18bdef705bd4ecad292769c1a6fc167b39e",
+    "radiative_mod.o": "c435001cd4c5f17ee8d2d312ce76aae3f2779f12014b7ebdb55c209dc1f086bf",
+    "soil_mod.o": "6095ec5d9c444231dd923a7ad334c35ba24fffe39fd4a6945d5485078c4bfa31",
+    "solar.o": "3fae7a8f7d590c17aec5b706005eed694dd2d00ff5ac639ec97989620df7b1b3",
+    "profiling.o": "28cb368e274e13c6fd10c9c4746843a96578ac25e3d7f60ff51c3382963da516",
+    "mellor_yamada.o": "d9ba47f56aaa035c299923bdb4af1cfd267671bd2e35582f7e9820f5057a13a5",
+    "phys_const.o": "6d2bbf27990a45f8ffae8424964f37aafa0179e91cf001c2171bcb795d781a56",
+    "convection.o": "255fb394c813fb8122a692d3dca4792bfcae9f5751da4926c072535e027a863b",
+    "error_mod.o": "9ad13b39eac8cf4d1e118c0edf97eac2617301b604735c971b90114580111840",
+    "planet.o": "b878aa9d4cb0d5be6b64e70b9ca2461b82fd9b7eecb6410c03c40332a92b5126",
+    "radiative_lw.o": "41d9f76b015ee18615f414b9e2c1790a54df1e6148378519013bdd3358068390",
+    "read_param_mod.o": "7894316301a691bec468f0b5e934440f1d8e8536d605ea7c109cc08a2ef74524"
+  },
+  "regressions": {
+    "passed": 10,
+    "logs": [
+      "/private/tmp/stage198-regressions-clock.log",
+      "/private/tmp/stage198-campaign-final.log"
+    ],
+    "coverage": [
+      "fresh build identity and seven-build ordering",
+      "stale source/binary/physics rejection",
+      "large provenance through file",
+      "27-run scheduling and 65 gates",
+      "workload/launch/residency failures",
+      "O0/O2 checked observer modes",
+      "full-step conservation and corrupt/missing records",
+      "signed CSV ranking",
+      "million-read monotonic clock stress"
+    ]
+  },
+  "kit_validation": {
+    "archive_sha256": "cc386f97e0b57373a6b3d5adf18b98319c25d8d28d5fe225081bd79599b629c2",
+    "patch_reconstruction": "passed",
+    "local_profile_sources_match_final_kit": true,
+    "helper_hashes": "passed",
+    "syntax": "passed",
+    "numerical_candidate_unchanged": true
+  }
+}

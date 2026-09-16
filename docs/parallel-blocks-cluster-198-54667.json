@@ -1,0 +1,69 @@
+{
+  "stage": 198,
+  "job": "54667",
+  "status": "passed",
+  "review_archive_sha256": "b77255e0b10867b1868c2fc38fff2a0ad8e0ab3b0e5ace6c556d8761d21b50f1",
+  "archive_files": 9916,
+  "archive_inventory_failures": 0,
+  "runs": 27,
+  "gates": 65,
+  "bare_seconds": {
+    "stage196": 1.26,
+    "stage197": 1.245,
+    "legacy": 0.556,
+    "stage197_legacy_excess": 0.689,
+    "stage197_over_legacy_ratio": 2.239208633093525
+  },
+  "instrumented_accounting_seconds": {
+    "signed_total": 0.637382445277656,
+    "actual_slow_rank_path": 0.6380323119545437,
+    "positive_rows": 0.8484892805301221,
+    "negative_offsets": -0.21110683525246499
+  },
+  "parent_excess_seconds": {
+    "dynamics_wavelet": 0.2632508957217964,
+    "dynamics_outside_wavelet": 0.26128445912267273,
+    "adaptation_reconstruction": 0.11509771698466598,
+    "physics": 0.0002629053400876118,
+    "setup_remap_output_signed": -0.0025135318915656605
+  },
+  "operation_family_excess_seconds": {
+    "mpi_wait_post_net": 0.233761,
+    "boundary_transfer_cpu_net": 0.116886,
+    "wavelet_numerical_compute_net": 0.165853,
+    "storage_geometry_capture_net": 0.033331,
+    "rk_state_compatibility_net": 0.026208,
+    "adaptation_construction_migration_cpu_net": 0.063759,
+    "other_unclassified_net": -0.002414
+  },
+  "wait_compute_correlation_medians": {
+    "inverse_wait": -0.989,
+    "native_mass_wait": -0.982,
+    "scalar_transport_mpi": -0.972,
+    "migration_mpi": -0.942
+  },
+  "selected_work_per_rank_step": {
+    "legacy_restricted_scalar_flux_edges": 45527.185,
+    "block_restricted_scalar_flux_edges": 7587.864,
+    "legacy_scalar_divergence_evaluations": 83383.045,
+    "block_scalar_divergence_evaluations": 35559.299,
+    "legacy_temperature_direct_flux_evaluations": 79841.796,
+    "block_temperature_direct_flux_evaluations": 60678.729,
+    "legacy_direct_scalar_node_field_samples": 159683.593,
+    "block_direct_scalar_node_field_samples": 165855.194,
+    "block_scalar_range_requests": 842858.918,
+    "block_scalar_logical_slots_requested": 10952646.309,
+    "block_scalar_read_value_visits": 10578788.516,
+    "block_shared_address_resolutions": 7521102.75,
+    "block_scalar_write_value_visits": 3120324.749
+  },
+  "calibration_percent": {
+    "candidate_minimal_over_bare": 0.8032128514056103,
+    "legacy_minimal_over_bare": 0.8093525179855954,
+    "candidate_timers_over_bare": 2.008032128514059,
+    "legacy_timers_over_bare": 6.384892086330907,
+    "storage_disabled_binary_over_minimal": 4.7808764940239,
+    "storage_sampling_over_disabled_binary": 5.703422053231932
+  },
+  "conclusion": "The measured gap is systemic: extra block-native and compatibility pipelines, rank-local work imbalance exposed as MPI wait, and block lifecycle construction/migration. Selected arithmetic counts do not show wholesale legacy computation duplication. Recoverable time remains unresolved; no optimization is authorized by this result alone."
+}
