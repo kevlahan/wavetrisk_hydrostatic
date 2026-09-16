@@ -20,7 +20,7 @@ class ScalarBoundaryUpdate(unittest.TestCase):
                 (out/name).write_text(text+'\n')
             shutil.copy2(Path(__file__).with_name('scalar_boundary_reference.inc'),out/'scalar_boundary_reference.inc')
             for opt in ('-O0','-O2'):
-                build=subprocess.run(['gfortran',opt,'-fcheck=all','-ffpe-trap=invalid,zero,overflow','-Werror=line-truncation','-I'+tmp,str(ROOT/'src/kind.f90'),str(ROOT/'src/parallel_block_scalar_storage.f90'),str(Path(__file__).with_name('scalar_boundary_update.f90')),'-o','test'],cwd=out,capture_output=True,text=True)
+                build=subprocess.run(['gfortran','-cpp',opt,'-fcheck=all','-ffpe-trap=invalid,zero,overflow','-Werror=line-truncation','-I'+tmp,str(ROOT/'src/kind.f90'),str(ROOT/'src/parallel_block_scalar_storage.f90'),str(Path(__file__).with_name('scalar_boundary_update.f90')),'-o','test'],cwd=out,capture_output=True,text=True)
                 self.assertEqual(build.returncode,0,build.stdout+build.stderr)
                 run=subprocess.run(['./test'],cwd=out,capture_output=True,text=True)
                 self.assertEqual(run.returncode,0,run.stdout+run.stderr)

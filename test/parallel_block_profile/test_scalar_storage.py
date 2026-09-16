@@ -117,7 +117,7 @@ class ScalarStorageTests(unittest.TestCase):
     def test_real_module_checked_layout_and_capacity(self):
         with tempfile.TemporaryDirectory() as tmp:
             out=Path(tmp);(out/'driver.f90').write_text(DRIVER)
-            build=subprocess.run(['gfortran','-std=f2018','-Wall','-Wextra','-Werror=line-truncation',
+            build=subprocess.run(['gfortran','-cpp','-std=f2018','-Wall','-Wextra','-Werror=line-truncation',
                 '-fcheck=all','-ffpe-trap=invalid,zero,overflow','-finit-real=snan',
                 str(ROOT/'src/kind.f90'),str(ROOT/'src/parallel_block_scalar_storage.f90'),
                 'driver.f90','-o','test'],cwd=out,capture_output=True,text=True)
@@ -153,7 +153,7 @@ end program test
 '''
         with tempfile.TemporaryDirectory() as tmp:
             out=Path(tmp);(out/'driver.f90').write_text(driver)
-            build=subprocess.run(['gfortran','-fcheck=all','-ffpe-trap=invalid,zero,overflow',
+            build=subprocess.run(['gfortran','-cpp','-fcheck=all','-ffpe-trap=invalid,zero,overflow',
                 str(ROOT/'src/kind.f90'),str(ROOT/'src/parallel_block_scalar_storage.f90'),
                 'driver.f90','-o','test'],cwd=out,capture_output=True,text=True)
             self.assertEqual(build.returncode,0,build.stdout+build.stderr)

@@ -11,6 +11,8 @@ DEBUG         ?= false
 # FP_CONTRACT=default restores compiler behavior. Use fresh BUILD_DIR and
 # BIN_DIR values when changing the arithmetic setting.
 FP_CONTRACT   ?= off
+# Experimental Stage 202 batching; use fresh build directories for each value.
+STAGE202      ?= off
 TEST_CASE     ?= climate
 PARAM         ?= param_J5
 MPIF90        ?= mpif90
@@ -126,6 +128,16 @@ endif
 ifeq ($(filter $(FP_CONTRACT),default off fast),)
 $(error Unknown FP_CONTRACT='$(FP_CONTRACT)'; use default, off, or fast)
 endif
+ifeq ($(filter $(STAGE202),off records inverse on),)
+$(error Unknown STAGE202='$(STAGE202)'; use off, records, inverse, or on)
+endif
+ifneq ($(filter $(STAGE202),records on),)
+FFLAGS += -DSTAGE202_RECORDS
+endif
+ifneq ($(filter $(STAGE202),inverse on),)
+FFLAGS += -DSTAGE202_INVERSE
+endif
+
 ifneq ($(FP_CONTRACT),default)
 FFLAGS += -ffp-contract=$(FP_CONTRACT)
 endif

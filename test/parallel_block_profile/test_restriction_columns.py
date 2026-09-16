@@ -55,7 +55,7 @@ class RestrictionColumns(unittest.TestCase):
             out = Path(tmp)
             prepare(out)
             for opt in ('-O0', '-O2'):
-                build = subprocess.run(['gfortran', opt, '-ffp-contract=off', '-fcheck=all',
+                build = subprocess.run(['gfortran','-cpp', opt, '-ffp-contract=off', '-fcheck=all',
                                         '-ffpe-trap=invalid,zero,overflow', '-Werror=line-truncation',
                                         '-I' + tmp, str(ROOT / 'src/kind.f90'),
                                         str(ROOT / 'src/parallel_block_scalar_storage.f90'),

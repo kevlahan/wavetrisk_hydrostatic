@@ -37,6 +37,9 @@ module parallel_block_inverse_mod
      integer, allocatable :: sc(:),sd(:),rc(:),rd(:),key(:,:),slot(:)
      integer, allocatable :: source_info(:,:),target_info(:,:)
      integer, allocatable :: address(:,:)
+#ifdef STAGE202_INVERSE
+     integer, allocatable :: self_slot(:)
+#endif
      logical :: edgewise=.false.
   end type
   type :: Alias_Plan
@@ -333,6 +336,19 @@ contains
              call combine_transfers(outer_install(b),outer_patch,outer_bdry)
           end if
        end do
+#ifdef STAGE202_INVERSE
+       call prepare_self_routes(interior_plan)
+       call prepare_self_routes(boundary_plan)
+       do q=1,2
+          do b=level_start-2,level_end
+             call prepare_self_routes(level_interior(q,b))
+             call prepare_self_routes(level_boundary(q,b))
+          end do
+       end do
+       do b=level_start-1,level_end
+          call prepare_self_routes(outer_install(b))
+       end do
+#endif
        allocate(value(nscalar+EDGE,zlevels,nnode,2))
        n=0
        do p=1,nnode
@@ -705,11 +721,26 @@ contains
     end if
   end subroutine
 
+#ifdef STAGE202_INVERSE
+  subroutine prepare_self_routes(plan)
+    type(Transfer_Plan), intent(inout) :: plan
+    integer :: first,last
+    first=plan%sd(rank+1)+1
+    last=plan%sd(rank+1)+plan%sc(rank+1)
+    if (plan%sc(rank+1)/=plan%rc(rank+1)) call die('native self route extent')
+    plan%self_slot=plan%slot(first:last)
+    if (plan%edgewise) plan%self_slot=(plan%self_slot-1)/EDGE+1
+  end subroutine prepare_self_routes
+#endif
+
   subroutine transfer_nodes(plan,component,family,install)
     type(Transfer_Plan), intent(in) :: plan
     integer, intent(in) :: component,family
     logical, intent(in) :: install
     integer :: p,q,k,v,nv,first,n,phase
+#ifdef STAGE202_INVERSE
+    integer :: node,source_first,self_first,self_last,local_first
+#endif
     real(dp) :: started
     first=merge(1,nscalar+1,component==1)
     nv=merge(nscalar,EDGE,component==1)
@@ -718,12 +749,36 @@ contains
        nv=1
     end if
     n=nv*zlevels
+#ifdef STAGE202_INVERSE
+    self_first=plan%sd(rank+1)+1
+    self_last=plan%sd(rank+1)+plan%sc(rank+1)
+    local_first=plan%rd(rank+1)+1
+    ! Request order on the self peer pairs these workspace slots with the
+    ! corresponding block routes. Edge installs encode component in slot.
+#endif
     started=0.0_dp
     if (timing) started=MPI_Wtime()
     if (install) then
        call detail_enter(DP_INVERSE_PACK)
        do p=1,sum(plan%sc)
+#ifdef STAGE202_INVERSE
+          if (p>=self_first.and.p<=self_last) cycle
+#endif
           q=(p-1)*n
+#ifdef STAGE202_INVERSE
+          node=plan%slot(p)
+          source_first=first
+          if (plan%edgewise) then
+             source_first=nscalar+mod(node-1,EDGE)+1
+             node=(node-1)/EDGE+1
+          end if
+          do k=1,zlevels
+             do v=1,nv
+                q=q+1
+                transfer_send(q)=value(source_first+v-1,k,node,family)
+             end do
+          end do
+#else
           do k=1,zlevels
              do v=1,nv
                 q=q+1
@@ -734,23 +789,53 @@ contains
                 end if
              end do
           end do
+#endif
        end do
        call detail_leave(DP_INVERSE_PACK)
+
+#ifdef STAGE202_INVERSE
+       call exchange_values(transfer_send,plan%sc,plan%sd,transfer_recv,plan%rc,plan%rd,n,19071,.false.)
+#else
        call exchange_values(transfer_send,plan%sc,plan%sd,transfer_recv,plan%rc,plan%rd,n,19071)
+#endif
        call detail_enter(DP_INVERSE_INSTALL)
        if (plan%edgewise) then
-          call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv,plan%address(7,:))
+#ifdef STAGE202_INVERSE
+          call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv, &
+               plan%address(7,:),value(:,:,:,family),local_first,plan%self_slot)
+#else
+       call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv,plan%address(7,:))
+#endif
        else
-          call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv)
+#ifdef STAGE202_INVERSE
+          call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv, &
+               workspace=value(:,:,:,family),local_first=local_first,local_slots=plan%self_slot)
+#else
+       call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv)
+#endif
        end if
        call detail_leave(DP_INVERSE_INSTALL)
     else
        call detail_enter(DP_INVERSE_PACK)
+
+#ifdef STAGE202_INVERSE
+       call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv, &
+            workspace=value(:,:,:,family),local_first=local_first,local_slots=plan%self_slot)
+#else
        call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv)
+#endif
        call detail_leave(DP_INVERSE_PACK)
+
+#ifdef STAGE202_INVERSE
+       call exchange_values(transfer_recv,plan%rc,plan%rd,transfer_send,plan%sc,plan%sd,n,19072,.false.)
+#else
        call exchange_values(transfer_recv,plan%rc,plan%rd,transfer_send,plan%sc,plan%sd,n,19072)
+#endif
        call detail_enter(DP_INVERSE_INSTALL)
        do p=1,sum(plan%sc)
+#ifdef STAGE202_INVERSE
+          if (p>=self_first.and.p<=self_last) cycle
+#endif
           q=(p-1)*n
           do k=1,zlevels
              do v=1,nv
@@ -773,21 +858,24 @@ contains
     end if
   end subroutine
 
-  subroutine exchange_values(send,sc,sd,recv,rc,rd,n,tag)
+  subroutine exchange_values(send,sc,sd,recv,rc,rd,n,tag,copy_self)
     real(dp), intent(in), asynchronous :: send(:)
     real(dp), intent(out), asynchronous :: recv(:)
     integer, intent(in) :: sc(:),sd(:),rc(:),rd(:),n,tag
+    logical, optional, intent(in) :: copy_self
     integer :: nrequest
-    call begin_exchange_values(send,sc,sd,recv,rc,rd,n,tag,nrequest)
+    call begin_exchange_values(send,sc,sd,recv,rc,rd,n,tag,nrequest,copy_self)
     call finish_exchange_values(nrequest)
   end subroutine
 
-  subroutine begin_exchange_values(send,sc,sd,recv,rc,rd,n,tag,nrequest)
+  subroutine begin_exchange_values(send,sc,sd,recv,rc,rd,n,tag,nrequest,copy_self)
     ! Persistent sparse peer schedules, with no per-phase global collective.
     real(dp), intent(in), asynchronous :: send(:)
     real(dp), intent(out), asynchronous :: recv(:)
     integer, intent(in) :: sc(:),sd(:),rc(:),rd(:),n,tag
     integer, intent(out) :: nrequest
+    logical, optional, intent(in) :: copy_self
+    logical :: self_copy
     integer :: r,ierr
     call detail_enter(DP_INVERSE_POST)
     nrequest=0
@@ -807,7 +895,11 @@ contains
     end do
     r=rank+1
     if (sc(r)/=rc(r)) call die('native self route extent')
+    self_copy=.true.
+    if (present(copy_self)) self_copy=copy_self
+    if (self_copy) then
     recv(n*rd(r)+1:n*(rd(r)+rc(r)))=send(n*sd(r)+1:n*(sd(r)+sc(r)))
+    end if
     call detail_leave(DP_INVERSE_POST)
 
   end subroutine
@@ -989,18 +1081,32 @@ contains
     type(Alias_Plan), intent(inout) :: a
     integer, intent(in) :: component,family
     integer :: p,k,v,nv,n,q,t,nrequest
+#ifdef STAGE202_INVERSE
+    integer :: sn,dn,sf,df
+    logical :: negative
+#endif
     nv=merge(nscalar,1,component==1)
     n=nv*zlevels
     ! Remote sends are snapshots BEFORE the ordered, all-level local copies.
     call detail_enter(DP_INVERSE_PACK)
     q=0
     do p=1,size(a%source)
+#ifdef STAGE202_INVERSE
+       call alias_address(a%source(p),component,sn,sf)
+       do k=1,zlevels
+          do v=1,nv
+             q=q+1
+             alias_send(q)=value(sf+v-1,k,sn,family)
+          end do
+       end do
+#else
        do k=1,zlevels
           do v=1,nv
              q=q+1
              alias_send(q)=alias_value(a%source(p),component,v,k,family)
           end do
        end do
+#endif
     end do
     ! Sends have already snapshotted every remote source. Local copies use
     ! only value(), so communication can progress without changing ordering.
@@ -1008,12 +1114,32 @@ contains
     call begin_exchange_values(alias_send,a%sc,a%sd,alias_recv,a%rc,a%rd,n,19073,nrequest)
     call detail_enter(DP_INVERSE_LOCAL)
     do p=1,size(local_alias(component)%source)
+#ifdef STAGE202_INVERSE
+       call alias_address(local_alias(component)%source(p),component,sn,sf)
+       call alias_address(local_alias(component)%dest(p),component,dn,df)
+       negative=component==2.and.local_alias(component)%dest(p)<0
+       ! Keep p,k,v ordering: local alias chains can consume earlier writes.
+       if (negative) then
+          do k=1,zlevels
+             do v=1,nv
+                value(df+v-1,k,dn,family)=-value(sf+v-1,k,sn,family)
+             end do
+          end do
+       else
+          do k=1,zlevels
+             do v=1,nv
+                value(df+v-1,k,dn,family)=value(sf+v-1,k,sn,family)
+             end do
+          end do
+       end if
+#else
        do k=1,zlevels
           do v=1,nv
              call set_alias(local_alias(component)%dest(p),component,v,k,family, &
                   alias_value(local_alias(component)%source(p),component,v,k,family))
           end do
        end do
+#endif
     end do
     call detail_leave(DP_INVERSE_LOCAL)
     call finish_exchange_values(nrequest)
@@ -1023,15 +1149,47 @@ contains
        t=p
        if (allocated(a%install_order)) t=a%install_order(p)
        q=(t-1)*n
+#ifdef STAGE202_INVERSE
+       call alias_address(a%dest(t),component,dn,df)
+       if (component==2.and.a%dest(t)<0) then
+          do k=1,zlevels
+             do v=1,nv
+                q=q+1
+                value(df+v-1,k,dn,family)=-alias_recv(q)
+             end do
+          end do
+       else
+          do k=1,zlevels
+             do v=1,nv
+                q=q+1
+                value(df+v-1,k,dn,family)=alias_recv(q)
+             end do
+          end do
+       end if
+#else
        do k=1,zlevels
           do v=1,nv
              q=q+1
              call set_alias(a%dest(t),component,v,k,family,alias_recv(q))
           end do
        end do
+#endif
     end do
     call detail_leave(DP_INVERSE_INSTALL)
   end subroutine
+
+#ifdef STAGE202_INVERSE
+  subroutine alias_address(code,component,node,first)
+    integer, intent(in) :: code,component
+    integer, intent(out) :: node,first
+    node=code
+    first=1
+    if (component==2) then
+       node=(abs(code)-1)/EDGE+1
+       first=nscalar+mod(abs(code)-1,EDGE)+1
+    end if
+  end subroutine alias_address
+#endif
 
   real(dp) function alias_value(code,component,v,k,family) result(x)
     integer, intent(in) :: code,component,v,k,family

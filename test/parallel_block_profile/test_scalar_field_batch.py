@@ -68,7 +68,7 @@ class ScalarFieldBatch(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out=Path(tmp);(out/'test.f90').write_text(DRIVER)
             for opt in ('-O0','-O2'):
-                build=subprocess.run(['gfortran',opt,'-fcheck=all','-ffpe-trap=invalid,zero,overflow','-Werror=line-truncation',str(ROOT/'src/kind.f90'),str(ROOT/'src/parallel_block_scalar_storage.f90'),'test.f90','-o','test'],cwd=out,capture_output=True,text=True)
+                build=subprocess.run(['gfortran','-cpp',opt,'-fcheck=all','-ffpe-trap=invalid,zero,overflow','-Werror=line-truncation',str(ROOT/'src/kind.f90'),str(ROOT/'src/parallel_block_scalar_storage.f90'),'test.f90','-o','test'],cwd=out,capture_output=True,text=True)
                 self.assertEqual(build.returncode,0,build.stdout+build.stderr)
                 run=subprocess.run(['./test'],cwd=out,capture_output=True,text=True)
                 self.assertEqual(run.returncode,0,run.stdout+run.stderr)

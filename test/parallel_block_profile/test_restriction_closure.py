@@ -70,7 +70,7 @@ class RestrictionClosure(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out=Path(tmp); prepare(out)
             for opt in ('-O0','-O2'):
-                cmd=['gfortran',opt,'-ffp-contract=off','-fcheck=all','-ffpe-trap=invalid,zero,overflow',
+                cmd=['gfortran','-cpp',opt,'-ffp-contract=off','-fcheck=all','-ffpe-trap=invalid,zero,overflow',
                      '-Werror=line-truncation','-I'+tmp,str(ROOT/'src/kind.f90'),
                      str(ROOT/'src/parallel_block_scalar_storage.f90'),'closure.f90','-o','check']
                 r=subprocess.run(cmd,cwd=out,text=True,capture_output=True)

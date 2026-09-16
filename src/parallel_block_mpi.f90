@@ -1693,6 +1693,16 @@ contains
     if (low/=high) call fail("inconsistent Stage 197 options across ranks")
     stage197_ready=.true.
     if(rank==0) write(6,'(a,i0)') 'Stage 197 requested resident wavelets = ',selected
+#ifdef STAGE202_RECORDS
+    if(rank==0) write(6,'(a)') 'Stage 202 record batching = on'
+#else
+    if(rank==0) write(6,'(a)') 'Stage 202 record batching = off'
+#endif
+#ifdef STAGE202_INVERSE
+    if(rank==0) write(6,'(a)') 'Stage 202 inverse batching = on'
+#else
+    if(rank==0) write(6,'(a)') 'Stage 202 inverse batching = off'
+#endif
   end subroutine configure_stage197
 
 
@@ -24095,6 +24105,29 @@ end subroutine build_parallel_block_catalog
                    end if
                    remainder_index = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                         (scalar_storage_index-1)+1
+#ifdef STAGE202_RECORDS
+                   ! Production needs one mass slot or two edge triplets, not a
+                   ! reconstructed 50-slot record. The oracle retains the full read.
+                   if (block%scalar_variable+scalar_slot==S_MASS.and..not.statistics%validate_oracle) then
+                      call scalar_write(block_scalar_tendency(local_index)%patch, &
+                           remainder_index+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1, &
+                           scalar_read(block_scalar_tendency(local_index)%patch, &
+                           remainder_index+BLOCK_SCALAR_PHYSICS_START-1))
+                      cycle
+                   end if
+                   if (field_level<1.or.field_level>zlevels) cycle
+                   if (statistics%validate_oracle) then
+                      scalar_input=scalar_read_range(block_scalar_tendency(local_index)%patch,remainder_index, &
+                           remainder_index+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                   else
+                      scalar_input(BLOCK_SCALAR_PEDLEN_START:BLOCK_SCALAR_PEDLEN_START+EDGE-1)= &
+                           scalar_read_range(block_scalar_tendency(local_index)%patch, &
+                           remainder_index+BLOCK_SCALAR_PEDLEN_START-1,remainder_index+BLOCK_SCALAR_PEDLEN_START+EDGE-2)
+                      scalar_input(BLOCK_SCALAR_PHYSICS_START:BLOCK_SCALAR_PHYSICS_START+EDGE-1)= &
+                           scalar_read_range(block_scalar_tendency(local_index)%patch, &
+                           remainder_index+BLOCK_SCALAR_PHYSICS_START-1,remainder_index+BLOCK_SCALAR_PHYSICS_START+EDGE-2)
+                   end if
+#else
                    scalar_input = scalar_read_range(block_scalar_tendency(local_index)%patch,remainder_index, &
                         remainder_index+ BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
                    if (block%scalar_variable+scalar_slot==S_MASS.and..not.statistics%validate_oracle) then
@@ -24104,6 +24137,7 @@ end subroutine build_parallel_block_catalog
                    end if
                    if (field_level < 1 .or. &
                         field_level > zlevels) cycle
+#endif
                    i = mod(q,PATCH_SIZE)
                    j = q/PATCH_SIZE
                    scalar_center = block_scalar_total( &

@@ -181,6 +181,9 @@ contains
     integer, intent(in) :: first,last
     real(dp) :: value(max(0,last-first+1))
     integer :: i,sample,a,b
+#ifdef STAGE202_RECORDS
+    integer :: address,slot,last_slot,node,zone,field,mapped
+#endif
     if (first<1.or.last>SCALAR_RECORD_WIDTH*store%samples) error stop 'scalar storage read range invalid'
     if (.not.store%compact) then
        value=store%full(first:last)
@@ -194,9 +197,28 @@ contains
              return
           end if
        end if
+#ifdef STAGE202_RECORDS
+       address=first
+       do while (address<=last)
+          sample=(address-1)/SCALAR_RECORD_WIDTH
+          slot=mod(address-1,SCALAR_RECORD_WIDTH)+1
+          last_slot=min(SCALAR_RECORD_WIDTH,last-sample*SCALAR_RECORD_WIDTH)
+          call shared_address(store,sample,node,zone,field)
+          do i=slot,last_slot
+             mapped=slot_map(i)
+             if (mapped>0) then
+                value(address-first+i-slot+1)=store%field(mapped,sample+1)
+             else
+                value(address-first+i-slot+1)=store%geometry(-mapped,zone,node)
+             end if
+          end do
+          address=address+last_slot-slot+1
+       end do
+#else
        do i=1,size(value)
           value(i)=read_value(store,first+i-1)
        end do
+#endif
     end if
   end function scalar_read_range
 
@@ -336,6 +358,9 @@ contains
     integer, intent(in) :: first,last
     real(dp), intent(in) :: value(:)
     integer :: i,sample,a,b
+#ifdef STAGE202_RECORDS
+    integer :: address,slot,last_slot,node,zone,field,mapped
+#endif
     if (first<1.or.last>SCALAR_RECORD_WIDTH*store%samples.or.size(value)/=last-first+1) &
          error stop 'scalar storage write range invalid'
     if (.not.store%compact) then
@@ -350,9 +375,29 @@ contains
              return
           end if
        end if
+#ifdef STAGE202_RECORDS
+       address=first
+       do while (address<=last)
+          sample=(address-1)/SCALAR_RECORD_WIDTH
+          slot=mod(address-1,SCALAR_RECORD_WIDTH)+1
+          last_slot=min(SCALAR_RECORD_WIDTH,last-sample*SCALAR_RECORD_WIDTH)
+          call shared_address(store,sample,node,zone,field)
+          do i=slot,last_slot
+             mapped=slot_map(i)
+             if (mapped>0) then
+                store%field(mapped,sample+1)=value(address-first+i-slot+1)
+             else if ((zone==1.and.field==store%physical_field).or. &
+                  (zone==2.and.field==store%inactive_field)) then
+                store%geometry(-mapped,zone,node)=value(address-first+i-slot+1)
+             end if
+          end do
+          address=address+last_slot-slot+1
+       end do
+#else
        do i=1,size(value)
           call write_value(store,first+i-1,value(i))
        end do
+#endif
     end if
   end subroutine write_range_values
 
@@ -361,13 +406,36 @@ contains
     integer, intent(in) :: first,last
     real(dp), intent(in) :: value
     integer :: i
+#ifdef STAGE202_RECORDS
+    integer :: address,slot,last_slot,node,zone,field,mapped,sample
+#endif
     if (first<1.or.last>SCALAR_RECORD_WIDTH*store%samples) error stop 'scalar storage fill range invalid'
     if (.not.store%compact) then
        store%full(first:last)=value
     else
+#ifdef STAGE202_RECORDS
+       address=first
+       do while (address<=last)
+          sample=(address-1)/SCALAR_RECORD_WIDTH
+          slot=mod(address-1,SCALAR_RECORD_WIDTH)+1
+          last_slot=min(SCALAR_RECORD_WIDTH,last-sample*SCALAR_RECORD_WIDTH)
+          call shared_address(store,sample,node,zone,field)
+          do i=slot,last_slot
+             mapped=slot_map(i)
+             if (mapped>0) then
+                store%field(mapped,sample+1)=value
+             else if ((zone==1.and.field==store%physical_field).or. &
+                  (zone==2.and.field==store%inactive_field)) then
+                store%geometry(-mapped,zone,node)=value
+             end if
+          end do
+          address=address+last_slot-slot+1
+       end do
+#else
        do i=first,last
           call write_value(store,i,value)
        end do
+#endif
     end if
   end subroutine fill_range
 

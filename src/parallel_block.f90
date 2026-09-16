@@ -955,19 +955,31 @@ subroutine compile_local_block_inverse_routes(key,address)
   end do
 end subroutine compile_local_block_inverse_routes
 
-subroutine transfer_local_block_inverse_routes(address,family,component,install,buffer,selected_edge)
+subroutine transfer_local_block_inverse_routes(address,family,component,install,buffer,selected_edge, &
+     workspace,local_first,local_slots)
   ! Pack directly into the wire buffer. Family/storage dispatch is per node,
   ! not per scalar/layer; no per-node automatic sample or RESHAPE temporary.
   integer, intent(in) :: address(:,:),family,component
   integer, optional, intent(in) :: selected_edge(:)
   logical, intent(in) :: install
   real(dp), intent(inout) :: buffer(:)
-  integer :: p,b,nv,base,step,scalar_step,offset
+  ! Optional self-owner routes bypass both wire staging arrays. This storage
+  ! is independent of block fields; callers preserve remote snapshot ordering.
+  real(dp), optional, intent(inout) :: workspace(:,:,:)
+  integer, optional, intent(in) :: local_first,local_slots(:)
+  integer :: p,b,nv,base,step,scalar_step,offset,ws_first,ws_node
+  logical :: direct
   if (component/=1 .and. component/=2) error stop "inverse routes: component"
   if (family/=BLOCK_PAYLOAD_SOL .and. family/=BLOCK_PAYLOAD_WAV_COEFF) error stop "inverse routes: family"
   if (present(selected_edge)) then
      if (component/=2 .or. size(selected_edge)/=size(address,2)) error stop "inverse routes: selected_edge extent"
      if (any(selected_edge<1) .or. any(selected_edge>EDGE)) error stop "inverse routes: selected_edge index"
+  end if
+  if (present(workspace)) then
+     if (.not.present(local_first).or..not.present(local_slots)) error stop "inverse routes: local arguments"
+     if (local_first<1.or.local_first+size(local_slots)-1>size(address,2)) error stop "inverse routes: local range"
+     if (size(workspace,2)/=zlevels) error stop "inverse routes: workspace levels"
+     if (any(local_slots<1).or.any(local_slots>size(workspace,3))) error stop "inverse routes: local slots"
   end if
   do p=1,size(address,2)
      b=address(1,p)
@@ -975,6 +987,15 @@ subroutine transfer_local_block_inverse_routes(address,family,component,install,
        nv=merge(block%n_scalar_variable,EDGE,component==1)
        if (present(selected_edge)) nv=1
        offset=(p-1)*nv*zlevels
+       direct=.false.
+       if (present(workspace)) then
+          direct=p>=local_first.and.p<local_first+size(local_slots)
+          if (direct) then
+             ws_node=local_slots(p-local_first+1)
+             ws_first=merge(1,size(workspace,1)-EDGE+1,component==1)
+             if (present(selected_edge)) ws_first=ws_first+selected_edge(p)-1
+          end if
+       end if
        if (component==1) then
           base=address(5,p)*address(4,p)+address(3,p)+1
           step=address(4,p)
@@ -1020,6 +1041,22 @@ contains
   subroutine copy_values(field)
     real(dp), intent(inout) :: field(:)
     integer :: k,v,q
+    if (direct) then
+       if (install) then
+          do k=0,zlevels-1
+             do v=0,nv-1
+                field(base+k*step+v*scalar_step)=workspace(ws_first+v,k+1,ws_node)
+             end do
+          end do
+       else
+          do k=0,zlevels-1
+             do v=0,nv-1
+                workspace(ws_first+v,k+1,ws_node)=field(base+k*step+v*scalar_step)
+             end do
+          end do
+       end if
+       return
+    end if
     q=offset
     if (install) then
        do k=0,zlevels-1

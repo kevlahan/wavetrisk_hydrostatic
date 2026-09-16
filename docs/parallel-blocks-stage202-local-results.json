@@ -1,0 +1,131 @@
+{
+  "stage": 202,
+  "status": "passed",
+  "scope": "J4/J6, four ranks. Local correctness only; tests ran under variable/concurrent load. No timing claim. Combined checked-plus-oracle acceptance is deferred to the 83-rank cluster run.",
+  "runs": {
+    "candidate": {
+      "path": "/private/tmp/stage202-local-direct",
+      "status": "passed",
+      "binary_sha256": "6ff40b1ac2f7c057426dab1f18838985902e47e528680ba700706c19bea9e2ce",
+      "exact_to_stage201": true,
+      "reloads": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "steps": 12
+    },
+    "runtime": {
+      "path": "/private/tmp/stage202-local-runtime",
+      "status": "passed",
+      "binary_sha256": "fcc697b5172858c2e473db7d0ea51afae26ff9a3a4c877c1765a5a5e35415f9e",
+      "exact_to_stage201": true,
+      "reloads": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "steps": 12
+    },
+    "oracle": {
+      "path": "/private/tmp/stage202-local-oracle",
+      "status": "passed",
+      "binary_sha256": "6ff40b1ac2f7c057426dab1f18838985902e47e528680ba700706c19bea9e2ce",
+      "exact_to_stage201": true,
+      "reloads": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "steps": 12
+    },
+    "observer": {
+      "path": "/private/tmp/stage202-local-observer-isolated",
+      "status": "passed",
+      "binary_sha256": "2d6b8fb8ede4b7d30fd6ad84c1f50120c74c827eb88a4683f995435a5899728f",
+      "exact_to_stage201": true,
+      "reloads": [
+        2,
+        3
+      ],
+      "post_restart_remap": true,
+      "steps": 12,
+      "hardware_rank_coverage": 4,
+      "coarse_clock_consistency": "passed"
+    }
+  },
+  "legacy_screen": {
+    "passed": true,
+    "reference": "/private/tmp/stage201-local-legacy-control-packaged",
+    "scope": "Existing fixed numerical screen; not bitwise equivalence."
+  },
+  "prototype_sources": {
+    "Makefile": "941f4dc0b80b9dd0151fc4bb34238aef2607296f2070da21c0e5029c3bcc1fe4",
+    "src/parallel_block.f90": "8c0604de952cd44c2283cd31aeb795cad2873b3bb79020e55b0177cf50c7ead3",
+    "src/parallel_block_inverse.f90": "44a4dad66efb0ee6396ef41ac60299f5c7c3b2945b3f843410b5d753141de73c",
+    "src/parallel_block_mpi.f90": "454d72caea1878fb0109e660a905177795fe7557881ead2a072c8c29df4cdca9",
+    "src/parallel_block_scalar_storage.f90": "ff1c3b4262828f16a13133921876e3c95f11a7527bbc23d46043d1caa60e78d5"
+  },
+  "tests": {
+    "focused_kernel_and_campaign_tests": {
+      "passed": 8
+    },
+    "related_scalar_and_restriction_tests": {
+      "passed": 8,
+      "skipped": 1,
+      "skip_reason": "Old Stage193 MPI selector test is opt-in; new prototype exercised in four-rank integration runs."
+    },
+    "actual_inverse_routes": {
+      "passed_optimization_levels": [
+        "O0",
+        "O2"
+      ],
+      "coverage": [
+        "both families/components",
+        "self-copy bypass",
+        "ordered routes",
+        "selected edges",
+        "empty plans"
+      ]
+    },
+    "kit_patch_sequence": "Frozen Stage201, observer apply/reverse, prototype, prototype observer reconstructed and hashed successfully",
+    "batch_script_syntax": "passed",
+    "standalone_kit_import": "passed"
+  },
+  "builds": {
+    "optimized": {
+      "log": "/private/tmp/stage202-build-direct.log",
+      "sha256": "15617244a9aacd15c635294b0235109b1957926ffbd4ac9ced531841aa04fb37",
+      "param": "param_J4",
+      "fp_contract": "off",
+      "stage202": "on"
+    },
+    "checked": {
+      "log": "/private/tmp/stage202-build-direct-checked.log",
+      "sha256": "830b62b0cf1b70f96b41751a5987d23c6c0aa18b5774b376d0f5c403ed4bd657",
+      "param": "param_J4",
+      "fp_contract": "off",
+      "stage202": "on"
+    },
+    "observer": {
+      "log": "/private/tmp/stage202-build-observer.log",
+      "sha256": "72aad52d7870bb47fdb3a7fa3d4cb24f058e53cf52b581908b14a85338698d7d",
+      "param": "param_J4",
+      "fp_contract": "off",
+      "stage202": "on"
+    }
+  },
+  "excluded_diagnostic_runs": [
+    {
+      "path": "/private/tmp/stage202-local-direct-checked",
+      "status": "intentionally_interrupted",
+      "completed_steps": 1,
+      "reason": "Combined checked plus full oracle cost about 176 s/step; stopped by SIGTERM, not counted as a passing restart. Separate complete checked and optimized-oracle runs pass; combined acceptance remains in cluster protocol."
+    },
+    {
+      "path": "/private/tmp/stage202-local-observer-run",
+      "status": "clock_consistency_rejected",
+      "reason": "Concurrent local tests caused a 2.316 ms discrepancy in rank0/step1 remap clock boundaries. Exact checkpoint passed; timing ledger was rejected. Isolated repeat passes the unchanged strict threshold."
+    }
+  ]
+}

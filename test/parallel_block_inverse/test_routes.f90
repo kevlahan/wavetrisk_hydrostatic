@@ -5,11 +5,13 @@ program test_inverse_routes
   use patch_mod, only : PATCH_SIZE
   use parallel_block_mod
   implicit none
-  integer :: b,p,c,f,n,nv
+  integer :: b,p,c,f,n,nv,first,e
   integer, allocatable :: seen(:),address(:,:),empty(:,:)
   integer :: keys(4,6)
   real(dp), allocatable :: wire(:),reference(:,:),roundtrip(:)
 
+  real(dp) :: workspace(5,3,6)
+  integer :: self_slots(2)=[5,2],selected(6)=[1,2,3,1,3,2]
   zlevels=3
   allocate(block_source(2),block_received(0),block_received_catalog_index(0))
   block_source_catalog_index=[2,1]
@@ -47,13 +49,61 @@ program test_inverse_routes
         end do
         call transfer_local_block_inverse_routes(address,f,c,.false.,roundtrip)
         call assert_equal(roundtrip,wire+13.0_dp)
+        ! Treat the middle two routes as locally owned. Their wire slots must
+        ! stay untouched; data travels straight between workspace and fields.
+        first=merge(1,3,c==1)
+        workspace=-999.0_dp
+        wire=-777.0_dp
+        call transfer_local_block_inverse_routes(address,f,c,.false.,wire, &
+             workspace=workspace,local_first=3,local_slots=self_slots)
+        call assert_equal(wire(1:2*n),roundtrip(1:2*n))
+        call assert_equal(wire(4*n+1:),roundtrip(4*n+1:))
+        if(any(wire(2*n+1:4*n)/=-777.0_dp))error stop 'local gather staged on wire'
+        do p=1,2
+           call assert_equal(reshape(workspace(first:first+nv-1,:,self_slots(p)),[n]),roundtrip((p+1)*n+1:(p+2)*n))
+        end do
+        workspace=workspace+7.0_dp
+        wire=wire+7.0_dp
+        call transfer_local_block_inverse_routes(address,f,c,.true.,wire, &
+             workspace=workspace,local_first=3,local_slots=self_slots)
+        call transfer_local_block_inverse_routes(address,f,c,.false.,wire)
+        call assert_equal(wire,roundtrip+7.0_dp)
         deallocate(wire,reference,roundtrip)
      end do
   end do
+  ! Selected-edge self installs preserve untouched vector components.
+  do f=BLOCK_PAYLOAD_SOL,BLOCK_PAYLOAD_WAV_COEFF
+     allocate(wire(6*zlevels),roundtrip(6*EDGE*zlevels),reference(EDGE,zlevels))
+     call transfer_local_block_inverse_routes(address,f,2,.false.,roundtrip)
+     workspace=-0.0_dp
+     do p=1,6
+        wire((p-1)*zlevels+1:p*zlevels)=real(-100-p,dp)
+     end do
+     workspace(5,:,5)=-303.0_dp
+     workspace(3,:,2)=-404.0_dp
+     call transfer_local_block_inverse_routes(address,f,2,.true.,wire,selected,workspace,3,self_slots)
+     do p=1,6
+        call transfer_local_block_inverse_node(keys(:,p),f,2,.false.,reference)
+        do e=1,EDGE
+           if(e==selected(p))then
+              if(p==3.or.p==4)then
+                 call assert_equal(reference(e,:),workspace(2+e,:,self_slots(p-2)))
+              else
+                 call assert_equal(reference(e,:),wire((p-1)*zlevels+1:p*zlevels))
+              endif
+           else
+              call assert_equal(reference(e,:),roundtrip((p-1)*EDGE*zlevels+e:p*EDGE*zlevels:EDGE))
+           endif
+        enddo
+     enddo
+     deallocate(wire,roundtrip,reference)
+  enddo
   allocate(empty(4,0),wire(0))
   call compile_local_block_inverse_routes(empty,address)
   call transfer_local_block_inverse_routes(address,BLOCK_PAYLOAD_SOL,1,.false.,wire)
   call transfer_local_block_inverse_routes(address,BLOCK_PAYLOAD_SOL,2,.true.,wire)
+  call transfer_local_block_inverse_routes(address,BLOCK_PAYLOAD_SOL,1,.false.,wire, &
+       workspace=workspace,local_first=1,local_slots=self_slots(:0))
   print *, 'PASS: inverse route pack/install, both families/components, field offsets and empty plans'
 contains
   subroutine assert_equal(a,b)

@@ -22,7 +22,7 @@ from benchmark_restriction_columns import ComponentMonitor
 def run(out):
     out.mkdir(parents=True, exist_ok=False)
     prepare(out)
-    command = ['gfortran', '-O2', '-march=native', '-ffp-contract=off', '-I' + str(out),
+    command = ['gfortran','-cpp', '-O2', '-march=native', '-ffp-contract=off', '-I' + str(out),
                str(ROOT / 'src/kind.f90'), str(ROOT / 'src/parallel_block_scalar_storage.f90'),
                'closure.f90', '-o', 'benchmark']
     built = subprocess.run(command, cwd=out, capture_output=True, text=True)
