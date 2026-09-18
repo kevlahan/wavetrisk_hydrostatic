@@ -1,0 +1,89 @@
+{
+  "stage": 215,
+  "status": "passed",
+  "checks": {
+    "helper_tests": 20,
+    "python_compile": "passed",
+    "shell_syntax": "passed",
+    "candidate_generator_reproduces_compiled_source": "passed",
+    "candidate_patch_reverse_and_reapply": "passed",
+    "parent_helpers_verified": "passed",
+    "protocol_tests": 11,
+    "bootstrap_tests": 2,
+    "collector_tests": 4,
+    "retrieval_tests": 3
+  },
+  "branch": "codex/performance-investigation",
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "source_patch_sha256": "81fca102e24f70a5d9bf655a4039cde1b3e8a50da9c5333d4350860c3da4f171",
+  "halo_contract": {
+    "stage": 215,
+    "status": "passed",
+    "source_sha256": "bd80c8fc5a6a391d63252cf4618502b4b438e9687c865e61da3f1d07b083484a",
+    "runs": {
+      "baseline": {
+        "hashes": {
+          "boundary-2.txt": "cf0791747118094aee331c1ea357b1b495a68bae0f139ed7ae6a43c15c9c0dc5",
+          "boundary-3.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "boundary-1.txt": "c509fcf0d6bbc52ff0d3b5cbbd046dd5e263f7cac1a7181a206881edb763f636",
+          "boundary-0.txt": "1f5e625d89b1e9f4c642bdcf19d10bc4997eaca489648c0d57814cd7fb92a314"
+        },
+        "binary_sha256": "07e0f9ded0ba8d96905234aeb3e7865fa2cafbbe89b700c05b27519a7c78878f"
+      },
+      "candidate": {
+        "hashes": {
+          "boundary-2.txt": "cf0791747118094aee331c1ea357b1b495a68bae0f139ed7ae6a43c15c9c0dc5",
+          "boundary-3.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "boundary-1.txt": "c509fcf0d6bbc52ff0d3b5cbbd046dd5e263f7cac1a7181a206881edb763f636",
+          "boundary-0.txt": "1f5e625d89b1e9f4c642bdcf19d10bc4997eaca489648c0d57814cd7fb92a314"
+        },
+        "binary_sha256": "2a894e44be7e7e08a8c7b87e778f0833bacd98129e585038a78b6986e67ae42f"
+      },
+      "checked": {
+        "hashes": {
+          "boundary-2.txt": "cf0791747118094aee331c1ea357b1b495a68bae0f139ed7ae6a43c15c9c0dc5",
+          "boundary-3.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "boundary-1.txt": "c509fcf0d6bbc52ff0d3b5cbbd046dd5e263f7cac1a7181a206881edb763f636",
+          "boundary-0.txt": "1f5e625d89b1e9f4c642bdcf19d10bc4997eaca489648c0d57814cd7fb92a314"
+        },
+        "binary_sha256": "67c9d66e575fd01832247ed29bd644ae92c2fa7521f7231d8990e7f5ff8924c9"
+      }
+    },
+    "stale_cache_rejected": true,
+    "scope": "All overloads, mixed fields, range/single/empty levels, reuse, signed zero/edges, ordered local aliases, three active ranks and one idle; exact baseline bits."
+  },
+  "scope": "Preparation and real MPI boundary contract tests. Full solver gates separately required. No performance claim.",
+  "helper_test_log_sha256": "206097bc2e7ddef4cc5201ff455ded0e195797754aedff8cd5fd4743c0990d9c",
+  "local_timing_scope": "Not usable: validation modes and system memory pressure; no local speedup claim.",
+  "development_build_note": "Retained local build logs include earlier declaration/unused-variable compiler failures. These were corrected before the final optimized/checked binaries and final numerical runs. Final candidate generation and compiled source hashes match.",
+  "source_alias_restoration": {
+    "paths": [
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/accelerator.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/dynamico_phyparam.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/error_mod.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/icosa_phyparam_mod.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/iniphyparam_mod.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/logging.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/phyparam_mod.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/profiling.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/read_param_mod.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/restart.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/use_logging.h",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/writefield_mod.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/astronomy.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/callkeys.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/comgeomfi.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/convection.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/mellor_yamada.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/phys_const.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/planet.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_lw.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_mod.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_sw.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/soil_mod.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/solar.F90",
+      "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/turbulence.F90"
+    ],
+    "scope": "Initial local copy dereferenced these symlinks. Restored original link targets after proving identical resolved bytes before/after. No compiled source contents or executable changed; final archive uses original links."
+  }
+}

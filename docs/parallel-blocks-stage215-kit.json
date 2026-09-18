@@ -1,0 +1,10 @@
+{
+  "stage": 215,
+  "kit": "/private/tmp/wavetrisk-stage215-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage215-cluster-kit.tar.gz",
+  "sha256": "7b5890fe0aa2f68dc6eaa92d7ec9604234748a199d694ea54669054b455da4b8",
+  "scope": "Three builds; adaptive correctness/16 AB/83 AB/83 ABBA funnel. No automatic promotion.",
+  "desktop_archive": "/Users/kevlahan/Desktop/wavetrisk-stage215-cluster-kit.tar.gz",
+  "archive_reextracted_helpers_verified": true,
+  "local_validation": "passed"
+}

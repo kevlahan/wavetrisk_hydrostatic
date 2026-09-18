@@ -1,0 +1,33 @@
+{
+  "stage": 215,
+  "baseline": "Stage202 on, Stage203 off, FP contraction off",
+  "historical_seconds": {
+    "WT": {
+      "Domain boundary CPU preparation/copies": 0.008217395036637732,
+      "Domain boundary MPI posting/wait": 0.007609452155047049
+    },
+    "outside_WT": {
+      "Domain boundary CPU preparation/copies": 0.06700869937807402,
+      "Domain boundary MPI posting/wait": 0.12464063020098164
+    }
+  },
+  "qualification": "Historical rank means with older ordinary-step selection, not current critical-path or removable-time bounds. MPI waiting is not independent savings.",
+  "hashes": {
+    "docs/parallel-blocks-stage214-history.md": "b9b29f1bbee9c68bf2506ab3a9a6730515b9f9041c6a818d4a5f027b8991f241",
+    "docs/parallel-blocks-cluster-196-54659-analysis.json": "416cf9fece277303aa2ea82dcfd5c6608fece0f2df0c404f65ea89d73381cba7",
+    "docs/parallel-blocks-evidence-reconciliation-210.md": "72378b9fcabfa00d402edfd4fd5b2d34ab7ea3410dbc03600202a96a6e179940",
+    "test/parallel_block_profile/candidate_boundary_215.py": "bd525a58e4fa0512e6ee68fe682f1a1d02c06519ecada875390ed0cfe1f59ca4"
+  },
+  "mutation_scope": [
+    "comm_mpi_mod integer route preparation, packing, receive counting/installation and buffer zeroing"
+  ],
+  "retained": [
+    "all MPI messages/payloads",
+    "all Domain local copies",
+    "field arithmetic",
+    "block/Domain ownership",
+    "current native inverse plans",
+    "consumer publications"
+  ],
+  "stop_after_failed_screen": true
+}

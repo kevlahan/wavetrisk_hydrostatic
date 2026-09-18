@@ -1,0 +1,1175 @@
+{
+  "stage": 215,
+  "job": 54714,
+  "archive": "/Users/kevlahan/Desktop/stage215-review-54714.tar.gz",
+  "archive_sha256": "4ce8982cac81835a980bc766c0cdb5adcf68e04575f32a20607ae07f6574367e",
+  "inventoried_files_verified": 1236,
+  "runs": {
+    "n16-s1-validation-validate-A": {
+      "kind": "baseline",
+      "phase": "validation",
+      "ranks": 16,
+      "archived_median": 2.8449999999999998,
+      "corrected_ordinary": {
+        "median": 2.86,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 2.82
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 2.86
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 2.83
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 2.92
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 2.9
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 3.06
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 2.45
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 2.53
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 3.0
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 2.98,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 8.82,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 2.27,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 1017928,
+      "sum_rank_peak_rss_kib": 13550028,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n16-s1-validation-validate-B-audit": {
+      "kind": "checked",
+      "phase": "validation",
+      "ranks": 16,
+      "archived_median": 11.9,
+      "corrected_ordinary": {
+        "median": 11.9,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 11.8
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 11.9
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 11.9
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 12.2
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 12.1
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 12.6
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 11.0
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 11.0
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 12.2
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 12.0,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 20.7,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 9.14,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 1063520,
+      "sum_rank_peak_rss_kib": 13931244,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n16-s1-validation-validate-B-oracles": {
+      "kind": "candidate",
+      "phase": "validation",
+      "ranks": 16,
+      "archived_median": 10.55,
+      "corrected_ordinary": {
+        "median": 10.6,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 10.5
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 10.5
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 10.6
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 10.7
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 10.8
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 11.4
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 8.76
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 8.83
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 10.9
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 10.7,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 17.3,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 7.9,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 2036280,
+      "sum_rank_peak_rss_kib": 25404672,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n16-s1-validation-validate-B": {
+      "kind": "candidate",
+      "phase": "validation",
+      "ranks": 16,
+      "archived_median": 2.565,
+      "corrected_ordinary": {
+        "median": 2.57,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 2.53
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 2.56
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 2.57
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 2.63
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 2.65
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 2.82
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 2.19
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 2.23
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 2.69
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 2.7,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 8.48,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 2.06,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 1021556,
+      "sum_rank_peak_rss_kib": 13589076,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n16-s1-screen-A": {
+      "kind": "baseline",
+      "phase": "screen",
+      "ranks": 16,
+      "archived_median": 2.8499999999999996,
+      "corrected_ordinary": {
+        "median": 2.86,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 2.83
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 2.86
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 2.84
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 2.92
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 2.9
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 3.09
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 2.49
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 2.5
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 2.95
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 2.98,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 8.83,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 2.28,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 1016672,
+      "sum_rank_peak_rss_kib": 13554800,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n16-s1-screen-B": {
+      "kind": "candidate",
+      "phase": "screen",
+      "ranks": 16,
+      "archived_median": 2.565,
+      "corrected_ordinary": {
+        "median": 2.57,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 2.56
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 2.57
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 2.55
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 2.62
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 2.63
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 2.79
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 2.22
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 2.26
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 2.67
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 2.71,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 8.51,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 2.08,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 1020348,
+      "sum_rank_peak_rss_kib": 13577368,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n83-s2-transfer-A": {
+      "kind": "baseline",
+      "phase": "transfer",
+      "ranks": 83,
+      "archived_median": 0.9255,
+      "corrected_ordinary": {
+        "median": 0.93,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 0.921
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 0.919
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 0.93
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 0.951
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 0.948
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 1.03
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 0.758
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 0.809
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 0.964
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 0.945,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 6.41,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 0.677,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 390156,
+      "sum_rank_peak_rss_kib": 22834144,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n83-s2-transfer-B": {
+      "kind": "candidate",
+      "phase": "transfer",
+      "ranks": 83,
+      "archived_median": 0.813,
+      "corrected_ordinary": {
+        "median": 0.814,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 0.814
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 0.805
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 0.812
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 0.83
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 0.833
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 0.919
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 0.643
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 0.704
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 0.855
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 0.837,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 6.25,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 0.609,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 391040,
+      "sum_rank_peak_rss_kib": 22797140,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n83-s2-confirm-1-1": {
+      "kind": "baseline",
+      "phase": "confirm",
+      "ranks": 83,
+      "archived_median": 0.9265000000000001,
+      "corrected_ordinary": {
+        "median": 0.932,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 0.919
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 0.921
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 0.932
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 0.95
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 0.946
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 1.03
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 0.753
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 0.823
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 0.975
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 0.946,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 6.41,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 0.681,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 389164,
+      "sum_rank_peak_rss_kib": 22811728,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n83-s2-confirm-1-2": {
+      "kind": "candidate",
+      "phase": "confirm",
+      "ranks": 83,
+      "archived_median": 0.813,
+      "corrected_ordinary": {
+        "median": 0.816,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 0.81
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 0.807
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 0.816
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 0.83
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 0.825
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 0.914
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 0.64
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 0.703
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 0.86
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 0.835,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 6.27,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 0.596,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 390120,
+      "sum_rank_peak_rss_kib": 22813868,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n83-s2-confirm-1-3": {
+      "kind": "candidate",
+      "phase": "confirm",
+      "ranks": 83,
+      "archived_median": 0.81,
+      "corrected_ordinary": {
+        "median": 0.812,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 0.812
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 0.804
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 0.808
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 0.829
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 0.83
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 0.918
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 0.639
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 0.694
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 0.86
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 0.843,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 6.23,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 0.599,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 389936,
+      "sum_rank_peak_rss_kib": 22780668,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    },
+    "n83-s2-confirm-1-4": {
+      "kind": "baseline",
+      "phase": "confirm",
+      "ranks": 83,
+      "archived_median": 0.928,
+      "corrected_ordinary": {
+        "median": 0.93,
+        "included": [
+          {
+            "index": 1,
+            "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+            "seconds": 0.93
+          },
+          {
+            "index": 2,
+            "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+            "seconds": 0.923
+          },
+          {
+            "index": 3,
+            "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+            "seconds": 0.926
+          },
+          {
+            "index": 4,
+            "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+            "seconds": 0.951
+          },
+          {
+            "index": 5,
+            "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+            "seconds": 0.94
+          },
+          {
+            "index": 6,
+            "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+            "seconds": 1.04
+          },
+          {
+            "index": 9,
+            "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+            "seconds": 0.769
+          },
+          {
+            "index": 10,
+            "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+            "seconds": 0.811
+          },
+          {
+            "index": 11,
+            "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+            "seconds": 0.978
+          }
+        ],
+        "excluded": [
+          {
+            "index": 0,
+            "state": "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+            "seconds": 0.958,
+            "reasons": [
+              "first step after startup/reload",
+              "data saving"
+            ]
+          },
+          {
+            "index": 7,
+            "state": "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+            "seconds": 6.41,
+            "reasons": [
+              "checkpoint write",
+              "data saving"
+            ]
+          },
+          {
+            "index": 8,
+            "state": "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+            "seconds": 0.693,
+            "reasons": [
+              "first step after startup/reload"
+            ]
+          }
+        ],
+        "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+      },
+      "max_rank_rss_kib": 389424,
+      "sum_rank_peak_rss_kib": 22772620,
+      "swapin_pages": 0,
+      "swapout_pages": 0
+    }
+  },
+  "status": "passed",
+  "decision": "meets_target",
+  "archived_decisions": {
+    "screen": {
+      "baseline": 2.8499999999999996,
+      "candidate": 2.565,
+      "gain_seconds": 0.2849999999999997,
+      "gain_fraction": 0.09999999999999991,
+      "decision": "advance",
+      "scope": "Exploratory single pair, not a confirmed speedup."
+    },
+    "transfer": {
+      "baseline": 0.9255,
+      "candidate": 0.813,
+      "gain_seconds": 0.11250000000000004,
+      "gain_fraction": 0.12155591572123181,
+      "decision": "advance",
+      "scope": "Exploratory single pair, not a confirmed speedup."
+    },
+    "confirmation": {
+      "decision": "meets_target",
+      "mean_baseline_run_median": 0.9272500000000001,
+      "mean_candidate_run_median": 0.8115,
+      "gain_seconds": 0.11575000000000013,
+      "paired_gains_seconds": [
+        0.11350000000000016,
+        0.118
+      ],
+      "near_threshold": false,
+      "disagreement": false,
+      "independent_runs_per_version": 2,
+      "scope": "Mean of separate run medians; screening pairs excluded. No timestep-level significance test."
+    }
+  },
+  "corrected_decisions": {
+    "screen": {
+      "baseline": 2.86,
+      "candidate": 2.57,
+      "gain_seconds": 0.29000000000000004,
+      "gain_fraction": 0.10139860139860142,
+      "decision": "advance",
+      "scope": "Exploratory single pair, not a confirmed speedup."
+    },
+    "transfer": {
+      "baseline": 0.93,
+      "candidate": 0.814,
+      "gain_seconds": 0.1160000000000001,
+      "gain_fraction": 0.12473118279569903,
+      "decision": "advance",
+      "scope": "Exploratory single pair, not a confirmed speedup."
+    },
+    "confirmation": {
+      "decision": "meets_target",
+      "mean_baseline_run_median": 0.931,
+      "mean_candidate_run_median": 0.8140000000000001,
+      "gain_seconds": 0.11699999999999999,
+      "paired_gains_seconds": [
+        0.1160000000000001,
+        0.118
+      ],
+      "near_threshold": false,
+      "disagreement": false,
+      "independent_runs_per_version": 2,
+      "scope": "Mean of separate run medians; screening pairs excluded. No timestep-level significance test."
+    }
+  },
+  "rank_run_records_verified": 594,
+  "checkpoint_report_gates": 12,
+  "workload_gates": 12,
+  "cross_count_tolerance": "passed",
+  "build_sources_and_logs": "match frozen kit",
+  "physics_objects_recorded": 23,
+  "protocol_sha256": "38ac7f65a9809fdc68ec324ae6d74698b143fce0f653e4712aee85efdc02aaa3",
+  "stdout_rounding_gain_intervals_seconds": [
+    [
+      0.1150000000000001,
+      0.1170000000000001
+    ],
+    [
+      0.11699999999999999,
+      0.119
+    ]
+  ],
+  "correction": "Frozen parser consumes restart flag on the checkpoint transaction. Corrected parser retains it for the next full integration step. Exclude 1,8,9 (one-based); nine retained steps/run. Original kit/results preserved.",
+  "limitations": [
+    "No checkpoint or binary payloads in review archive: checked stored field reports and identities, not absent payloads.",
+    "One ABBA batch, two independent runs/version; timesteps are not independent repetitions.",
+    "No contemporaneous legacy run and no mechanism ablation; total gain cannot be divided into packing, allocation and MPI waiting savings."
+  ],
+  "protocol_regression_tests": {
+    "passed": 13,
+    "added": [
+      "restart inside checkpoint transaction",
+      "checkpoint without reload"
+    ]
+  },
+  "disposition": "Recommend next baseline; no solver patch application or branch promotion performed.",
+  "main_commit_unchanged": "b82647b36eb825aed0c0aae4e92adcf4ab46d608"
+}

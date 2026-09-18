@@ -16,6 +16,9 @@ module comm_mpi_mod
   use comm_mod,       only : coord_get, coord_set, get9, set9, sync_val, rot_direction, domain_load, &
        comm_communication, comm_masks, comm_nodes3, comm_nodes9, comm_patch_conn, cp_bdry_inside, unpack, unpack_comm_struct
 
+#ifdef STAGE215_AUDIT
+  use, intrinsic :: ieee_arithmetic, only : ieee_value,ieee_quiet_nan,ieee_is_nan
+#endif
   implicit none
 
   private
@@ -83,7 +86,135 @@ module comm_mpi_mod
      procedure :: gatherv_int, gatherv_real4, gatherv_real8
   end interface gather_vec
 
+  ! Stage215 caches INTEGER routes only. Numerical buffers remain per exchange.
+  type :: Boundary_Group215
+     integer :: peer=0, domain=0
+     type(Int_Array) :: index(AT_NODE:AT_EDGE)
+  end type
+  type :: Boundary_Plan215
+     integer :: lo=0, hi=-1
+     type(Boundary_Group215), allocatable :: send(:), receive(:)
+     integer, allocatable :: sc(:,:), rc(:,:)
+     type(Boundary_Plan215), pointer :: next=>null()
+  end type
+  type(Boundary_Plan215), pointer :: plans215=>null()
+
 contains
+  subroutine invalidate_boundary215
+    type(Boundary_Plan215), pointer :: old
+    ! comm_communication_mpi completes every init/refinement route rebuild.
+    ! This also handles restart reconstruction; no recycled indices survive.
+    do while(associated(plans215))
+       old=>plans215
+       plans215=>old%next
+       deallocate(old)
+    end do
+  end subroutine
+
+  subroutine compile_boundary215(plan,lo,hi)
+    type(Boundary_Plan215), intent(inout) :: plan
+    integer, intent(in) :: lo,hi
+    integer :: direction,r,ds,dd,d,g,pos,m,i,id,n,total,ng
+    type(Boundary_Group215), allocatable :: groups(:)
+    type(Int_Array) :: raw
+    plan%lo=lo;plan%hi=hi
+    allocate(plan%sc(AT_NODE:AT_EDGE,n_process),plan%rc(AT_NODE:AT_EDGE,n_process))
+    plan%sc=0;plan%rc=0
+    total=n_domain(rank+1)*sum(n_domain)
+    do direction=1,2
+       allocate(groups(total));ng=0
+       do r=1,n_process
+          if(r==rank+1) cycle
+          do ds=1,merge(n_domain(rank+1),n_domain(r),direction==1)
+             do dd=1,merge(n_domain(r),n_domain(rank+1),direction==1)
+                d=merge(ds,dd,direction==1)
+                g=glo_id(r,merge(dd,ds,direction==1))+1
+                ng=ng+1;groups(ng)%domain=d;groups(ng)%peer=r
+                do pos=AT_NODE,AT_EDGE
+                   m=merge(EDGE,1,pos==AT_EDGE)
+                   if(direction==1) then
+                      raw=grid(d)%pack(pos,g)
+                   else
+                      raw=grid(d)%unpk(pos,g)
+                   end if
+                   n=0
+                   do i=1,raw%length
+                      id=abs(raw%elts(i))/m+1
+                      if(grid(d)%level%elts(id)<lo.or.grid(d)%level%elts(id)>hi) cycle
+                      n=n+1
+                   end do
+                   groups(ng)%index(pos)%length=n
+                   allocate(groups(ng)%index(pos)%elts(n));n=0
+                   do i=1,raw%length
+                      id=abs(raw%elts(i))/m+1
+                      if(grid(d)%level%elts(id)<lo.or.grid(d)%level%elts(id)>hi) cycle
+                      n=n+1;groups(ng)%index(pos)%elts(n)=raw%elts(i)
+                   end do
+                   if(direction==1) then
+                      plan%sc(pos,r)=plan%sc(pos,r)+n
+                   else
+                      plan%rc(pos,r)=plan%rc(pos,r)+n
+                   end if
+                end do
+                if(all(groups(ng)%index%length==0)) then
+                   do pos=AT_NODE,AT_EDGE
+                      deallocate(groups(ng)%index(pos)%elts)
+                   end do
+                   ng=ng-1
+                end if
+             end do
+          end do
+       end do
+       if(direction==1) then
+          plan%send=groups(:ng)
+       else
+          plan%receive=groups(:ng)
+       end if
+       deallocate(groups)
+    end do
+  end subroutine
+
+  subroutine select_boundary215(plan,lo,hi)
+    type(Boundary_Plan215), pointer :: plan
+    integer, intent(in) :: lo,hi
+#ifdef STAGE215_AUDIT
+    type(Boundary_Plan215) :: fresh
+    integer :: k,pos
+#endif
+    plan=>plans215
+    do while(associated(plan))
+       if(plan%lo==lo.and.plan%hi==hi) exit
+       plan=>plan%next
+    end do
+    if(.not.associated(plan)) then
+       allocate(plan);call compile_boundary215(plan,lo,hi)
+       plan%next=>plans215;plans215=>plan
+    end if
+#ifdef STAGE215_AUDIT
+    ! Re-read the original lists on EVERY use to expose stale topology/levels.
+    call compile_boundary215(fresh,lo,hi)
+    if(any(fresh%sc/=plan%sc).or.any(fresh%rc/=plan%rc)) error stop 'Stage215 stale counts'
+    if(size(fresh%send)/=size(plan%send).or.size(fresh%receive)/=size(plan%receive)) &
+         error stop 'Stage215 stale groups'
+    do k=1,size(plan%send)
+       if(fresh%send(k)%domain/=plan%send(k)%domain.or.fresh%send(k)%peer/=plan%send(k)%peer) &
+            error stop 'Stage215 stale send ordering'
+       do pos=AT_NODE,AT_EDGE
+          if(fresh%send(k)%index(pos)%length/=plan%send(k)%index(pos)%length) error stop 'Stage215 send extent'
+          if(any(fresh%send(k)%index(pos)%elts/=plan%send(k)%index(pos)%elts)) error stop 'Stage215 stale send'
+       end do
+    end do
+    do k=1,size(plan%receive)
+       if(fresh%receive(k)%domain/=plan%receive(k)%domain.or.fresh%receive(k)%peer/=plan%receive(k)%peer) &
+            error stop 'Stage215 stale receive ordering'
+       do pos=AT_NODE,AT_EDGE
+          if(fresh%receive(k)%index(pos)%length/=plan%receive(k)%index(pos)%length) error stop 'Stage215 recv extent'
+          if(any(fresh%receive(k)%index(pos)%elts/=plan%receive(k)%index(pos)%elts)) error stop 'Stage215 stale recv'
+       end do
+    end do
+#endif
+  end subroutine
+
 
 
   subroutine init_comm_mpi
@@ -390,6 +521,7 @@ contains
   subroutine init_comm_mpi_mod()
     implicit none
 
+    call invalidate_boundary215
     call init(send_buf_i, 0)
     call init(recv_buf_i, 0)
     call init(send_buf,   0)
@@ -403,6 +535,7 @@ contains
     call alltoall_dom(unpack_comm_struct, 4)
     call comm_communication()
     call recreate_send_patch_lists()
+    call invalidate_boundary215
   end subroutine comm_communication_mpi
 
 
@@ -1007,79 +1140,47 @@ contains
     type(Float_Field), intent(inout) :: field
     integer,           intent(in)    :: l_start, l_end
 
-    integer :: d_src, d_dest, dest
-    integer :: i, id, lev, multipl
-    integer :: r, r_dest, r_src, tag
+
+    type(Boundary_Plan215), pointer :: plan215
+    integer :: group215, pos, i, id, d_src, r, tag, j215, count215(AT_NODE:AT_EDGE)
 
     if (field%bdry_uptodate) return
     call detail_enter(DP_DOMAIN_BOUNDARY)
     tag = TAG_BDRY_S
     field%bdry_tag = tag
 
-    if (field%pos == AT_EDGE) then
-       multipl = EDGE
-    else
-       multipl = 1
-    end if
 
     call detail_add(DC_BDRY_FIELDS,int(1,int64))
     call detail_enter(DP_BDRY_PACK)
-    send_buf%length = 0
-
-    do r_dest = 1, n_process
-       send_offsets(r_dest) = send_buf%length
-
-       if (r_dest /= rank+1) then
-          do d_src = 1, n_domain(rank+1)
-             do d_dest = 1, n_domain(r_dest)
-                dest = glo_id(r_dest,d_dest) + 1
-
-                if (detail_enabled) &
-                     call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(field%pos,dest)%length,int64))
-                do i = 1, grid(d_src)%pack(field%pos,dest)%length
-                   id  = grid(d_src)%pack(field%pos,dest)%elts(i)
-                   lev = grid(d_src)%level%elts(id/multipl+1)
-
-                   if (lev >= l_start .and. lev <= l_end) then
-                      call append (send_buf, field%data(d_src)%elts(id+1))
-                   end if
-                end do
-             end do
-          end do
-       end if
-
-       send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+    call select_boundary215(plan215,l_start,l_end)
+    count215=0
+       count215(field%pos)=count215(field%pos)+1
+    do r=1,n_process
+       send_lengths(r)=sum(count215*plan215%sc(:,r))
+       recv_lengths(r)=sum(count215*plan215%rc(:,r))
     end do
-
+    send_offsets(1)=0;recv_offsets(1)=0
+    do r=2,n_process
+       send_offsets(r)=send_offsets(r-1)+send_lengths(r-1)
+       recv_offsets(r)=recv_offsets(r-1)+recv_lengths(r-1)
+    end do
+    send_buf%length=sum(send_lengths);recv_buf%length=sum(recv_lengths)
+    if(allocated(send_buf%elts)) then
+       if(size(send_buf%elts)<send_buf%length) deallocate(send_buf%elts)
+    end if
+    if(.not.allocated(send_buf%elts)) allocate(send_buf%elts(send_buf%length))
+    j215=0
+    do group215=1,size(plan215%send)
+       d_src=plan215%send(group215)%domain
+       pos=field%pos
+       do i=1,plan215%send(group215)%index(pos)%length
+          id=plan215%send(group215)%index(pos)%elts(i)
+          j215=j215+1;send_buf%elts(j215)=field%data(d_src)%elts(id+1)
+       end do
+    end do
+    if(j215/=send_buf%length) error stop 'Stage215 pack length'
     call detail_leave(DP_BDRY_PACK)
     call detail_enter(DP_BDRY_ROUTE)
-    recv_buf%length = 0
-
-    do r_src = 1, n_process
-       recv_offsets(r_src) = recv_buf%length
-
-       if (r_src /= rank+1) then
-          do d_src = 1, n_domain(r_src)
-             do d_dest = 1, n_domain(rank+1)
-                dest = glo_id(r_src,d_src) + 1
-
-                if (detail_enabled) &
-                     call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(field%pos,dest)%length,int64))
-                do i = 1, grid(d_dest)%unpk(field%pos,dest)%length
-                   id = abs(grid(d_dest)%unpk(field%pos,dest)%elts(i))
-                   lev = grid(d_dest)%level%elts(id/multipl+1)
-
-                   if (lev >= l_start .and. lev <= l_end) then
-                      recv_buf%length = recv_buf%length + 1
-                   end if
-                end do
-             end do
-          end do
-       end if
-
-       recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
-    end do
-
     call detail_leave(DP_BDRY_ROUTE)
     call detail_enter(DP_BDRY_STORAGE)
     if (.not. allocated(recv_buf%elts)) then
@@ -1089,10 +1190,12 @@ contains
        allocate(recv_buf%elts(recv_buf%length))
     end if
 
-    if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
+    ! Receives exactly cover the active prefix. The tail has no consumer.
+#ifdef STAGE215_AUDIT
+    if(recv_buf%length>0) recv_buf%elts=ieee_value(0.0_dp,ieee_quiet_nan)
+#endif
 
-    if (detail_enabled.and.recv_buf%length>0) &
-         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
+    ! No production receive-buffer zeroing.
     call detail_leave(DP_BDRY_STORAGE)
     call detail_enter(DP_BDRY_POST)
     nreq = 0
@@ -1138,9 +1241,9 @@ contains
     type(Float_Field), intent(inout) :: field(:)
     integer,           intent(in)    :: l_start, l_end
 
-    integer :: d_dest, d_src, dest
-    integer :: i, i1, id, lev, multipl, pos
-    integer :: r, r_dest, r_src, tag
+
+    type(Boundary_Plan215), pointer :: plan215
+    integer :: group215, pos, i, id, d_src, r, tag, j215, count215(AT_NODE:AT_EDGE), i1
 
     if (all(field%bdry_uptodate)) return
     call detail_enter(DP_DOMAIN_BOUNDARY)
@@ -1149,82 +1252,39 @@ contains
 
     call detail_add(DC_BDRY_FIELDS,int(size(field),int64))
     call detail_enter(DP_BDRY_PACK)
-    send_buf%length = 0
-
-    do r_dest = 1, n_process
-       send_offsets(r_dest) = send_buf%length
-
-       if (r_dest /= rank+1) then
-          do d_src = 1, n_domain(rank+1)
-             do d_dest = 1, n_domain(r_dest)
-                dest = glo_id(r_dest,d_dest) + 1
-
-                do i1 = 1, size(field)
-                   pos = field(i1)%pos
-
-                   if (pos == AT_EDGE) then
-                      multipl = EDGE
-                   else
-                      multipl = 1
-                   end if
-
-                   if (detail_enabled) &
-                        call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(pos,dest)%length,int64))
-                   do i = 1, grid(d_src)%pack(pos,dest)%length
-                      id  = grid(d_src)%pack(pos,dest)%elts(i)
-                      lev = grid(d_src)%level%elts(id/multipl+1)
-
-                      if (lev >= l_start .and. lev <= l_end) then
-                         call append (send_buf, field(i1)%data(d_src)%elts(id+1))
-                      end if
-                   end do
-                end do
-             end do
-          end do
-       end if
-
-       send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+    call select_boundary215(plan215,l_start,l_end)
+    count215=0
+    do i1=1,size(field)
+       count215(field(i1)%pos)=count215(field(i1)%pos)+1
     end do
-
+    do r=1,n_process
+       send_lengths(r)=sum(count215*plan215%sc(:,r))
+       recv_lengths(r)=sum(count215*plan215%rc(:,r))
+    end do
+    send_offsets(1)=0;recv_offsets(1)=0
+    do r=2,n_process
+       send_offsets(r)=send_offsets(r-1)+send_lengths(r-1)
+       recv_offsets(r)=recv_offsets(r-1)+recv_lengths(r-1)
+    end do
+    send_buf%length=sum(send_lengths);recv_buf%length=sum(recv_lengths)
+    if(allocated(send_buf%elts)) then
+       if(size(send_buf%elts)<send_buf%length) deallocate(send_buf%elts)
+    end if
+    if(.not.allocated(send_buf%elts)) allocate(send_buf%elts(send_buf%length))
+    j215=0
+    do group215=1,size(plan215%send)
+       d_src=plan215%send(group215)%domain
+    do i1=1,size(field)
+       pos=field(i1)%pos
+       do i=1,plan215%send(group215)%index(pos)%length
+          id=plan215%send(group215)%index(pos)%elts(i)
+          j215=j215+1;send_buf%elts(j215)=field(i1)%data(d_src)%elts(id+1)
+       end do
+    end do
+    end do
+    if(j215/=send_buf%length) error stop 'Stage215 pack length'
     call detail_leave(DP_BDRY_PACK)
     call detail_enter(DP_BDRY_ROUTE)
-    recv_buf%length = 0
-
-    do r_src = 1, n_process
-       recv_offsets(r_src) = recv_buf%length
-
-       if (r_src /= rank+1) then
-          do d_src = 1, n_domain(r_src)
-             dest = glo_id(r_src,d_src) + 1
-
-             do d_dest = 1, n_domain(rank+1)
-                do i1 = 1, size(field)
-                   pos = field(i1)%pos
-
-                   if (pos == AT_EDGE) then
-                      multipl = EDGE
-                   else
-                      multipl = 1
-                   end if
-
-                   if (detail_enabled) &
-                        call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(pos,dest)%length,int64))
-                   do i = 1, grid(d_dest)%unpk(pos,dest)%length
-                      id = abs(grid(d_dest)%unpk(pos,dest)%elts(i))
-                      lev = grid(d_dest)%level%elts(id/multipl+1)
-
-                      if (lev >= l_start .and. lev <= l_end) then
-                         recv_buf%length = recv_buf%length + 1
-                      end if
-                   end do
-                end do
-             end do
-          end do
-       end if
-
-       recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
-    end do
-
     call detail_leave(DP_BDRY_ROUTE)
     call detail_enter(DP_BDRY_STORAGE)
     if (.not. allocated(recv_buf%elts)) then
@@ -1234,10 +1294,12 @@ contains
        allocate(recv_buf%elts(recv_buf%length))
     end if
 
-    if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
+    ! Receives exactly cover the active prefix. The tail has no consumer.
+#ifdef STAGE215_AUDIT
+    if(recv_buf%length>0) recv_buf%elts=ieee_value(0.0_dp,ieee_quiet_nan)
+#endif
 
-    if (detail_enabled.and.recv_buf%length>0) &
-         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
+    ! No production receive-buffer zeroing.
     call detail_leave(DP_BDRY_STORAGE)
     call detail_enter(DP_BDRY_POST)
     nreq = 0
@@ -1282,9 +1344,9 @@ contains
     type(Float_Field), intent(inout) :: field(:,:)
     integer,           intent(in)    :: l_start, l_end
 
-    integer :: d_dest, d_src, dest
-    integer :: i, i1, i2, id, lev, multipl, pos
-    integer :: r, r_dest, r_src, tag
+
+    type(Boundary_Plan215), pointer :: plan215
+    integer :: group215, pos, i, id, d_src, r, tag, j215, count215(AT_NODE:AT_EDGE), i1, i2
 
     if (all(field%bdry_uptodate)) return
     call detail_enter(DP_DOMAIN_BOUNDARY)
@@ -1293,88 +1355,43 @@ contains
 
     call detail_add(DC_BDRY_FIELDS,int(size(field),int64))
     call detail_enter(DP_BDRY_PACK)
-    send_buf%length = 0
-
-    do r_dest = 1, n_process
-       send_offsets(r_dest) = send_buf%length
-
-       if (r_dest /= rank+1) then
-          do d_src = 1, n_domain(rank+1)
-             do d_dest = 1, n_domain(r_dest)
-                dest = glo_id(r_dest,d_dest) + 1
-
-                do i2 = 1, size(field,2)
-                   do i1 = 1, size(field,1)
-                      pos = field(i1,i2)%pos
-
-                      if (pos == AT_EDGE) then
-                         multipl = EDGE
-                      else
-                         multipl = 1
-                      end if
-
-                      if (detail_enabled) &
-                           call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(pos,dest)%length,int64))
-                      do i = 1, grid(d_src)%pack(pos,dest)%length
-                         id  = grid(d_src)%pack(pos,dest)%elts(i)
-                         lev = grid(d_src)%level%elts(id/multipl+1)
-
-                         if (lev >= l_start .and. lev <= l_end) then
-                            call append ( &
-                                 send_buf, &
-                                 field(i1,i2)%data(d_src)%elts(id+1))
-                         end if
-                      end do
-                   end do
-                end do
-             end do
-          end do
-       end if
-
-       send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+    call select_boundary215(plan215,l_start,l_end)
+    count215=0
+    do i2=1,size(field,2)
+       do i1=1,size(field,1)
+       count215(field(i1,i2)%pos)=count215(field(i1,i2)%pos)+1
+       end do
     end do
-
+    do r=1,n_process
+       send_lengths(r)=sum(count215*plan215%sc(:,r))
+       recv_lengths(r)=sum(count215*plan215%rc(:,r))
+    end do
+    send_offsets(1)=0;recv_offsets(1)=0
+    do r=2,n_process
+       send_offsets(r)=send_offsets(r-1)+send_lengths(r-1)
+       recv_offsets(r)=recv_offsets(r-1)+recv_lengths(r-1)
+    end do
+    send_buf%length=sum(send_lengths);recv_buf%length=sum(recv_lengths)
+    if(allocated(send_buf%elts)) then
+       if(size(send_buf%elts)<send_buf%length) deallocate(send_buf%elts)
+    end if
+    if(.not.allocated(send_buf%elts)) allocate(send_buf%elts(send_buf%length))
+    j215=0
+    do group215=1,size(plan215%send)
+       d_src=plan215%send(group215)%domain
+    do i2=1,size(field,2)
+       do i1=1,size(field,1)
+       pos=field(i1,i2)%pos
+       do i=1,plan215%send(group215)%index(pos)%length
+          id=plan215%send(group215)%index(pos)%elts(i)
+          j215=j215+1;send_buf%elts(j215)=field(i1,i2)%data(d_src)%elts(id+1)
+       end do
+       end do
+    end do
+    end do
+    if(j215/=send_buf%length) error stop 'Stage215 pack length'
     call detail_leave(DP_BDRY_PACK)
     call detail_enter(DP_BDRY_ROUTE)
-    recv_buf%length = 0
-
-    do r_src = 1, n_process
-       recv_offsets(r_src) = recv_buf%length
-
-       if (r_src /= rank+1) then
-          do d_src = 1, n_domain(r_src)
-             dest = glo_id(r_src,d_src) + 1
-
-             do d_dest = 1, n_domain(rank+1)
-                do i2 = 1, size(field,2)
-                   do i1 = 1, size(field,1)
-                      pos = field(i1,i2)%pos
-
-                      if (pos == AT_EDGE) then
-                         multipl = EDGE
-                      else
-                         multipl = 1
-                      end if
-
-                      if (detail_enabled) &
-                           call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(pos,dest)%length,int64))
-                      do i = 1, grid(d_dest)%unpk(pos,dest)%length
-                         id = abs(grid(d_dest)%unpk(pos,dest)%elts(i))
-                         lev = grid(d_dest)%level%elts(id/multipl+1)
-
-                         if (lev >= l_start .and. lev <= l_end) then
-                            recv_buf%length = recv_buf%length + 1
-                         end if
-                      end do
-                   end do
-                end do
-             end do
-          end do
-       end if
-
-       recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
-    end do
-
     call detail_leave(DP_BDRY_ROUTE)
     call detail_enter(DP_BDRY_STORAGE)
     if (.not. allocated(recv_buf%elts)) then
@@ -1384,10 +1401,12 @@ contains
        allocate(recv_buf%elts(recv_buf%length))
     end if
 
-    if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
+    ! Receives exactly cover the active prefix. The tail has no consumer.
+#ifdef STAGE215_AUDIT
+    if(recv_buf%length>0) recv_buf%elts=ieee_value(0.0_dp,ieee_quiet_nan)
+#endif
 
-    if (detail_enabled.and.recv_buf%length>0) &
-         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
+    ! No production receive-buffer zeroing.
     call detail_leave(DP_BDRY_STORAGE)
     call detail_enter(DP_BDRY_POST)
     nreq = 0
@@ -1476,8 +1495,9 @@ contains
     type(Float_Field), intent(inout) :: field
     integer,           intent(in)    :: l_start, l_end
 
-    integer :: r_src, d_src, d_dest
-    integer :: id, i, k, lev, multipl, src
+
+    type(Boundary_Plan215), pointer :: plan215
+    integer :: group215, pos, i, id, d_dest, k
 
     if (field%bdry_uptodate) return
     call detail_enter(DP_DOMAIN_BOUNDARY)
@@ -1485,11 +1505,6 @@ contains
        error stop "update_bdry__finish1_0: finish without start"
     end if
 
-    if (field%pos == AT_EDGE) then
-       multipl = EDGE
-    else
-       multipl = 1
-    end if
 
     if (nreq > 0) then
        call detail_enter(DP_DOMAIN_WAIT)
@@ -1498,34 +1513,18 @@ contains
     end if
 
     call detail_enter(DP_BDRY_INSTALL)
-    k = 0
-
-    do r_src = 1, n_process
-       if (r_src == rank+1) cycle
-
-       do d_src = 1, n_domain(r_src)
-          src = glo_id(r_src,d_src) + 1
-
-          do d_dest = 1, n_domain(rank+1)
-             if (detail_enabled) &
-                  call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(field%pos,src)%length,int64))
-             do i = 1, grid(d_dest)%unpk(field%pos,src)%length
-                id = grid(d_dest)%unpk(field%pos,src)%elts(i)
-                lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
-
-                if (lev >= l_start .and. lev <= l_end) then
-                   k = k + 1
-
-                   field%data(d_dest)%elts(abs(id)+1) = &
-                        recv_buf%elts(k)
-
-                   if (id < 0 .and. field%pos == AT_EDGE) then
-                      field%data(d_dest)%elts(abs(id)+1) = &
-                           -field%data(d_dest)%elts(abs(id)+1)
-                   end if
-                end if
-             end do
-          end do
+    call select_boundary215(plan215,l_start,l_end)
+#ifdef STAGE215_AUDIT
+    if(any(ieee_is_nan(recv_buf%elts(:recv_buf%length)))) error stop 'Stage215 receive hole/NaN'
+#endif
+    k=0
+    do group215=1,size(plan215%receive)
+       d_dest=plan215%receive(group215)%domain
+       pos=field%pos
+       do i=1,plan215%receive(group215)%index(pos)%length
+          id=plan215%receive(group215)%index(pos)%elts(i)
+          k=k+1;field%data(d_dest)%elts(abs(id)+1)=recv_buf%elts(k)
+          if(id<0.and.pos==AT_EDGE) field%data(d_dest)%elts(abs(id)+1)=-recv_buf%elts(k)
        end do
     end do
 
@@ -1552,8 +1551,9 @@ contains
     type(Float_Field), intent(inout) :: field(:)
     integer,           intent(in)    :: l_start, l_end
 
-    integer :: d_dest, d_src, src
-    integer :: id, i, i1, k, lev, multipl, pos, r_src
+
+    type(Boundary_Plan215), pointer :: plan215
+    integer :: group215, pos, i, id, d_dest, k, i1
 
     if (all(field%bdry_uptodate)) return
     call detail_enter(DP_DOMAIN_BOUNDARY)
@@ -1569,45 +1569,21 @@ contains
     end if
 
     call detail_enter(DP_BDRY_INSTALL)
-    k = 0
-
-    do r_src = 1, n_process
-       if (r_src == rank+1) cycle
-
-       do d_src = 1, n_domain(r_src)
-          src = glo_id(r_src,d_src) + 1
-
-          do d_dest = 1, n_domain(rank+1)
-             do i1 = 1, size(field)
-                pos = field(i1)%pos
-
-                if (pos == AT_EDGE) then
-                   multipl = EDGE
-                else
-                   multipl = 1
-                end if
-
-                if (detail_enabled) &
-                     call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(pos,src)%length,int64))
-                do i = 1, grid(d_dest)%unpk(pos,src)%length
-                   id = grid(d_dest)%unpk(pos,src)%elts(i)
-                   lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
-
-                   if (lev >= l_start .and. lev <= l_end) then
-                      k = k + 1
-
-                      field(i1)%data(d_dest)%elts(abs(id)+1) = &
-                           recv_buf%elts(k)
-
-                      if (id < 0 .and. pos == AT_EDGE) then
-                         field(i1)%data(d_dest)%elts(abs(id)+1) = &
-                              -field(i1)%data(d_dest)%elts(abs(id)+1)
-                      end if
-                   end if
-                end do
-             end do
-          end do
+    call select_boundary215(plan215,l_start,l_end)
+#ifdef STAGE215_AUDIT
+    if(any(ieee_is_nan(recv_buf%elts(:recv_buf%length)))) error stop 'Stage215 receive hole/NaN'
+#endif
+    k=0
+    do group215=1,size(plan215%receive)
+       d_dest=plan215%receive(group215)%domain
+    do i1=1,size(field)
+       pos=field(i1)%pos
+       do i=1,plan215%receive(group215)%index(pos)%length
+          id=plan215%receive(group215)%index(pos)%elts(i)
+          k=k+1;field(i1)%data(d_dest)%elts(abs(id)+1)=recv_buf%elts(k)
+          if(id<0.and.pos==AT_EDGE) field(i1)%data(d_dest)%elts(abs(id)+1)=-recv_buf%elts(k)
        end do
+    end do
     end do
 
     if (k /= recv_buf%length) then
@@ -1631,8 +1607,9 @@ contains
     type(Float_Field), intent(inout) :: field(:,:)
     integer,           intent(in)    :: l_start, l_end
 
-    integer :: d_dest, d_src, src
-    integer :: i, i1, i2, id, k, lev, multipl, pos, r_src
+
+    type(Boundary_Plan215), pointer :: plan215
+    integer :: group215, pos, i, id, d_dest, k, i1, i2
 
     if (all(field%bdry_uptodate)) return
     call detail_enter(DP_DOMAIN_BOUNDARY)
@@ -1648,47 +1625,23 @@ contains
     end if
 
     call detail_enter(DP_BDRY_INSTALL)
-    k = 0
-
-    do r_src = 1, n_process
-       if (r_src == rank+1) cycle
-
-       do d_src = 1, n_domain(r_src)
-          src = glo_id(r_src,d_src) + 1
-
-          do d_dest = 1, n_domain(rank+1)
-             do i2 = 1, size(field,2)
-                do i1 = 1, size(field,1)
-                   pos = field(i1,i2)%pos
-
-                   if (pos == AT_EDGE) then
-                      multipl = EDGE
-                   else
-                      multipl = 1
-                   end if
-
-                   if (detail_enabled) &
-                        call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(pos,src)%length,int64))
-                   do i = 1, grid(d_dest)%unpk(pos,src)%length
-                      id = grid(d_dest)%unpk(pos,src)%elts(i)
-                      lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
-
-                      if (lev >= l_start .and. lev <= l_end) then
-                         k = k + 1
-
-                         field(i1,i2)%data(d_dest)%elts(abs(id)+1) = &
-                              recv_buf%elts(k)
-
-                         if (id < 0 .and. pos == AT_EDGE) then
-                            field(i1,i2)%data(d_dest)%elts(abs(id)+1) = &
-                                 -field(i1,i2)%data(d_dest)%elts(abs(id)+1)
-                         end if
-                      end if
-                   end do
-                end do
-             end do
-          end do
+    call select_boundary215(plan215,l_start,l_end)
+#ifdef STAGE215_AUDIT
+    if(any(ieee_is_nan(recv_buf%elts(:recv_buf%length)))) error stop 'Stage215 receive hole/NaN'
+#endif
+    k=0
+    do group215=1,size(plan215%receive)
+       d_dest=plan215%receive(group215)%domain
+    do i2=1,size(field,2)
+       do i1=1,size(field,1)
+       pos=field(i1,i2)%pos
+       do i=1,plan215%receive(group215)%index(pos)%length
+          id=plan215%receive(group215)%index(pos)%elts(i)
+          k=k+1;field(i1,i2)%data(d_dest)%elts(abs(id)+1)=recv_buf%elts(k)
+          if(id<0.and.pos==AT_EDGE) field(i1,i2)%data(d_dest)%elts(abs(id)+1)=-recv_buf%elts(k)
        end do
+       end do
+    end do
     end do
 
     if (k /= recv_buf%length) then
