@@ -1,4 +1,5 @@
 module parallel_block_mpi_mod
+  use arch_mod, only : check_parallel_task_capacity
   use parallel_block_scalar_storage_mod
   use parallel_block_profile_mod
   use parallel_block_mass_mod, only : native_mass, mass_work
@@ -1451,14 +1452,16 @@ contains
   subroutine prepare_parallel_block_grid_change
     ! In a block-authoritative integration, synchronize the current fields,
     ! then retain the read-only compact wavelet image until the current
-    ! adaptation thresholds have been applied. Production writes each field
-    ! family exactly once; full block/Domain comparisons are an opt-in oracle.
+    ! adaptation thresholds have been applied. Reuse the completed native
+    ! inverse publication when available; other paths materialize both families.
 
     implicit none
 
     logical :: local_store_ready
     logical :: state_ready
     logical :: validate_oracle
+    logical :: dynamics_oracle
+    logical :: native_publication_ready
 
     integer(int64) :: writeback_before
 
@@ -1472,6 +1475,14 @@ contains
     end if
 
     validate_oracle = block_adaptation_validation_enabled()
+    dynamics_oracle = block_dynamics_validation_enabled()
+    ! The final native inverse has already installed SOL, and compression plus
+    ! inverse alias publication has installed WAV_COEFF. Its completed refresh
+    ! changes only ghost/derived state. The pending consumer aliases below are
+    ! a distinct saved version and must still be selected after this point.
+    native_publication_ready = production_inverse_consumer_aliases_pending .and. &
+         production_inverse_completed_mode == 0 .and. &
+         .not.validate_oracle .and. .not.dynamics_oracle
     if (validate_oracle) then
        call block_profile_enter(BLOCK_PROFILE_ORACLE)
        call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
@@ -1480,9 +1491,9 @@ contains
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
     writeback_before = block_domain_production_writeback_count()
-    call synchronize_parallel_block_checkpoint(.true.)
+    if (.not.native_publication_ready) call synchronize_parallel_block_checkpoint(.true.)
     if (block_domain_production_writeback_count() /= &
-         writeback_before+2_int64) &
+         writeback_before+merge(0_int64,2_int64,native_publication_ready)) &
          call fail("grid-change compatibility writeback count is invalid")
     if (validate_oracle) then
        call block_profile_enter(BLOCK_PROFILE_ORACLE)
@@ -5035,6 +5046,10 @@ contains
   if (ierr /= MPI_SUCCESS) then
      error stop "build_parallel_block_catalog: MPI_Allreduce failed"
   end if
+
+  ! Every supported rank must receive a useful block. Coarsening can reduce
+  ! the actual catalogue below the one-level upper bound checked at startup.
+  call check_parallel_task_capacity(n_block_total)
 
   !
   ! Assign global candidate-block IDs.
@@ -9586,8 +9601,10 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%vector_patch_nvalue)) then
        call fail("writeback Domain stage extent mismatch")
     end if
+    ! Empty Domain owners retain one dummy element, just as in allocation.
+    ! The displacement remains the logical value count, which may be zero.
     if (production_vector_transform_displ(1) /= 0 .or. &
-         production_vector_transform_displ(size(grid)+1) /= &
+         max(1,production_vector_transform_displ(size(grid)+1)) /= &
          size(production_vector_transform_stage) .or. &
          size(production_vector_wavelet_stage) /= &
          size(production_vector_transform_stage) .or. &
@@ -9980,9 +9997,7 @@ end subroutine build_parallel_block_catalog
           b=block_writeback_plan%send_block(slot)
           do p=0,local_block_patch_count(b)-1
              call get_local_block_scalar_patch_family_values(b,p,BLOCK_PAYLOAD_SOL, &
-                  ghost_exchange_plan%scalar_patch_buffer)
-             block_writeback_plan%scalar_send_buffer(pos:pos+width-1) = &
-                  ghost_exchange_plan%scalar_patch_buffer(offset+1:offset+width)
+                  block_writeback_plan%scalar_send_buffer(pos:pos+width-1),temperature_only=.true.)
              pos=pos+width
           end do
        end do
@@ -14880,7 +14895,11 @@ end subroutine build_parallel_block_catalog
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_INSTALL)
     call install_inverse203
-    call publish_native_inverse(domain_scaling)
+    ! Provisional production consumers read the all-level boundary version
+    ! published below. No intervening operation reads this earlier q1 image.
+    ! Final SOL and oracle boundary refresh still require the earlier image.
+    if (.not.provisional_transform.or.validate_oracle) &
+         call publish_native_inverse(domain_scaling)
     if (.not. validate_oracle) then
        call publish_native_inverse(domain_wavelet,BLOCK_PAYLOAD_WAV_COEFF)
        if (level_start<level_end) domain_wavelet%bdry_uptodate=.true.
@@ -31271,6 +31290,10 @@ end subroutine build_parallel_block_catalog
     integer :: vector_stage_start
     integer :: vector_start
     integer :: scalar_stage_start
+    integer :: temperature_offset,temperature_width
+    integer :: v_scalar,n_scalar,v_vector,first_level,n_level,m_scalar,m_vector
+    integer :: k,start
+    logical :: temperature_only
 
     if (.not. block_writeback_plan_is_ready()) then
        call fail("Domain reconstruction before writeback plan is ready")
@@ -31291,8 +31314,24 @@ end subroutine build_parallel_block_catalog
     call exchange_block_writeback_payloads( &
          payload_family,component_family)
 
-    block_writeback_plan%scalar_domain_stage = 0.0_dp
-    block_writeback_plan%vector_domain_stage = 0.0_dp
+    temperature_only = .false.
+    if (present(component_family)) &
+         temperature_only = component_family == BLOCK_WRITEBACK_TEMPERATURE
+    temperature_offset = 0
+    temperature_width = 0
+    if (temperature_only) then
+       call get_block_field_layout(v_scalar,n_scalar,v_vector,first_level,n_level,m_scalar,m_vector)
+       temperature_offset = ((S_TEMP-v_scalar)*n_level+1-first_level)*PATCH_SIZE**2
+       temperature_width = zlevels*PATCH_SIZE**2
+       if (m_scalar /= 1 .or. temperature_offset < 0 .or. &
+            temperature_offset+temperature_width > block_writeback_plan%scalar_patch_nvalue) &
+            call fail("temperature reconstruction layout is invalid")
+       ! Every live temperature slot is assigned below. Other staging lanes
+       ! have no consumer in this transaction; later full consumers rebuild.
+    else
+       block_writeback_plan%scalar_domain_stage = 0.0_dp
+       block_writeback_plan%vector_domain_stage = 0.0_dp
+    end if
     block_writeback_plan%domain_patch_covered = .false.
     block_writeback_plan%domain_patch_reconstructed = .false.
     reconstructed_patch_count = 0
@@ -31398,12 +31437,25 @@ end subroutine build_parallel_block_catalog
                      block_writeback_plan%scalar_patch_nvalue + 1
                 vector_stage_start = (patch_slot-1)* &
                      block_writeback_plan%vector_patch_nvalue + 1
-                call pack_domain_patch_prognostic( &
-                     d,p,payload_family, &
-                     block_writeback_plan%scalar_domain_stage, &
-                     scalar_stage_start, &
-                     block_writeback_plan%vector_domain_stage, &
-                     vector_stage_start)
+                if (temperature_only) then
+                   ! Fixed coarse patches retain the timestep-base scaffold,
+                   ! as in full reconstruction, but only temperature is live.
+                   start = grid(d)%patch%elts(p+1)%elts_start
+                   scalar_stage_start = scalar_stage_start+temperature_offset
+                   do k=1,zlevels
+                      block_writeback_plan%scalar_domain_stage( &
+                           scalar_stage_start:scalar_stage_start+PATCH_SIZE**2-1) = &
+                           sol(S_TEMP,k)%data(d)%elts(start+1:start+PATCH_SIZE**2)
+                      scalar_stage_start = scalar_stage_start+PATCH_SIZE**2
+                   end do
+                else
+                   call pack_domain_patch_prognostic( &
+                        d,p,payload_family, &
+                        block_writeback_plan%scalar_domain_stage, &
+                        scalar_stage_start, &
+                        block_writeback_plan%vector_domain_stage, &
+                        vector_stage_start)
+                end if
                 block_writeback_plan%domain_patch_covered(patch_slot) = &
                      .true.
                 preserved_patch_count = preserved_patch_count + 1
@@ -31490,16 +31542,24 @@ end subroutine build_parallel_block_catalog
 
       call claim_domain_patch( &
            d,p,scalar_stage_start,vector_stage_start)
-      call get_local_block_scalar_patch_family_values( &
-           b,local_patch,payload_family, &
-           block_writeback_plan%scalar_domain_stage( &
-           scalar_stage_start:scalar_stage_start+ &
-           block_writeback_plan%scalar_patch_nvalue-1))
-      call get_local_block_vector_patch_family_values( &
-           b,local_patch,payload_family, &
-           block_writeback_plan%vector_domain_stage( &
-           vector_stage_start:vector_stage_start+ &
-           block_writeback_plan%vector_patch_nvalue-1))
+      if (temperature_only) then
+         scalar_stage_start = scalar_stage_start+temperature_offset
+         call get_local_block_scalar_patch_family_values( &
+              b,local_patch,payload_family, &
+              block_writeback_plan%scalar_domain_stage( &
+              scalar_stage_start:scalar_stage_start+temperature_width-1),temperature_only=.true.)
+      else
+         call get_local_block_scalar_patch_family_values( &
+              b,local_patch,payload_family, &
+              block_writeback_plan%scalar_domain_stage( &
+              scalar_stage_start:scalar_stage_start+ &
+              block_writeback_plan%scalar_patch_nvalue-1))
+         call get_local_block_vector_patch_family_values( &
+              b,local_patch,payload_family, &
+              block_writeback_plan%vector_domain_stage( &
+              vector_stage_start:vector_stage_start+ &
+              block_writeback_plan%vector_patch_nvalue-1))
+      end if
       local_patch = local_patch + 1
       n_patch = n_patch + 1
 
@@ -31547,16 +31607,24 @@ end subroutine build_parallel_block_catalog
 
       call claim_domain_patch( &
            d,p,scalar_stage_start,vector_stage_start)
-      block_writeback_plan%scalar_domain_stage( &
-           scalar_stage_start:scalar_stage_start+ &
-           block_writeback_plan%scalar_patch_nvalue-1) = &
-           scalar_payload(scalar_pos:scalar_pos+ &
-           block_writeback_plan%scalar_patch_nvalue-1)
-      block_writeback_plan%vector_domain_stage( &
-           vector_stage_start:vector_stage_start+ &
-           block_writeback_plan%vector_patch_nvalue-1) = &
-           vector_payload(vector_pos:vector_pos+ &
-           block_writeback_plan%vector_patch_nvalue-1)
+      if (temperature_only) then
+         scalar_stage_start = scalar_stage_start+temperature_offset
+         block_writeback_plan%scalar_domain_stage( &
+              scalar_stage_start:scalar_stage_start+temperature_width-1) = &
+              scalar_payload(scalar_pos+temperature_offset: &
+              scalar_pos+temperature_offset+temperature_width-1)
+      else
+         block_writeback_plan%scalar_domain_stage( &
+              scalar_stage_start:scalar_stage_start+ &
+              block_writeback_plan%scalar_patch_nvalue-1) = &
+              scalar_payload(scalar_pos:scalar_pos+ &
+              block_writeback_plan%scalar_patch_nvalue-1)
+         block_writeback_plan%vector_domain_stage( &
+              vector_stage_start:vector_stage_start+ &
+              block_writeback_plan%vector_patch_nvalue-1) = &
+              vector_payload(vector_pos:vector_pos+ &
+              block_writeback_plan%vector_patch_nvalue-1)
+      end if
       scalar_pos = scalar_pos + &
            block_writeback_plan%scalar_patch_nvalue
       vector_pos = vector_pos + &

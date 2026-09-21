@@ -1,0 +1,1201 @@
+{
+  "stage": 226,
+  "job": "54731",
+  "status": "passed",
+  "archive": "/Users/kevlahan/Desktop/stage226-review-54731.tar.gz",
+  "archive_sha256": "d714037d1da3266ffecbee04f4b7553acf6219b966f0a06542133172980267d5",
+  "inventory_files_verified": 6386,
+  "source_manifest_sha256": "36773731c6ac20543825c2138bef737118837c4bdb4f020a4f681fcd8f8d7c6a",
+  "builds_verified": 6,
+  "node": "bb13.rhpcs.internal",
+  "placement_counts_verified": [
+    40,
+    41,
+    80,
+    120,
+    160,
+    167,
+    256
+  ],
+  "runs": {
+    "J4-n40-baseline-production-native": {
+      "ranks": 40,
+      "level": "J4",
+      "kind": "baseline",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n40-candidate-production-native": {
+      "ranks": 40,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n41-checked-production-native": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          40
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        4
+      ]
+    },
+    "J4-n41-candidate-production-native": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n41-candidate-oracles-native": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": true,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n41-checked-production-empty-root": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "empty-root",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          0
+        ]
+      ],
+      "restart_source_ranks": [
+        1
+      ],
+      "zero_domain_owned_blocks_range": [
+        3,
+        3
+      ]
+    },
+    "J4-n80-checked-production-native": {
+      "ranks": 80,
+      "level": "J4",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        5
+      ]
+    },
+    "J4-n80-candidate-production-native": {
+      "ranks": 80,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n120-checked-production-native": {
+      "ranks": 120,
+      "level": "J4",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109,
+          110,
+          111,
+          112,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118,
+          119
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        4
+      ]
+    },
+    "J4-n120-candidate-production-native": {
+      "ranks": 120,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n160-checked-production-native": {
+      "ranks": 160,
+      "level": "J4",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109,
+          110,
+          111,
+          112,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118,
+          119,
+          120,
+          121,
+          122,
+          123,
+          124,
+          125,
+          126,
+          127,
+          128,
+          129,
+          130,
+          131,
+          132,
+          133,
+          134,
+          135,
+          136,
+          137,
+          138,
+          139,
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        1
+      ]
+    },
+    "J4-n160-candidate-production-native": {
+      "ranks": 160,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n160-candidate-oracles-native": {
+      "ranks": 160,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": true,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J5-n160-baseline-production-native": {
+      "ranks": 160,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n160-candidate-production-native": {
+      "ranks": 160,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n167-checked-production-native": {
+      "ranks": 167,
+      "level": "J5",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "zero_domain_rank_sets": [
+        [
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        6
+      ]
+    },
+    "J5-n167-candidate-production-native": {
+      "ranks": 167,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n167-candidate-oracles-native": {
+      "ranks": 167,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": true,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n256-checked-production-native": {
+      "ranks": 256,
+      "level": "J5",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "zero_domain_rank_sets": [
+        [
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167,
+          168,
+          169,
+          170,
+          171,
+          172,
+          173,
+          174,
+          175,
+          176,
+          177,
+          178,
+          179,
+          180,
+          181,
+          182,
+          183,
+          184,
+          185,
+          186,
+          187,
+          188,
+          189,
+          190,
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200,
+          201,
+          202,
+          203,
+          204,
+          205,
+          206,
+          207,
+          208,
+          209,
+          210,
+          211,
+          212,
+          213,
+          214,
+          215,
+          216,
+          217,
+          218,
+          219,
+          220,
+          221,
+          222,
+          223,
+          224,
+          225,
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          232,
+          233,
+          234,
+          235,
+          236,
+          237,
+          238,
+          239,
+          240,
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250,
+          251,
+          252,
+          253,
+          254,
+          255
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        4
+      ]
+    },
+    "J5-n256-candidate-production-native": {
+      "ranks": 256,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n256-candidate-oracles-native": {
+      "ranks": 256,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": true,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    }
+  },
+  "exact_numerical_gates": 33,
+  "raw_lifecycle_and_trajectory_rechecked": true,
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "scope": "Restarted J4/J5 resident block pathway on one nk node; no general initialization, arbitrary task-count or multi-node claim; exploratory scaling follows below.",
+  "checkpoint_review_limit": "Raw checkpoint files excluded from review archive; exact comparison reports re-evaluated and recorded final file hashes cross-checked across runs.",
+  "scaling": [
+    {
+      "level": "J4",
+      "ranks": 40,
+      "base_ranks": 40,
+      "ordinary_indices": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "ordinary_seconds": [
+        0.768,
+        0.773,
+        0.789,
+        0.82,
+        0.83,
+        0.879,
+        0.874,
+        0.889,
+        0.938
+      ],
+      "median_seconds": 0.83,
+      "stdout_rounding_median_interval": [
+        0.8295,
+        0.8304999999999999
+      ],
+      "speedup": 1.0,
+      "relative_efficiency": 1.0,
+      "time_change_percent": 0.0,
+      "paired_step_time_ratios": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "paired_ratio_range": [
+        1.0,
+        1.0
+      ],
+      "median_without_remaps": 0.83,
+      "pre_checkpoint_median": 0.8045,
+      "post_restart_median": 0.889,
+      "independent_runs": 1
+    },
+    {
+      "level": "J4",
+      "ranks": 41,
+      "base_ranks": 40,
+      "ordinary_indices": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "ordinary_seconds": [
+        0.767,
+        0.789,
+        0.828,
+        0.865,
+        0.842,
+        0.853,
+        0.858,
+        0.854,
+        0.935
+      ],
+      "median_seconds": 0.853,
+      "stdout_rounding_median_interval": [
+        0.8525,
+        0.8534999999999999
+      ],
+      "speedup": 0.9730363423212192,
+      "relative_efficiency": 0.9493037486060675,
+      "time_change_percent": 2.7710843373494054,
+      "paired_step_time_ratios": [
+        0.9986979166666666,
+        1.0206985769728332,
+        1.0494296577946767,
+        1.0548780487804879,
+        1.0144578313253012,
+        0.9704209328782707,
+        0.9816933638443935,
+        0.9606299212598425,
+        0.9968017057569297
+      ],
+      "paired_ratio_range": [
+        0.9606299212598425,
+        1.0548780487804879
+      ],
+      "median_without_remaps": 0.842,
+      "pre_checkpoint_median": 0.835,
+      "post_restart_median": 0.858,
+      "independent_runs": 1
+    },
+    {
+      "level": "J4",
+      "ranks": 80,
+      "base_ranks": 40,
+      "ordinary_indices": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "ordinary_seconds": [
+        0.701,
+        0.726,
+        0.743,
+        0.761,
+        0.756,
+        0.809,
+        0.755,
+        0.756,
+        0.83
+      ],
+      "median_seconds": 0.756,
+      "stdout_rounding_median_interval": [
+        0.7555000000000001,
+        0.7565
+      ],
+      "speedup": 1.097883597883598,
+      "relative_efficiency": 0.548941798941799,
+      "time_change_percent": -8.915662650602407,
+      "paired_step_time_ratios": [
+        0.9127604166666666,
+        0.9391979301423027,
+        0.9416983523447401,
+        0.9280487804878049,
+        0.9108433734939759,
+        0.9203640500568829,
+        0.8638443935926774,
+        0.8503937007874016,
+        0.8848614072494669
+      ],
+      "paired_ratio_range": [
+        0.8503937007874016,
+        0.9416983523447401
+      ],
+      "median_without_remaps": 0.756,
+      "pre_checkpoint_median": 0.7495,
+      "post_restart_median": 0.756,
+      "independent_runs": 1
+    },
+    {
+      "level": "J4",
+      "ranks": 120,
+      "base_ranks": 40,
+      "ordinary_indices": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "ordinary_seconds": [
+        0.669,
+        0.677,
+        0.676,
+        0.69,
+        0.686,
+        0.735,
+        0.682,
+        0.697,
+        0.738
+      ],
+      "median_seconds": 0.686,
+      "stdout_rounding_median_interval": [
+        0.6855000000000001,
+        0.6865
+      ],
+      "speedup": 1.2099125364431484,
+      "relative_efficiency": 0.40330417881438285,
+      "time_change_percent": -17.349397590361438,
+      "paired_step_time_ratios": [
+        0.87109375,
+        0.8758085381630013,
+        0.8567807351077313,
+        0.8414634146341463,
+        0.8265060240963856,
+        0.8361774744027304,
+        0.7803203661327232,
+        0.7840269966254217,
+        0.7867803837953092
+      ],
+      "paired_ratio_range": [
+        0.7803203661327232,
+        0.8758085381630013
+      ],
+      "median_without_remaps": 0.686,
+      "pre_checkpoint_median": 0.6815,
+      "post_restart_median": 0.697,
+      "independent_runs": 1
+    },
+    {
+      "level": "J4",
+      "ranks": 160,
+      "base_ranks": 40,
+      "ordinary_indices": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "ordinary_seconds": [
+        0.633,
+        0.63,
+        0.651,
+        0.651,
+        0.645,
+        0.691,
+        0.648,
+        0.673,
+        0.696
+      ],
+      "median_seconds": 0.651,
+      "stdout_rounding_median_interval": [
+        0.6505000000000001,
+        0.6515
+      ],
+      "speedup": 1.2749615975422426,
+      "relative_efficiency": 0.31874039938556065,
+      "time_change_percent": -21.56626506024095,
+      "paired_step_time_ratios": [
+        0.82421875,
+        0.815006468305304,
+        0.8250950570342205,
+        0.7939024390243903,
+        0.7771084337349398,
+        0.7861205915813424,
+        0.7414187643020596,
+        0.7570303712035996,
+        0.742004264392324
+      ],
+      "paired_ratio_range": [
+        0.7414187643020596,
+        0.8250950570342205
+      ],
+      "median_without_remaps": 0.651,
+      "pre_checkpoint_median": 0.648,
+      "post_restart_median": 0.673,
+      "independent_runs": 1
+    },
+    {
+      "level": "J5",
+      "ranks": 160,
+      "base_ranks": 160,
+      "ordinary_indices": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "ordinary_seconds": [
+        0.6,
+        0.589,
+        0.59,
+        0.612,
+        0.602,
+        0.645,
+        0.475,
+        0.514,
+        0.613
+      ],
+      "median_seconds": 0.6,
+      "stdout_rounding_median_interval": [
+        0.5995,
+        0.6004999999999999
+      ],
+      "speedup": 1.0,
+      "relative_efficiency": 1.0,
+      "time_change_percent": 0.0,
+      "paired_step_time_ratios": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "paired_ratio_range": [
+        1.0,
+        1.0
+      ],
+      "median_without_remaps": 0.6,
+      "pre_checkpoint_median": 0.601,
+      "post_restart_median": 0.514,
+      "independent_runs": 1
+    },
+    {
+      "level": "J5",
+      "ranks": 167,
+      "base_ranks": 160,
+      "ordinary_indices": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "ordinary_seconds": [
+        0.609,
+        0.599,
+        0.604,
+        0.619,
+        0.613,
+        0.642,
+        0.485,
+        0.514,
+        0.614
+      ],
+      "median_seconds": 0.609,
+      "stdout_rounding_median_interval": [
+        0.6085,
+        0.6094999999999999
+      ],
+      "speedup": 0.9852216748768473,
+      "relative_efficiency": 0.9439249579658417,
+      "time_change_percent": 1.5000000000000124,
+      "paired_step_time_ratios": [
+        1.0150000000000001,
+        1.0169779286926994,
+        1.023728813559322,
+        1.011437908496732,
+        1.0182724252491695,
+        0.9953488372093023,
+        1.0210526315789474,
+        1.0,
+        1.0016313213703099
+      ],
+      "paired_ratio_range": [
+        0.9953488372093023,
+        1.023728813559322
+      ],
+      "median_without_remaps": 0.609,
+      "pre_checkpoint_median": 0.611,
+      "post_restart_median": 0.514,
+      "independent_runs": 1
+    },
+    {
+      "level": "J5",
+      "ranks": 256,
+      "base_ranks": 160,
+      "ordinary_indices": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "ordinary_seconds": [
+        0.723,
+        0.664,
+        0.644,
+        0.657,
+        0.653,
+        0.718,
+        0.505,
+        0.546,
+        0.681
+      ],
+      "median_seconds": 0.657,
+      "stdout_rounding_median_interval": [
+        0.6565000000000001,
+        0.6575
+      ],
+      "speedup": 0.91324200913242,
+      "relative_efficiency": 0.5707762557077625,
+      "time_change_percent": 9.50000000000002,
+      "paired_step_time_ratios": [
+        1.205,
+        1.1273344651952464,
+        1.0915254237288137,
+        1.0735294117647058,
+        1.084717607973422,
+        1.1131782945736433,
+        1.063157894736842,
+        1.0622568093385214,
+        1.1109298531810767
+      ],
+      "paired_ratio_range": [
+        1.0622568093385214,
+        1.205
+      ],
+      "median_without_remaps": 0.664,
+      "pre_checkpoint_median": 0.6605000000000001,
+      "post_restart_median": 0.546,
+      "independent_runs": 1
+    }
+  ],
+  "timing_policy": {
+    "included_steps": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      11,
+      12
+    ],
+    "excluded_steps": [
+      1,
+      8,
+      9
+    ],
+    "excludes": "initial step, checkpoint/save/reload-containing step, first full integration step after that reload",
+    "remapping": "included; removing the two remap steps does not reverse the conclusion",
+    "clock": "rank-zero MPI_Wtime around time_step; stdout cpu label is wall time, not CPU time or measured all-rank maximum",
+    "precision": "stdout ES8.2, three significant digits; the higher-precision run_id_log files were not included in the archive",
+    "repetition": "one independent optimized non-oracle run per task count; the nine steps share run conditions and adaptive history",
+    "efficiency": "E(P;P0)=T(P0)*P0/(T(P)*P), relative to 40 ranks for J4 and 160 for J5, not serial efficiency"
+  }
+}

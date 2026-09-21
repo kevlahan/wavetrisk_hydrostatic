@@ -103,7 +103,10 @@ subroutine build_source_blocks (verbose,check_serialization)
 
   end do
 
-  if (n_block_built < 1) then
+  ! A rank without geometric Domains may receive final-owner blocks during
+  ! migration. Keep its source store allocated but empty and participate in
+  ! the same migration collectives as ranks that contribute source blocks.
+  if (n_block_built < 1 .and. size(grid) > 0) then
      error stop "build_source_blocks: no source-local blocks"
   end if
 
@@ -165,7 +168,7 @@ subroutine build_source_blocks (verbose,check_serialization)
   !
   ! Fallback to the first candidate with a local source Domain.
   !
-  if (print_summary .and. rank == 0 .and. b_verbose < 1) then
+  if (print_summary .and. rank == 0 .and. b_verbose < 1 .and. size(grid) > 0) then
 
      do b = 1, size(block_catalog)
 
@@ -186,7 +189,7 @@ subroutine build_source_blocks (verbose,check_serialization)
 
   end if
 
-  if (print_summary .and. rank == 0 .and. b_verbose < 1) then
+  if (print_summary .and. rank == 0 .and. b_verbose < 1 .and. size(grid) > 0) then
      error stop &
           "build_source_blocks: no local source-domain block"
   end if
@@ -242,7 +245,7 @@ subroutine build_source_blocks (verbose,check_serialization)
 
   end do
 
-  if (n_block_built < 1) then
+  if (n_block_built < 1 .and. size(grid) > 0) then
      error stop "build_source_blocks: no blocks constructed"
   end if
 

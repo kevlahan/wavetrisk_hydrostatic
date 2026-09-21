@@ -29,7 +29,7 @@ program climate
   implicit none
 
   ! Initialize mpi, shared variables and domains
-  call init_arch_mod 
+  call init_arch_mod(defer_domain_limit=.true.)
   call init_comm_mpi_mod
   call read_test_case_parameters   
 

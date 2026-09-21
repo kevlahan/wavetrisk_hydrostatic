@@ -1,0 +1,19 @@
+{
+  "stage": 223,
+  "kit": "/private/tmp/wavetrisk-stage223-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage223-cluster-kit.tar.gz",
+  "sha256": "18864f7e5f654e443e496051ffca6b82d72e04236b9e33ad736f8157f95fe55e",
+  "bytes": 67537688,
+  "archive_reextracted_and_candidate_reproduced": true,
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "scope": "Eleven sequential correctness runs on nk, one exclusive 256-core node; no timing promotion.",
+  "local_validation": "passed: checked four-rank empty-root trajectory, two reloads/remaps, exact checkpoint",
+  "helper_tests": 8,
+  "checkpoint_reader_tests": 4,
+  "packaged_workflow_test": "PASS: packaged bootstrap, state preservation, duplicate guards, same-node launch, failure archive and verified transfer reuse.",
+  "workflow_log_sha256": "5fb370ed1406bddc230659adcfdc9aee6a94d7e47ee60837f0be487e6a2401a2",
+  "cluster_status": "Job 54725: placement repaired; two J4 n40 cases pass exactly; J4 n41 checked fails during initial restart with confirmed checkpoint prefix cursor error",
+  "desktop_archive": "/Users/kevlahan/Desktop/wavetrisk-stage223-cluster-kit.tar.gz",
+  "launcher_repair": "parallel-blocks-stage223-launcher-repair.json",
+  "cluster_review": "parallel-blocks-stage223-review.json"
+}

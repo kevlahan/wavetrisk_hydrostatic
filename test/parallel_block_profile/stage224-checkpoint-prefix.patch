@@ -1,0 +1,62 @@
+--- a/src/checkpoint.f90
++++ b/src/checkpoint.f90
+@@ -1452,6 +1452,7 @@
+     integer(int64) :: nbytes
+     integer(int64) :: p
+     integer(int64) :: global_prefix_bytes
++    integer(int64) :: global_prefix_position
+ 
+     integer(int64), allocatable :: domain_pos(:)
+     integer(int8),  allocatable :: buf(:)
+@@ -1602,9 +1603,13 @@
+ 
+     flush(fid)
+ 
++    ! Reconstruction advances domain_pos. Keep the original metadata location
++    ! separately; zero denotes a rank with no local Domain record.
++    global_prefix_position = 0_int64
++    if (size(domain_pos) > 0) global_prefix_position = domain_pos(1)
+     call load_domains_stream(fid, domain_pos, global_prefix_bytes)
+     if (any(n_domain == 0)) &
+-         call distribute_checkpoint_global_state(fid,domain_pos,global_prefix_bytes)
++         call distribute_checkpoint_global_state(fid,global_prefix_position,global_prefix_bytes)
+ 
+     close(fid)
+ 
+@@ -1682,12 +1687,12 @@
+   end subroutine read_checkpoint_global_state
+ 
+ 
+-  subroutine distribute_checkpoint_global_state (fid,domain_pos,prefix_bytes)
++  subroutine distribute_checkpoint_global_state (fid,prefix_position,prefix_bytes)
+     ! Reuse exactly the serialized header/model prefix from an existing
+     ! Domain record. No Domain solution, geometry or wavelet data is copied.
+     implicit none
+     integer, intent(in) :: fid
+-    integer(int64), intent(in) :: domain_pos(:)
++    integer(int64), intent(in) :: prefix_position
+     integer(int64), intent(inout) :: prefix_bytes
+     integer :: source,ierr
+     integer(int8), allocatable :: prefix(:)
+@@ -1696,7 +1701,7 @@
+     if (source < 0 .or. source >= n_process) &
+          error stop "checkpoint global-state source is invalid"
+     if (rank == source) then
+-       if (size(domain_pos) < 1) &
++       if (prefix_position < 1_int64) &
+             error stop "checkpoint global-state source has no Domain record"
+     end if
+     call MPI_Bcast(prefix_bytes,1,MPI_INTEGER8,source,comm,ierr)
+@@ -1705,10 +1710,10 @@
+          prefix_bytes > int(huge(0),int64)) &
+          error stop "checkpoint global-state prefix extent is invalid"
+     allocate(prefix(int(prefix_bytes)))
+-    if (rank == source) read(fid,pos=domain_pos(1)) prefix
++    if (rank == source) read(fid,pos=prefix_position) prefix
+     call MPI_Bcast(prefix,size(prefix),MPI_BYTE,source,comm,ierr)
+     if (ierr /= MPI_SUCCESS) error stop "checkpoint global-state broadcast failed"
+-    if (size(domain_pos) == 0) then
++    if (prefix_position == 0_int64) then
+        write(fid,pos=1) prefix
+        flush(fid)
+        call read_checkpoint_global_state(fid,1_int64)

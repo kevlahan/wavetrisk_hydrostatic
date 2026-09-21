@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "scope": "Serial source-routine I/O reproduction; MPI broadcasts stubbed, not a full solver validation",
+  "source": "/private/tmp/stage223-local/final-tree/src/checkpoint.f90",
+  "source_sha256": "87152d08ac236252e3a597537ec35c5b01f79e412c824c0fa65ca730b0dd7094",
+  "cases": [
+    {
+      "variant": "original",
+      "domain_records": 1,
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "At line 50 of file /var/folders/sq/kywp_f496g94pkt2q6kk7ylh0000gn/T/stage223-prefix-probe-gn6vcmco/original.f90\nFortran runtime error: End of file\n\nError termination. Backtrace:\n#0  0x1042e20d3 in ???\n#1  0x1042e2cd7 in ???\n#2  0x1042e35a7 in ???\n#3  0x104403737 in ???\n#4  0x104407757 in ???\n#5  0x104403203 in ???\n#6  0x1040b4cdb in __probe_mod_MOD_distribute_checkpoint_global_state\n\tat /var/folders/sq/kywp_f496g94pkt2q6kk7ylh0000gn/T/stage223-prefix-probe-gn6vcmco/original.f90:50\n#7  0x1040b558f in probe\n\tat /var/folders/sq/kywp_f496g94pkt2q6kk7ylh0000gn/T/stage223-prefix-probe-gn6vcmco/original.f90:76\n#8  0x1040b564f in main\n\tat /var/folders/sq/kywp_f496g94pkt2q6kk7ylh0000gn/T/stage223-prefix-probe-gn6vcmco/original.f90:61\n"
+    },
+    {
+      "variant": "original",
+      "domain_records": 2,
+      "returncode": 0,
+      "stdout": " PASS: exact global metadata prefix\n",
+      "stderr": ""
+    },
+    {
+      "variant": "corrected-seek",
+      "domain_records": 1,
+      "returncode": 0,
+      "stdout": " PASS: exact global metadata prefix\n",
+      "stderr": ""
+    },
+    {
+      "variant": "corrected-seek",
+      "domain_records": 2,
+      "returncode": 0,
+      "stdout": " PASS: exact global metadata prefix\n",
+      "stderr": ""
+    }
+  ]
+}

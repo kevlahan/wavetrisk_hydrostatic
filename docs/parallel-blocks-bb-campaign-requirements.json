@@ -1,0 +1,24 @@
+{
+  "source": "User-provided sinfo output and explicit exclusion, 2026-09-21; no remote topology verification performed",
+  "partition": "bb",
+  "reported_nodes": ["bb01", "bb02", "bb03", "bb04", "bb05", "bb06", "bb07", "bb08", "bb09", "bb10", "bb11", "bb12"],
+  "reported_sockets_per_node": 2,
+  "reported_slurm_cpus_per_node": 64,
+  "excluded_nodes": ["bb04"],
+  "exclusion_reason": "User reports bb04 is unreliable; never schedule build, probe or solver jobs there",
+  "usable_reported_nodes": 11,
+  "configured_cpu_slots_excluding_bb04": 704,
+  "nodes_for_640_tasks_at_64_per_node": 10,
+  "requirements": [
+    "Use --exclude=bb04 on allocations and independently reject any allocation or placement containing bb04",
+    "Verify lscpu physical cores, SMT, allowed CPU sets, socket/NUMA layout and CPU model on every allocated node; Slurm CPU count alone is insufficient",
+    "Use a placement map per hostname and local rank; do not reuse nk's single-node 256-core map",
+    "Verify homogeneous native-build CPU compatibility across all nodes, or choose a common compilation target",
+    "Retain source, input, binary and physical-placement identities and numerical/restart gates",
+    "Obtain bb reference timings; do not interpret comparisons against nk as strong scaling",
+    "For fixed-resource scaling, reserve the same ten nodes and spread 160/320/640 ranks as 16/32/64 per node with nested balanced socket placement",
+    "If testing packed 5-node/320 versus 10-node/640 layouts, label that as node-count scaling and document placement separately",
+    "Use a short bounded capability ladder before repeated performance measurements; 640 tasks is a capacity target, not a demonstrated speedup"
+  ],
+  "status": "requirements recorded; no bb kit prepared or job submitted"
+}

@@ -1,0 +1,14 @@
+--- a/src/parallel_block_mpi.f90
++++ b/src/parallel_block_mpi.f90
+@@ -9596,8 +9596,10 @@
+          block_writeback_plan%vector_patch_nvalue)) then
+        call fail("writeback Domain stage extent mismatch")
+     end if
++    ! Empty Domain owners retain one dummy element, just as in allocation.
++    ! The displacement remains the logical value count, which may be zero.
+     if (production_vector_transform_displ(1) /= 0 .or. &
+-         production_vector_transform_displ(size(grid)+1) /= &
++         max(1,production_vector_transform_displ(size(grid)+1)) /= &
+          size(production_vector_transform_stage) .or. &
+          size(production_vector_wavelet_stage) /= &
+          size(production_vector_transform_stage) .or. &

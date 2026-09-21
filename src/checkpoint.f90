@@ -7,9 +7,10 @@ module checkpoint_mod
 
   use kind_mod,   only : dp
   use shared_mod, only : N_BDRY,  N_CHDRN, N_VARIABLE, MULT, cp_idx, istep_cumul, itime, iwrite, level_end, &
-     min_level, max_level,  n_glo_domain, run_id, scalars, threshold, time, vert_diffuse, zmin, zmax, zlevels, NONE, z_null
+     min_level, max_level, n_domain, n_glo_domain, run_id, scalars, threshold, time, vert_diffuse, &
+     zmin, zmax, zlevels, NONE, z_null
   
-  use arch_mod,         only : barrier, comm, glo_id, n_process, rank, cp_load
+  use arch_mod,         only : barrier, comm, glo_id, n_process, rank, cp_load, owner
   use comm_mod,         only : domain_load
   use comm_mpi_mod,     only : update_bdry
   use domain_mod,       only : Domain, Float_Field, grid, idx, sol, tke, scalar, wav_coeff, wav_tke, wc_s
@@ -1450,6 +1451,8 @@ contains
 
     integer(int64) :: nbytes
     integer(int64) :: p
+    integer(int64) :: global_prefix_bytes
+    integer(int64) :: global_prefix_position
 
     integer(int64), allocatable :: domain_pos(:)
     integer(int8),  allocatable :: buf(:)
@@ -1600,7 +1603,13 @@ contains
 
     flush(fid)
 
-    call load_domains_stream(fid, domain_pos)
+    ! Reconstruction advances domain_pos. Keep the original metadata location
+    ! separately; zero denotes a rank with no local Domain record.
+    global_prefix_position = 0_int64
+    if (size(domain_pos) > 0) global_prefix_position = domain_pos(1)
+    call load_domains_stream(fid, domain_pos, global_prefix_bytes)
+    if (any(n_domain == 0)) &
+         call distribute_checkpoint_global_state(fid,global_prefix_position,global_prefix_bytes)
 
     close(fid)
 
@@ -1662,7 +1671,57 @@ contains
   end subroutine load_adapt_mpi
 
   
-  subroutine load_domains_stream (fid, domain_pos)
+  subroutine read_checkpoint_global_state (fid, position)
+    ! This prefix belongs to the whole simulation, including ranks that own
+    ! blocks but no geometric Domains. The case callback is part of the prefix.
+    implicit none
+    integer, intent(in) :: fid
+    integer(int64), intent(in) :: position
+
+    read(fid, pos=position) istep_cumul
+    read(fid) time
+    read(fid) itime
+    read(fid) iwrite
+    read(fid) threshold
+    call load(fid)
+  end subroutine read_checkpoint_global_state
+
+
+  subroutine distribute_checkpoint_global_state (fid,prefix_position,prefix_bytes)
+    ! Reuse exactly the serialized header/model prefix from an existing
+    ! Domain record. No Domain solution, geometry or wavelet data is copied.
+    implicit none
+    integer, intent(in) :: fid
+    integer(int64), intent(in) :: prefix_position
+    integer(int64), intent(inout) :: prefix_bytes
+    integer :: source,ierr
+    integer(int8), allocatable :: prefix(:)
+
+    source = owner(1)
+    if (source < 0 .or. source >= n_process) &
+         error stop "checkpoint global-state source is invalid"
+    if (rank == source) then
+       if (prefix_position < 1_int64) &
+            error stop "checkpoint global-state source has no Domain record"
+    end if
+    call MPI_Bcast(prefix_bytes,1,MPI_INTEGER8,source,comm,ierr)
+    if (ierr /= MPI_SUCCESS) error stop "checkpoint global-state extent broadcast failed"
+    if (prefix_bytes <= 0_int64 .or. prefix_bytes > cp_nbytes(1) .or. &
+         prefix_bytes > int(huge(0),int64)) &
+         error stop "checkpoint global-state prefix extent is invalid"
+    allocate(prefix(int(prefix_bytes)))
+    if (rank == source) read(fid,pos=prefix_position) prefix
+    call MPI_Bcast(prefix,size(prefix),MPI_BYTE,source,comm,ierr)
+    if (ierr /= MPI_SUCCESS) error stop "checkpoint global-state broadcast failed"
+    if (prefix_position == 0_int64) then
+       write(fid,pos=1) prefix
+       flush(fid)
+       call read_checkpoint_global_state(fid,1_int64)
+    end if
+  end subroutine distribute_checkpoint_global_state
+
+
+  subroutine load_domains_stream (fid, domain_pos, global_prefix_bytes)
     ! Reconstruct all locally owned domains from a single
     ! rank-local unformatted stream.
     !
@@ -1673,6 +1732,8 @@ contains
 
     integer,        intent(in)    :: fid
     integer(int64), intent(inout) :: domain_pos(:)
+    integer(int64), intent(out) :: global_prefix_bytes
+    integer(int64) :: prefix_end
 
     integer :: c, d
     integer :: ibeg, iend
@@ -1688,6 +1749,7 @@ contains
     if (size(domain_pos) /= size(grid)) then
        error stop "load_domains_stream: domain_pos has wrong size"
     end if
+    global_prefix_bytes = 0_int64
 
     !
     ! ------------------------------------------------------------
@@ -1700,17 +1762,11 @@ contains
        ! The first read explicitly seeks to this domain's record.
        ! All subsequent reads for this domain are sequential.
        !
-       read(fid, pos=domain_pos(d)) istep_cumul
-
-       read(fid) time
-       read(fid) itime
-       read(fid) iwrite
-       read(fid) threshold
-
-       !
-       ! Test-case-specific data. This may be empty.
-       !
-       call load(fid)
+       call read_checkpoint_global_state(fid,domain_pos(d))
+       if (d == 1) then
+          inquire(unit=fid,pos=prefix_end)
+          global_prefix_bytes = prefix_end-domain_pos(d)
+       end if
 
        !
        ! Pole scalar values.

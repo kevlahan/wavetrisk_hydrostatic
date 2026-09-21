@@ -1,0 +1,16 @@
+{
+  "stage": 226,
+  "kit": "/private/tmp/wavetrisk-stage226-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage226-cluster-kit.tar.gz",
+  "sha256": "e2d47f6d6becb374b9d5bac953de3b33ce1f3a610ced6f0c5b813cc0d53f6f04",
+  "bytes": 67535683,
+  "archive_reextracted_and_all_sources_reproduced": true,
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "gates": 21,
+  "cluster_status": "prepared; not submitted",
+  "packaged_helper_tests": 19,
+  "packaged_helper_tests_status": "passed",
+  "packaged_workflow_status": "passed; real extraction, identities, duplicate guards and archive verification; simulated Slurm/scp",
+  "python_and_shell_syntax": "passed",
+  "desktop_archive": "/Users/kevlahan/Desktop/wavetrisk-stage226-cluster-kit.tar.gz"
+}

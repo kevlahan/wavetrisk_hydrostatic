@@ -1,0 +1,31 @@
+{
+  "stage": 223,
+  "job": "54725",
+  "status": "capability_gate_failed",
+  "archive": "/Users/kevlahan/Desktop/stage223-review-54725.tar.gz",
+  "archive_sha256": "11d6e4f18724e744a155c70bc157750df77c0276bcd5e3cf5798913f269b90f4",
+  "verified_archive_files": 277,
+  "placement_verified_ranks": [
+    40,
+    41,
+    160,
+    167
+  ],
+  "passed_solver_cases": [
+    "J4-n40-baseline-production-native",
+    "J4-n40-candidate-production-native"
+  ],
+  "exact_checkpoint_match": true,
+  "failed_case": "J4-n41-checked-production-native",
+  "elapsed_seconds": 6.103497272939421,
+  "primary_failure": "Rank 0: Fortran end-of-file in distribute_checkpoint_global_state, checkpoint.f90:1710, during initial restart",
+  "secondary_failure": "Slurm kill-on-bad-exit terminated ranks 1-40; srun returned 143",
+  "timeout": false,
+  "cause": "load_domains_stream mutates domain_pos to consumed record cursors; global-prefix distribution later reads from that advanced cursor instead of the original record start.",
+  "local_masking": "A source owning multiple concatenated Domain records can read the next record global prefix accidentally; with one Domain the cursor reaches EOF.",
+  "reproducer": "parallel-blocks-stage223-prefix-probe.json",
+  "reproducer_source_matches_cluster": true,
+  "next_step": "Preserve an immutable prefix start separately from reconstruction cursors; locally gate single-Domain metadata source plus zero-Domain receiver, then repeat bounded cluster correctness matrix.",
+  "solver_source_changed": false,
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608"
+}

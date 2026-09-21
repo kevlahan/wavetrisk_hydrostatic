@@ -612,7 +612,20 @@ The data structure on each domain `d` is selected as `grid(d)` or `dom=grid(d)`,
 </code>
 </pre>
 
-The domains are the basic unit of parallelization, and domains are distributed over cores for load balancing. See Sections [2.2](#markdown-header-24-coarsest-grid) and [2.4](#markdown-header-24-coarsest-grid) for details of how the mpi parallelization uses the domain and patch hybrid data structure. 
+Geometric Domains remain the ownership and checkpoint units. Resident parallel
+blocks can be distributed independently of those Domains. Restarted climate
+runs using compressible, non-mode-split RK4 with Simple physics and without
+NCAR topography or SSO support more MPI tasks than Domains. Other configurations,
+including cold starts, retain the Domain-count limit. No campaign environment
+variable is needed to enable the supported production path.
+
+The current block catalogue uses either one whole-Domain block or four child
+subtrees per Domain, so its actual size lies between `N_GLO_DOMAIN` and
+`4*N_GLO_DOMAIN`. MPI tasks must not exceed the actual catalogue size; this is
+checked after every adaptive rebuild as well as against the upper bound at
+startup. A rank may own no Domains while owning useful blocks. Ranks with no
+blocks and recursive splitting beyond one level are not supported by this
+integration. See Sections [2.2](#markdown-header-24-coarsest-grid) and [2.4](#markdown-header-24-coarsest-grid) for details of how the mpi parallelization uses the domain and patch hybrid data structure.
 
 If <code>optmize_grid = NONE</code> the coarsest grid is just the grid produced by bisecting the icosahedron the `MIN_LEVEL` times. The size of patches is PATCH_LEVEL (e.g. if <code>PATCH_LEVEL = 2</code> then the patches are `4x4`).  The larger <code>PATCH_LEVEL</code> is the fewer levels of tree structure must be 
 traversed before reaching a uniform grid (which will in general contain inactive nodes).  Each computation patch element is made up of one node for scalars and three edges for vectors

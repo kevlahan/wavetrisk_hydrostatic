@@ -1,0 +1,271 @@
+{
+  "stage": 226,
+  "status": "passed",
+  "production": {
+    "status": "passed",
+    "ranks": 41,
+    "domains": 40,
+    "steps": 12,
+    "coverage": {
+      "domains": 40,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "new_checkpoint": "localJ4J6_checkpoint_0003.bin.zst"
+    },
+    "oracles": true,
+    "prototype_hooks": false,
+    "command": [
+      "mpirun",
+      "--oversubscribe",
+      "--bind-to",
+      "none",
+      "-n",
+      "41",
+      "./climate",
+      "simple.in"
+    ],
+    "elapsed_seconds": 798.7442759579862,
+    "binary_sha256": "d8953f89b899c4f412a389980edf5b268533edda5bb5ed157d6fa03eff451510",
+    "log_sha256": "dbcc7eeb5d88f21e631f990d760878de410a300ef7a770bc894ede710c94c639",
+    "numerical": {
+      "passed": true,
+      "exact_required": true,
+      "exact_observed": true,
+      "failures": [],
+      "policy": {
+        "id": "stage180-local-v1",
+        "atmosphere_absolute": {
+          "velocity": 1e-10,
+          "mass": 1e-10,
+          "temperature": 1e-07
+        },
+        "soil_absolute": 0.0
+      },
+      "report": {
+        "left": "/private/tmp/stage223-local/empty-root-checked/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/stage226-local/production-41-oracles/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    },
+    "production_sources": {
+      "src/arch.f90": "20c7816afa642d72ba9a5f6b436a047da6c7a2800c24f40fab8a54ca63f81632",
+      "src/main.f90": "6984d2db7d7cddf64aadf050d91c29d9285228b59021212dc6fa3b6ab447217e",
+      "src/parallel_block_mpi.f90": "687a137fe97afd1ff61f7dfb69a209421d285afde7a8cc5c9b13079eda6c426f",
+      "test/climate/climate.f90": "b4a99f4264bbdef7734a967a180a83767228f714cfaf0e5a41efd8fc046a624c"
+    },
+    "environment": {
+      "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "1",
+      "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "1",
+      "WAVETRISK_VALIDATE_BLOCK_REMAP": "1",
+      "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+      "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+      "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+      "WAVETRISK_STAGE191_INSTALL": "1",
+      "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+      "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+      "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+      "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+      "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1"
+    },
+    "build_log_sha256": "76af7851ec589fb98071ea80b2d9a6f0894fa10be4269dd7a7811c83a59e4f13",
+    "local_flags": "FFLAGS += -ffp-contract=off -O1 -Wno-error=maybe-uninitialized -Wno-error=function-elimination\n"
+  },
+  "guards": {
+    "status": "passed",
+    "cases": {
+      "supported": {
+        "ranks": 2,
+        "returncode": 0,
+        "expected": "accept"
+      },
+      "boundary": {
+        "ranks": 2,
+        "returncode": 0,
+        "expected": "accept"
+      },
+      "legacy": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "cold": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "split": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "incompressible": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "rk3": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "physics": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "no-physics": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "topography": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "sso": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "other-driver": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "actual-capacity": {
+        "ranks": 2,
+        "returncode": 1,
+        "expected": "reject"
+      },
+      "upper-capacity": {
+        "ranks": 5,
+        "returncode": 1,
+        "expected": "reject"
+      }
+    },
+    "build_command": [
+      "mpif90",
+      "-ffree-line-length-132",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fcheck=all",
+      "stub.f90",
+      "arch.f90",
+      "driver.f90",
+      "-o",
+      "guard"
+    ]
+  },
+  "checked_solver_compile_commands_verified": 55,
+  "local_warning_policy": "Same five previously reviewed optimization-dependent warnings remain visible/nonfatal; runtime checks and FP traps retained; cluster uses unchanged checked O0 policy",
+  "checked_observer_syntax": "All four observer modules compiled at O0 with warnings as errors against copied production modules",
+  "production_patch_sha256": "28f0fd28fca5bcc4e0b95b98248221df9b0f183fa8dd9ae4c503d0e213480083",
+  "cluster_status": "not submitted",
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608"
+}

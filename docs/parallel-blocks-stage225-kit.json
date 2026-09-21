@@ -1,0 +1,18 @@
+{
+  "stage": 225,
+  "kit": "/private/tmp/wavetrisk-stage225-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage225-cluster-kit.tar.gz",
+  "sha256": "40b7fcf06777ccca248324af9799b5684898598518acb7c2f93c18cb436c3541",
+  "bytes": 67543920,
+  "archive_reextracted_and_candidate_reproduced": true,
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "locally_validated_fortran_files_matched": 136,
+  "cluster_status": "prepared; not submitted",
+  "scope": "Eleven sequential correctness gates on nk, two 128-core sockets; no speedup claim.",
+  "packaged_helper_tests": 17,
+  "packaged_helper_tests_status": "passed",
+  "packaged_workflow_status": "passed; real extraction and integrity checks, simulated Slurm/scp; no remote jobs submitted",
+  "shell_syntax": "passed",
+  "python_syntax": "all packaged Python helpers passed",
+  "desktop_archive": "/Users/kevlahan/Desktop/wavetrisk-stage225-cluster-kit.tar.gz"
+}

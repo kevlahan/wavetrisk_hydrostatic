@@ -1,0 +1,871 @@
+{
+  "stage": 222,
+  "status": "passed",
+  "performance_claim": null,
+  "scope": "Four-task J4/J6 Z30 adaptive/restart correctness; not an 83-task timing or >Domain-count release.",
+  "baseline": "/private/tmp/stage215-local/optimized-final",
+  "runs": {
+    "release-optimized": {
+      "path": "/private/tmp/stage222-local/release-optimized",
+      "binary_sha256": "6c067db8f188fdf0e88221c50f5c28305837a33e359db953c28e70fc0fdf7731",
+      "record_sha256": "79fd00fc1edc41ba4f1bb08609dfa1d3405a9f856afcc3a2657017c56dd4563a",
+      "log_sha256": "c95b838258d4143bdea7c762105874f40400421bf4f73485d4c7794ac0a40a60",
+      "exact_checkpoint": true,
+      "checkpoint": {
+        "left": "/private/tmp/stage215-local/optimized-final/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/stage222-local/release-optimized/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      },
+      "workload": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "sources": {
+        "src/parallel_block.f90": "4ce02ad8ab92abf0e1c5dec5e9288f5124d3be3b69edcead478d7f751c13001b",
+        "src/parallel_block_mpi.f90": "de8938d492f46b77a1006c955f9d02c8b5f18232d6f3471f216ef385523eade5",
+        "src/parallel_block_build.f90": "a2da4bb726c2437e1dfe48779e01ce4d024dfa3698256454ef423220bd574520",
+        "src/checkpoint.f90": "74595142eb1b824b3a8a216088abf2df6a2ad76bc30536750997bb6d73e28892",
+        "src/main.f90": "c083e128e564555b274860f3896b517b59a2bb542db6331c97610b621c1b965c"
+      }
+    },
+    "final-checked": {
+      "path": "/private/tmp/stage222-local/final-checked",
+      "binary_sha256": "569ae59131d1307757d916380b7d123641eb8f766b892268b72c2cc1b8176de0",
+      "record_sha256": "f4c2a269f689e56df4f0a109ad4079c5806080164364bd81500138776cb38521",
+      "log_sha256": "47277f599e1f9c79e8c81b2add76e706f64e190be48a21ac90262969d49d0dc9",
+      "exact_checkpoint": true,
+      "checkpoint": {
+        "left": "/private/tmp/stage215-local/optimized-final/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/stage222-local/final-checked/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      },
+      "workload": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "sources": {
+        "src/parallel_block.f90": "4ce02ad8ab92abf0e1c5dec5e9288f5124d3be3b69edcead478d7f751c13001b",
+        "src/parallel_block_mpi.f90": "ab6571c6525b09111b5d328a7e63bfcfc78bd23ac48ded103d1517f5178ce6b1",
+        "src/parallel_block_build.f90": "a2da4bb726c2437e1dfe48779e01ce4d024dfa3698256454ef423220bd574520",
+        "src/checkpoint.f90": "1b99e840396a1edd8a7fd62d793d09ad3def1086041d8d611a16cce1f4ec7b90",
+        "src/main.f90": "c083e128e564555b274860f3896b517b59a2bb542db6331c97610b621c1b965c"
+      },
+      "scope": "Checked cleanup and intermediate equivalence; predates the empty-rank restart fixes, checked by domainless-restart-final.",
+      "deletion_checks": {
+        "inverse_publications_poisoned": 144,
+        "temperature_transactions_poisoned": 192,
+        "omitted_grid_publications_verified": 48
+      }
+    },
+    "final-oracles": {
+      "path": "/private/tmp/stage222-local/final-oracles",
+      "binary_sha256": "6c067db8f188fdf0e88221c50f5c28305837a33e359db953c28e70fc0fdf7731",
+      "record_sha256": "de25bde1f25bff145c8cb7c63afef96a38fdd0a5790031ed346df1cc974bdaee",
+      "log_sha256": "51c9b20d13cc508239a12da21f403899ec0da0cb66acf0138328fa859be589e4",
+      "exact_checkpoint": true,
+      "checkpoint": {
+        "left": "/private/tmp/stage215-local/optimized-final/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/stage222-local/final-oracles/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      },
+      "workload": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "sources": {
+        "src/parallel_block.f90": "4ce02ad8ab92abf0e1c5dec5e9288f5124d3be3b69edcead478d7f751c13001b",
+        "src/parallel_block_mpi.f90": "de8938d492f46b77a1006c955f9d02c8b5f18232d6f3471f216ef385523eade5",
+        "src/parallel_block_build.f90": "a2da4bb726c2437e1dfe48779e01ce4d024dfa3698256454ef423220bd574520",
+        "src/checkpoint.f90": "74595142eb1b824b3a8a216088abf2df6a2ad76bc30536750997bb6d73e28892",
+        "src/main.f90": "c083e128e564555b274860f3896b517b59a2bb542db6331c97610b621c1b965c"
+      }
+    },
+    "domainless-restart-final": {
+      "path": "/private/tmp/stage222-local/domainless-restart-final",
+      "binary_sha256": "8ec478698de8f91fa7aaf4134104ad98255b1b8d4a0b762fdc5151b2e30b9a3b",
+      "record_sha256": "9f60832837ab3cea38b743937623cc95a3452ed926fd9a5781a40cabbaec9b7e",
+      "log_sha256": "1873f2a8a1fe30997d2cd562680567f7ea3de5b1f06a87b26e4fb5fd56dda1fc",
+      "exact_checkpoint": true,
+      "checkpoint": {
+        "left": "/private/tmp/stage215-local/optimized-final/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/stage222-local/domainless-restart-final/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      },
+      "workload": {
+        "passed": true,
+        "reference_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849"
+        ],
+        "candidate_steps": [
+          "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+          "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+          "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+          "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+          "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849"
+        ],
+        "scope": "Identical printed timestep, dt, Jmax and dof sequence required for timing."
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "sources": {
+        "src/parallel_block.f90": "4ce02ad8ab92abf0e1c5dec5e9288f5124d3be3b69edcead478d7f751c13001b",
+        "src/parallel_block_mpi.f90": "93f52e675103978f5d0ae3543071788f1397ac970a4abf5cb2ca1b067dadaf77",
+        "src/parallel_block_build.f90": "a2da4bb726c2437e1dfe48779e01ce4d024dfa3698256454ef423220bd574520",
+        "src/checkpoint.f90": "74595142eb1b824b3a8a216088abf2df6a2ad76bc30536750997bb6d73e28892",
+        "src/main.f90": "62dd777495fc271ec1afe6d580702c0a6c807b4af010f0fead8ae9a1d659df88"
+      },
+      "postprocess_recovery": {
+        "reason": "Launcher imported old checkpoint reader before record-permutation fix; solver completed normally. Recomputed original postprocessing with corrected reader.",
+        "original_record_sha256": "36d9aa2ca20d847853723250f20263efd430c91b1e21992f5cebc2d3b1e5218f"
+      },
+      "rank3_owned_block_counts": [
+        38,
+        38,
+        37,
+        38,
+        38,
+        38,
+        37,
+        37,
+        38,
+        38,
+        36,
+        37,
+        37,
+        36
+      ],
+      "discarded_grid_buffers_poisoned": 48,
+      "comparison_policy": {
+        "id": "stage180-local-v1",
+        "atmosphere_absolute": {
+          "velocity": 1e-10,
+          "mass": 1e-10,
+          "temperature": 1e-07
+        },
+        "soil_absolute": 0.0
+      }
+    }
+  },
+  "baseline_record_sha256": "e27203ec72f2859d2a6e17c3193d6be940d60b065f9f6689b466b2acde0e407a",
+  "validation_helpers": {
+    "audit_cleanup_222.py": "fdd7341d41723c73157236ecc3a2da028273fbb426de911bf2c1be169527a340",
+    "probe_domainless_222.py": "826a555d12116e02d8b085482754a3e48379b2a453696ee5eaaaaa41aac57b23",
+    "run_local_222.py": "1991812dbb1b8f1e477e7c29d20022f20eae00b7b70315ec816ef0d4e5b1f703",
+    "validate_cleanup_222.py": "4478628b922bf6c208bc89294c8b006312c5d3f75f282f774783a3b588102bd7",
+    "compare_restart_checkpoints.py": "4e058385bf9246e63e48f7db26db122da879bbece0a738f588bdb4b54c4f3642",
+    "test_restart_checkpoints.py": "d3981d4611320ba3be36b8e51b5c022f7bb1a424e5c1144bf15ce580a08e415d"
+  },
+  "checked_build_logs": {
+    "build-final-checked.log": "226346acc8ac90fe643e497158080278889e49eeb5d09234eeaae4699e2be555",
+    "build-domainless-release3-checked.log": "d42546ccfc0f0e0b72ad128468428dc77a22e1486dc9c687e88eaf508577d62d"
+  },
+  "workspace_sources": {
+    "src/parallel_block.f90": "4ce02ad8ab92abf0e1c5dec5e9288f5124d3be3b69edcead478d7f751c13001b",
+    "src/parallel_block_mpi.f90": "de8938d492f46b77a1006c955f9d02c8b5f18232d6f3471f216ef385523eade5",
+    "src/parallel_block_build.f90": "a2da4bb726c2437e1dfe48779e01ce4d024dfa3698256454ef423220bd574520",
+    "src/checkpoint.f90": "74595142eb1b824b3a8a216088abf2df6a2ad76bc30536750997bb6d73e28892",
+    "src/main.f90": "62dd777495fc271ec1afe6d580702c0a6c807b4af010f0fead8ae9a1d659df88"
+  },
+  "exact_intermediate_streams": {
+    "cleanup222-compact_scalar-0.bin": {
+      "bytes": 24024000,
+      "records": 2288,
+      "values": 3001856,
+      "sha256": "4207775a97bd12f7b15a0208cef998f90ba8d0e5d6d026d30800c4c8755ccf1e"
+    },
+    "cleanup222-compact_scalar-1.bin": {
+      "bytes": 23604000,
+      "records": 2248,
+      "values": 2949376,
+      "sha256": "7f1184dfccf13a44cbe4c6b805c4ec427849805c1dd07b8b7258694bc616592c"
+    },
+    "cleanup222-compact_scalar-2.bin": {
+      "bytes": 24108000,
+      "records": 2296,
+      "values": 3012352,
+      "sha256": "b9e1de83c9f7f0a35e2ca6b5a5064201f5a7e90f71b0f95e502dba4800645c92"
+    },
+    "cleanup222-compact_scalar-3.bin": {
+      "bytes": 22218000,
+      "records": 2116,
+      "values": 2776192,
+      "sha256": "0ee3345f76d7165b35da8ca8edb4e9b278cbd3efb03b942959003926b4caa146"
+    },
+    "cleanup222-compact_vector-0.bin": {
+      "bytes": 36031424,
+      "records": 2288,
+      "values": 4502784,
+      "sha256": "890b78f32293aacddba6d2f5d0d8d2e7353a2645246d0b77c302e94e7ab10c59"
+    },
+    "cleanup222-compact_vector-1.bin": {
+      "bytes": 35401504,
+      "records": 2248,
+      "values": 4424064,
+      "sha256": "38817956b54c002870070f4856c44c7fd1adb129272f51bf457b2b55527984cc"
+    },
+    "cleanup222-compact_vector-2.bin": {
+      "bytes": 36157408,
+      "records": 2296,
+      "values": 4518528,
+      "sha256": "78e7394d94e39f59d4f67ff4dd374fd613ce9ab7b51c098346216ffca4a242ce"
+    },
+    "cleanup222-compact_vector-3.bin": {
+      "bytes": 33322768,
+      "records": 2116,
+      "values": 4164288,
+      "sha256": "3579bda37e1a5652ce0b4dfef152fb5c6fbd0777d039c35816783c077a0fe48c"
+    },
+    "cleanup222-forward-0.bin": {
+      "bytes": 98718240,
+      "records": 3960,
+      "values": 12337800,
+      "sha256": "1b5957b014e4d65081a2c921a269c1ddcc7195eab97c640681db0dfcebca0032"
+    },
+    "cleanup222-forward-1.bin": {
+      "bytes": 88932960,
+      "records": 3240,
+      "values": 11115000,
+      "sha256": "bfa280eb99572f99e90c7b50f94690573eb2f9586e4d053fa86d51d4e6c85ac1"
+    },
+    "cleanup222-forward-2.bin": {
+      "bytes": 96183840,
+      "records": 3960,
+      "values": 12021000,
+      "sha256": "5c0e521f719d70f96614e1bd6c2e7eb7b58915c77dd392904e5d0f7eb743560a"
+    },
+    "cleanup222-forward-3.bin": {
+      "bytes": 85054560,
+      "records": 3240,
+      "values": 10630200,
+      "sha256": "0c5fb57f3f893a3b1cf525487429a0457bc06f67b00a99446ff343ec975ca202"
+    },
+    "cleanup222-inverse-0.bin": {
+      "bytes": 98718240,
+      "records": 3960,
+      "values": 12337800,
+      "sha256": "9dda9af8df1d38c6c5cf46e2151802e3ce73a859a451f33cc4cd412f267b6d06"
+    },
+    "cleanup222-inverse-1.bin": {
+      "bytes": 88932960,
+      "records": 3240,
+      "values": 11115000,
+      "sha256": "efa477d9b8aa1c813e41ffe2dbaa8d74c5137d2792604a5bc7e68a01ba87e215"
+    },
+    "cleanup222-inverse-2.bin": {
+      "bytes": 96183840,
+      "records": 3960,
+      "values": 12021000,
+      "sha256": "72db62d19bf41f2e23a9c30634e81be826b802b9a70d8428f9a6776b82fcb7d0"
+    },
+    "cleanup222-inverse-3.bin": {
+      "bytes": 85054560,
+      "records": 3240,
+      "values": 10630200,
+      "sha256": "4a114da78f30de0a053125b42ffddf7911da59775498a6f28ef647d6759d9411"
+    },
+    "cleanup222-mass_tendency-0.bin": {
+      "bytes": 19745760,
+      "records": 1320,
+      "values": 2467560,
+      "sha256": "69defef1fdda307f64a3b40f35c5820d3b47a6c2ffd6def54027054c728676f5"
+    },
+    "cleanup222-mass_tendency-1.bin": {
+      "bytes": 17788320,
+      "records": 1080,
+      "values": 2223000,
+      "sha256": "5663cfb0b402509a3f89a1f0934d51ac08fb5dd81a78e0695c8eab7bb627ccd1"
+    },
+    "cleanup222-mass_tendency-2.bin": {
+      "bytes": 19238880,
+      "records": 1320,
+      "values": 2404200,
+      "sha256": "2c3780871dcedf31f001ccd50472e16a4a1a1710f8ddf86878371f279eab5706"
+    },
+    "cleanup222-mass_tendency-3.bin": {
+      "bytes": 17012640,
+      "records": 1080,
+      "values": 2126040,
+      "sha256": "e4b2ace54beead7b8ded10b9b0a46d6ce6340866f98067eb52c4be79a6fd3e15"
+    },
+    "cleanup222-rk-0.bin": {
+      "bytes": 98718240,
+      "records": 3960,
+      "values": 12337800,
+      "sha256": "e187b7a190123a138420f2f26ccdc4eec055c53ce1c8fcc0add737e199191c76"
+    },
+    "cleanup222-rk-1.bin": {
+      "bytes": 88932960,
+      "records": 3240,
+      "values": 11115000,
+      "sha256": "c9c0fa857c0413d161bb4f077e2ba9a7f462cb25b037215953b9e74539393003"
+    },
+    "cleanup222-rk-2.bin": {
+      "bytes": 96183840,
+      "records": 3960,
+      "values": 12021000,
+      "sha256": "a37776b4e9e8648a88afdb6d384c964fd6344199d722647d73479ca843403add"
+    },
+    "cleanup222-rk-3.bin": {
+      "bytes": 85054560,
+      "records": 3240,
+      "values": 10630200,
+      "sha256": "48ede5ae7064021f9419369f7056aec3a6282c0de41f3298fd4ab440630eccb3"
+    },
+    "cleanup222-velocity_tendency-0.bin": {
+      "bytes": 59226720,
+      "records": 1320,
+      "values": 7402680,
+      "sha256": "58a1b245ed6d22c9f550f37e8eebb3656f65c1e24b57ac28ae1d6fd6b0679664"
+    },
+    "cleanup222-velocity_tendency-1.bin": {
+      "bytes": 53356320,
+      "records": 1080,
+      "values": 6669000,
+      "sha256": "24e53c1f5db1fe9276d2fdc9e8830c5cf934ba64714af6403b2556434bde7d0b"
+    },
+    "cleanup222-velocity_tendency-2.bin": {
+      "bytes": 57706080,
+      "records": 1320,
+      "values": 7212600,
+      "sha256": "3584fbab737cd995630bb2e417b388a63b033d1ae0d4aea99dabc4581fc8d277"
+    },
+    "cleanup222-velocity_tendency-3.bin": {
+      "bytes": 51029280,
+      "records": 1080,
+      "values": 6378120,
+      "sha256": "bc61362024faa14a7599aeb7e0d3402c9a7958e85bcf3c9902c67460f9cd594e"
+    }
+  },
+  "intermediate_trace_bytes": 1636639904,
+  "notes": [
+    "Startup ntasks<=N_GLO_DOMAIN guard remains unchanged.",
+    "Domainless probe changes geometry ownership only in a disposable test tree.",
+    "Checked cleanup traces precede the restart fix; the domainless checked run tests that fix.",
+    "Normal-layout runs precede the empty-rank early-return removal; this exact sole main.f90 difference is verified.",
+    "No cluster performance gain or >160-task capability is claimed."
+  ]
+}

@@ -3484,8 +3484,8 @@ end function local_block_scalar_family_patch_nvalue
 
 
 subroutine get_local_block_scalar_patch_family_values ( &
-     catalog_index,local_patch,payload_family,value)
-  ! Pack one scalar sol or wav_coeff family from one compact patch.
+     catalog_index,local_patch,payload_family,value,temperature_only)
+  ! Pack a scalar family, or only physical temperature, from one compact patch.
 
   implicit none
 
@@ -3493,6 +3493,7 @@ subroutine get_local_block_scalar_patch_family_values ( &
   integer, intent(in) :: local_patch
   integer, intent(in) :: payload_family
   real(dp), intent(out) :: value(:)
+  logical, optional, intent(in) :: temperature_only
 
   integer :: field_base
   integer :: local_index
@@ -3502,6 +3503,9 @@ subroutine get_local_block_scalar_patch_family_values ( &
   integer :: output_base
   integer :: patch_start
   integer :: scalar_slot
+  integer :: scalar_first,scalar_last,level_first,level_last
+
+  logical :: only_temperature
 
   local_index = catalog_local_block(catalog_index)
   if (local_index < 1) then
@@ -3521,8 +3525,28 @@ subroutine get_local_block_scalar_patch_family_values ( &
           "get_local_block_scalar_patch_family_values: invalid family"
   end if
 
-  if (size(value) /= &
-       local_block_scalar_family_patch_nvalue(catalog_index)) then
+  scalar_first = 1
+  scalar_last = block_local(local_index)%n_scalar_variable
+  level_first = 1
+  level_last = block_local(local_index)%n_field_level
+  only_temperature = .false.
+  if (present(temperature_only)) only_temperature = temperature_only
+  if (only_temperature) then
+     scalar_first = S_TEMP-block_local(local_index)%scalar_variable+1
+     scalar_last = scalar_first
+     level_first = 1-block_local(local_index)%field_level+1
+     level_last = zlevels-block_local(local_index)%field_level+1
+     if (payload_family /= BLOCK_PAYLOAD_SOL .or. &
+          block_local(local_index)%scalar_mult /= 1 .or. &
+          scalar_first < 1 .or. &
+          scalar_last > block_local(local_index)%n_scalar_variable .or. &
+          level_first < 1 .or. &
+          level_last > block_local(local_index)%n_field_level) then
+        error stop "get_local_block_scalar_patch_family_values: temperature layout"
+     end if
+  end if
+  if (size(value) /= (scalar_last-scalar_first+1)* &
+       (level_last-level_first+1)*block_local(local_index)%scalar_mult*PATCH_SIZE**2) then
      error stop &
           "get_local_block_scalar_patch_family_values: output extent"
   end if
@@ -3539,20 +3563,14 @@ subroutine get_local_block_scalar_patch_family_values ( &
           "get_local_block_scalar_patch_family_values: patch storage"
   end if
 
-  do scalar_slot = 1, &
-       block_local(local_index)%n_scalar_variable
-     do level_slot = 1, &
-          block_local(local_index)%n_field_level
+  output_base = 0
+  do scalar_slot = scalar_first,scalar_last
+     do level_slot = level_first,level_last
         field_base = &
              ((scalar_slot-1)* &
              block_local(local_index)%n_field_level + &
              level_slot-1) * &
              block_local(local_index)%scalar_mult*n_node
-        output_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1) * n_patch_value
-
         select case (payload_family)
         case (BLOCK_PAYLOAD_SOL)
            value(output_base+1:output_base+n_patch_value) = &
@@ -3571,6 +3589,7 @@ subroutine get_local_block_scalar_patch_family_values ( &
                 block_local(local_index)%scalar_mult*patch_start + &
                 n_patch_value)
         end select
+        output_base = output_base+n_patch_value
      end do
   end do
 

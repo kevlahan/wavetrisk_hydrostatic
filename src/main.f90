@@ -38,7 +38,7 @@ module main_mod
   use wavelet_mod,        only : forward_wavelet_transform, init_wavelets, inverse_scalar_transform, inverse_wavelet_transform
 
   use arch_mod, only : abort_run, barrier, distribute_grid, glo_id, init_arch_mod, &
-       n_glo_block, n_process, owner, rank
+       n_glo_block, n_process, owner, rank, validate_domain_rank_count
 
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
        sum_int, sync_max_int, sync_min_real, update_bdry, write_load_conn
@@ -201,11 +201,23 @@ contains
   end subroutine end_domain_consumer_audit
 
 
+  logical function domainless_block_configuration_supported () result(supported)
+    ! Qualify the restarted production path established by the capability
+    ! regressions. Cold starts and other dynamics/physics retain the old limit.
+    supported = trim(test_case) == 'climate' .and. resume >= 0 .and. &
+         compressible .and. .not. mode_split .and. trim(timeint_type) == 'RK4' .and. &
+         physics_model .and. trim(physics_type) == 'Simple' .and. &
+         .not. NCAR_topo .and. .not. sso
+  end function domainless_block_configuration_supported
+
+
   subroutine initialize (run_id) 
     ! Initialize from checkpoint or adapt to initialize conditions
     ! (solution is saved and restarted to balance load)
     implicit none
     character(*), intent(in) :: run_id
+
+    call validate_domain_rank_count(domainless_block_configuration_supported())
 
     if (max_level < min_level) then
        if (rank == 0) then
@@ -752,6 +764,12 @@ contains
           error stop &
                "unsupported compressible production block integrator"
        end select
+    end if
+
+    ! Above the Domain count, never silently fall back to Domain dynamics.
+    if (n_process > n_glo_block .and. .not. block_multistage_candidate) then
+       if (rank == 0) write(6,'(a)') "More MPI tasks than Domains requires ready resident multistage block state"
+       call abort_run
     end if
 
     ! Materialize the current block shadow transactionally before legacy
@@ -1349,7 +1367,8 @@ contains
     character(len=256) :: emsg
 
     if (.not. allocated (grid)) return
-    if (size(grid) <= 0) return
+    ! Empty-Domain ranks still own shared arrays and zero-sized field stores.
+    ! Their Domain loops are empty, but the common restart cleanup must run.
 
     if (allocated (Area_avg)) deallocate (Area_avg)
     if (allocated (C_visc))   deallocate (C_visc)

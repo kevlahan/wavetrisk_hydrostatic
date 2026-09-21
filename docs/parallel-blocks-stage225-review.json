@@ -1,0 +1,292 @@
+{
+  "stage": 225,
+  "job": "54729",
+  "status": "passed",
+  "archive": "/Users/kevlahan/Desktop/stage225-review-54729.tar.gz",
+  "archive_sha256": "50022eade666ed2a708142bb51516db1ffb185ea483bfb741a46222f007a9a39",
+  "inventory_files_verified": 3052,
+  "source_manifest_sha256": "85ac02ae9b095ed1e828b83d4bab34b6202a9e0d6853823638d72c1c6f6855d1",
+  "builds_verified": 6,
+  "node": "bb13.rhpcs.internal",
+  "placement_counts_verified": [
+    40,
+    41,
+    160,
+    167
+  ],
+  "runs": {
+    "J4-n40-baseline-production-native": {
+      "ranks": 40,
+      "level": "J4",
+      "kind": "baseline",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n40-candidate-production-native": {
+      "ranks": 40,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        []
+      ],
+      "restart_source_ranks": [
+        0
+      ]
+    },
+    "J4-n41-checked-production-native": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          40
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        4
+      ]
+    },
+    "J4-n41-candidate-production-native": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          40
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        4
+      ]
+    },
+    "J4-n41-candidate-oracles-native": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": true,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          40
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        4
+      ]
+    },
+    "J4-n41-checked-production-empty-root": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "empty-root",
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_sets": [
+        [
+          0
+        ]
+      ],
+      "restart_source_ranks": [
+        1
+      ],
+      "zero_domain_owned_blocks_range": [
+        3,
+        3
+      ]
+    },
+    "J5-n160-baseline-production-native": {
+      "ranks": 160,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n160-candidate-production-native": {
+      "ranks": 160,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "zero_domain_rank_sets": [
+        []
+      ],
+      "restart_source_ranks": [
+        0
+      ]
+    },
+    "J5-n167-checked-production-native": {
+      "ranks": 167,
+      "level": "J5",
+      "kind": "checked",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "zero_domain_rank_sets": [
+        [
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        6
+      ]
+    },
+    "J5-n167-candidate-production-native": {
+      "ranks": 167,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "zero_domain_rank_sets": [
+        [
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        6
+      ]
+    },
+    "J5-n167-candidate-oracles-native": {
+      "ranks": 167,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": true,
+      "layout": "native",
+      "steps": 12,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "zero_domain_rank_sets": [
+        [
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166
+        ]
+      ],
+      "restart_source_ranks": [
+        0
+      ],
+      "zero_domain_owned_blocks_range": [
+        1,
+        6
+      ]
+    }
+  },
+  "exact_numerical_gates": 17,
+  "raw_lifecycle_and_trajectory_rechecked": true,
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "scope": "Restarted J4/J5 resident block pathway on one nk node; no general initialization, arbitrary task-count, multi-node or performance claim.",
+  "checkpoint_review_limit": "Raw checkpoint files excluded from review archive; exact comparison reports re-evaluated and recorded final file hashes cross-checked across runs."
+}

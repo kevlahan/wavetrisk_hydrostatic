@@ -1,0 +1,18 @@
+{
+  "stage": 224,
+  "kit": "/private/tmp/wavetrisk-stage224-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage224-cluster-kit.tar.gz",
+  "sha256": "9cf4ac49dcbe89396ed2be1898b474c3fc983880659783e417d05596bd9039bf",
+  "bytes": 67544007,
+  "archive_reextracted_and_candidate_reproduced": true,
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "locally_validated_fortran_files_matched": 136,
+  "cluster_status": "Job 54727 reviewed: 40-rank reference/candidate and 41-rank checked/optimized pass exactly; oracle plan check rejects valid empty-rank buffer capacity",
+  "scope": "Eleven sequential correctness gates on nk, two 128-core sockets; no speedup claim.",
+  "packaged_helper_tests": 8,
+  "packaged_import_checks": "driver, builder, preparer passed",
+  "packaged_workflow_test": "PASS: packaged bootstrap, state preservation, duplicate guards, same-node launch, failure archive and verified transfer reuse.",
+  "workflow_log_sha256": "5fb370ed1406bddc230659adcfdc9aee6a94d7e47ee60837f0be487e6a2401a2",
+  "desktop_archive": "/Users/kevlahan/Desktop/wavetrisk-stage224-cluster-kit.tar.gz",
+  "review": "parallel-blocks-stage224-review.json"
+}

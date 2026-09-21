@@ -9,7 +9,7 @@ from compare_restart_checkpoints import compare, read
 
 
 class CheckpointComparisonTests(unittest.TestCase):
-    def write_fixture(self, path, perturb=False, domains=160):
+    def write_fixture(self, path, perturb=False, domains=160, reverse_records=False):
         chunks=[]
         for d in range(domains):
             data=struct.pack('<idqi',252,100.,10000,3)+np.zeros(6,dtype='<f8').tobytes()
@@ -25,9 +25,15 @@ class CheckpointComparisonTests(unittest.TestCase):
             data+=wave.tobytes()+np.zeros(4,dtype='<i4').tobytes()
             chunks.append(data)
         sizes=np.array([len(p) for p in chunks],dtype='<i8')
-        offsets=np.concatenate(([24+20*domains],24+20*domains+np.cumsum(sizes)[:-1])).astype('<i8')
+        order=list(range(domains))
+        if reverse_records: order.reverse()
+        offsets=np.empty(domains,dtype='<i8')
+        position=24+20*domains
+        for d in order:
+            offsets[d]=position
+            position+=len(chunks[d])
         raw=struct.pack('<3q',0x5741564554524953,1,domains)+np.zeros(domains,dtype='<i4').tobytes()
-        raw+=offsets.tobytes()+sizes.tobytes()+b''.join(chunks)
+        raw+=offsets.tobytes()+sizes.tobytes()+b''.join(chunks[d] for d in order)
         subprocess.run(['zstd','-q','-o',str(path)],input=raw,check=True)
 
     @unittest.skipUnless(shutil.which('zstd'),'zstd required')
@@ -69,6 +75,24 @@ class CheckpointComparisonTests(unittest.TestCase):
             self.assertEqual(r['fields']['coarse/mass/atmosphere']['max_abs'],1.5)
             self.assertEqual(r['fields']['pole/temperature/atmosphere']['max_abs'],0.25)
             with self.assertRaisesRegex(ValueError,'explicit J4'):read(a,0,1,expected_domains=10)
+
+    @unittest.skipUnless(shutil.which('zstd'),'zstd required')
+    def test_permuted_records_and_overlapping_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a,b,c=(Path(tmp)/name for name in ('a.zst','b.zst','overlap.zst'))
+            self.write_fixture(a,perturb=True,domains=40)
+            self.write_fixture(b,perturb=True,domains=40,reverse_records=True)
+            same=compare(a,b,0,1,expected_domains=40)
+            self.assertEqual(same['header_differences'],0)
+            self.assertEqual(same['topology_differences'],0)
+            self.assertTrue(all(s['different']==0 for s in same['fields'].values()))
+            raw=bytearray(subprocess.check_output(['zstd','-dc',str(b)]))
+            directory=24+4*40
+            second,=struct.unpack_from('<q',raw,directory+8)
+            struct.pack_into('<q',raw,directory,second)
+            subprocess.run(['zstd','-q','-o',str(c)],input=raw,check=True)
+            with self.assertRaisesRegex(ValueError,'directory'):
+                read(c,0,1,expected_domains=40)
 
 
 if __name__=='__main__': unittest.main()

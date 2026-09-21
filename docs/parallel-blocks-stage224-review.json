@@ -1,0 +1,107 @@
+{
+  "stage": 224,
+  "job": 54727,
+  "status": "oracle_plan_validation_failed",
+  "verified_archive_files": 567,
+  "archive_sha256": "b0505729163f94cb26b9e5ed70df1bdd786ff0c542a141a7a505eea0720f2856",
+  "passed_cases": {
+    "J4-n40-baseline-production-native": {
+      "ranks": 40,
+      "kind": "baseline",
+      "elapsed_seconds": 20.23917024000548,
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n40-candidate-production-native": {
+      "ranks": 40,
+      "kind": "candidate",
+      "elapsed_seconds": 20.428128066007048,
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab"
+    },
+    "J4-n41-checked-production-native": {
+      "ranks": 41,
+      "kind": "checked",
+      "elapsed_seconds": 39.32095580501482,
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_40": {
+        "events": 40,
+        "blocks_min": 1,
+        "blocks_max": 4
+      }
+    },
+    "J4-n41-candidate-production-native": {
+      "ranks": 41,
+      "kind": "candidate",
+      "elapsed_seconds": 20.37666720803827,
+      "steps": 12,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "zero_domain_rank_40": {
+        "events": 40,
+        "blocks_min": 1,
+        "blocks_max": 4
+      }
+    }
+  },
+  "numerical_gates": {
+    "J4-n40-baseline-production-native": {
+      "passed": true,
+      "exact_observed": true
+    },
+    "J4-n40-candidate-production-native": {
+      "passed": true,
+      "exact_observed": true
+    },
+    "same-count-J4-n40-candidate-production-native": {
+      "passed": true,
+      "exact_observed": true
+    },
+    "J4-n41-checked-production-native": {
+      "passed": true,
+      "exact_observed": true
+    },
+    "J4-n41-candidate-production-native": {
+      "passed": true,
+      "exact_observed": true
+    },
+    "same-count-J4-n41-candidate-production-native": {
+      "passed": true,
+      "exact_observed": true
+    }
+  },
+  "failed_case": "J4-n41-candidate-oracles-native",
+  "failed_elapsed_seconds": 5.930021281936206,
+  "primary_error": "Rank 40: complete vector transform stage extent mismatch; MPI_Abort(1)",
+  "consequential_exit": 137,
+  "cause": "Oracle compares logical zero extent with max(1,logical extent) allocated capacity on zero-Domain rank.",
+  "source_predicate_reproduced": true,
+  "source_sha256": "386eca4c8d6fba1c3bffd48dc3f2ae446d6469d75c13b9da298cb48f85f80250",
+  "untested": [
+    "J4 41-rank numerical oracle completion",
+    "J4 41-rank empty-root case",
+    "All J5 160/167 solver gates"
+  ],
+  "next_step": "Correct empty-rank extent validation to match allocation policy; run local zero-Domain/source0 and empty-root/source1 tests with full oracles enabled before cluster continuation.",
+  "production_source_changed": false
+}

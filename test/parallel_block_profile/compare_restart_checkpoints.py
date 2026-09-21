@@ -23,7 +23,11 @@ def read(path, zmin, zmax, expected_domains=160):
     offset = np.frombuffer(raw, '<i8', nd, 24+4*nd)
     size = np.frombuffer(raw, '<i8', nd, 24+12*nd)
     expected = 24+20*nd
-    for start,length in zip(offset,size):
+    # Records are written in rank-local order. Changing Domain ownership may
+    # permute physical records; the directory still indexes them by Domain ID.
+    # Validate complete, disjoint file coverage in physical order, then decode
+    # semantic payloads in the original Domain order below.
+    for start,length in sorted(zip(offset,size)):
         if int(start)!=expected or int(length)<=0:
             raise ValueError('Noncontiguous or invalid checkpoint directory')
         expected += int(length)

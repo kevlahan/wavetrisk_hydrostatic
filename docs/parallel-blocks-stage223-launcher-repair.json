@@ -1,0 +1,23 @@
+{
+  "stage": 223,
+  "reported_failed_job": "54724",
+  "reported_host": "bb13",
+  "reported_results": "/home/kevlahan/stage223-nk-results-20260919-093649",
+  "phase": "First 40-rank placement probe; no solver runs",
+  "diagnosis": "Explicit step cpus-per-task implies exact allocation, conflicting with whole-node placement. Precise remote error unconfirmed because original launcher discarded captured stderr.",
+  "repair_archive": "/private/tmp/wavetrisk-stage223-launcher-repair.tar.gz",
+  "sha256": "f137f424dc538b227c930545660d077d6f17a8d500d48751ef68ee3a3163c0ea",
+  "bytes": 13806,
+  "changed_helpers": [
+    "cluster_223.py",
+    "cluster_223.sbatch",
+    "rank_launch_223.py",
+    "prepare_cluster_223.py"
+  ],
+  "source_manifest_unchanged": true,
+  "existing_six_builds_reused": true,
+  "helper_tests": 13,
+  "simulated_workflow": "passed: active-job guard, real kit/source/binary verification, backups, preserved results, retry, duplicate guard, installer idempotence, archive verification and transfer reuse",
+  "limitation": "No local Slurm CPU cgroup simulation or remote execution; repaired probes verify actual placement before any solver.",
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608"
+}

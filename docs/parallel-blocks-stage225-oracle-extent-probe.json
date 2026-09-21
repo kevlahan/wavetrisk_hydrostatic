@@ -1,0 +1,99 @@
+{
+  "status": "passed",
+  "scope": "Exact source predicate reproduced; candidate correction tested only in generated Fortran",
+  "input_predicate_corrected": true,
+  "source": "src/parallel_block_mpi.f90",
+  "source_sha256": "68a76e58a4ec4628a5ab100bdd53ff5292a8e3ce661526d057ed535c3d6e685c",
+  "cases": [
+    {
+      "variant": "original",
+      "case": "empty-valid",
+      "domains": 0,
+      "logical_values": 0,
+      "capacity": 1,
+      "covered_capacity": 1,
+      "result": "REJECT"
+    },
+    {
+      "variant": "original",
+      "case": "empty-missing-dummy",
+      "domains": 0,
+      "logical_values": 0,
+      "capacity": 0,
+      "covered_capacity": 0,
+      "result": "ACCEPT"
+    },
+    {
+      "variant": "original",
+      "case": "nonempty-valid",
+      "domains": 1,
+      "logical_values": 8,
+      "capacity": 8,
+      "covered_capacity": 8,
+      "result": "ACCEPT"
+    },
+    {
+      "variant": "original",
+      "case": "nonempty-wrong-capacity",
+      "domains": 1,
+      "logical_values": 8,
+      "capacity": 9,
+      "covered_capacity": 9,
+      "result": "REJECT"
+    },
+    {
+      "variant": "original",
+      "case": "nonempty-wrong-covered",
+      "domains": 1,
+      "logical_values": 8,
+      "capacity": 8,
+      "covered_capacity": 9,
+      "result": "REJECT"
+    },
+    {
+      "variant": "allocation-consistent",
+      "case": "empty-valid",
+      "domains": 0,
+      "logical_values": 0,
+      "capacity": 1,
+      "covered_capacity": 1,
+      "result": "ACCEPT"
+    },
+    {
+      "variant": "allocation-consistent",
+      "case": "empty-missing-dummy",
+      "domains": 0,
+      "logical_values": 0,
+      "capacity": 0,
+      "covered_capacity": 0,
+      "result": "REJECT"
+    },
+    {
+      "variant": "allocation-consistent",
+      "case": "nonempty-valid",
+      "domains": 1,
+      "logical_values": 8,
+      "capacity": 8,
+      "covered_capacity": 8,
+      "result": "ACCEPT"
+    },
+    {
+      "variant": "allocation-consistent",
+      "case": "nonempty-wrong-capacity",
+      "domains": 1,
+      "logical_values": 8,
+      "capacity": 9,
+      "covered_capacity": 9,
+      "result": "REJECT"
+    },
+    {
+      "variant": "allocation-consistent",
+      "case": "nonempty-wrong-covered",
+      "domains": 1,
+      "logical_values": 8,
+      "capacity": 8,
+      "covered_capacity": 9,
+      "result": "REJECT"
+    }
+  ]
+}

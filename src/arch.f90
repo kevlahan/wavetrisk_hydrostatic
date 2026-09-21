@@ -3,12 +3,13 @@ module arch_mod
   use mpi_f08
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_GLO_DOMAIN, n_domain, run_id
+  use shared_mod, only : N_CHDRN, N_GLO_DOMAIN, n_domain, run_id
 
   implicit none
 
   private
   public :: MPI_IN, MPI_DP, MPI_SP
+  public :: check_parallel_task_capacity, validate_domain_rank_count
   public :: abort_run, barrier, comm, cp_load, distribute_grid, glo_id, finalize, init_arch_mod, loc_id, n_glo_block, &
        n_process, owner, rank
 
@@ -39,10 +40,11 @@ module arch_mod
 contains
 
 
-  subroutine init_arch_mod
+  subroutine init_arch_mod (defer_domain_limit)
 
     implicit none
 
+    logical, intent(in), optional :: defer_domain_limit
     logical, save :: initialized = .false.
 
     if (initialized) return ! initialize only once
@@ -67,21 +69,42 @@ contains
 
     initialized = .true.
 
-    if (n_process > n_glo_block) then
-       if (rank == 0) then
-          write (6,'(/,a)') &
-               "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-          write (6,'(2(a,i4),a)') &
-               "!!          Number of cores ", n_process, &
-               " > number of parallel blocks ", n_glo_block, &
-               " ... aborting             !!"
-          write (6,'(a,/)') &
-               "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-       end if
-       call abort_run
+    ! Most drivers still require a Domain on every rank. The climate driver
+    ! defers this decision until its input and dynamics options are available.
+    if (present(defer_domain_limit)) then
+       if (defer_domain_limit) return
     end if
+    call validate_domain_rank_count(.false.)
 
   end subroutine init_arch_mod
+
+
+  subroutine validate_domain_rank_count (allow_empty_domains)
+    logical, intent(in) :: allow_empty_domains
+
+    if (n_process <= N_GLO_DOMAIN) return
+    if (.not. allow_empty_domains) then
+       if (rank == 0) write(6,'(a)') &
+            "More MPI tasks than Domains requires restarted climate Simple physics, unsplit compressible RK4 without topography/SSO"
+       call abort_run
+    end if
+    ! The present catalogue splits at most one level. The actual capacity is
+    ! checked again after every catalogue build, including adaptive rebuilds.
+    call check_parallel_task_capacity(N_CHDRN*N_GLO_DOMAIN)
+    if (rank == 0) write(6,'(a,i0,a,i0)') &
+         "Resident block execution: MPI tasks = ",n_process,", geometric Domains = ",N_GLO_DOMAIN
+  end subroutine validate_domain_rank_count
+
+
+  subroutine check_parallel_task_capacity (n_blocks)
+    integer, intent(in) :: n_blocks
+
+    if (n_process <= n_blocks) return
+    if (rank == 0) write(6,'(a,i0,a,i0,a)') &
+         "MPI task count ",n_process," exceeds available parallel blocks ",n_blocks, &
+         "; reduce tasks or use a finer block decomposition"
+    call abort_run
+  end subroutine check_parallel_task_capacity
 
 
   subroutine distribute_grid (cp_idx)
