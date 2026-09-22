@@ -1,11 +1,23 @@
 # Stage203: one inverse workspace and patch-wide scalar fields
 
-Implemented prototype; bb13 job 54695 passes correctness but misses the predeclared
-performance threshold. Keep experimental; Stage202-on remains the accepted baseline.
-See [the cluster review](parallel-blocks-cluster-203-54695.md).
-Use `STAGE202=on STAGE203=on FP_CONTRACT=off` with fresh object/binary directories.
-`STAGE203=off|fields|inverse|on` selects independent fallbacks. The default is off.
-The frozen comparison is the validated Stage202-on source from commit `7c406f4d`.
+Production default following [Stage229 requalification](parallel-blocks-stage229-review.md):
+`STAGE202=on STAGE203=on FP_CONTRACT=off`. Job 54737 confirms a 45.715 ms (5.666%)
+ordinary-step reduction at 83 tasks and passes checked/oracle correctness gates,
+including 41 tasks/40 Domains. Always use fresh object and binary directories
+when changing build settings; make does not track changes to compiler flags.
+
+`STAGE203=off|fields|inverse|on` retains the reference and separate feature modes.
+Use `STAGE202=on STAGE203=off` for the Stage226 comparison, or explicitly set
+both off for the original path. Every non-off Stage203 mode requires Stage202 on.
+The inverse workspace is incompatible with `WAVETRISK_STAGE192_SPARSE_OUTER=1`;
+leave that experimental runtime option unset or 0, or build with `STAGE203=off`
+(or `fields`) when investigating sparse outer installation. Existing guards remain.
+
+The original Stage203 campaign, bb13 job 54695, passed correctness but missed its
+former 100 ms threshold; see [that historical review](parallel-blocks-cluster-203-54695.md).
+Its frozen comparison used Stage202-on commit `7c406f4d`. The implementation and
+historical protocol below are retained; the later Stage229 acceptance supersedes
+the original experimental status and threshold.
 
 ## Inverse execution
 

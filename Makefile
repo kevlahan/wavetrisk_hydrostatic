@@ -11,9 +11,11 @@ DEBUG         ?= false
 # FP_CONTRACT=default restores compiler behavior. Use fresh BUILD_DIR and
 # BIN_DIR values when changing the arithmetic setting.
 FP_CONTRACT   ?= off
-# Experimental Stage 202 batching; use fresh build directories for each value.
-STAGE202      ?= off
-STAGE203      ?= off
+# Validated batching and resident inverse workspace (Stage229).
+# Use fresh BUILD_DIR and BIN_DIR values when changing these options.
+# Stage226 comparison: STAGE202=on STAGE203=off; original path: both off.
+STAGE202      ?= on
+STAGE203      ?= on
 TEST_CASE     ?= climate
 PARAM         ?= param_J5
 MPIF90        ?= mpif90

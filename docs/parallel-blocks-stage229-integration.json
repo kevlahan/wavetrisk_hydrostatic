@@ -1,0 +1,131 @@
+{
+  "status": "passed",
+  "source_base": "1d7bc050c0f787ad3748c7a66fed6767fd6f640f",
+  "main_unchanged": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "makefile_sha256": "9d82d441a9b92e1ce88c62b848e64c785a80d89f1dc03ee3f9b53c4c79a76ba1",
+  "checks": [
+    {
+      "level": "J4",
+      "debug": "false",
+      "default_matches_validated_explicit_settings": true,
+      "settings": {
+        "STAGE202": "on",
+        "STAGE203": "on",
+        "FP_CONTRACT": "off",
+        "FFLAGS": "-ffree-line-length-132 -O2 -g -Wall -Wextra -Wline-truncation -Wno-unused-dummy-argument -Wno-trampolines -fbacktrace -march=native -DSTAGE203_FIELDS -DSTAGE203_INVERSE -DSTAGE202_RECORDS -DSTAGE202_INVERSE -ffp-contract=off -J/private/tmp/stage229-selection-build/mod -I/private/tmp/stage229-selection-build/mod -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include"
+      }
+    },
+    {
+      "level": "J4",
+      "debug": "check",
+      "default_matches_validated_explicit_settings": true,
+      "settings": {
+        "STAGE202": "on",
+        "STAGE203": "on",
+        "FP_CONTRACT": "off",
+        "FFLAGS": "-ffree-line-length-132 -O0 -g -Wall -Wextra -Wno-unused-dummy-argument -Wline-truncation -Wimplicit-interface -Werror -fmax-errors=10 -fcheck=all -finit-real=snan -finit-integer=-999999 -finit-logical=true -ffpe-trap=invalid,zero,overflow -ftrapping-math -fbacktrace -DSTAGE203_FIELDS -DSTAGE203_INVERSE -DSTAGE202_RECORDS -DSTAGE202_INVERSE -ffp-contract=off -J/private/tmp/stage229-selection-build/mod -I/private/tmp/stage229-selection-build/mod -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include"
+      }
+    },
+    {
+      "level": "J5",
+      "debug": "false",
+      "default_matches_validated_explicit_settings": true,
+      "settings": {
+        "STAGE202": "on",
+        "STAGE203": "on",
+        "FP_CONTRACT": "off",
+        "FFLAGS": "-ffree-line-length-132 -O2 -g -Wall -Wextra -Wline-truncation -Wno-unused-dummy-argument -Wno-trampolines -fbacktrace -march=native -DSTAGE203_FIELDS -DSTAGE203_INVERSE -DSTAGE202_RECORDS -DSTAGE202_INVERSE -ffp-contract=off -J/private/tmp/stage229-selection-build/mod -I/private/tmp/stage229-selection-build/mod -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include"
+      }
+    },
+    {
+      "level": "J5",
+      "debug": "check",
+      "default_matches_validated_explicit_settings": true,
+      "settings": {
+        "STAGE202": "on",
+        "STAGE203": "on",
+        "FP_CONTRACT": "off",
+        "FFLAGS": "-ffree-line-length-132 -O0 -g -Wall -Wextra -Wno-unused-dummy-argument -Wline-truncation -Wimplicit-interface -Werror -fmax-errors=10 -fcheck=all -finit-real=snan -finit-integer=-999999 -finit-logical=true -ffpe-trap=invalid,zero,overflow -ftrapping-math -fbacktrace -DSTAGE203_FIELDS -DSTAGE203_INVERSE -DSTAGE202_RECORDS -DSTAGE202_INVERSE -ffp-contract=off -J/private/tmp/stage229-selection-build/mod -I/private/tmp/stage229-selection-build/mod -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include"
+      }
+    },
+    {
+      "overrides": [
+        "STAGE203=off"
+      ],
+      "macros": [
+        "STAGE202_INVERSE",
+        "STAGE202_RECORDS"
+      ],
+      "status": "passed"
+    },
+    {
+      "overrides": [
+        "STAGE202=off",
+        "STAGE203=off"
+      ],
+      "macros": [],
+      "status": "passed"
+    },
+    {
+      "overrides": [
+        "STAGE203=fields"
+      ],
+      "macros": [
+        "STAGE202_INVERSE",
+        "STAGE202_RECORDS",
+        "STAGE203_FIELDS"
+      ],
+      "status": "passed"
+    },
+    {
+      "overrides": [
+        "STAGE203=inverse"
+      ],
+      "macros": [
+        "STAGE202_INVERSE",
+        "STAGE202_RECORDS",
+        "STAGE203_INVERSE"
+      ],
+      "status": "passed"
+    },
+    {
+      "overrides": [
+        "STAGE202=off"
+      ],
+      "rejection": "STAGE203 requires STAGE202=on",
+      "status": "passed"
+    },
+    {
+      "overrides": [
+        "STAGE203=invalid"
+      ],
+      "rejection": "Unknown STAGE203='invalid'",
+      "status": "passed"
+    },
+    {
+      "overrides": [
+        "STAGE202=invalid",
+        "STAGE203=off"
+      ],
+      "rejection": "Unknown STAGE202='invalid'",
+      "status": "passed"
+    }
+  ],
+  "cluster_review_sha256": "47d436315d9527e88edbd4ab9a00343ed631f90de5aeb0fa7002d638fcdcc9dc",
+  "cluster_job": "54737",
+  "performance_confirmation": {
+    "decision": "meets_target",
+    "mean_baseline_run_median": 0.8068898765,
+    "mean_candidate_run_median": 0.7611744325,
+    "gain_seconds": 0.04571544399999994,
+    "paired_gains_seconds": [
+      0.04665236900000003,
+      0.04477851899999996
+    ],
+    "near_threshold": false,
+    "disagreement": false,
+    "independent_runs_per_version": 2,
+    "scope": "Mean of separate run medians; screening pairs excluded. No timestep-level significance test."
+  },
+  "scope": "Build defaults equal the Stage229 explicit validated configuration. No numerical source edits, MPI capability guard edits or new solver/performance runs. Retained Stage229 correctness and performance evidence; 41/40 coverage does not newly validate the full 256/160 envelope."
+}

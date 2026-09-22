@@ -1,0 +1,16 @@
+{
+  "stage": 229,
+  "kit": "/private/tmp/wavetrisk-stage229-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage229-cluster-kit.tar.gz",
+  "sha256": "c031ebecbadce7fa67af08d42f18fa4779f2a65736613da4df61c6b1faf43487",
+  "bytes": 122710857,
+  "reference_commit": "1d7bc050c0f787ad3748c7a66fed6767fd6f640f",
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "source_reproduction_verified": true,
+  "cluster_status": "prepared; not submitted",
+  "desktop_archive": "/Users/kevlahan/Desktop/wavetrisk-stage229-cluster-kit.tar.gz",
+  "packaged_tests_passed": 13,
+  "packaged_workflow": "passed: real extraction/source verification, fake Slurm/scp, same-host launch, duplicate guards, failure archive and repeated transfer",
+  "build_workflow": "passed: real ten-build orchestration/source verification with compiler stubs; selectors and identical physics checked",
+  "local_validation": "eight cases passed: optimized and checked normal layouts, full oracles at4 and41/40, exact A/B/legacy observers; unchanged legacy numerical screen"
+}

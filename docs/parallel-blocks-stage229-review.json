@@ -1,0 +1,2825 @@
+{
+  "stage": 229,
+  "job": "54737",
+  "archive_sha256": "d842d14d530b69f1ece20d6a05748b88145b5c34d80a4b8e68a09257d345b3a5",
+  "inventory_files_verified": 4373,
+  "source_manifest_sha256": "b4e8247e992237f0ad64736b9d18f9cf5adda74865a4d9065ae0697960fba9da",
+  "reference_commit": "1d7bc050c0f787ad3748c7a66fed6767fd6f640f",
+  "main_commit": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "builds_verified": 10,
+  "compilation_commands_verified": {
+    "J4-baseline": 55,
+    "J4-candidate": 55,
+    "J4-checked": 55,
+    "J5-baseline": 55,
+    "J5-candidate": 55,
+    "J5-checked": 55,
+    "J5-legacy": 47,
+    "J5-baseline_observer": 56,
+    "J5-candidate_observer": 56,
+    "J5-legacy_observer": 48
+  },
+  "physics_object_identities": 23,
+  "node": "bb13.rhpcs.internal",
+  "placement_probes_verified": [
+    16,
+    41,
+    83
+  ],
+  "rank_placements_verified": 1879,
+  "observer_files_verified": 498,
+  "observer_rank_steps_verified": 5976,
+  "observer_events_verified": 89640,
+  "runs": {
+    "J4-n41-validation-baseline-baseline": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_step_median": 0.8547364,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "seconds": 0.770315826
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "seconds": 0.782807094
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "seconds": 0.834566299
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "seconds": 0.86743999
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "seconds": 0.853392472
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42280",
+          "seconds": 0.8547364
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "seconds": 0.862664754
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "seconds": 0.858088868
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849",
+          "seconds": 0.927448431
+        }
+      ]
+    },
+    "J4-n41-validation-checked-checked": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "checked",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_step_median": 2.273642153,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "seconds": 2.059249613
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "seconds": 2.106240412
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "seconds": 2.251475351
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "seconds": 2.308840456
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "seconds": 2.273642153
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42280",
+          "seconds": 2.304401542
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "seconds": 2.29871817
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "seconds": 2.268111552
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849",
+          "seconds": 2.481630856
+        }
+      ]
+    },
+    "J4-n41-validation-candidate-candidate": {
+      "ranks": 41,
+      "level": "J4",
+      "kind": "candidate",
+      "oracle": true,
+      "phase": "validation",
+      "ordinary_step_median": 3.819554614,
+      "checkpoint_sha256": "270a3d6aec3ce3bc58c19fcad8f1c932adeeeb69d0e5674fa89dd234c93f25ab",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+          "seconds": 3.545302846
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+          "seconds": 3.619124232
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+          "seconds": 3.775117399
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+          "seconds": 3.819554614
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+          "seconds": 3.880489938
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42280",
+          "seconds": 3.910543344
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+          "seconds": 3.804820282
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+          "seconds": 3.941926207
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849",
+          "seconds": 4.347192404
+        }
+      ]
+    },
+    "J5-n16-validation-baseline-baseline": {
+      "ranks": 16,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_step_median": 2.579591775,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 2.558926532
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 2.579591775
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 2.572312454
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 2.647199097
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 2.638426459
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 2.823843588
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 2.206025951
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 2.217014721
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 2.697061011
+        }
+      ]
+    },
+    "J5-n16-validation-checked-checked": {
+      "ranks": 16,
+      "level": "J5",
+      "kind": "checked",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_step_median": 7.674659082,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 7.632222919
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 7.660814076
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 7.674659082
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 7.927841785
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 7.788723989
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 8.193125313
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 6.761806062
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 6.758742805
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 8.016658883
+        }
+      ]
+    },
+    "J5-n16-validation-candidate-oracle-candidate": {
+      "ranks": 16,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": true,
+      "phase": "validation",
+      "ordinary_step_median": 10.61802664,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 10.49995602
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 10.59769234
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 10.61802664
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 10.67938304
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 10.70345119
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 11.48377848
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 8.870335067
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 8.816958423
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 10.874583
+        }
+      ]
+    },
+    "J5-n16-validation-candidate-candidate": {
+      "ranks": 16,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_step_median": 2.331901593,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 2.331901593
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 2.32602613
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 2.328190943
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 2.390661626
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 2.397475534
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 2.562766922
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 2.01684311
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 2.03510278
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 2.451948003
+        }
+      ]
+    },
+    "J5-n16-screen-A-baseline": {
+      "ranks": 16,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "screen",
+      "ordinary_step_median": 2.570367714,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 2.541747707
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 2.570367714
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 2.534071275
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 2.623604627
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 2.620988632
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 2.871943653
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 2.225628999
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 2.204786254
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 2.668058891
+        }
+      ]
+    },
+    "J5-n16-screen-B-candidate": {
+      "ranks": 16,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "screen",
+      "ordinary_step_median": 2.327113216,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 2.325438707
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 2.327113216
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 2.317522354
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 2.401959638
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 2.375893325
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 2.548015811
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 2.009742891
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 2.048638185
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 2.435295881
+        }
+      ]
+    },
+    "J5-n83-validation-A-baseline": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_step_median": 0.802356062,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.802200971
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.793755625
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.802356062
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.823090366
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.820715953
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.906695576
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.636205778
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.691454062
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.862427902
+        }
+      ]
+    },
+    "J5-n83-validation-checked-checked": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "checked",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_step_median": 2.167172207,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 2.167172207
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 2.158997592
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 2.160073768
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 2.224182121
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 2.197160132
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 2.421289894
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 1.641229885
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 1.853333111
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 2.299722215
+        }
+      ]
+    },
+    "J5-n83-transfer-A-baseline": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "transfer",
+      "ordinary_step_median": 0.805180517,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.805180517
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.797502745
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.803579749
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.825281238
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.81841748
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.909667092
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.648557058
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.694941105
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.863134518
+        }
+      ]
+    },
+    "J5-n83-transfer-B-candidate": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "transfer",
+      "ordinary_step_median": 0.761527435,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.757570972
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.751459229
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.761527435
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.776225907
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.777354163
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.859955811
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.607682562
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.661742581
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.802878095
+        }
+      ]
+    },
+    "J5-n83-confirm-1-1-baseline": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "confirm",
+      "ordinary_step_median": 0.806619015,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.806619015
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.799232905
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.804184111
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.82911972
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.821191716
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.912579022
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.635840557
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.695530818
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.846038014
+        }
+      ]
+    },
+    "J5-n83-confirm-1-2-candidate": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "confirm",
+      "ordinary_step_median": 0.759966646,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.754646016
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.746904964
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.759966646
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.775743744
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.77495962
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.853914667
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.610595247
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.669458374
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.802956125
+        }
+      ]
+    },
+    "J5-n83-confirm-1-3-candidate": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "confirm",
+      "ordinary_step_median": 0.762382219,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.760947081
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.752050303
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.762382219
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.779132633
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.774132585
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.866583588
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.598787712
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.660125493
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.808823827
+        }
+      ]
+    },
+    "J5-n83-confirm-1-4-baseline": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "confirm",
+      "ordinary_step_median": 0.807160738,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.804427102
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.7985387
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.807160738
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.827649311
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.82375443
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.911813649
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.639130606
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.691757248
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.847766424
+        }
+      ]
+    },
+    "J5-n83-location-1-baseline": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.809686502,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.809686502
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.801930549
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.802428122
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.824390314
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.821766769
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.907230253
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.653810707
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.694823965
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.848120735
+        }
+      ]
+    },
+    "J5-n83-location-1-candidate": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.756366305,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.756366305
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.750543313
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.755898313
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.774642368
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.77860213
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.857005375
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.608937879
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.655053564
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.792388796
+        }
+      ]
+    },
+    "J5-n83-location-1-legacy": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "legacy",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.542280188,
+      "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.538002985
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.537449592
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.542280188
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.554083994
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.554630237
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.58397518
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.45791839
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.494095571
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.572348565
+        }
+      ]
+    },
+    "J5-n83-location-1-baseline_observer": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "baseline_observer",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.804840775,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.804840775
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.798172498
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.800540752
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.82379981
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.819283416
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.914370963
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.635080434
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.698371885
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.850442698
+        }
+      ],
+      "locations": {
+        "ranks": 83,
+        "steps": 12,
+        "included_steps": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "rows": [
+          {
+            "step": 2,
+            "locations": {
+              "setup": 5.497590407970396e-07,
+              "dynamics_wavelets": 0.250228631385527,
+              "tendency_context": 0.38021010202409483,
+              "other_dynamics": 0.0224859677470419,
+              "physics": 0.012764709349380884,
+              "adapt_reconstruct": 0.13672629326505975,
+              "remap": 0.0023716866505902184,
+              "ordinary_output": 7.216337350206254e-05
+            }
+          },
+          {
+            "step": 3,
+            "locations": {
+              "setup": 6.20240946345912e-07,
+              "dynamics_wavelets": 0.24769835472293325,
+              "tendency_context": 0.37564790273491855,
+              "other_dynamics": 0.022473560771111324,
+              "physics": 0.012830307951773362,
+              "adapt_reconstruct": 0.1380079218433766,
+              "remap": 0.0014568308192628389,
+              "ordinary_output": 7.502072292547645e-05
+            }
+          },
+          {
+            "step": 4,
+            "locations": {
+              "setup": 2.9843253100971852e-06,
+              "dynamics_wavelets": 0.251957456999958,
+              "tendency_context": 0.37653577293979446,
+              "other_dynamics": 0.022417167144553732,
+              "physics": 0.01284398602413066,
+              "adapt_reconstruct": 0.13504364508431888,
+              "remap": 0.001685567144545804,
+              "ordinary_output": 7.121328921327283e-05
+            }
+          },
+          {
+            "step": 5,
+            "locations": {
+              "setup": 6.104819421815624e-07,
+              "dynamics_wavelets": 0.2506992155903971,
+              "tendency_context": 0.37397662013260624,
+              "other_dynamics": 0.022244249349262328,
+              "physics": 0.012842748578328523,
+              "adapt_reconstruct": 0.14327735295179433,
+              "remap": 0.01901124621690542,
+              "ordinary_output": 0.0017627346505832975
+            }
+          },
+          {
+            "step": 6,
+            "locations": {
+              "setup": 6.130120523431035e-07,
+              "dynamics_wavelets": 0.24984661891564527,
+              "tendency_context": 0.3750595894096379,
+              "other_dynamics": 0.021645893951831183,
+              "physics": 0.01294234154215427,
+              "adapt_reconstruct": 0.15847922163858316,
+              "remap": 0.0013191156867121087,
+              "ordinary_output": 7.640110844882459e-05
+            }
+          },
+          {
+            "step": 7,
+            "locations": {
+              "setup": 5.966264862182876e-07,
+              "dynamics_wavelets": 0.28108465956623707,
+              "tendency_context": 0.42473751745787974,
+              "other_dynamics": 0.027477274277102934,
+              "physics": 0.013758169361433127,
+              "adapt_reconstruct": 0.16467811361444656,
+              "remap": 0.0025722084457910055,
+              "ordinary_output": 7.815072288953578e-05
+            }
+          },
+          {
+            "step": 10,
+            "locations": {
+              "setup": 5.731325286597641e-07,
+              "dynamics_wavelets": 0.19146179586746312,
+              "tendency_context": 0.29769040810844166,
+              "other_dynamics": 0.019258159469859218,
+              "physics": 0.010565045638552227,
+              "adapt_reconstruct": 0.09745546160243669,
+              "remap": 0.017669906602415984,
+              "ordinary_output": 0.000995576349379851
+            }
+          },
+          {
+            "step": 11,
+            "locations": {
+              "setup": 7.102409862378101e-07,
+              "dynamics_wavelets": 0.20438990133736998,
+              "tendency_context": 0.3192862566264242,
+              "other_dynamics": 0.01814834939763255,
+              "physics": 0.010755426397615765,
+              "adapt_reconstruct": 0.14335943577107063,
+              "remap": 0.0024112474819114405,
+              "ordinary_output": 7.351050601985673e-05
+            }
+          },
+          {
+            "step": 12,
+            "locations": {
+              "setup": 6.159879464017233e-07,
+              "dynamics_wavelets": 0.2625336751926592,
+              "tendency_context": 0.4024123466386475,
+              "other_dynamics": 0.023479412373522923,
+              "physics": 0.01255760691565886,
+              "adapt_reconstruct": 0.14531702350604317,
+              "remap": 0.00408732506021883,
+              "ordinary_output": 7.010045786605095e-05
+            }
+          }
+        ],
+        "mean_locations": {
+          "setup": 8.748674710313765e-07,
+          "dynamics_wavelets": 0.2433222566197989,
+          "tendency_context": 0.369506279563605,
+          "other_dynamics": 0.022181114942435343,
+          "physics": 0.012428926862114187,
+          "adapt_reconstruct": 0.14026049658634776,
+          "remap": 0.0058427926787059615,
+          "ordinary_output": 0.0003638745756475809
+        },
+        "mean_wall_seconds": 0.7939066166961257,
+        "scope": "Rank means and ordinary-step means are additive. WT and implementation-specific tendency contexts are disjoint locations, not equal numerical kernels. MPI waiting is included, not independently removable."
+      }
+    },
+    "J5-n83-location-1-candidate_observer": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "candidate_observer",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.769031426,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.769031426
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.758156586
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.757178591
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.77883217
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.776620588
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.853110312
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.596360849
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.666176726
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.801900379
+        }
+      ],
+      "locations": {
+        "ranks": 83,
+        "steps": 12,
+        "included_steps": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "rows": [
+          {
+            "step": 2,
+            "locations": {
+              "setup": 2.4329638656499482e-06,
+              "dynamics_wavelets": 0.21406902750592952,
+              "tendency_context": 0.37459026298797815,
+              "other_dynamics": 0.022671140855474885,
+              "physics": 0.0127447329879712,
+              "adapt_reconstruct": 0.14306385084335554,
+              "remap": 0.001836907783142003,
+              "ordinary_output": 7.220596384593e-05
+            }
+          },
+          {
+            "step": 3,
+            "locations": {
+              "setup": 2.288313258890938e-06,
+              "dynamics_wavelets": 0.21312344274698614,
+              "tendency_context": 0.3670485310723677,
+              "other_dynamics": 0.022307670879438017,
+              "physics": 0.01278996391565889,
+              "adapt_reconstruct": 0.14090631167472709,
+              "remap": 0.0019213511324877284,
+              "ordinary_output": 7.352626507014635e-05
+            }
+          },
+          {
+            "step": 4,
+            "locations": {
+              "setup": 5.756626607368403e-07,
+              "dynamics_wavelets": 0.2166146702891813,
+              "tendency_context": 0.36306222244579056,
+              "other_dynamics": 0.022315770457817602,
+              "physics": 0.012837113240953862,
+              "adapt_reconstruct": 0.14086065196383368,
+              "remap": 0.0014301573614884766,
+              "ordinary_output": 7.416849395492344e-05
+            }
+          },
+          {
+            "step": 5,
+            "locations": {
+              "setup": 5.95301209986827e-07,
+              "dynamics_wavelets": 0.21559345398793128,
+              "tendency_context": 0.36492580132528063,
+              "other_dynamics": 0.022103092469917034,
+              "physics": 0.012827737710842967,
+              "adapt_reconstruct": 0.1422427398674535,
+              "remap": 0.019363271506040017,
+              "ordinary_output": 0.0020784647831259277
+            }
+          },
+          {
+            "step": 6,
+            "locations": {
+              "setup": 6.76566265523083e-07,
+              "dynamics_wavelets": 0.2146360181807021,
+              "tendency_context": 0.36539012149397826,
+              "other_dynamics": 0.02115793390364259,
+              "physics": 0.012909384939745675,
+              "adapt_reconstruct": 0.16079968822892976,
+              "remap": 0.0017212182770967354,
+              "ordinary_output": 7.593433736430423e-05
+            }
+          },
+          {
+            "step": 7,
+            "locations": {
+              "setup": 5.831445860276728e-07,
+              "dynamics_wavelets": 0.2428856582289071,
+              "tendency_context": 0.4056646584217396,
+              "other_dynamics": 0.026249731277079788,
+              "physics": 0.013719439759030599,
+              "adapt_reconstruct": 0.16288070097590504,
+              "remap": 0.0016515720361543987,
+              "ordinary_output": 7.338216865795709e-05
+            }
+          },
+          {
+            "step": 10,
+            "locations": {
+              "setup": 5.608433595450359e-07,
+              "dynamics_wavelets": 0.16234946020484087,
+              "tendency_context": 0.28537846726513605,
+              "other_dynamics": 0.019031506433666107,
+              "physics": 0.010597444072271787,
+              "adapt_reconstruct": 0.0999125235783151,
+              "remap": 0.018261331265054092,
+              "ordinary_output": 0.0008456072650586569
+            }
+          },
+          {
+            "step": 11,
+            "locations": {
+              "setup": 6.157831347695445e-07,
+              "dynamics_wavelets": 0.1765394175662528,
+              "tendency_context": 0.30978716454224725,
+              "other_dynamics": 0.018304145566211644,
+              "physics": 0.010761355265042011,
+              "adapt_reconstruct": 0.1473751911084234,
+              "remap": 0.0033925046024092173,
+              "ordinary_output": 7.410771085156433e-05
+            }
+          },
+          {
+            "step": 12,
+            "locations": {
+              "setup": 5.678313196351308e-07,
+              "dynamics_wavelets": 0.2301348318313114,
+              "tendency_context": 0.3904065702650188,
+              "other_dynamics": 0.021880073337397554,
+              "physics": 0.012584695662646854,
+              "adapt_reconstruct": 0.14303419914458793,
+              "remap": 0.003805514168671363,
+              "ordinary_output": 6.97178433782313e-05
+            }
+          }
+        ],
+        "mean_locations": {
+          "setup": 9.884899623072245e-07,
+          "dynamics_wavelets": 0.20954955339356027,
+          "tendency_context": 0.35847264442439297,
+          "other_dynamics": 0.021780118353405025,
+          "physics": 0.012419096394907094,
+          "adapt_reconstruct": 0.14234176193172568,
+          "remap": 0.005931536459171559,
+          "ordinary_output": 0.0003819016479230713
+        },
+        "mean_wall_seconds": 0.750877601095048,
+        "scope": "Rank means and ordinary-step means are additive. WT and implementation-specific tendency contexts are disjoint locations, not equal numerical kernels. MPI waiting is included, not independently removable."
+      }
+    },
+    "J5-n83-location-1-legacy_observer": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "legacy_observer",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.557052891,
+      "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.554782868
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.550623565
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.557052891
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.568773245
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.56954049
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.598781362
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.461243639
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.493601428
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.581128534
+        }
+      ],
+      "locations": {
+        "ranks": 83,
+        "steps": 12,
+        "included_steps": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "rows": [
+          {
+            "step": 2,
+            "locations": {
+              "setup": 2.8746989114716345e-07,
+              "dynamics_wavelets": 0.07761727142172067,
+              "tendency_context": 0.3911802373252897,
+              "other_dynamics": 0.002042245433689875,
+              "physics": 0.012556213746962846,
+              "adapt_reconstruct": 0.0631535289638846,
+              "remap": 0.008178519385517093,
+              "ordinary_output": 7.322933735455321e-05
+            }
+          },
+          {
+            "step": 3,
+            "locations": {
+              "setup": 2.497590356646667e-07,
+              "dynamics_wavelets": 0.07703074824093416,
+              "tendency_context": 0.3893173435541655,
+              "other_dynamics": 0.002044732409733816,
+              "physics": 0.012629185445775765,
+              "adapt_reconstruct": 0.06100113197590511,
+              "remap": 0.008545595156625408,
+              "ordinary_output": 6.926510842682349e-05
+            }
+          },
+          {
+            "step": 4,
+            "locations": {
+              "setup": 2.4696387354416367e-07,
+              "dynamics_wavelets": 0.07694086144572859,
+              "tendency_context": 0.3948875023373378,
+              "other_dynamics": 0.0020368608554882342,
+              "physics": 0.012629028554241462,
+              "adapt_reconstruct": 0.06175263521683234,
+              "remap": 0.008627782301211855,
+              "ordinary_output": 0.00019395846987548335
+            }
+          },
+          {
+            "step": 5,
+            "locations": {
+              "setup": 2.844578583713576e-07,
+              "dynamics_wavelets": 0.07693988863854746,
+              "tendency_context": 0.3942373573494237,
+              "other_dynamics": 0.0020337789517791216,
+              "physics": 0.012653204289135939,
+              "adapt_reconstruct": 0.06379626969881823,
+              "remap": 0.015299994397592165,
+              "ordinary_output": 0.0038244952289098735
+            }
+          },
+          {
+            "step": 6,
+            "locations": {
+              "setup": 2.7973494552607445e-07,
+              "dynamics_wavelets": 0.07730911555424964,
+              "tendency_context": 0.3891684175180025,
+              "other_dynamics": 0.0021263943494393817,
+              "physics": 0.012737153325289624,
+              "adapt_reconstruct": 0.07851480507230578,
+              "remap": 0.009623041409624245,
+              "ordinary_output": 8.434554218687678e-05
+            }
+          },
+          {
+            "step": 7,
+            "locations": {
+              "setup": 2.8216869308029763e-07,
+              "dynamics_wavelets": 0.08133826480720982,
+              "tendency_context": 0.4196892620481765,
+              "other_dynamics": 0.0022953262048715085,
+              "physics": 0.013520907108421994,
+              "adapt_reconstruct": 0.07254886584335958,
+              "remap": 0.009323537674702833,
+              "ordinary_output": 7.948650602566525e-05
+            }
+          },
+          {
+            "step": 10,
+            "locations": {
+              "setup": 2.736144516205398e-07,
+              "dynamics_wavelets": 0.06281803132527652,
+              "tendency_context": 0.32756337437346034,
+              "other_dynamics": 0.0017751013976401255,
+              "physics": 0.010352387144585777,
+              "adapt_reconstruct": 0.042306061457845524,
+              "remap": 0.011943073397571469,
+              "ordinary_output": 0.004498470506016283
+            }
+          },
+          {
+            "step": 11,
+            "locations": {
+              "setup": 3.0915663890219404e-07,
+              "dynamics_wavelets": 0.06353467190359857,
+              "tendency_context": 0.34084727910839135,
+              "other_dynamics": 0.0018264832891960747,
+              "physics": 0.010525722325289817,
+              "adapt_reconstruct": 0.06690890802409115,
+              "remap": 0.009895320578352657,
+              "ordinary_output": 8.556736143457028e-05
+            }
+          },
+          {
+            "step": 12,
+            "locations": {
+              "setup": 3.0228915398678157e-07,
+              "dynamics_wavelets": 0.07517900412046062,
+              "tendency_context": 0.4099160625300901,
+              "other_dynamics": 0.002249297204886157,
+              "physics": 0.012323497578289603,
+              "adapt_reconstruct": 0.07190078478312449,
+              "remap": 0.009503134277132718,
+              "ordinary_output": 7.131072288757423e-05
+            }
+          }
+        ],
+        "mean_locations": {
+          "setup": 2.79512726871471e-07,
+          "dynamics_wavelets": 0.07430087305085845,
+          "tendency_context": 0.38408964846048194,
+          "other_dynamics": 0.002047802232969366,
+          "physics": 0.012214144390888092,
+          "adapt_reconstruct": 0.0646536656706852,
+          "remap": 0.01010444428648116,
+          "ordinary_output": 0.0009977920870130781
+        },
+        "mean_wall_seconds": 0.5484086496921041,
+        "scope": "Rank means and ordinary-step means are additive. WT and implementation-specific tendency contexts are disjoint locations, not equal numerical kernels. MPI waiting is included, not independently removable."
+      }
+    },
+    "J5-n83-location-2-legacy_observer": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "legacy_observer",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.551158438,
+      "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.544616251
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.543994168
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.551158438
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.563113234
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.563212455
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.595874576
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.461958563
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.496820816
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.580704131
+        }
+      ],
+      "locations": {
+        "ranks": 83,
+        "steps": 12,
+        "included_steps": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "rows": [
+          {
+            "step": 2,
+            "locations": {
+              "setup": 3.076264743341823e-07,
+              "dynamics_wavelets": 0.07267674292770936,
+              "tendency_context": 0.3876098954217112,
+              "other_dynamics": 0.0020960015301214473,
+              "physics": 0.012562125445769942,
+              "adapt_reconstruct": 0.061976869204839656,
+              "remap": 0.007642189578275,
+              "ordinary_output": 7.068072292062731e-05
+            }
+          },
+          {
+            "step": 3,
+            "locations": {
+              "setup": 2.4506024086563175e-07,
+              "dynamics_wavelets": 0.07304342383133781,
+              "tendency_context": 0.3882788605181424,
+              "other_dynamics": 0.002111674397536876,
+              "physics": 0.012610286975907374,
+              "adapt_reconstruct": 0.05940751209635048,
+              "remap": 0.008484834156639321,
+              "ordinary_output": 7.074807227987351e-05
+            }
+          },
+          {
+            "step": 4,
+            "locations": {
+              "setup": 2.5722891836902634e-07,
+              "dynamics_wavelets": 0.07361821473491052,
+              "tendency_context": 0.394751174156643,
+              "other_dynamics": 0.00208395748193718,
+              "physics": 0.012646565301220545,
+              "adapt_reconstruct": 0.060427997722843386,
+              "remap": 0.007574727036177159,
+              "ordinary_output": 6.983228915640825e-05
+            }
+          },
+          {
+            "step": 5,
+            "locations": {
+              "setup": 2.513252896399108e-07,
+              "dynamics_wavelets": 0.07381158818075109,
+              "tendency_context": 0.3938636149276968,
+              "other_dynamics": 0.002080789566256696,
+              "physics": 0.012651468963843192,
+              "adapt_reconstruct": 0.06258167944579655,
+              "remap": 0.014544253481909184,
+              "ordinary_output": 0.003592663650606592
+            }
+          },
+          {
+            "step": 6,
+            "locations": {
+              "setup": 3.2698792355985053e-07,
+              "dynamics_wavelets": 0.07490404030121714,
+              "tendency_context": 0.3868550982288509,
+              "other_dynamics": 0.002151709771163929,
+              "physics": 0.012763471060258002,
+              "adapt_reconstruct": 0.07684301351805681,
+              "remap": 0.009643695349402688,
+              "ordinary_output": 7.333243371271325e-05
+            }
+          },
+          {
+            "step": 7,
+            "locations": {
+              "setup": 2.8313254926659457e-07,
+              "dynamics_wavelets": 0.07911576157827646,
+              "tendency_context": 0.4206803925782429,
+              "other_dynamics": 0.00230985098806489,
+              "physics": 0.013514686361414062,
+              "adapt_reconstruct": 0.07113629313254977,
+              "remap": 0.009057435301190664,
+              "ordinary_output": 7.629461447048739e-05
+            }
+          },
+          {
+            "step": 10,
+            "locations": {
+              "setup": 2.642891394568422e-07,
+              "dynamics_wavelets": 0.06148702936150541,
+              "tendency_context": 0.33083937334940966,
+              "other_dynamics": 0.0017723985903234805,
+              "physics": 0.01035681673492507,
+              "adapt_reconstruct": 0.041442867397585445,
+              "remap": 0.012035401481943516,
+              "ordinary_output": 0.0040376525542024505
+            }
+          },
+          {
+            "step": 11,
+            "locations": {
+              "setup": 2.7003612142078666e-07,
+              "dynamics_wavelets": 0.06363302427716479,
+              "tendency_context": 0.3447917359880062,
+              "other_dynamics": 0.001800801277009252,
+              "physics": 0.010536948445761996,
+              "adapt_reconstruct": 0.06675597362652615,
+              "remap": 0.009250209325278796,
+              "ordinary_output": 7.406380724117856e-05
+            }
+          },
+          {
+            "step": 12,
+            "locations": {
+              "setup": 2.613252879846953e-07,
+              "dynamics_wavelets": 0.07304209032535726,
+              "tendency_context": 0.41357581228909573,
+              "other_dynamics": 0.0022359592168967025,
+              "physics": 0.01233589995177703,
+              "adapt_reconstruct": 0.07053448333736781,
+              "remap": 0.008925629132530716,
+              "ordinary_output": 6.950471082285708e-05
+            }
+          }
+        ],
+        "mean_locations": {
+          "setup": 2.741124383219467e-07,
+          "dynamics_wavelets": 0.0717035461686922,
+          "tendency_context": 0.38458288416197767,
+          "other_dynamics": 0.002071460313256717,
+          "physics": 0.012219807693430802,
+          "adapt_reconstruct": 0.063456298831324,
+          "remap": 0.009684263871483006,
+          "ordinary_output": 0.0009038636506014653
+        },
+        "mean_wall_seconds": 0.5446223988032042,
+        "scope": "Rank means and ordinary-step means are additive. WT and implementation-specific tendency contexts are disjoint locations, not equal numerical kernels. MPI waiting is included, not independently removable."
+      }
+    },
+    "J5-n83-location-2-candidate_observer": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "candidate_observer",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.756752468,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.756752468
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.747669028
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.750615434
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.776581378
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.772719247
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.855093644
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.605139797
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.662185974
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.792026504
+        }
+      ],
+      "locations": {
+        "ranks": 83,
+        "steps": 12,
+        "included_steps": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "rows": [
+          {
+            "step": 2,
+            "locations": {
+              "setup": 5.726385305857241e-07,
+              "dynamics_wavelets": 0.21429382608431594,
+              "tendency_context": 0.3659813373252806,
+              "other_dynamics": 0.02264326338561396,
+              "physics": 0.012757782349384008,
+              "adapt_reconstruct": 0.13878974144578266,
+              "remap": 0.002231301168682098,
+              "ordinary_output": 7.299791564968561e-05
+            }
+          },
+          {
+            "step": 3,
+            "locations": {
+              "setup": 5.730120151328956e-07,
+              "dynamics_wavelets": 0.21371870554214664,
+              "tendency_context": 0.35751536920482185,
+              "other_dynamics": 0.022225408036204947,
+              "physics": 0.012797379253007387,
+              "adapt_reconstruct": 0.13979338961445434,
+              "remap": 0.0015639583011816504,
+              "ordinary_output": 6.923997589950317e-05
+            }
+          },
+          {
+            "step": 4,
+            "locations": {
+              "setup": 5.790361354733447e-07,
+              "dynamics_wavelets": 0.21561624878306948,
+              "tendency_context": 0.3610865122409779,
+              "other_dynamics": 0.022115751433797282,
+              "physics": 0.012849523313253671,
+              "adapt_reconstruct": 0.13753741467468558,
+              "remap": 0.001353468855431418,
+              "ordinary_output": 7.300072290918142e-05
+            }
+          },
+          {
+            "step": 5,
+            "locations": {
+              "setup": 5.84698797416444e-07,
+              "dynamics_wavelets": 0.2179481069156446,
+              "tendency_context": 0.3610645961566606,
+              "other_dynamics": 0.022184791975912256,
+              "physics": 0.012818926409619897,
+              "adapt_reconstruct": 0.1414338431445795,
+              "remap": 0.019015771361431778,
+              "ordinary_output": 0.0021301989397424143
+            }
+          },
+          {
+            "step": 6,
+            "locations": {
+              "setup": 6.466746866402878e-07,
+              "dynamics_wavelets": 0.2150770067590322,
+              "tendency_context": 0.3596423444819101,
+              "other_dynamics": 0.02136988475906519,
+              "physics": 0.012917654759052946,
+              "adapt_reconstruct": 0.16189882802410213,
+              "remap": 0.001799303024090039,
+              "ordinary_output": 9.129980723507714e-05
+            }
+          },
+          {
+            "step": 7,
+            "locations": {
+              "setup": 5.7626504756802e-07,
+              "dynamics_wavelets": 0.2462102120843901,
+              "tendency_context": 0.4016583057228749,
+              "other_dynamics": 0.0267196376867324,
+              "physics": 0.013745738481910772,
+              "adapt_reconstruct": 0.16430329048190365,
+              "remap": 0.002400317301229931,
+              "ordinary_output": 7.134103614326562e-05
+            }
+          },
+          {
+            "step": 10,
+            "locations": {
+              "setup": 5.541927617215775e-07,
+              "dynamics_wavelets": 0.16582101575905184,
+              "tendency_context": 0.2891132831687118,
+              "other_dynamics": 0.018505616542118235,
+              "physics": 0.010586499060230063,
+              "adapt_reconstruct": 0.1017833600361477,
+              "remap": 0.018417951240949096,
+              "ordinary_output": 0.0009258886024085714
+            }
+          },
+          {
+            "step": 11,
+            "locations": {
+              "setup": 7.153012284764274e-07,
+              "dynamics_wavelets": 0.17277657262650473,
+              "tendency_context": 0.31015795250600986,
+              "other_dynamics": 0.018914425445790944,
+              "physics": 0.010795665024105177,
+              "adapt_reconstruct": 0.1435619740963956,
+              "remap": 0.005956376915639931,
+              "ordinary_output": 7.585421686949796e-05
+            }
+          },
+          {
+            "step": 12,
+            "locations": {
+              "setup": 5.54915640164091e-07,
+              "dynamics_wavelets": 0.22933403928912313,
+              "tendency_context": 0.38370685586742403,
+              "other_dynamics": 0.022139360120573076,
+              "physics": 0.012590048843398415,
+              "adapt_reconstruct": 0.14075541283128554,
+              "remap": 0.0032983089879699804,
+              "ordinary_output": 0.00021706892772294027
+            }
+          }
+        ],
+        "mean_locations": {
+          "setup": 5.951927603532013e-07,
+          "dynamics_wavelets": 0.2100884148714754,
+          "tendency_context": 0.3544362840749635,
+          "other_dynamics": 0.021868682153978698,
+          "physics": 0.012428801943773594,
+          "adapt_reconstruct": 0.14109525048325963,
+          "remap": 0.006226306350733991,
+          "ordinary_output": 0.00041409890495334854
+        },
+        "mean_wall_seconds": 0.7465584339758985,
+        "scope": "Rank means and ordinary-step means are additive. WT and implementation-specific tendency contexts are disjoint locations, not equal numerical kernels. MPI waiting is included, not independently removable."
+      }
+    },
+    "J5-n83-location-2-baseline_observer": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "baseline_observer",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.808784487,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.808784487
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.798545
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.806576385
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.821382637
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.82195195
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.910330381
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.65253085
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.696628435
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.851110682
+        }
+      ],
+      "locations": {
+        "ranks": 83,
+        "steps": 12,
+        "included_steps": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "rows": [
+          {
+            "step": 2,
+            "locations": {
+              "setup": 5.536024174768707e-07,
+              "dynamics_wavelets": 0.2517072023373362,
+              "tendency_context": 0.3814035854940034,
+              "other_dynamics": 0.0220051463975762,
+              "physics": 0.012778603626484475,
+              "adapt_reconstruct": 0.13768234971085114,
+              "remap": 0.003152676168698586,
+              "ordinary_output": 7.236078310751214e-05
+            }
+          },
+          {
+            "step": 3,
+            "locations": {
+              "setup": 5.753373191411416e-07,
+              "dynamics_wavelets": 0.2486659858073474,
+              "tendency_context": 0.3740788763735421,
+              "other_dynamics": 0.022412747734780355,
+              "physics": 0.012815198084326657,
+              "adapt_reconstruct": 0.13869025796384996,
+              "remap": 0.0018233744457881902,
+              "ordinary_output": 7.313630121862811e-05
+            }
+          },
+          {
+            "step": 4,
+            "locations": {
+              "setup": 6.225301280736234e-07,
+              "dynamics_wavelets": 0.2518533670120369,
+              "tendency_context": 0.37585901156630663,
+              "other_dynamics": 0.02203912277106709,
+              "physics": 0.012841094566228783,
+              "adapt_reconstruct": 0.14251356248194563,
+              "remap": 0.0014110120000184973,
+              "ordinary_output": 7.598954213669885e-05
+            }
+          },
+          {
+            "step": 5,
+            "locations": {
+              "setup": 5.573493931971978e-07,
+              "dynamics_wavelets": 0.2500697845783081,
+              "tendency_context": 0.37377491843375515,
+              "other_dynamics": 0.0218267363132557,
+              "physics": 0.012855331457832294,
+              "adapt_reconstruct": 0.14304054232530164,
+              "remap": 0.018979916192762746,
+              "ordinary_output": 0.0008481159518314269
+            }
+          },
+          {
+            "step": 6,
+            "locations": {
+              "setup": 6.719397810317228e-07,
+              "dynamics_wavelets": 0.2519645276746957,
+              "tendency_context": 0.3755573854216683,
+              "other_dynamics": 0.022063926638582483,
+              "physics": 0.01294380842168666,
+              "adapt_reconstruct": 0.15750350339757493,
+              "remap": 0.001943773385539908,
+              "ordinary_output": 7.525084336258117e-05
+            }
+          },
+          {
+            "step": 7,
+            "locations": {
+              "setup": 3.0654217036762164e-06,
+              "dynamics_wavelets": 0.2819224412289248,
+              "tendency_context": 0.4192377484457912,
+              "other_dynamics": 0.026368981674695313,
+              "physics": 0.013732186542157765,
+              "adapt_reconstruct": 0.16734365631326723,
+              "remap": 0.0016667384457745005,
+              "ordinary_output": 7.184039757878755e-05
+            }
+          },
+          {
+            "step": 10,
+            "locations": {
+              "setup": 5.678674528734333e-07,
+              "dynamics_wavelets": 0.19560317466269236,
+              "tendency_context": 0.30350824095181034,
+              "other_dynamics": 0.01858902508430844,
+              "physics": 0.010615189566228271,
+              "adapt_reconstruct": 0.10245789908434833,
+              "remap": 0.02044042297590629,
+              "ordinary_output": 0.001331000325321893
+            }
+          },
+          {
+            "step": 11,
+            "locations": {
+              "setup": 6.783132678730952e-07,
+              "dynamics_wavelets": 0.20525413351800903,
+              "tendency_context": 0.3233427398794918,
+              "other_dynamics": 0.017855881337413573,
+              "physics": 0.010759411421696062,
+              "adapt_reconstruct": 0.13653974820482587,
+              "remap": 0.002860304710837402,
+              "ordinary_output": 7.263809640285929e-05
+            }
+          },
+          {
+            "step": 12,
+            "locations": {
+              "setup": 6.180722836239533e-07,
+              "dynamics_wavelets": 0.2635087391204909,
+              "tendency_context": 0.4042230039156778,
+              "other_dynamics": 0.022450830011999334,
+              "physics": 0.0126139922289363,
+              "adapt_reconstruct": 0.143179313963853,
+              "remap": 0.005078657421678605,
+              "ordinary_output": 7.047714457422192e-05
+            }
+          }
+        ],
+        "mean_locations": {
+          "setup": 8.789370829963616e-07,
+          "dynamics_wavelets": 0.2445054839933157,
+          "tendency_context": 0.37010950116467184,
+          "other_dynamics": 0.021734710884853164,
+          "physics": 0.012439423990619697,
+          "adapt_reconstruct": 0.1409945370495353,
+          "remap": 0.006372986194111636,
+          "ordinary_output": 0.00029897882061495656
+        },
+        "mean_wall_seconds": 0.7964565010348053,
+        "scope": "Rank means and ordinary-step means are additive. WT and implementation-specific tendency contexts are disjoint locations, not equal numerical kernels. MPI waiting is included, not independently removable."
+      }
+    },
+    "J5-n83-location-2-legacy": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "legacy",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.543484911,
+      "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.540898697
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.53796533
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.543484911
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.55545918
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.555326309
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.583324197
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.455475655
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.493154957
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.568564473
+        }
+      ]
+    },
+    "J5-n83-location-2-candidate": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.760169977,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.760169977
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.749660076
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.759963366
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.771905372
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.772297895
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.848389725
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.602022792
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.675465807
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.796564092
+        }
+      ]
+    },
+    "J5-n83-location-2-baseline": {
+      "ranks": 83,
+      "level": "J5",
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "location",
+      "ordinary_step_median": 0.817259338,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "ordinary_steps": [
+        {
+          "index": 1,
+          "state": "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+          "seconds": 0.817259338
+        },
+        {
+          "index": 2,
+          "state": "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+          "seconds": 0.808992341
+        },
+        {
+          "index": 3,
+          "state": "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+          "seconds": 0.811716627
+        },
+        {
+          "index": 4,
+          "state": "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+          "seconds": 0.839521715
+        },
+        {
+          "index": 5,
+          "state": "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+          "seconds": 0.829517068
+        },
+        {
+          "index": 6,
+          "state": "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+          "seconds": 0.91493075
+        },
+        {
+          "index": 9,
+          "state": "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+          "seconds": 0.65100657
+        },
+        {
+          "index": 10,
+          "state": "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+          "seconds": 0.714291647
+        },
+        {
+          "index": 11,
+          "state": "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616",
+          "seconds": 0.857864868
+        }
+      ]
+    }
+  },
+  "comparison_reports": 54,
+  "exact_comparison_reports": 50,
+  "required_exact_comparison_reports": 27,
+  "decision": "meets_target",
+  "decisions": {
+    "screen": {
+      "baseline": 2.570367714,
+      "candidate": 2.327113216,
+      "gain_seconds": 0.2432544980000002,
+      "gain_fraction": 0.09463801489377104,
+      "decision": "advance",
+      "scope": "Exploratory single pair, not a confirmed speedup."
+    },
+    "transfer": {
+      "baseline": 0.805180517,
+      "candidate": 0.761527435,
+      "gain_seconds": 0.043653082000000065,
+      "gain_fraction": 0.054215273567033,
+      "decision": "advance",
+      "scope": "Exploratory single pair, not a confirmed speedup."
+    },
+    "confirmation": {
+      "decision": "meets_target",
+      "mean_baseline_run_median": 0.8068898765,
+      "mean_candidate_run_median": 0.7611744325,
+      "gain_seconds": 0.04571544399999994,
+      "paired_gains_seconds": [
+        0.04665236900000003,
+        0.04477851899999996
+      ],
+      "near_threshold": false,
+      "disagreement": false,
+      "independent_runs_per_version": 2,
+      "scope": "Mean of separate run medians; screening pairs excluded. No timestep-level significance test."
+    },
+    "location_versions": [
+      "baseline",
+      "candidate",
+      "legacy"
+    ]
+  },
+  "attribution": {
+    "status": "observer_costs_unqualified",
+    "calibration": {
+      "baseline": {
+        "status": "compatible_at_prespecified_resolution",
+        "mean_control": 0.8134729199999999,
+        "mean_observer": 0.806812631,
+        "mean_shift_seconds": -0.00666028899999993,
+        "paired_shifts_seconds": [
+          -0.004845727000000077,
+          -0.008474850999999894
+        ],
+        "limits_seconds": {
+          "mean": 0.0081347292,
+          "pair": 0.0162694584,
+          "spread": 0.0162694584
+        },
+        "control_spread_seconds": 0.007572835999999916,
+        "observer_spread_seconds": 0.003943712000000099,
+        "scope": "Two runs/version; no timestep-level replication. Compatibility does not prove each small timer unbiased."
+      },
+      "candidate": {
+        "status": "compatible_at_prespecified_resolution",
+        "mean_control": 0.7582681410000001,
+        "mean_observer": 0.762891947,
+        "mean_shift_seconds": 0.004623805999999897,
+        "paired_shifts_seconds": [
+          0.012665120999999946,
+          -0.0034175090000000408
+        ],
+        "limits_seconds": {
+          "mean": 0.007582681410000001,
+          "pair": 0.015165362820000002,
+          "spread": 0.015165362820000002
+        },
+        "control_spread_seconds": 0.00380367199999998,
+        "observer_spread_seconds": 0.012278958000000006,
+        "scope": "Two runs/version; no timestep-level replication. Compatibility does not prove each small timer unbiased."
+      },
+      "legacy": {
+        "status": "observer_costs_unqualified",
+        "mean_control": 0.5428825495,
+        "mean_observer": 0.5541056645,
+        "mean_shift_seconds": 0.01122311499999995,
+        "paired_shifts_seconds": [
+          0.014772702999999998,
+          0.007673527000000013
+        ],
+        "limits_seconds": {
+          "mean": 0.005428825495,
+          "pair": 0.01085765099,
+          "spread": 0.01085765099
+        },
+        "control_spread_seconds": 0.0012047229999999631,
+        "observer_spread_seconds": 0.005894453000000022,
+        "scope": "Two runs/version; no timestep-level replication. Compatibility does not prove each small timer unbiased."
+      }
+    },
+    "bare": {
+      "baseline": {
+        "mean_run_median": 0.8134729199999999,
+        "mean_ordinary_step_seconds": 0.8005160466666666
+      },
+      "candidate": {
+        "mean_run_median": 0.7582681410000001,
+        "mean_ordinary_step_seconds": 0.7481042858333333
+      },
+      "legacy": {
+        "mean_run_median": 0.5428825495,
+        "mean_ordinary_step_seconds": 0.5371354672777778
+      }
+    },
+    "mean_locations": {
+      "baseline": {
+        "setup": 8.76902277013869e-07,
+        "dynamics_wavelets": 0.2439138703065573,
+        "tendency_context": 0.3698078903641384,
+        "other_dynamics": 0.021957912913644254,
+        "physics": 0.012434175426366942,
+        "adapt_reconstruct": 0.14062751681794153,
+        "remap": 0.006107889436408799,
+        "ordinary_output": 0.00033142669813126873
+      },
+      "candidate": {
+        "setup": 7.918413613302129e-07,
+        "dynamics_wavelets": 0.20981898413251782,
+        "tendency_context": 0.35645446424967825,
+        "other_dynamics": 0.02182440025369186,
+        "physics": 0.012423949169340344,
+        "adapt_reconstruct": 0.14171850620749266,
+        "remap": 0.0060789214049527755,
+        "ordinary_output": 0.0003980002764382099
+      },
+      "legacy": {
+        "setup": 2.768125825967088e-07,
+        "dynamics_wavelets": 0.07300220960977533,
+        "tendency_context": 0.3843362663112298,
+        "other_dynamics": 0.0020596312731130414,
+        "physics": 0.012216976042159447,
+        "adapt_reconstruct": 0.0640549822510046,
+        "remap": 0.009894354078982082,
+        "ordinary_output": 0.0009508278688072717
+      }
+    },
+    "comparisons": {
+      "baseline_minus_legacy": {
+        "signed_locations_seconds": {
+          "setup": 6.000896944171602e-07,
+          "dynamics_wavelets": 0.170911660696782,
+          "tendency_context": -0.014528375947091388,
+          "other_dynamics": 0.01989828164053121,
+          "physics": 0.0002171993842074952,
+          "adapt_reconstruct": 0.07657253456693693,
+          "remap": -0.0037864646425732834,
+          "ordinary_output": -0.000619401170676003
+        },
+        "paired_signed_locations_seconds": [
+          {
+            "setup": 5.953547441599054e-07,
+            "dynamics_wavelets": 0.16902138356894045,
+            "tendency_context": -0.014583368896876947,
+            "other_dynamics": 0.020133312709465976,
+            "physics": 0.00021478247122609477,
+            "adapt_reconstruct": 0.07560683091566256,
+            "remap": -0.004261651607775199,
+            "ordinary_output": -0.0006339175113654972
+          },
+          {
+            "setup": 6.048246446744149e-07,
+            "dynamics_wavelets": 0.1728019378246235,
+            "tendency_context": -0.014473382997305828,
+            "other_dynamics": 0.019663250571596447,
+            "physics": 0.00021961629718889562,
+            "adapt_reconstruct": 0.07753823821821129,
+            "remap": -0.0033112776773713696,
+            "ordinary_output": -0.0006048848299865088
+          }
+        ],
+        "observer_additive_difference_seconds": 0.24866603461781137,
+        "bare_mean_difference_seconds": 0.2633805793888888,
+        "bare_run_median_difference_seconds": 0.2705903704999999,
+        "bridge_median_to_mean_seconds": -0.007209791111111086,
+        "bridge_bare_mean_to_observer_seconds": -0.014714544771077448
+      },
+      "candidate_minus_legacy": {
+        "signed_locations_seconds": {
+          "setup": 5.150287787335041e-07,
+          "dynamics_wavelets": 0.1368167745227425,
+          "tendency_context": -0.027881802061551553,
+          "other_dynamics": 0.019764768980578818,
+          "physics": 0.00020697312718089694,
+          "adapt_reconstruct": 0.07766352395648805,
+          "remap": -0.003815432674029307,
+          "ordinary_output": -0.0005528275923690618
+        },
+        "paired_signed_locations_seconds": [
+          {
+            "setup": 7.089772354357536e-07,
+            "dynamics_wavelets": 0.13524868034270182,
+            "tendency_context": -0.025617004036088964,
+            "other_dynamics": 0.019732316120435658,
+            "physics": 0.0002049520040190017,
+            "adapt_reconstruct": 0.07768809626104048,
+            "remap": -0.004172907827309602,
+            "ordinary_output": -0.0006158904390900068
+          },
+          {
+            "setup": 3.2108032203125463e-07,
+            "dynamics_wavelets": 0.1383848687027832,
+            "tendency_context": -0.03014660008701414,
+            "other_dynamics": 0.019797221840721982,
+            "physics": 0.00020899425034279218,
+            "adapt_reconstruct": 0.07763895165193563,
+            "remap": -0.0034579575207490144,
+            "ordinary_output": -0.0004897647456481168
+          }
+        ],
+        "observer_additive_difference_seconds": 0.20220249328781906,
+        "bare_mean_difference_seconds": 0.2109688185555555,
+        "bare_run_median_difference_seconds": 0.21538559150000003,
+        "bridge_median_to_mean_seconds": -0.004416772944444536,
+        "bridge_bare_mean_to_observer_seconds": -0.008766325267736436
+      },
+      "baseline_minus_candidate": {
+        "signed_locations_seconds": {
+          "setup": 8.50609156836561e-08,
+          "dynamics_wavelets": 0.034094886174039496,
+          "tendency_context": 0.013353426114460165,
+          "other_dynamics": 0.00013351265995239364,
+          "physics": 1.0226257026598254e-05,
+          "adapt_reconstruct": -0.001090989389551128,
+          "remap": 2.8968031456023426e-05,
+          "ordinary_output": -6.657357830694118e-05
+        },
+        "paired_signed_locations_seconds": [
+          {
+            "setup": -1.1362249127584805e-07,
+            "dynamics_wavelets": 0.033772703226238626,
+            "tendency_context": 0.011033635139212017,
+            "other_dynamics": 0.00040099658903031826,
+            "physics": 9.83046720709306e-06,
+            "adapt_reconstruct": -0.0020812653453779195,
+            "remap": -8.874378046559717e-05,
+            "ordinary_output": -1.8027072275490384e-05
+          },
+          {
+            "setup": 2.8374432264316025e-07,
+            "dynamics_wavelets": 0.03441706912184031,
+            "tendency_context": 0.015673217089708313,
+            "other_dynamics": -0.00013397126912553445,
+            "physics": 1.0622046846103447e-05,
+            "adapt_reconstruct": -0.0001007134337243365,
+            "remap": 0.00014667984337764488,
+            "ordinary_output": -0.00011512008433839198
+          }
+        ],
+        "observer_additive_difference_seconds": 0.04646354132999229,
+        "bare_mean_difference_seconds": 0.05241176083333332,
+        "bare_run_median_difference_seconds": 0.05520477899999987,
+        "bridge_median_to_mean_seconds": -0.00279301816666655,
+        "bridge_bare_mean_to_observer_seconds": -0.005948219503341033
+      }
+    },
+    "scope": "Fresh same-job A/B/legacy comparison. Only uninstrumented A/B supports measured recoverability by this intervention. Remaining positive locations are hypotheses, not savings budgets. No feature ablation separates inverse and scalar batching. Calibration whole-step limits do not prove every phase unbiased; bridges are descriptive, not corrections."
+  },
+  "timing": {
+    "included_steps": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      11,
+      12
+    ],
+    "excluded_steps": [
+      1,
+      8,
+      9
+    ],
+    "remaps": "included",
+    "source": "high-precision <run_id>_log rechecked against stdout states",
+    "independent_confirmation_runs_per_version": 2,
+    "scope": "Confirmation excludes exploratory and diagnostic runs; no timestep-level replication."
+  },
+  "review_limits": "Raw executables, physics objects and checkpoint payloads are absent. Recorded source/build identities, raw timing/placement/observer logs and comparison reports rechecked. Legacy observer fails overhead calibration; its locations are provisional and not recoverable budgets. No inverse/fields ablation. J4 41/40 validates zero-Domain compatibility, not the full previously tested 256/160 envelope.",
+  "recommendation": "Stage203 combined option meets the current performance target and merits production integration with retained regression coverage. Next bounded source comparison should follow the remaining WT_after_step representation transitions, checking reuse across adaptation/reconstruction and pricing replacements. Do not launch another broad observer campaign or reopen closed tiny-copy/cache targets. No automatic promotion in this review."
+}
