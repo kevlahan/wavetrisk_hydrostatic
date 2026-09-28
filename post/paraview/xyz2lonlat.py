@@ -6,10 +6,11 @@
 # Weiguang Guan     (SHARCNET)            2024-04-16
 # Nicholas Kevlahan (McMaster University) 2025-10-16
 import argparse, os, glob, subprocess, sys, tarfile, textwrap
+import hashlib
 import numpy as np
 import vtk
 from contextlib import suppress
-from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk, numpy_to_vtkIdTypeArray
 from pathlib import Path
 
 verbose = False
@@ -36,7 +37,7 @@ def parse_args():
       Notes
         • Tarball expected in the working directory:
             <run>_tri_<t:04d>.vtk.tgz
-        • use_flag: 'y' to apply Delaunay2D (gap fill), 'n' to skip.
+        • The legacy Delaunay y/n flag is accepted; both use seam/pole splitting.
         • Combine with the MPI layer driver when parallelizing.
     """)
     p = argparse.ArgumentParser(
@@ -54,7 +55,7 @@ def parse_args():
     p.add_argument("t1",   type=int, help="First time index (used in file names)")
     p.add_argument("t2",   type=int, help="Last  time index (>= t1)")
     p.add_argument("Delaunay", choices=["y","n","Y","N"],
-                   help="y => Use Delaunay2D gap-fill")
+                   help="Legacy compatibility flag; both values use seam/pole splitting")
 
     if len(sys.argv) == 1:  # no args → show full help + examples
         print()
@@ -76,11 +77,245 @@ def parse_args():
     t2           = a.t2
     Delaunay     = a.Delaunay
 
-    return run, Jmin, Jmax, z1, z2, t1, t2, t1, t2, Delaunay
+    return run, Jmin, Jmax, z1, z2, t1, t2, Delaunay
+
+
+def _unwrap_longitudes(lon):
+    """Put a local edge/triangle on its shortest continuous longitude interval."""
+    wrapped = np.mod(lon, 360.0)
+    ordered = np.sort(wrapped)
+    gaps = np.diff(np.r_[ordered, ordered[0] + 360.0])
+    start = ordered[(int(np.argmax(gaps)) + 1) % len(ordered)]
+    return np.where(wrapped < start - 1e-12, wrapped + 360.0, wrapped)
+
+
+def _clip_longitude(poly, bound, keep_greater):
+    result = []
+    for a, b in zip(poly, np.roll(poly, -1, axis=0)):
+        inside_a = a[0] >= bound if keep_greater else a[0] <= bound
+        inside_b = b[0] >= bound if keep_greater else b[0] <= bound
+        if inside_a:
+            result.append(a.copy())
+        if inside_a != inside_b:
+            q = a + ((bound - a[0]) / (b[0] - a[0])) * (b - a)
+            q[0] = bound
+            result.append(q)
+    return np.asarray(result, dtype=float).reshape(-1, 2)
+
+
+_projection_cache = None  # One geometry per worker; fields are always refreshed.
+
+
+def project_spherical_triangles(data):
+    """Project a closed triangular shell without moving nearby physical vertices.
+
+    Original cell values are copied to all child triangles. Longitude is
+    periodic; seam-crossing faces are clipped into both sides of the map.
+    Faces containing a pole are split at that pole, whose longitude is
+    represented by a boundary segment rather than an arbitrary single point.
+    Edges between nonpolar vertices remain straight in the lon/lat plane.
+    This is a geometric projection, not a conservative spherical-area remap.
+    """
+    global _projection_cache
+    xyz = vtk_to_numpy(data.GetPoints().GetData()).astype(np.float64)
+    cell_array = data.GetPolys() if isinstance(data, vtk.vtkPolyData) else data.GetCells()
+    offsets = vtk_to_numpy(cell_array.GetOffsetsArray())
+    if not np.all(np.diff(offsets) == 3):
+        raise ValueError("Expected triangular surface cells")
+    if isinstance(data, vtk.vtkPolyData) and data.GetNumberOfCells() != cell_array.GetNumberOfCells():
+        raise ValueError("Expected only triangular polygons")
+    if isinstance(data, vtk.vtkUnstructuredGrid) and not np.all(vtk_to_numpy(data.GetCellTypesArray()) == vtk.VTK_TRIANGLE):
+        raise ValueError("Expected only triangular surface cells")
+    triangles = vtk_to_numpy(cell_array.GetConnectivityArray()).reshape(-1, 3)
+    digest = hashlib.blake2b(digest_size=20)
+    digest.update(np.ascontiguousarray(xyz).view(np.uint8))
+    digest.update(np.ascontiguousarray(triangles, dtype=np.int64).view(np.uint8))
+    key = (xyz.shape, triangles.shape, digest.digest())
+    source_level = data.GetCellData().GetArray("Level")
+    if source_level is not None:
+        lv = vtk_to_numpy(source_level)
+        if not np.isfinite(lv).all() or not np.allclose(lv, np.rint(lv), rtol=0, atol=1e-6):
+            raise ValueError("Source cell Level must contain integers")
+
+    def attach_fields(geometry, parents):
+        out = vtk.vtkPolyData()
+        out.CopyStructure(geometry)
+        cell_data = data.GetCellData()
+        if all(cell_data.GetArray(i) is not None for i in range(cell_data.GetNumberOfArrays())):
+            for i in range(cell_data.GetNumberOfArrays()):
+                source = cell_data.GetArray(i)
+                values = vtk_to_numpy(source)[parents]
+                if source.GetName() == "Level":
+                    values = np.rint(values).astype(np.int32)
+                array = numpy_to_vtk(values, deep=True)
+                array.SetName(source.GetName() or f"Array_{i}")
+                out.GetCellData().AddArray(array)
+        else:
+            out.GetCellData().CopyAllocate(cell_data, len(parents))
+            for child, parent in enumerate(parents):
+                out.GetCellData().CopyData(cell_data, int(parent), child)
+        out.GetFieldData().ShallowCopy(data.GetFieldData())
+        return out
+
+    if _projection_cache is not None and _projection_cache[0] == key:
+        return attach_fields(_projection_cache[1], _projection_cache[2])
+    radii = np.linalg.norm(xyz, axis=1)
+    if not np.isfinite(xyz).all() or np.any(radii <= 0):
+        raise ValueError("Expected finite nonzero coordinates on a spherical shell")
+    unit = xyz / radii[:, None]
+    lon = np.degrees(np.arctan2(unit[:, 1], unit[:, 0]))
+    lat = np.degrees(np.arctan2(unit[:, 2], np.linalg.norm(unit[:, :2], axis=1)))
+    xy = np.column_stack((lon, lat))
+    faces = unit[triangles]
+    determinant = np.einsum('ij,ij->i', faces[:, 0], np.cross(faces[:, 1], faces[:, 2]))
+    if np.any(np.abs(determinant) < 1e-14):
+        raise ValueError("Degenerate spherical triangle")
+    polar = np.linalg.norm(unit[:, :2], axis=1) < 1e-10
+    ordinary = (np.ptp(lon[triangles], axis=1) < 180.0 - 1e-10) & ~polar[triangles].any(axis=1)
+    # Most cells need only a coordinate transform. Only seam/pole cells enter Python loops.
+    keys = np.round(xy, 10)
+    _, first, inverse = np.unique(keys, axis=0, return_index=True, return_inverse=True)
+    base_xy = xy[first]
+    point_ids = {tuple(keys[i]): j for j, i in enumerate(first)}
+    points = vtk.vtkPoints()
+    points.SetData(numpy_to_vtk(np.column_stack((base_xy, np.zeros(len(base_xy)))), deep=True))
+    ordinary_ids = np.flatnonzero(ordinary)
+    regular = inverse[triangles[ordinary_ids]].copy()
+    pxy = base_xy[regular]
+    u, v = pxy[:, 1] - pxy[:, 0], pxy[:, 2] - pxy[:, 0]
+    reverse = u[:, 0]*v[:, 1] - u[:, 1]*v[:, 0] < 0
+    regular[reverse] = regular[reverse][:, [0, 2, 1]]
+    cells = vtk.vtkCellArray()  # Boundary triangles only.
+    parents = []
+
+    def insert_polygon(poly, parent):
+        # Remove consecutive duplicates introduced by clipping at an endpoint.
+        clean = []
+        for point in poly:
+            if not clean or np.linalg.norm(point - clean[-1]) > 1e-10:
+                clean.append(point)
+        if len(clean) > 1 and np.linalg.norm(clean[0] - clean[-1]) < 1e-10:
+            clean.pop()
+        if len(clean) < 3:
+            return
+        poly = np.asarray(clean)
+        area = np.sum(poly[:, 0] * np.roll(poly[:, 1], -1) -
+                      poly[:, 1] * np.roll(poly[:, 0], -1)) / 2
+        if abs(area) < 1e-12:
+            return
+        if area < 0:
+            poly = poly[::-1]
+        ids = []
+        for x, y in poly:
+            # Only remove floating-point roundoff at constructed boundaries.
+            if abs(abs(x) - 180.0) < 1e-10:
+                x = np.copysign(180.0, x)
+            if abs(abs(y) - 90.0) < 1e-10:
+                y = np.copysign(90.0, y)
+            # Weld shared edges within numerical tolerance; keep +/-180 distinct.
+            key = (round(float(x), 10), round(float(y), 10))
+            if key not in point_ids:
+                point_ids[key] = points.InsertNextPoint(float(x), float(y), 0.0)
+            ids.append(point_ids[key])
+        for j in range(1, len(ids) - 1):
+            tri = [ids[0], ids[j], ids[j+1]]
+            p = np.array([points.GetPoint(i)[:2] for i in tri])
+            u, v = p[1] - p[0], p[2] - p[0]
+            if abs(u[0]*v[1] - u[1]*v[0]) < 1e-12:
+                continue
+            cells.InsertNextCell(3, tri)
+            parents.append(parent)
+
+    def map_face(face, parent):
+        polar = np.flatnonzero(np.linalg.norm(face[:, :2], axis=1) < 1e-10)
+        if polar.size:
+            k = int(polar[0])
+            others = [i for i in range(3) if i != k]
+            edge = face[others]
+            lon = _unwrap_longitudes(np.degrees(np.arctan2(edge[:, 1], edge[:, 0])))
+            lat = np.degrees(np.arctan2(edge[:, 2], np.linalg.norm(edge[:, :2], axis=1)))
+            pole_lat = float(np.copysign(90.0, face[k, 2]))
+            poly = np.array([[lon[0], lat[0]], [lon[1], lat[1]],
+                             [lon[1], pole_lat], [lon[0], pole_lat]])
+        else:
+            lon = _unwrap_longitudes(np.degrees(np.arctan2(face[:, 1], face[:, 0])))
+            lat = np.degrees(np.arctan2(face[:, 2], np.linalg.norm(face[:, :2], axis=1)))
+            poly = np.column_stack((lon, lat))
+        # Every periodic copy which intersects the canonical map window.
+        lower = int(np.ceil((-180.0 - poly[:, 0].max()) / 360.0))
+        upper = int(np.floor((180.0 - poly[:, 0].min()) / 360.0))
+        for shift in range(lower, upper + 1):
+            clipped = poly.copy()
+            clipped[:, 0] += 360.0 * shift
+            clipped = _clip_longitude(clipped, -180.0, True)
+            if len(clipped) >= 3:
+                clipped = _clip_longitude(clipped, 180.0, False)
+            if len(clipped) >= 3:
+                insert_polygon(clipped, parent)
+
+    for cid in np.flatnonzero(~ordinary):
+        face = faces[cid]
+        if np.any(np.linalg.norm(face[:, :2], axis=1) < 1e-10):
+            map_face(face, int(cid))
+            continue
+        split = False
+        for pole in (np.array([0., 0., 1.]), np.array([0., 0., -1.])):
+            weights = np.linalg.solve(face.T, pole)
+            if np.all(weights >= -1e-12):
+                for i in range(3):
+                    subface = np.array([face[i], face[(i+1) % 3], pole])
+                    if abs(np.linalg.det(subface)) > 1e-14:
+                        map_face(subface, int(cid))
+                split = True
+                break
+        if not split:
+            map_face(face, int(cid))
+    boundary = vtk_to_numpy(cells.GetConnectivityArray()).reshape(-1, 3)
+    connectivity = np.concatenate((regular, boundary)).astype(np.int64)
+    parents = np.concatenate((ordinary_ids, np.asarray(parents, dtype=np.int64)))
+    # Remove unused original pole vertices, which would otherwise have no pressure support.
+    used, new_ids = np.unique(connectivity, return_inverse=True)
+    coords = vtk_to_numpy(points.GetData())[used]
+    points.SetData(numpy_to_vtk(coords, deep=True))
+    connectivity = new_ids.reshape(-1, 3).astype(np.int64)
+    cells = vtk.vtkCellArray()
+    cells.SetData(numpy_to_vtkIdTypeArray(np.arange(0, connectivity.size+1, 3, dtype=np.int64), deep=True),
+                  numpy_to_vtkIdTypeArray(connectivity.ravel(), deep=True))
+    out = vtk.vtkPolyData()
+    out.SetPoints(points)
+    out.SetPolys(cells)
+    _projection_cache = (key, out, parents)
+    return attach_fields(out, parents)
+
+
+def convert_layer(run, z, t):
+    """Convert an already extracted layer; callable by each MPI worker."""
+    vtk_file = f"{run}_tri_{z:03d}_{t:04d}.vtk"
+    vtp_file = f"{run}_tri_lonlat_{z:03d}_{t:04d}.vtp"
+    reader = vtk.vtkDataSetReader()
+    reader.ReadAllScalarsOn()
+    reader.ReadAllVectorsOn()
+    reader.ReadAllFieldsOn()
+    if not Path(vtk_file).is_file():
+        raise FileNotFoundError(vtk_file)
+    reader.SetFileName(vtk_file)
+    reader.Update()
+    data = reader.GetOutput()
+    if data.GetNumberOfCells() == 0:
+        raise RuntimeError(f"No cells read from {vtk_file}")
+    output = project_spherical_triangles(data)
+    writer = vtk.vtkXMLPolyDataWriter()
+    writer.SetFileName(vtp_file)
+    writer.SetInputData(output)
+    if writer.Write() != 1:
+        raise RuntimeError(f"Failed to write {vtp_file}")
+    os.remove(vtk_file)
+    return vtp_file
+
 
 
 if __name__ == "__main__":
-    (run, Jmin, Jmax, z1, z2, t1, t2, t1, t2, Delaunay) = parse_args()
+    (run, Jmin, Jmax, z1, z2, t1, t2, Delaunay) = parse_args()
 
     # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
     lat_dim = int (np.sqrt((10*4**Jmax + 2)/2))
@@ -116,154 +351,4 @@ if __name__ == "__main__":
                 if p.exists():
                     os.remove(surface_vtk)
 
-            vtkreader = vtk.vtkDataSetReader()
-            vtkreader.ReadAllScalarsOn()
-            vtkreader.SetFileName(vtk_file)
-            vtkreader.Update()
-
-            data = vtkreader.GetOutput()
-
-            # Get point data and convert them from (x,y,z) to (lon, lat, 0)
-            points     = data.GetPoints()
-            coords     = vtk_to_numpy(points.GetData())
-            num_points = coords.shape[0]
-
-            # Compute radius of sphere
-            R = np.sqrt(coords[:,0]**2 + coords[:,1]**2 + coords[:,2]**2)
-
-            # Conversion from x,y,z to lon, lat, 0
-            coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0])) # longitude
-            coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R))           # latitude
-            coords[:,2] = 0
-
-            points.SetData(numpy_to_vtk(coords))
-
-            # Get cell array
-            if isinstance(data, vtk.vtkPolyData):
-                cells = data.GetPolys()
-            elif isinstance(data, vtk.vtkUnstructuredGrid):
-                cells = data.GetCells()
-
-            cellformation = vtk_to_numpy(cells.GetData())
-            num_cells     = data.GetNumberOfCells()
-
-            # Create point to cell mapping and an array of start indices of cells
-            point2cells = [ [] for _ in range(num_points) ] # a list of lists
-            startIDs    = [0] * num_cells # start index in cell data "cellformation"
-
-            startID = 0
-            for cell in range(num_cells):              # loop through cells
-                startIDs[cell] = startID
-                size           = cellformation[startID] # number of vertices
-                for i in range(size):
-                    pid = cellformation[startID+1+i]
-                    point2cells[pid].append(cell)
-
-                startID = startID + 1 + size
-
-            # Loop over cells, check if it intersects with -180/180
-            # separation line. If yes, move its vertices on one side horizontally
-            # so that their lon coordinates are -180. Which side's vertices to be moved 
-            # depends on numbers of vertices of that cell on both sides.
-            points_on_sep = set()
-            for cell in range(num_cells):         # loop through cells
-                startID  = startIDs[cell]
-                size     = cellformation[startID] # number of vertices                
-                pids_pos = []
-                pids_neg = []
-                for i in range(size):
-                    pid = cellformation[startID+1+i]
-                    if (  coords[pid,0]<-90): # on negative side
-                        pids_neg.append(pid)
-                    elif (coords[pid,0]> 90): # on positive side
-                        pids_pos.append(pid)
-
-                if (len(pids_pos)>len(pids_neg)):    # positive triangle
-                    points_on_sep.update(pids_neg)
-                else:                                # negative triangle
-                    points_on_sep.update(pids_pos)
-                    startIDs[cell] = -startIDs[cell] # sign used to indicate which side cell should be placed on
-
-            # Split points on separation line
-            last_pid = num_points
-            for pid in points_on_sep:
-                # Add a new point
-                if (coords[pid,0]>0):
-                    new_lon = -360 + coords[pid,0]
-                else:
-                    new_lon =  360 + coords[pid,0]
-
-                points.InsertNextPoint(new_lon, coords[pid,1], coords[pid,2])
-                coords = np.vstack((coords, [[new_lon, coords[pid,1], coords[pid,2]]]))
-
-                # Let newly added point be vertices of some triangles
-                for cid in point2cells[pid]: # loop over all cells sharing point pid
-                    # Replace pid with last_pid for those cells sharing pid
-                    startID = abs(startIDs[cid])
-                    size = cellformation[startID]
-                    if (startIDs[cid]>0 and coords[pid,0]<0) or (startIDs[cid]<0 and coords[pid,0]>0): 
-                        loc = np.where(cellformation[startID+1:startID+1+size]==pid)
-                        loc  = int(loc[0][0])
-                        cells.ReplaceCellPointAtId(cid, loc, last_pid)
-                        cellformation[startID+1+loc] = last_pid
-                last_pid += 1
-
-            points.SetData(numpy_to_vtk(coords))
-
-            # Ensure no vertices are outside [-180,180] and fill gaps at poles
-            num_points = coords.shape[0]
-            for pid in range(num_points):
-                if (np.abs(coords[pid,0])>180):
-                    coords[pid,0] = np.sign(coords[pid,0]) * 180
-
-            # Convert to point data
-            cellToPoint = vtk.vtkCellDataToPointData()
-            cellToPoint.SetInputData(data)
-            cellToPoint.Update()
-            output = cellToPoint.GetOutput()
-
-            if Delaunay=='y':
-                # Apply vtkDelaunay2D filter
-                delaunay = vtk.vtkDelaunay2D()
-                delaunay.SetInputData(output)
-                delaunay.Update()
-                output = delaunay.GetOutput()
-
-                point2cell = vtk.vtkPointDataToCellData()
-                point2cell.SetInputData(output)
-                point2cell.Update()
-                polydata = point2cell.GetOutput()
-
-                # Shift points close to longitude boundaries to edges
-                points = polydata.GetPoints()
-                for i in range(polydata.GetNumberOfCells()):
-                    cell   = polydata.GetCell(i)
-                    pt_ids = cell.GetPointIds()
-                    p      = np.array([points.GetPoint(pt_ids.GetId(0)), points.GetPoint(pt_ids.GetId(1)), points.GetPoint(pt_ids.GetId(2))])
-                    dtheta = np.min([np.linalg.norm(p[0]-p[1]), np.linalg.norm(p[0]-p[2]), np.linalg.norm(p[1]-p[2])])
-                    for j in range(3):
-                        pid = pt_ids.GetId(j)
-                        coord = list(points.GetPoint(pid))
-                        if (np.abs(np.abs(coord[0])-180) < 3*dtheta): # modify to avoid gaps if necessary                           
-                            coord[0] = np.sign(coord[0]) * 180
-                            points.SetPoint(pid, coord)
-                        if (np.abs(np.abs(coord[1])- 90) < 3*dtheta): # modify to avoid gaps if necessary                            
-                            coord[1] = np.sign(coord[1]) * 90
-                            points.SetPoint(pid, coord)
-                points.Modified()
-            else:
-                point2cell = vtk.vtkPointDataToCellData()
-                point2cell.SetInputData(output)
-                point2cell.Update()
-                polydata = point2cell.GetOutput()
-
-            # Write out structured data
-            writer = vtk.vtkXMLPolyDataWriter() 
-            writer.SetFileName(vtp_file)
-            writer.SetInputData(polydata)
-            writer.Write()
-
-            # Remove vtk file
-            os.remove(vtk_file)
-
-  
+            convert_layer(run, z, t)

@@ -9,7 +9,8 @@
 #
 #    (1) vtkPoints are a concatenated array of vtkPoints
 #    (2) vtkCell are constructed by joining the two 2D cells in adjacent layers to produce a vtkWedge prism.
-#    (3) vtkCellData are computed as the average of the values from the two 2D cells in adjacent layers.  
+#    (3) Each wedge retains its source layer's cell fields; interface pressure is
+#        the average of point pressures from the two adjacent layers.
 #
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
 # Date : Last revision 2025-12-17 (Nicholas Kevlahan)
@@ -25,111 +26,118 @@ from vtk.util import numpy_support
 import scipy.ndimage
 from datetime import datetime, timedelta
 from pathlib import Path
+from vtk.util.numpy_support import numpy_to_vtkIdTypeArray
 from xyz2lonlat_layers import run_xyz_layers, run_xyz_layers_serial
 from mpi4py import MPI
+
+time_average_mode = "memory"
+image_time_means = {}
+
+
+# Missing physical samples are NaN; missing categorical Level is -1.
+# Projected Level is the finest (maximum) valid contributing level.
+def valid_mean(values, axis):
+    good = np.isfinite(values)
+    total = np.where(good, values, 0.0).sum(axis=axis, dtype=np.float64)
+    count = good.sum(axis=axis)
+    return np.divide(total, count, out=np.full_like(total, np.nan), where=count > 0)
+
+
+def project_level(values, axis):
+    return np.max(values, axis=axis).astype(np.int32)
+
+
+def masked_vertical_smooth(values, valid, weights=None):
+    values = np.asarray(values, dtype=np.float64)
+    if valid.all():
+        return scipy.ndimage.gaussian_filter1d(values, sigma=1, axis=0)
+    if weights is None:
+        weights = scipy.ndimage.gaussian_filter1d(valid.astype(float), sigma=1, axis=0)
+    total = scipy.ndimage.gaussian_filter1d(np.where(valid, values, 0.0), sigma=1, axis=0)
+    result = np.divide(total, weights, out=np.full_like(total, np.nan), where=weights > 0)
+    result[~valid] = np.nan
+    return result
+
+
+
+def check_layer_correspondence(lower, upper):
+    """Wedges require identical horizontal point order and triangle connectivity."""
+    if (lower.GetNumberOfPoints() != upper.GetNumberOfPoints() or
+            lower.GetNumberOfCells() != upper.GetNumberOfCells()):
+        raise RuntimeError("Projected layers have different topology; regenerate all layers together")
+    a = vtk_to_numpy(lower.GetPoints().GetData())[:, :2]
+    b = vtk_to_numpy(upper.GetPoints().GetData())[:, :2]
+    if (not np.allclose(a, b, rtol=0, atol=1e-8) or
+            not np.array_equal(vtk_to_numpy(lower.GetPolys().GetData()),
+                               vtk_to_numpy(upper.GetPolys().GetData()))):
+        raise RuntimeError("Projected layer points/triangles do not correspond; cannot construct wedges")
+
 
 ################################################################################
 class Cell3D():
     def __init__(self, vtp_series):
         global data_names
         self.vtp_series = vtp_series
-        self.ugrid = vtk.vtkUnstructuredGrid()  # final result
-
-        # Load DS1
-        ds1 = load_dataset_bdry(vtp_series[0], 0, 'P/Ps')
-
-        points1 = ds1.GetPoints()
-        self.ugrid.SetPoints(points1)
-
-        self.num_attrs = ds1.GetCellData().GetNumberOfArrays()
-
-        self.attr_list  = [None] * self.num_attrs     # to store attribute arrays
-        self.attr_names = [None] * self.num_attrs
-
-        for i in range(self.num_attrs):
-            attr1 = ds1.GetCellData().GetArray(i)
-            self.attr_names[i] = attr1.GetName()
-
+        self.first = read_projected_layer(vtp_series[0])
+        self.num_attrs = self.first.GetCellData().GetNumberOfArrays()
+        self.attr_names = [self.first.GetCellData().GetArrayName(i) for i in range(self.num_attrs)]
         data_names = self.attr_names
-        
-        
-    # Progressively constructs 3D wedge cells, from surface interface upwards   
+        self.ugrid = vtk.vtkUnstructuredGrid()
+
     def construct(self):
-        # Bottom interface is ground: P/Ps=1 by definition
-        file1 = self.vtp_series[0]
-        ds1   = load_dataset_bdry(file1, 0, 'P/Ps')
-        
-        for i, file2 in enumerate(self.vtp_series[1:]): # loop through layers to (file2 is used to determine upper interface)
-            ds2 = load_dataset(file1, file2, 'P/Ps') # upper interface
-
-            # Construct cells between two layers and add them to ugrid
-            self.add_cells(ds1, ds2, (i+1))
-
-            ds1   = ds2 # set upper interface as next lower interfaces
-            file1 = file2
-
-        # Top interface is P/Ps=0 by definition
-        ds2 = load_dataset_bdry(file2, nz, 'P/Ps')
-        self.add_cells(ds1, ds2, (i+1))
-
-        # Set attributes for the ugrid
-        for i in range(self.num_attrs):
-            attr_array = numpy_to_vtk(self.attr_list[i])
-            attr_array.SetName(self.attr_names[i])
-
-            self.ugrid.GetCellData().AddArray(attr_array)
-            
+        # Read each layer once. Allocate complete geometry and fields once.
+        first = self.first
+        npoint, ncell = first.GetNumberOfPoints(), first.GetNumberOfCells()
+        nlayer = len(self.vtp_series)
+        triangles = triangle_connectivity(first)
+        xy = vtk_to_numpy(first.GetPoints().GetData())[:, :2]
+        coordinates = np.empty(((nlayer + 1) * npoint, 3), dtype=np.float64)
+        interfaces = coordinates.reshape(nlayer + 1, npoint, 3)
+        interfaces[:, :, :2] = xy
+        interfaces[0, :, 2] = 1.0
+        interfaces[-1, :, 2] = 0.0
+        connectivity = np.empty((nlayer * ncell, 6), dtype=np.int64)
+        arrays = {}
+        for name in self.attr_names:
+            source = vtk_to_numpy(first.GetCellData().GetArray(name))
+            arrays[name] = np.empty((nlayer * ncell,) + source.shape[1:], dtype=source.dtype)
+        degree = np.bincount(triangles.ravel(), minlength=npoint)
+        if np.any(degree == 0):
+            raise RuntimeError("Projected mesh contains unused points")
+        previous_pressure = None
+        for k, path in enumerate(self.vtp_series):
+            layer = first if k == 0 else read_projected_layer(path)
+            if k:
+                check_layer_correspondence(first, layer)
+            pressure = point_cell_mean(layer, 'P/Ps', triangles, degree) * vert_scale
+            if k:
+                interfaces[k, :, 2] = (previous_pressure + pressure) * 0.5
+            previous_pressure = pressure
+            block = slice(k*ncell, (k+1)*ncell)
+            connectivity[block, :3] = triangles + k*npoint
+            connectivity[block, 3:] = triangles + (k+1)*npoint
+            for name in self.attr_names:
+                source_array = layer.GetCellData().GetArray(name)
+                if source_array is None:
+                    raise RuntimeError(f"Missing cell field {name!r} in {path}")
+                arrays[name][block] = vtk_to_numpy(source_array)
+        points = vtk.vtkPoints()
+        points.SetData(numpy_to_vtk(coordinates, deep=False))
+        self.ugrid.SetPoints(points)
+        offsets = np.arange(0, connectivity.size + 1, 6, dtype=np.int64)
+        cells = vtk.vtkCellArray()
+        cells.SetData(numpy_to_vtkIdTypeArray(offsets, deep=False),
+                      numpy_to_vtkIdTypeArray(connectivity.ravel(), deep=False))
+        self.ugrid.SetCells(vtk.VTK_WEDGE, cells)
+        for name, values in arrays.items():
+            array = numpy_to_vtk(values, deep=False)
+            array.SetName(name)
+            self.ugrid.GetCellData().AddArray(array)
+        self.ugrid._numpy_buffers = [coordinates, connectivity, offsets, arrays]
+        self.first = None
         delete_files(run+'_tri'+'*'+str(t).zfill(4)+'.vtp')
-
         return self.ugrid
 
-    # Function to construct cells between two layers (ds1 and ds2) and
-    # then add them to the unstructured grid (ugrid)
-    # Here, ugrid has already had vtkPoints from ds1
-    def add_cells(self, ds1, ds2, cell_layer_id=0):
-        # Points and coordinates at all interfaces below current layer
-        points         = self.ugrid.GetPoints()
-        coords         = vtk_to_numpy(points.GetData())
-
-        # Upper interface
-        points2        = ds2.GetPoints()
-        num_points2    = ds2.GetNumberOfPoints()
-        coords2        = vtk_to_numpy(points2.GetData())
-        num_cells2     = ds2.GetNumberOfCells()
-        cellformation2 = vtk_to_numpy(ds2.GetPolys().GetData())
-            
-        # Add points and coordinates for upper interface
-        coords = np.concatenate((coords, coords2))
-        points.SetData(numpy_to_vtk(coords))
-        self.ugrid.SetPoints(points)
-        num_points  = points.GetNumberOfPoints()
-        
-        startID = 0
-        # loop through cells in ds2
-        for i in range(num_cells2):
-            size     = cellformation2[startID]
-            pnt_ids  = cellformation2[(startID+1):(startID+1+size)]
-
-            pnt_ids1 = pnt_ids + (num_points - 2*num_points2)
-            pnt_ids2 = pnt_ids + (num_points -   num_points2)
-            
-            # 6 points in wedge cell
-            pnt_ids  = np.concatenate((pnt_ids1, pnt_ids2))
-
-            # Triangular cells
-            self.ugrid.InsertNextCell(vtk.VTK_WEDGE , len(pnt_ids), pnt_ids)
-    
-            startID = startID + 1 + size
-
-        # Set the cell attributes from layer between lower and upper interfaces
-        for i in range(self.num_attrs):
-            attr = ds1.GetCellData().GetArray(i)
-
-            if (self.attr_list[i] is None):
-                self.attr_list[i] = attr
-            else:
-                self.attr_list[i] = np.concatenate((self.attr_list[i], attr))
-    
     def construct_3Dimage(self):
         global Ntot
         global covarAvT, covarAvU, covarAvV, covarAvUV, covarAvVT
@@ -172,34 +180,55 @@ class Cell3D():
         img1.SetOrigin(rgrid.GetOrigin())
         img3.SetOrigin(rgrid.GetOrigin())
 
+        shape = (vert_dim, lat_dim, lon_dim)
+        mask_array = pnt_data.GetArray("vtkValidPointMask")
+        if mask_array is None:
+            raise RuntimeError("Resampler did not provide vtkValidPointMask")
+        valid = vtk_to_numpy(mask_array).reshape(shape).astype(bool)
+        fields = {}
+        for name in self.attr_names:
+            array = pnt_data.GetArray(name)
+            if array is None or array.GetNumberOfComponents() != 1:
+                raise RuntimeError(f"Missing or nonscalar input field: {name}")
+            fields[name] = vtk_to_numpy(array).reshape(shape)
+            valid &= np.isfinite(fields[name])
+        if compressible == 'y':
+            valid &= fields["Temperature"] > 0
+        if "Level" in fields:
+            levels = fields["Level"][valid]
+            if np.any(levels < 0) or not np.allclose(levels, np.rint(levels), rtol=0, atol=1e-6):
+                raise RuntimeError("Valid resampled Level values must be nonnegative integers")
+        sample_counts = valid.sum(axis=2)
+        for image, mask in ((img1, valid.any(axis=2)), (img2, valid.any(axis=1)), (img3, valid)):
+            arr = numpy_to_vtk(mask.astype(np.uint8).ravel(), deep=True)
+            arr.SetName("vtkValidPointMask")
+            image.GetPointData().AddArray(arr)
+        img2.SetOrigin(rgrid.GetOrigin())
+        smooth_weights = None if valid.all() else scipy.ndimage.gaussian_filter1d(valid.astype(float), sigma=1, axis=0)
         vertical_profile = []
-        for i in range(self.num_attrs):
-            name = pnt_data.GetArray(i).GetName()
+        for name in self.attr_names:
+            if name == "Level":
+                globe = np.where(valid, np.rint(fields[name]), -1).astype(np.int32)
+                zonal = project_level(globe, 2)
+                merid = project_level(globe, 1)
+                profl = project_level(globe, (1, 2)).tolist()
+            else:
+                globe = masked_vertical_smooth(fields[name], valid, smooth_weights)
+                zonal = valid_mean(globe, 2)
+                merid = valid_mean(globe, 1)
+                profl = valid_mean(globe, (1, 2)).tolist()
+            for image, values in ((img1, zonal), (img2, merid), (img3, globe)):
+                arr = numpy_to_vtk(values.ravel(), deep=True)
+                arr.SetName(name)
+                image.GetPointData().AddArray(arr)
+            vertical_profile.append(profl)
 
-            # Extract 3D global data
-            globe = vtk_to_numpy(pnt_data.GetArray(i))
-            globe = globe.reshape(vert_dim, lat_dim, lon_dim)
-            globe = scipy.ndimage.gaussian_filter(globe, sigma=(1, 0, 0)) 
-
-            zonal = np.mean(globe, axis=2)              # zonal average
-            merid = np.mean(globe, axis=1)              # meridional average
-            profl = np.mean(globe, axis=(1,2)).tolist() # vertical profile
-
-            attr1 = numpy_to_vtk(zonal.reshape(Nzonal)); attr1.SetName(name)
-            attr2 = numpy_to_vtk(merid.reshape(Nmerid)); attr2.SetName(name)
-            attr3 = numpy_to_vtk(globe.reshape(Ngrid));  attr3.SetName(name)
-
-            img1.GetPointData().AddArray(attr1)
-            img2.GetPointData().AddArray(attr2)
-            img3.GetPointData().AddArray(attr3)
-            vertical_profile.append(profl) 
-        
         pnt_data = img3.GetPointData() # use smoothed data
 
         if compressible=='y':
             # Compute zonal projection of density and update average density
             meanRho   = compute_mean_density (pnt_data)
-            meanAvRho = merge_mean(meanRho, lon_dim, meanAvRho, Ntot)
+            meanAvRho = merge_mean(meanRho, sample_counts, meanAvRho, Ntot)
 
             # Compute covariances
             covarT, meanT, _ = compute_covar(pnt_data, "Temperature",         "Temperature")         # temperature 
@@ -209,11 +238,11 @@ class Cell3D():
             covarVT, _,    _ = compute_covar(pnt_data, "Velocity_Meridional", "Temperature")         # eddy heat flux
         
             # Update average covariances
-            covarAvT,  newAvT, _ = merge_covariance(covarT,  meanT, meanT, lon_dim, covarAvT,  meanAvT, meanAvT, Ntot)
-            covarAvU,  newAvU, _ = merge_covariance(covarU,  meanU, meanU, lon_dim, covarAvU,  meanAvU, meanAvU, Ntot)
-            covarAvV,  newAvV, _ = merge_covariance(covarV,  meanV, meanV, lon_dim, covarAvV,  meanAvV, meanAvV, Ntot)
-            covarAvUV, _,      _ = merge_covariance(covarUV, meanU, meanV, lon_dim, covarAvUV, meanAvU, meanAvV, Ntot)
-            covarAvVT, _,      _ = merge_covariance(covarVT, meanV, meanT, lon_dim, covarAvVT, meanAvV, meanAvT, Ntot)
+            covarAvT,  newAvT, _ = merge_covariance(covarT,  meanT, meanT, sample_counts, covarAvT,  meanAvT, meanAvT, Ntot)
+            covarAvU,  newAvU, _ = merge_covariance(covarU,  meanU, meanU, sample_counts, covarAvU,  meanAvU, meanAvU, Ntot)
+            covarAvV,  newAvV, _ = merge_covariance(covarV,  meanV, meanV, sample_counts, covarAvV,  meanAvV, meanAvV, Ntot)
+            covarAvUV, _,      _ = merge_covariance(covarUV, meanU, meanV, sample_counts, covarAvUV, meanAvU, meanAvV, Ntot)
+            covarAvVT, _,      _ = merge_covariance(covarVT, meanV, meanT, sample_counts, covarAvVT, meanAvV, meanAvT, Ntot)
 
             # Update average means
             meanAvT = newAvT
@@ -221,28 +250,22 @@ class Cell3D():
             meanAvV = newAvV
 
             # Update total number of samples for averages
-            Ntot    = Ntot + lon_dim
+            Ntot    = Ntot + sample_counts
         
-        # Write out data
         file_out = f"{run}_{t:04d}"
-
-        # Write image (uniform grid) data
         writer = vtk.vtkXMLImageDataWriter()
-
-        # Write 3D Cartesian grid data
-        writer.SetFileName(f"{file_out}_{season}.vti")
-        writer.SetInputData(img3)
-        writer.Write()
-
-        # Write zonal projection
-        writer.SetFileName(f"{file_out}_zonal_{season}.vti")
-        writer.SetInputData(img1)
-        writer.Write()
-
-        # Write meridional projection
-        writer.SetFileName(f"{file_out}_merid_{season}.vti")
-        writer.SetInputData(img2)
-        writer.Write()
+        images = (("", img3), ("_zonal", img1), ("_merid", img2))
+        if time_average_mode == "memory":
+            for suffix, image in images:
+                if suffix not in image_time_means:
+                    image_time_means[suffix] = ImageTimeMean(image)
+                image_time_means[suffix].add(image)
+        else:
+            for suffix, image in images:
+                writer.SetFileName(f"{file_out}{suffix}_{season}.vti")
+                writer.SetInputData(image)
+                if writer.Write() != 1:
+                    raise RuntimeError("Failed to write snapshot image")
 
         if compressible=='y':
             if t == idxs[-1]: # write average statistics
@@ -255,44 +278,41 @@ class Cell3D():
                 mom_flux  = covarAvUV                   # eddy momentum flux
                 heat_flux = covarAvVT                   # eddy heat flux                  
 
-                add_scalar_data(covarAvT,  Nzonal, "TemperatureVariance", statistics)
-                add_scalar_data(heat_flux, Nzonal, "EddyHeatFlux",        statistics)
-                add_scalar_data(mom_flux,  Nzonal, "EddyMomentumFlux",    statistics)
-                add_scalar_data(ke,        Nzonal, "EddyKineticEnergy",   statistics)
+                add_scalar_data(np.where(Ntot > 0, covarAvT, np.nan), Nzonal, "TemperatureVariance", statistics)
+                add_scalar_data(np.where(Ntot > 0, heat_flux, np.nan), Nzonal, "EddyHeatFlux",        statistics)
+                add_scalar_data(np.where(Ntot > 0, mom_flux, np.nan), Nzonal, "EddyMomentumFlux",    statistics)
+                add_scalar_data(np.where(Ntot > 0, ke, np.nan), Nzonal, "EddyKineticEnergy",   statistics)
 
-                if (len(idxs)==1):
-                    stats_file = f"{run}_{idxs[0]:04d}_statistics_zonal_{season}.vti"
-                else:
-                    stats_file = f"{run}_statistics_zonal_{season}.vti"
+                count_array = numpy_to_vtk(Ntot.ravel(), deep=True)
+                count_array.SetName("ValidSampleCount")
+                statistics.GetPointData().AddArray(count_array)
+                mask = numpy_to_vtk((Ntot > 0).astype(np.uint8).ravel(), deep=True)
+                mask.SetName("vtkValidPointMask")
+                statistics.GetPointData().AddArray(mask)
+                stats_file = f"{run}_statistics_zonal_{season}.vti"
                     
                 writer.SetFileName(stats_file)
                 writer.SetInputData(statistics)
-                writer.Write()
+                if writer.Write() != 1 or writer.GetErrorCode() != 0:
+                    raise RuntimeError(f"Failed to write {stats_file}")
 
                 # Save vertical profiles in csv file
-                vertical_profile = np.array(vertical_profile).T
-                csv_file = f"{file_out}_{season}.csv"
-                with open(csv_file, 'w', newline='') as file:
-                    writer = csv.writer(file)
-                    writer.writerow(data_names)
-                    for row in vertical_profile:
-                        writer.writerow(row)
+                if len(idxs) == 1 or time_average_mode == "disk":
+                    vertical_profile = np.array(vertical_profile).T
+                    csv_file = f"{file_out}_{season}.csv"
+                    with open(csv_file, 'w', newline='') as file:
+                        writer = csv.writer(file)
+                        writer.writerow(data_names)
+                        for row in vertical_profile:
+                            writer.writerow(row)
 
                 
 ###############################################################################################################################
 # Loads data from a vtk polydata file and sets vertical coordinate of interface based on attr_to_fill
 def load_dataset(file1, file2, attr_to_fill=None):
-    reader = vtk.vtkXMLPolyDataReader()
-        
-    # Layer below current interface
-    reader.SetFileName(file1)
-    reader.Update()
-    ugrid1 = reader.GetOutput() 
-
-    # Layer above current interface
-    reader.SetFileName(file2)
-    reader.Update()
-    ugrid2 = reader.GetOutput()
+    # Independent readers: reusing GetOutput() aliases the same VTK object.
+    ugrid1 = read_projected_layer(file1)
+    ugrid2 = read_projected_layer(file2)
 
     if (attr_to_fill is not None):
         set_vert_coord(ugrid1, ugrid2, attr_to_fill) # interface coordinate is average of coordinates of adjacent layers
@@ -302,49 +322,43 @@ def load_dataset(file1, file2, attr_to_fill=None):
 #########################################################################################################################################
 # Sets third coordinate of a vertex on specified interface as  average of data defined by attr_name of all cells that share the vertex.
 # Currently, the vertical dimension is the scaled value of the average normalized pressure, P/Ps
+def read_projected_layer(path):
+    reader = vtk.vtkXMLPolyDataReader()
+    reader.SetFileName(path)
+    reader.Update()
+    result = reader.GetOutput()
+    if result.GetNumberOfCells() == 0:
+        raise RuntimeError(f"No projected triangles in {path}")
+    return result
+
+
+def triangle_connectivity(layer):
+    polys = layer.GetPolys()
+    if not np.all(np.diff(vtk_to_numpy(polys.GetOffsetsArray())) == 3):
+        raise RuntimeError("Projected layers must contain triangles")
+    return vtk_to_numpy(polys.GetConnectivityArray()).reshape(-1, 3)
+
+
+def point_cell_mean(layer, name, triangles=None, degree=None):
+    if triangles is None:
+        triangles = triangle_connectivity(layer)
+    npoint = layer.GetNumberOfPoints()
+    if degree is None:
+        degree = np.bincount(triangles.ravel(), minlength=npoint)
+    values = vtk_to_numpy(layer.GetCellData().GetArray(name)).astype(np.float64, copy=False)
+    total = np.zeros(npoint, dtype=np.float64)
+    for vertex in range(3):
+        total += np.bincount(triangles[:, vertex], weights=values, minlength=npoint)
+    if np.any(degree == 0):
+        raise RuntimeError("Projected mesh contains unused points")
+    return total / degree
+
+
 def set_vert_coord(ugrid1, ugrid2, attr_name):
-    # Load data from layers adjacent to current interface
-    coords1        = vtk_to_numpy(ugrid1.GetPoints().GetData())
-    num_points1    = coords1.shape[0]
-    attrs1         = vtk_to_numpy(ugrid1.GetCellData().GetArray(attr_name)) # data to use as the vertical coordinate (currently P/Ps)
-    cellformation1 = vtk_to_numpy(ugrid1.GetPolys().GetData())
-    num_cells1     = ugrid1.GetNumberOfCells()
-        
-    coords2        = vtk_to_numpy(ugrid2.GetPoints().GetData())
-    num_points2    = coords2.shape[0]
-    attrs2         = vtk_to_numpy(ugrid2.GetCellData().GetArray(attr_name)) 
-    cellformation2 = vtk_to_numpy(ugrid2.GetPolys().GetData())
-    num_cells2     = ugrid2.GetNumberOfCells()   
-
-    # Loop through in layer below interface
-    weights = np.zeros(num_points1) 
-    startID = 0
-    for i in range(num_cells1):
-        size    = cellformation1[startID]
-        pnt_ids = cellformation1[(startID+1):(startID+1+size)]
-        for pnt in pnt_ids:
-            coords1[pnt,2]  = coords1[pnt,2] * weights[pnt] + attrs1[i] * vert_scale # compute average value of data used for vertical coordinate
-            weights[pnt]   += 1
-            coords1[pnt,2] /= weights[pnt]                                           # increment weighted average
-        startID = startID + 1 + size
-
-    # Loop through cells in layer above interfaces
-    startID = 0
-    weights = np.zeros(num_points2) 
-    for i in range(num_cells2):
-        size    = cellformation2[startID]
-        pnt_ids = cellformation2[(startID+1):(startID+1+size)]
-        for pnt in pnt_ids:
-            coords2[pnt,2] = coords2[pnt,2] * weights[pnt] + attrs2[i] * vert_scale # compute average value of data used for vertical coordinate
-            weights[pnt]   += 1
-            coords2[pnt,2] /= weights[pnt]                                          # increment weighted average
-        startID = startID + 1 + size
-
-    # Interface vertical coordinate is average of vertical coordinates of adjacent layers
-    coords1[:,2] = (coords1[:,2] + coords2[:,2])/2
-    
-    # Update vertical coordinate for this layer
-    ugrid2.GetPoints().SetData(numpy_to_vtk(coords1))
+    check_layer_correspondence(ugrid1, ugrid2)
+    coords = vtk_to_numpy(ugrid1.GetPoints().GetData()).astype(np.float64, copy=True)
+    coords[:, 2] = (point_cell_mean(ugrid1, attr_name) + point_cell_mean(ugrid2, attr_name)) * (vert_scale / 2)
+    ugrid2.GetPoints().SetData(numpy_to_vtk(coords, deep=True))
 
 
 # Loads data from a vtk polydata file and sets vertical coordinate of top and bottom interfaces based on attr_to_fill
@@ -414,7 +428,7 @@ def time_mean():
         data_names.append(point_data.GetArrayName(i))
         array = vtk_to_numpy(point_data.GetArray(i))
         array = array.reshape((vert_dim, lat_dim))
-        profile = np.mean(array,axis=(1)).tolist()
+        profile = (project_level(array, 1) if point_data.GetArrayName(i) == "Level" else valid_mean(array, 1)).tolist()
         vertical_profile.append(profile)
 
     vertical_profile = np.array(vertical_profile).T
@@ -425,8 +439,12 @@ def time_mean():
         for row in vertical_profile:
             writer.writerow(row)
    
-    # Delete individual time files except if not processing a single time
-    if (len(idxs)!=1):
+    # Remove numbered VTI snapshots, including leftovers from previous runs,
+    # only after all final averages and the profile have been written.
+    remove_intermediate_vti()
+
+    # Existing cleanup for other temporary outputs in disk mode.
+    if len(idxs) != 1 and time_average_mode == "disk":
         for i in idxs:
              tag = f"_{i:04d}"
              delete_files(f"{run}{tag}_{season}.vtk")
@@ -435,58 +453,88 @@ def time_mean():
              delete_files(f"{run}{tag}_merid_{season}.vti")
              delete_files(f"{run}{tag}_{season}.vti")
 
+
+def remove_intermediate_vti():
+    prefix = Path(run)
+    pattern = re.compile(
+        re.escape(prefix.name) + r"_\d+(?:_zonal|_merid|_statistics_zonal)?_"
+        + re.escape(season) + r"\.vti$"
+    )
+    for path in prefix.parent.iterdir():
+        if path.is_file() and pattern.fullmatch(path.name):
+            path.unlink()
+
+class ImageTimeMean:
+    def __init__(self, image):
+        self.geometry = vtk.vtkImageData()
+        self.geometry.CopyStructure(image)
+        pd = image.GetPointData()
+        self.names = [pd.GetArrayName(i) for i in range(pd.GetNumberOfArrays())
+                      if pd.GetArrayName(i) != "vtkValidPointMask"]
+        n = image.GetNumberOfPoints()
+        self.sums = {name: np.zeros(n, dtype=np.float64) for name in self.names if name != "Level"}
+        self.counts = {name: np.zeros(n, dtype=np.uint32) for name in self.sums}
+        self.finest = np.full(n, -1, dtype=np.int32) if "Level" in self.names else None
+        self.valid = np.zeros(n, dtype=bool)
+
+    def add(self, image):
+        if (image.GetExtent() != self.geometry.GetExtent() or
+                image.GetOrigin() != self.geometry.GetOrigin() or
+                image.GetSpacing() != self.geometry.GetSpacing()):
+            raise RuntimeError("Cannot average images on different grids")
+        pd = image.GetPointData()
+        mask = vtk_to_numpy(pd.GetArray("vtkValidPointMask")).astype(bool)
+        self.valid |= mask
+        for name in self.names:
+            values = vtk_to_numpy(pd.GetArray(name))
+            good = mask & np.isfinite(values)
+            if name == "Level":
+                np.maximum(self.finest, np.where(good, values, -1).astype(np.int32), out=self.finest)
+            else:
+                self.sums[name] += np.where(good, values, 0)
+                self.counts[name] += good
+
+    def finish(self):
+        out = vtk.vtkImageData()
+        out.CopyStructure(self.geometry)
+        for name in self.names:
+            if name == "Level":
+                result = self.finest
+            else:
+                result = self.sums.pop(name)
+                count = self.counts.pop(name)
+                np.divide(result, count, out=result, where=count > 0)
+                result[count == 0] = np.nan
+            arr = numpy_to_vtk(result, deep=True)
+            arr.SetName(name)
+            out.GetPointData().AddArray(arr)
+        mask = numpy_to_vtk(self.valid.astype(np.uint8), deep=True)
+        mask.SetName("vtkValidPointMask")
+        out.GetPointData().AddArray(mask)
+        return out
+
+
 def avg_images(file_type):
-    # Average all image files specified by file_type
-    vti_files = []
-    for t in idxs:
-        vti_files.append(run+'_'+str(t).zfill(4)+file_type+"_"+season+'.vti')
-
-    # ---- Read the first file to get array names and metadata ----
-    reader = vtk.vtkXMLImageDataReader()
-    reader.SetFileName(vti_files[0])
-    reader.Update()
-    image       = reader.GetOutput()
-    point_data  = image.GetPointData()
-    n_arrays    = point_data.GetNumberOfArrays()
-    array_names = [point_data.GetArrayName(i) for i in range(n_arrays)]
-    npts        = image.GetNumberOfPoints()
-
-    # ---- Initialize dictionary to hold sums for each array ----
-    sums = {
-        name: np.zeros(npts, dtype=np.float32)
-        for name in array_names
-    }
-    nfiles = 0
-
-    # ---- Loop through all files and accumulate data ----
-    for filename in vti_files:
-        reader.SetFileName(filename)
-        reader.Update()
-        image      = reader.GetOutput()
-        point_data = image.GetPointData()
-       
-        for name in array_names:
-            array_vtk   = point_data.GetArray(name)
-            array_np    = numpy_support.vtk_to_numpy(array_vtk)
-            sums[name] += array_np
-           
-        nfiles += 1
-
-    # ---- Average and convert back to VTK arrays ----
-    output_image = vtk.vtkImageData()
-    output_image.DeepCopy(image)  # copy geometry and topology
-
-    for name in array_names:
-        avg_np = sums[name] / nfiles
-        avg_vtk = numpy_support.numpy_to_vtk(avg_np, deep=True)
-        avg_vtk.SetName(name)
-        output_image.GetPointData().AddArray(avg_vtk)
+    if time_average_mode == "memory":
+        output_image = image_time_means.pop(file_type).finish()
+    else:
+        accumulator = None
+        reader = vtk.vtkXMLImageDataReader()
+        for t in idxs:
+            reader.SetFileName(run+f"_{t:04d}"+file_type+"_"+season+".vti")
+            reader.Update()
+            image = reader.GetOutput()
+            if accumulator is None:
+                accumulator = ImageTimeMean(image)
+            accumulator.add(image)
+        output_image = accumulator.finish()
 
     # ---- Write the averaged image ----
     writer = vtk.vtkXMLImageDataWriter()
     writer.SetFileName(run+file_type+'_'+season+'.vti')
     writer.SetInputData(output_image)
-    writer.Write()
+    if writer.Write() != 1 or writer.GetErrorCode() != 0:
+        raise RuntimeError(f"Failed to write final average for {file_type!r}")
 
     return output_image
     
@@ -501,114 +549,56 @@ def mean (data):
     return mean
 
 def covariance(data1, data2):
-    # Stable one-pass covariance of data1, data2
-    # returns sample covariance, and means of both variables
-    
-    meanx = meany = C = n = 0
-    for x, y in zip(data1, data2):
-        n += 1
-        dx     = x - meanx
-        meanx += dx / n
-        meany += (y - meany) / n
-        C     += dx * (y - meany)
-
-    population_covar = C / n
-    
-    # Bessel's correction for sample variance
-    sample_covar = C / (n - 1)
-
-    return sample_covar, meanx, meany
+    # Population covariance of available longitude samples (climatological moment).
+    good = np.isfinite(data1) & np.isfinite(data2)
+    x, y = np.asarray(data1)[good], np.asarray(data2)[good]
+    if x.size == 0:
+        return 0.0, 0.0, 0.0
+    mx, my = x.mean(), y.mean()
+    return np.mean((x - mx) * (y - my)), mx, my
 
 
 def merge_mean(mean1, n1, mean2, n2):
-    """
-    Merge a single mean from two datasets with different means.
-
-    Parameters:
-        n1, n2 Sample sizes of the two datasets.
-        mean1  Mean in dataset 1.
-        mean2  Mean in dataset 2.
-
-    Returns:
-        Merged mean values.
-
-    """
     n = n1 + n2
-    
-    delta = mean1 - mean2
+    total = np.where(n1 > 0, n1 * mean1, 0) + np.where(n2 > 0, n2 * mean2, 0)
+    return np.divide(total, n, out=np.zeros_like(total, dtype=float), where=n > 0)
 
-    merged_mean = (n1 * mean1 + n2 * mean2) / n
-    
-    return merged_mean
 
 def merge_covariance(cov1, mean1_x, mean1_y, n1,
                      cov2, mean2_x, mean2_y, n2):
-    """
-    Merge a single covariance from two datasets with different means.
-
-    Parameters:
-        n1, n2           Sample sizes of the two datasets.
-        mean1_x, mean1_y Means of variables X and Y in dataset 1.
-        mean2_x, mean2_y Means of variables X and Y in dataset 2.
-        cov1, cov2       Covariance of (X, Y) in datasets 1 and 2.
-
-    Returns:
-        Merged covariance and mean values.
-
-    """
+    # Merge population moments using the valid count at each latitude/level.
     n = n1 + n2
-    
-    delta_x = mean1_x - mean2_x
-    delta_y = mean1_y - mean2_y
-
-    merged_cov = (n1 * cov1 + n2 * cov2 + (n1 * n2) / (n1 + n2) * delta_x * delta_y) / n
-
-    merged_mean_x = (n1 * mean1_x + n2 * mean2_x) / n
-    merged_mean_y = (n1 * mean1_y + n2 * mean2_y) / n
-    
-    return merged_cov, merged_mean_x, merged_mean_y
+    dx, dy = mean1_x - mean2_x, mean1_y - mean2_y
+    cross = np.divide(n1 * n2, n, out=np.zeros_like(dx, dtype=float), where=n > 0)
+    total = n1 * cov1 + n2 * cov2 + cross * dx * dy
+    cov = np.divide(total, n, out=np.zeros_like(total, dtype=float), where=n > 0)
+    return cov, merge_mean(mean1_x, n1, mean2_x, n2), merge_mean(mean1_y, n1, mean2_y, n2)
 
 
 def compute_covar(pnt_data, var1, var2):
-    # Computes covariance statistics for variables named var1, var2
-    # returns covariance and means of each variable
-
-    x = vtk_to_numpy(pnt_data.GetArray(var1))
-    y = vtk_to_numpy(pnt_data.GetArray(var2))
-
-    x = x.reshape((vert_dim, lat_dim, lon_dim))
-    y = y.reshape((vert_dim, lat_dim, lon_dim))
-    
-    covar = np.zeros((vert_dim,lat_dim))
-    meanx = np.zeros((vert_dim,lat_dim))
-    meany = np.zeros((vert_dim,lat_dim))
-        
-    for i in range(vert_dim):
-        for j in range(lat_dim):
-            (covar[i,j], meanx[i,j], meany[i,j]) = covariance(x[i,j,:],y[i,j,:])
-
-    return covar, meanx, meany
+    shape = (vert_dim, lat_dim, lon_dim)
+    x = vtk_to_numpy(pnt_data.GetArray(var1)).reshape(shape)
+    y = vtk_to_numpy(pnt_data.GetArray(var2)).reshape(shape)
+    good = np.isfinite(x) & np.isfinite(y)
+    count = good.sum(axis=2)
+    mx = np.divide(np.where(good, x, 0).sum(axis=2), count,
+                   out=np.zeros(shape[:2]), where=count > 0)
+    my = mx if var1 == var2 else np.divide(np.where(good, y, 0).sum(axis=2), count,
+                                         out=np.zeros(shape[:2]), where=count > 0)
+    dx = np.where(good, x - mx[:, :, None], 0)
+    dy = dx if var1 == var2 else np.where(good, y - my[:, :, None], 0)
+    cov = np.divide(np.einsum('ijk,ijk->ij', dx, dy), count,
+                    out=np.zeros(shape[:2]), where=count > 0)
+    return cov, mx, my
 
 
-def compute_mean_density (pnt_data):
-    # Computes mean density
-    
-    T    = vtk_to_numpy(pnt_data.GetArray("Temperature"))
-    Ps   = vtk_to_numpy(pnt_data.GetArray("Ps"))
-    P_Ps = vtk_to_numpy(pnt_data.GetArray("P/Ps"))
+def compute_mean_density(pnt_data):
+    shape = (vert_dim, lat_dim, lon_dim)
+    T = vtk_to_numpy(pnt_data.GetArray("Temperature")).reshape(shape)
+    Ps = vtk_to_numpy(pnt_data.GetArray("Ps")).reshape(shape)
+    P_Ps = vtk_to_numpy(pnt_data.GetArray("P/Ps")).reshape(shape)
+    return valid_mean(P_Ps * Ps / (Rd * T), 2)
 
-    T    =    T.reshape((vert_dim, lat_dim, lon_dim))
-    Ps   =   Ps.reshape((vert_dim, lat_dim, lon_dim))
-    P_Ps = P_Ps.reshape((vert_dim, lat_dim, lon_dim))
-
-    Rho  = P_Ps * Ps / (Rd * T) # density
-    
-    Rho_mean = np.zeros((vert_dim,lat_dim))
-    for i in range(vert_dim):
-        for j in range(lat_dim):
-            Rho_mean[i,j] = mean(Rho[i,j,:])
-
-    return Rho_mean
 
 def add_scalar_data(data, N, name, img):
     # Adds scalar data of total size N to vtk img with given name
@@ -638,24 +628,16 @@ DOC = textwrap.dedent("""\
       processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring
       for *.vtk.tgz data with indices 1 to 365 saved every 5 days with first data from June 21.
 
-  If t2 ≠ t1, the following time-averaged data are saved (suffix _season if seasons == 'y'):
-    run.vti             3D uniform (lon,lat,P/Ps) 3D image data
-    run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data
-    run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data
-    run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
-    run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
-    run_stats_zonal.vti 2D uniform (lat,P/Ps)     statistics (temp variance, eddy momentum/heat flux, EKE)
-    run.csv             1D (P/Ps)                 vertical profiles averaged over the sphere
+  Final VTI outputs (also for a single selected time):
+    <run>_<season>.vti                   3D time mean
+    <run>_zonal_<season>.vti             zonal time mean
+    <run>_merid_<season>.vti             meridional time mean
+    <run>_statistics_zonal_<season>.vti  statistics (compressible data)
 
-  If t2 == t1 (single time), the following are saved:
-    run_tttt.vtk             3D unstructured (lon,lat,P/Ps) 3D vtk on adaptive grid
-    run_tttt.vti             3D uniform      (lon,lat,P/Ps) 3D image data
-    run_tttt_zonal.vti       2D uniform      (lat,P/Ps)     zonally averaged image data
-    run_tttt_merid.vti       2D uniform      (lon,P/Ps)     meridionally averaged image data
-    run_tttt_zonal.vti       2D uniform      (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
-    run_tttt_merid.vti       2D uniform      (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
-    run_tttt_stats_zonal.vti 2D uniform      (lat,P/Ps)     statistics (temp variance, eddy momentum/heat flux, EKE)
-    run_tttt.csv             1D              (P/Ps)         vertical profiles averaged over the sphere
+  Numbered intermediate VTI files for this run and season are removed after
+  successful final output, including leftovers from previous invocations.
+  Other runs and seasons are preserved. With seasonal mode disabled,
+  <season> is 'all'. Single-time runs also retain the unstructured .vtk output.
 
   3D data has dimensions N x N/2 x nz. The vertical coordinate is P/Ps.
 """)
@@ -686,6 +668,7 @@ def parse_start_date(s: str) -> datetime:
         raise argparse.ArgumentTypeError("Use YYYY-MM-DD or M-D (year defaults to 0001).")
 
 def parse_args():
+    global time_average_mode
     p = argparse.ArgumentParser(
         prog="lonlat_to_3D.py",
         description=
@@ -729,7 +712,10 @@ from a series of layers in directory folder.
         print()
         p.print_help(); sys.exit(0)
 
+    p.add_argument("--time-average-mode", choices=("memory", "disk"), default="memory",
+                   help="memory avoids temporary VTI files; disk keeps the averaging pass separate to lower peak memory")
     a = p.parse_args()
+    time_average_mode = a.time_average_mode
     
     seasons = a.seasons.lower() == "y"
     if seasons and (a.season == "all"):
@@ -799,7 +785,7 @@ vert_min = vert_scale * vert_min
 vert_max = vert_scale * vert_max
 
 # Initialize statistics variables
-Ntot      = 0
+Ntot      = np.zeros((vert_dim, lat_dim), dtype=np.int64)
 covarAvT  = np.zeros((vert_dim,lat_dim))
 covarAvU  = np.zeros((vert_dim,lat_dim))
 covarAvV  = np.zeros((vert_dim,lat_dim))
@@ -861,8 +847,9 @@ for t in idxs:
         print(f"    Processing file with index {t}", flush=True)
         
     failures = run_xyz_layers(run, Jmin, Jmax, nz, t, t, True)
-    if failures:
-        print("Failures:", failures)
+    failed = comm.bcast(bool(failures) if rank == 0 else None, root=0)
+    if failed:
+        raise RuntimeError(f"Layer projection failed: {failures}")
 
     comm.Barrier()          # ensure all .vtp files are finished
 
@@ -877,7 +864,7 @@ for t in idxs:
     cell3d.construct_3Dimage()
 
 # Compute mean over all times
-if rank == 0 and len(idxs)!=1:
+if rank == 0 and idxs:
     time_mean()
 
 #########################################################################################################################################

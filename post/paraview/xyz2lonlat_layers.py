@@ -114,9 +114,14 @@ for v in ("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","NUMEXPR_NU
     os.environ.setdefault(v, "1")
 
 def run_one(z, run, Jmin, Jmax, t, use_flag="y"):
-    cmd = [sys.executable, "xyz2lonlat.py", run, str(Jmin), str(Jmax),
-           str(z), str(z), str(t), str(t), use_flag]
-    return subprocess.run(cmd).returncode
+    from xyz2lonlat import convert_layer
+    try:
+        convert_layer(run, z, t)
+        return 0
+    except Exception as exc:
+        print(f"[projection] t={t}, layer={z}: {exc}", file=sys.stderr, flush=True)
+        return 1
+
 
 def try_mpi():
     try:
@@ -130,6 +135,7 @@ def run_xyz_layers_serial(run, Jmin, Jmax, nz, t1, t2, prep_quiet):
     for t in range(t1, t2 + 1):
         if not prep_quiet:
             print(f"Processing file: {run}_tri_{t:04d}.vtk.tgz", flush=True)
+        prep_once_rank0_then_barrier(None, f"{run}_tri_{t:04d}.vtk.tgz", str(Path.cwd()), tag=f"{t:04d}")
         for z in range(1, nz + 1):
             rc = run_one(z, run, Jmin, Jmax, t)
             if rc != 0:

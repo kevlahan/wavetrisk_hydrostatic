@@ -65,6 +65,80 @@ def dataset_signature(data, dtype):
     )
 
 
+def average_fine_vti(A, B):
+    """Return aligned inputs, averaging the finer image onto the coarser grid."""
+    dims_a, dims_b = np.array(A.GetDimensions()), np.array(B.GetDimensions())
+    if np.array_equal(dims_a, dims_b):
+        return A, B
+
+    fine, coarse, fine_label = (A, B, "A") if np.prod(dims_a) > np.prod(dims_b) else (B, A, "B")
+    nf, nc = np.array(fine.GetDimensions()), np.array(coarse.GetDimensions())
+    if np.any(nf < nc):
+        raise ValueError("VTI resolutions are mixed across axes; no single finer file exists")
+
+    # Points at either end of each nondegenerate axis must coincide.
+    ef, ec = np.array(fine.GetExtent()), np.array(coarse.GetExtent())
+    sf, sc = np.array(fine.GetSpacing()), np.array(coarse.GetSpacing())
+    of, oc = np.array(fine.GetOrigin()), np.array(coarse.GetOrigin())
+    for axis in range(3):
+        if nc[axis] == 1:
+            if nf[axis] != 1:
+                raise ValueError("Cannot average a varying axis onto a singleton axis")
+            continue
+        for end in (0, 1):
+            f = of[axis] + ef[2 * axis + end] * sf[axis]
+            c = oc[axis] + ec[2 * axis + end] * sc[axis]
+            if not np.isclose(f, c, rtol=1e-8, atol=1e-10):
+                raise ValueError("VTI physical bounds differ")
+    point_weights, cell_weights = [], []
+    for axis in range(3):
+        if nc[axis] == 1:
+            point_weights.append(np.ones((1, 1)))
+            cell_weights.append(np.ones((1, 1)))
+            continue
+        fine_edges = np.linspace(0.0, 1.0, nf[axis])
+        coarse_edges = np.linspace(0.0, 1.0, nc[axis])
+        midpoints = (coarse_edges[:-1] + coarse_edges[1:]) / 2
+        groups = np.searchsorted(midpoints, fine_edges, side="left")
+        weights = (groups[None, :] == np.arange(nc[axis])[:, None]).astype(float)
+        point_weights.append(weights / weights.sum(axis=1, keepdims=True))
+        # Exact fractional overlap of fine and coarse cells, normalized by
+        # the width of each coarse cell. This also handles noninteger ratios.
+        left = np.maximum(fine_edges[:-1, None], coarse_edges[None, :-1])
+        right = np.minimum(fine_edges[1:, None], coarse_edges[None, 1:])
+        cell_weights.append((np.maximum(0.0, right - left) /
+                             np.diff(coarse_edges)[None, :]).T)
+
+    print(f"VTI resolution differs: averaging finer {fine_label} {tuple(map(int, nf))} "
+          f"to coarser {tuple(map(int, nc))} (point neighborhood means; "
+          "cell overlap-weighted means).")
+    averaged = coarse.NewInstance()
+    averaged.CopyStructure(coarse)
+    averaged.GetFieldData().ShallowCopy(fine.GetFieldData())
+
+    for kind in ("Point", "Cell"):
+        source = getattr(fine, f"Get{kind}Data")()
+        target = getattr(averaged, f"Get{kind}Data")()
+        shape_f = nf if kind == "Point" else np.maximum(nf - 1, 1)
+        shape_c = nc if kind == "Point" else np.maximum(nc - 1, 1)
+        for name, arr in list_arrays(source):
+            values = vtk_to_numpy(arr).reshape((-1, arr.GetNumberOfComponents()))
+            if not np.issubdtype(values.dtype, np.number):
+                raise ValueError(f"Cannot average nonnumeric {kind}Data array {name!r}")
+            components = arr.GetNumberOfComponents()
+            cube = np.stack([values[:, j].reshape(tuple(shape_f), order="F")
+                             for j in range(components)], axis=-1)
+            result = cube.astype(np.float64)
+            for axis, weights in enumerate(cell_weights if kind == "Cell" else point_weights):
+                result = np.moveaxis(np.tensordot(weights, result, axes=(1, axis)), 0, axis)
+            flattened = np.column_stack([result[..., j].ravel(order="F")
+                                         for j in range(components)])
+            converted = numpy_to_vtk(flattened, deep=True)
+            converted.SetName(name)
+            target.AddArray(converted)
+    return (averaged, B) if fine_label == "A" else (A, averaged)
+
+
 def list_arrays(dobj):
     return [
         (dobj.GetArray(i).GetName(), dobj.GetArray(i))
@@ -255,6 +329,9 @@ def main():
 
     A = read_dataset(args.A, ReaderA, dtypeA)
     B = read_dataset(args.B, ReaderB, dtypeB)
+
+    if dtypeA == "vti" and args.mode in ("point", "cell", "all"):
+        A, B = average_fine_vti(A, B)
 
     if args.mode in ("point", "cell", "all"):
         sigA = dataset_signature(A, dtypeA)
