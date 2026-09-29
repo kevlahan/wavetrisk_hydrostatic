@@ -120,6 +120,7 @@ contains
 
     profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_DOMAIN_TENDENCY)
+    if (.not.allocated(trend)) error stop "legacy tendency requested without Domain tendency storage"
     call routine(q,trend)
     legacy_domain_tendency_call_count = &
          legacy_domain_tendency_call_count + 1_int64
@@ -159,7 +160,16 @@ contains
     call detail_leave(DP_CAPTURE)
     profile_start = parallel_block_profile_begin( &
          BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY)
-    call block_tendency_compatibility_ml(domain_stage,trend)
+    if (validate_oracle) then
+       if (.not.allocated(trend)) error stop "tendency oracle requires Domain tendency storage"
+       call block_tendency_compatibility_ml(domain_stage,trend)
+    else
+#if defined(WAVETRISK_TEST_MASS_CUT) || defined(WAVETRISK_TEST_TEMPERATURE_CUT) || defined(WAVETRISK_TEST_VELOCITY_CUT)
+       call block_tendency_compatibility_ml(domain_stage,trend)
+#else
+       call block_tendency_compatibility_ml(domain_stage)
+#endif
+    end if
     call parallel_block_profile_end( &
          BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY,profile_start)
     call detail_enter(DP_CAPTURE)
@@ -301,7 +311,7 @@ contains
     ! Native temperature publication then supplies the wavelet/halo input;
     ! its block-owned RK candidate must not be left only in compact storage.
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,trend,h/3,q1)
+       call RK_sub_step_compatibility(q,h/3,q1)
     else
        call RK_sub_step(q,trend,h/3,q1)
     end if
@@ -321,7 +331,7 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,trend,h/2,q1)
+       call RK_sub_step_compatibility(q,h/2,q1)
     else
        call RK_sub_step(q,trend,h/2,q1)
     end if
@@ -341,7 +351,7 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,trend,h,q)
+       call RK_sub_step_compatibility(q,h,q)
     else
        call RK_sub_step(q,trend,h,q)
     end if
@@ -413,7 +423,7 @@ contains
     ! Native temperature publication then supplies the wavelet/halo input;
     ! its block-owned RK candidate must not be left only in compact storage.
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,trend,h/4,q1)
+       call RK_sub_step_compatibility(q,h/4,q1)
     else
        call RK_sub_step(q,trend,h/4,q1)
     end if
@@ -433,7 +443,7 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,trend,h/3,q1)
+       call RK_sub_step_compatibility(q,h/3,q1)
     else
        call RK_sub_step(q,trend,h/3,q1)
     end if
@@ -453,7 +463,7 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,trend,h/2,q1)
+       call RK_sub_step_compatibility(q,h/2,q1)
     else
        call RK_sub_step(q,trend,h/2,q1)
     end if
@@ -473,7 +483,7 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,trend,h,q)
+       call RK_sub_step_compatibility(q,h,q)
     else
        call RK_sub_step(q,trend,h,q)
     end if
@@ -504,7 +514,7 @@ contains
   end subroutine RK4
 
 
-  subroutine RK_sub_step_compatibility (sols,trends,h,dest)
+  subroutine RK_sub_step_compatibility (sols,h,dest)
     ! Materialize native mass/velocity RK closure at the primitive-consumer
     ! interface; preserve temperature scaffolding for native publication.
 
@@ -513,8 +523,6 @@ contains
     real(dp), intent(in) :: h
     type(Float_Field), intent(in) :: &
          sols(1:N_VARIABLE,1:zlevels)
-    type(Float_Field), intent(in) :: &
-         trends(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(inout) :: &
          dest(1:N_VARIABLE,1:zlevels)
 
@@ -545,10 +553,22 @@ contains
                native_velocity(d)%rk(ibeg:iend,k))
        end do
     end do
-    call RK_sub_step(sols,trends,h,dest, &
-         native_temperature=.not. block_dynamics_validation_enabled(), &
-         native_velocity=.not. block_dynamics_validation_enabled(), &
-         native_mass_rhs=.not. block_dynamics_validation_enabled())
+    if (block_dynamics_validation_enabled()) then
+       if (.not.allocated(trend)) error stop "RK oracle requires Domain tendency storage"
+       call RK_sub_step(sols,trend,h,dest)
+    else
+       ! Only the untouched temperature closure needs a base-state copy here.
+       ! Native mass/velocity below and the retained temperature producer supply
+       ! all evolved fields; no generic Domain tendency consumer is entered.
+       do d=1,size(grid)
+          ibeg=grid(d)%patch%elts(3)%elts_start+1
+          iend=dest(S_TEMP,1)%data(d)%length
+          do k=1,zlevels
+             dest(S_TEMP,k)%data(d)%elts(ibeg:iend)=sols(S_TEMP,k)%data(d)%elts(ibeg:iend)
+          end do
+       end do
+       dest%bdry_uptodate=.false.
+    end if
     do d=1,size(grid)
        ibeg=grid(d)%patch%elts(3)%elts_start+1
        iend=dest(S_MASS,1)%data(d)%length
@@ -608,7 +628,7 @@ contains
 
 
 
-  subroutine RK_sub_step (sols, trends, h, dest, native_temperature, native_velocity, native_mass_rhs)
+  subroutine RK_sub_step (sols, trends, h, dest)
     
     implicit none
     
@@ -616,31 +636,13 @@ contains
     type(Float_Field), intent(in)    :: sols(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(in)    :: trends(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(inout) :: dest(1:N_VARIABLE,1:zlevels)
-    logical, optional, intent(in) :: native_temperature,native_velocity,native_mass_rhs
     
     integer :: d, ibeg, iend, k, v
-    logical :: copy_temperature,copy_velocity,copy_mass
-
-    copy_temperature=.false.
-    if (present(native_temperature)) copy_temperature=native_temperature
-    copy_velocity=.false.
-    if (present(native_velocity)) copy_velocity=native_velocity
-    copy_mass=.false.
-    if (present(native_mass_rhs)) copy_mass=native_mass_rhs
-
     do v = 1, N_VARIABLE
        do d = 1, size(grid)
           ibeg = (1+2*(POSIT(v)-1)) * grid(d)%patch%elts(2+1)%elts_start + 1
           iend = dest(v,1)%data(d)%length
           do k = 1, zlevels
-             if (v==S_VELO .and. copy_velocity) cycle
-             if (v==S_MASS .and. copy_mass) cycle
-             if (v == S_TEMP .and. copy_temperature) then
-                ! Seed untouched scaffolding. The native boundary adapter and
-                ! integrated stage publication supply all evolved values.
-                dest(v,k)%data(d)%elts(ibeg:iend)=sols(v,k)%data(d)%elts(ibeg:iend)
-                cycle
-             end if
              dest(v,k)%data(d)%elts(ibeg:iend) = sols(v,k)%data(d)%elts(ibeg:iend) + h * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do

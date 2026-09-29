@@ -7,12 +7,13 @@ module io_vtk_mod
 
   use domain_mod, only : Domain, Float_Field, grid, exner_fun, exner, h_flux, horiz_flux, &
        dscalar, mass, temp, mean_m, mean_t, scalar, velo, velo1, velo2, vort, &
-       penal_node, sol, sol_mean, topography, trend, idx
+       penal_node, sol, sol_mean, topography, idx, init_Field
 
   use arch_mod,           only : barrier, n_process, rank
   use comm_mpi_mod,       only : gather_int, gather_vec, sum_int, update_bdry
   use domain_ops_mod,     only : apply_bdry,  apply_d, apply_no_bdry, apply_onescale_to_patch, apply_to_penta_d
   use diagnostics_mod,    only : cal_div, cal_surf_press, cal_vort, integrate_pressure_up, post_vort
+  use dyn_arrays,         only : init
   use geom_mod,           only : min_dist
   use integrate_mod,      only : active_level, pre_levelout, post_levelout, save_tri
   use ops_mod,            only : step1
@@ -36,6 +37,9 @@ module io_vtk_mod
   type(coord),       allocatable         :: points_loc(:)
   type(Float_Field), allocatable, target :: vel_vert(:) ! vertical velocity
 
+
+  ! Present only during the complete output mass-divergence transaction.
+  type(Float_Field), allocatable, target :: output_mass_divergence(:)
 
 contains
 
@@ -735,6 +739,14 @@ contains
 
     integer(4) :: d, j, k, l
 
+    if (allocated(output_mass_divergence)) error stop "nested output divergence transaction"
+    allocate(output_mass_divergence(zlevels))
+    do k=1,zlevels
+       call init_Field(output_mass_divergence(k),sol(S_MASS,k)%pos)
+       do d=1,size(grid)
+          call init(output_mass_divergence(k)%data(d),sol(S_MASS,k)%data(d)%length)
+       end do
+    end do
     call update_bdry (sol, NONE, 912)
 
     ! Compute surface pressure
@@ -743,7 +755,7 @@ contains
     do k = 1, zlevels
        do l = level_end, level_start, -1
           ! Divergence of mass flux at each vertical level
-          ! stored in trend(S_MASS,1:zlevels)
+          ! stored in output_mass_divergence(1:zlevels)
           do d = 1, size(grid)
              mass   =>      sol(S_MASS,k)%data(d)%elts
              velo   =>      sol(S_VELO,k)%data(d)%elts
@@ -754,7 +766,7 @@ contains
              end do
              nullify (mass, mean_m, velo)
              if (l < level_end) then
-                dscalar => trend(S_MASS,k)%data(d)%elts
+                dscalar => output_mass_divergence(k)%data(d)%elts
                 call cpt_or_restr_flux (grid(d), l)
                 nullify (dscalar)
              end if
@@ -764,7 +776,7 @@ contains
           call update_bdry (horiz_flux(S_MASS), l, 913)
 
           do d = 1, size(grid)
-             dscalar => trend(S_MASS,k)%data(d)%elts
+             dscalar => output_mass_divergence(k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
@@ -798,14 +810,15 @@ contains
              nullify (dscalar, h_flux)
           end do
 
-          trend(S_MASS,k)%bdry_uptodate = .false.
-          call update_bdry (trend(S_MASS,k), l, 915)
+          output_mass_divergence(k)%bdry_uptodate = .false.
+          call update_bdry (output_mass_divergence(k), l, 915)
           call update_bdry (vel_vert(k),     l, 916)
        end do
     end do
 
     ! Compute OMEGA
     call apply_bdry (cal_omega, z_null, 0, 1)
+    deallocate(output_mass_divergence)
 
     vel_vert%bdry_uptodate = .false.
     call update_bdry (vel_vert, NONE)
@@ -833,7 +846,7 @@ contains
     ! (results at interfaces)
     div_mass(zlevels) = 0.0_dp ! zero flux at top interface
     do k = zlevels-1, 0, -1
-       div_mass(k) = div_mass(k+1) + trend(S_MASS,k+1)%data(d)%elts(id_i)
+       div_mass(k) = div_mass(k+1) + output_mass_divergence(k+1)%data(d)%elts(id_i)
     end do
 
     ! u.gradP at layers
@@ -850,7 +863,7 @@ contains
 
   subroutine vertical_velocity
     ! Computes vertical velocity w [m/s]
-    ! stored in trend(S_TEMP,1:zlevels)
+    ! stored in vel_vert
 
     implicit none
 

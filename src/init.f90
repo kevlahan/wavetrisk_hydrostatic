@@ -17,7 +17,7 @@ module init_mod
 
    use domain_mod, only : Domain, exner_fun, horiz_flux, is_penta, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, &
         sol, sol_mean, trend, wav_coeff, wav_tke,  Kt, Kv, tke, topography, sso_param, idx, add_patch_Domain, &
-        add_bdry_patch_Domain, grid
+        add_bdry_patch_Domain, grid, domain_tendency_storage_required
 
    use geom_mod,       only : arc_intersect_test, circumcentre, dist, init_Areas, init_Coord,  mid_pt, &
         project_on_sphere, sph2cart
@@ -186,7 +186,8 @@ contains
     if (Laplace_divu == 1) C_visc(S_DIVU,:) = 0.1_dp
 
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(1:N_VARIABLE,zmin:zmax), sol_mean(1:N_VARIABLE,zmin:zmax), trend(1:N_VARIABLE,1:zmax))
+    allocate (sol(1:N_VARIABLE,zmin:zmax), sol_mean(1:N_VARIABLE,zmin:zmax))
+    if (domain_tendency_storage_required) allocate (trend(1:N_VARIABLE,1:zmax))
     allocate (wav_coeff(1:N_VARIABLE,zmin:zmax))
     allocate (exner_fun(zmin:zmax+1))
     allocate (penal_node(zmin:zmax), penal_edge(zmin:zmax))
@@ -209,7 +210,7 @@ contains
        do v = 1, N_VARIABLE
           call init_Field (sol(v,k),      POSIT(v))
           call init_Field (sol_mean(v,k), POSIT(v))
-          if (k > 0) call init_Field (trend(v,k), POSIT(v))
+          if (k > 0 .and. allocated(trend)) call init_Field (trend(v,k), POSIT(v))
        end do
     end do
     call init_Field (exner_fun(zmax+1), AT_NODE)
@@ -411,7 +412,7 @@ contains
           call init (penal_node(k)%data(d), grid(d)%node%length)
           call init (penal_edge(k)%data(d), grid(d)%node%length * EDGE)
           call init (exner_fun(k)%data(d),  grid(d)%node%length)
-          if (k > 0) then
+          if (k > 0 .and. allocated(trend)) then
              do v = scalars(1), scalars(2)
                 call init (trend(v,k)%data(d), grid(d)%node%length)
              end do

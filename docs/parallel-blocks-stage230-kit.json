@@ -1,0 +1,20 @@
+{
+  "stage": 230,
+  "kit": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage230-validation/campaign-kit/wavetrisk-stage230-cluster-kit",
+  "archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage230-validation/campaign-kit/wavetrisk-stage230-cluster-kit.tar.gz",
+  "sha256": "64650e8b0a466738d387510bfb753495ff40adf9e1114f16202fe0222c07faef",
+  "bytes": 60074317,
+  "reference_commit": "5c457a5dc869ce18938dd24db5727053b8e8dc2a",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "source_reproduction_verified": true,
+  "cluster_status": "job55089 reviewed: all15 runs passed; within regression guard; no demonstrated speedup",
+  "validation": {
+    "source_reproduction": "passed for baseline, candidate, checked",
+    "packaged_unit_tests": 14,
+    "real_build_orchestration": "passed; compiler execution stubbed",
+    "real_shell_workflow": "passed; Slurm/scp stubbed, actual extraction/archive/verification",
+    "local_log_review": "storage and precise ordinary-step windows verified on four actual local cases",
+    "cluster_execution": "passed on bb13; see parallel-blocks-stage230-review.json"
+  },
+  "delivery_archive": "/Users/kevlahan/Desktop/wavetrisk-stage230-cluster-kit.tar.gz"
+}

@@ -1,0 +1,342 @@
+{
+  "stage": 230,
+  "job": "55089",
+  "archive_sha256": "100257973da5f70b29a3fccb3255c20d3d5cf0017f596d272fdffb6bd884c9d2",
+  "archive_files_verified": 2590,
+  "status": "passed",
+  "reference_commit": "5c457a5dc869ce18938dd24db5727053b8e8dc2a",
+  "source_manifest_sha256": "31485f7d05f68e6c23ac693d310f78d7291b0bbf61da002a09240e2128072164",
+  "host": "bb13.rhpcs.internal",
+  "runs": {
+    "J5-n16-validation-baseline-baseline": {
+      "ranks": 16,
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_median": 2.33084557,
+      "storage": {
+        "instrumentation": "not present in committed baseline"
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n16-validation-checked-checked": {
+      "ranks": 16,
+      "kind": "checked",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_median": 7.703983715,
+      "storage": {
+        "storage_ranks": [
+          [
+            0,
+            16
+          ],
+          [
+            0,
+            16
+          ]
+        ],
+        "absent": 2,
+        "retained": 0
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n16-validation-candidate-oracle-candidate": {
+      "ranks": 16,
+      "kind": "candidate",
+      "oracle": true,
+      "phase": "validation",
+      "ordinary_median": 10.62134281,
+      "storage": {
+        "storage_ranks": [
+          [
+            16,
+            16
+          ],
+          [
+            16,
+            16
+          ]
+        ],
+        "absent": 0,
+        "retained": 2
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n167-validation-baseline-baseline": {
+      "ranks": 167,
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_median": 0.577331403,
+      "storage": {
+        "instrumentation": "not present in committed baseline"
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n167-validation-checked-checked": {
+      "ranks": 167,
+      "kind": "checked",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_median": 1.345965759,
+      "storage": {
+        "storage_ranks": [
+          [
+            0,
+            167
+          ],
+          [
+            0,
+            167
+          ]
+        ],
+        "absent": 2,
+        "retained": 0
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n167-validation-candidate-oracle-candidate": {
+      "ranks": 167,
+      "kind": "candidate",
+      "oracle": true,
+      "phase": "validation",
+      "ordinary_median": 2.977431511,
+      "storage": {
+        "storage_ranks": [
+          [
+            167,
+            167
+          ],
+          [
+            167,
+            167
+          ]
+        ],
+        "absent": 0,
+        "retained": 2
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n167-validation-candidate-candidate": {
+      "ranks": 167,
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "validation",
+      "ordinary_median": 0.582698512,
+      "storage": {
+        "storage_ranks": [
+          [
+            0,
+            167
+          ],
+          [
+            0,
+            167
+          ]
+        ],
+        "absent": 2,
+        "retained": 0
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n16-screen-A-baseline": {
+      "ranks": 16,
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "screen",
+      "ordinary_median": 2.33446391,
+      "storage": {
+        "instrumentation": "not present in committed baseline"
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n16-screen-B-candidate": {
+      "ranks": 16,
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "screen",
+      "ordinary_median": 2.317022452,
+      "storage": {
+        "storage_ranks": [
+          [
+            0,
+            16
+          ],
+          [
+            0,
+            16
+          ]
+        ],
+        "absent": 2,
+        "retained": 0
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n83-transfer-A-baseline": {
+      "ranks": 83,
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "transfer",
+      "ordinary_median": 0.760555371,
+      "storage": {
+        "instrumentation": "not present in committed baseline"
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n83-transfer-B-candidate": {
+      "ranks": 83,
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "transfer",
+      "ordinary_median": 0.753845183,
+      "storage": {
+        "storage_ranks": [
+          [
+            0,
+            83
+          ],
+          [
+            0,
+            83
+          ]
+        ],
+        "absent": 2,
+        "retained": 0
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n83-confirm-1-1-baseline": {
+      "ranks": 83,
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "confirm",
+      "ordinary_median": 0.761783088,
+      "storage": {
+        "instrumentation": "not present in committed baseline"
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n83-confirm-1-2-candidate": {
+      "ranks": 83,
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "confirm",
+      "ordinary_median": 0.755185961,
+      "storage": {
+        "storage_ranks": [
+          [
+            0,
+            83
+          ],
+          [
+            0,
+            83
+          ]
+        ],
+        "absent": 2,
+        "retained": 0
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n83-confirm-1-3-candidate": {
+      "ranks": 83,
+      "kind": "candidate",
+      "oracle": false,
+      "phase": "confirm",
+      "ordinary_median": 0.754599438,
+      "storage": {
+        "storage_ranks": [
+          [
+            0,
+            83
+          ],
+          [
+            0,
+            83
+          ]
+        ],
+        "absent": 2,
+        "retained": 0
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    },
+    "J5-n83-confirm-1-4-baseline": {
+      "ranks": 83,
+      "kind": "baseline",
+      "oracle": false,
+      "phase": "confirm",
+      "ordinary_median": 0.753023279,
+      "storage": {
+        "instrumentation": "not present in committed baseline"
+      },
+      "vtk_exact_members": 62,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53"
+    }
+  },
+  "decisions": {
+    "screen": {
+      "baseline": 2.33446391,
+      "candidate": 2.317022452,
+      "gain_seconds": 0.01744145800000041,
+      "regression_fraction": -0.007471290485703164,
+      "decision": "advance",
+      "scope": "Single exploratory pair; no confirmed speedup claim."
+    },
+    "transfer": {
+      "baseline": 0.760555371,
+      "candidate": 0.753845183,
+      "gain_seconds": 0.006710188000000006,
+      "regression_fraction": -0.008822747502495787,
+      "decision": "advance",
+      "scope": "Single exploratory pair; no confirmed speedup claim."
+    },
+    "confirmation": {
+      "decision": "within_regression_guard",
+      "mean_baseline_run_median": 0.7574031835,
+      "mean_candidate_run_median": 0.7548926995,
+      "gain_seconds": 0.0025104839999999795,
+      "regression_fraction": -0.0033145939371405087,
+      "paired_regression_fractions": [
+        -0.008660112181435031,
+        0.002093107934316496
+      ],
+      "near_threshold": false,
+      "disagreement": false,
+      "independent_runs_per_version": 2,
+      "scope": "Separate run medians; screens excluded. No minimum gain; no timestep-level significance test."
+    }
+  },
+  "confirmation_pair_gains_seconds": [
+    0.006597127000000036,
+    -0.001576158999999966
+  ],
+  "independent_rechecks": [
+    "archive and extracted hashes",
+    "sealed source/build identities",
+    "raw log timing and exclusions",
+    "collective storage census",
+    "all-rank placement and resource files",
+    "step states and oracle markers",
+    "same-rank VTK member hashes",
+    "exact checkpoint comparison reports and hashes",
+    "schedule and performance decisions"
+  ],
+  "interpretation": "Qualified Domain trend-storage cleanup, within 3% regression guard. Small average timing gain has opposite-sign paired changes; no demonstrated speedup.",
+  "limitation": "Raw checkpoint/VTK files and executables are not in the small review archive; their collected hashes/reports were checked, not recomputed from omitted payloads.",
+  "next_step": "Commit qualified Stage230 cleanup on investigation branch; then migrate full inverse/shared-primitives/tendencies/RK/wavelet producer-consumer cycle to block-owned state. No further trend-storage timing campaign."
+}

@@ -46,7 +46,8 @@ module main_mod
   use domain_mod, only : Domain, bernoulli, divu, dscalar, grid, &
        dvelo, exner, exner_fun, h_flux, horiz_flux, ke, qe, scalar, mass, temp, velo, vort, wc_s, wc_u, &
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
-       sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx
+       sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx, &
+       domain_tendency_storage_required
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
@@ -64,6 +65,7 @@ module main_mod
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
        block_adaptation_validation_enabled, &
+       block_dynamics_validation_enabled, &
        block_detailed_diagnostics_enabled, &
        BLOCK_PROFILE_ADAPTATION, BLOCK_PROFILE_DYNAMICS, &
        BLOCK_PROFILE_OUTPUT, BLOCK_PROFILE_PHYSICS, &
@@ -218,6 +220,15 @@ contains
     character(*), intent(in) :: run_id
 
     call validate_domain_rank_count(domainless_block_configuration_supported())
+    ! Restrict the deletion to the independently qualified resident climate RK4
+    ! configuration. Other drivers/integrators and numerical oracles retain trend.
+    domain_tendency_storage_required = .true.
+    if (domainless_block_configuration_supported()) &
+         domain_tendency_storage_required = block_dynamics_validation_enabled()
+#if defined(WAVETRISK_TEST_MASS_CUT) || defined(WAVETRISK_TEST_TEMPERATURE_CUT) || defined(WAVETRISK_TEST_VELOCITY_CUT)
+    ! Historical poison tests deliberately retain their poisoned reference arrays.
+    domain_tendency_storage_required = .true.
+#endif
 
     if (max_level < min_level) then
        if (rank == 0) then
@@ -711,6 +722,9 @@ contains
     timestep_profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_TIMESTEP)
 
+    if (.not.domain_tendency_storage_required .and. allocated(trend)) &
+         error stop "production block timestep retained Domain tendency storage"
+
     ! New time step
     istep       = istep       + 1
     istep_cumul = istep_cumul + 1
@@ -784,6 +798,8 @@ contains
        call invalidate_parallel_block_domain_shadow
     end if
 
+    if (.not.domain_tendency_storage_required .and. .not.block_multistage_candidate) &
+         error stop "Domain-free tendency storage requires resident block dynamics"
     if (mode_split) then
        call dt_step_split (dt)
     else if (.not. block_euler_step) then
@@ -973,6 +989,8 @@ contains
     end if
     if (save_data .or. time >= time_end) &
          call report_parallel_block_profile(reset=.true.)
+    if (.not.domain_tendency_storage_required .and. allocated(trend)) &
+         error stop "Domain tendency storage reappeared during block timestep"
   end subroutine time_step
 
   subroutine init_basic
@@ -999,7 +1017,7 @@ contains
   subroutine init_structures
     ! Initialize dynamical arrays and structures
     implicit none
-    integer :: ip
+    integer :: ip, tendency_storage_ranks
 
     level_start = min_level
     level_end   = level_start
@@ -1053,6 +1071,19 @@ contains
     allocate (n_patch_old(size(grid)), n_node_old(size(grid))); n_patch_old = 2
 
     call init_RK_mem
+    tendency_storage_ranks = sum_int(merge(1,0,allocated(trend)))
+    if (tendency_storage_ranks /= 0 .and. tendency_storage_ranks /= n_process) &
+         error stop "inconsistent Domain tendency storage across MPI ranks"
+    if (domain_tendency_storage_required .neqv. allocated(trend)) &
+         error stop "Domain tendency allocation differs from the selected storage policy"
+    if (rank == 0) then
+       write(6,'(a,i0,a,i0)') 'Domain tendency storage ranks = ',tendency_storage_ranks,' / ',n_process
+       if (allocated(trend)) then
+          write(6,'(a)') 'Domain tendency storage: legacy/oracle'
+       else
+          write(6,'(a)') 'Domain tendency storage: absent (resident block dynamics)'
+       end if
+    end if
 
     allocate (threshold(1:N_VARIABLE,zmin:zmax), threshold_def(1:N_VARIABLE,zmin:zmax))
   end subroutine init_structures
@@ -1476,9 +1507,11 @@ contains
              if (allocated(sol_mean(v,k)%data(d)%elts))  deallocate (sol_mean(v,k)%data(d)%elts)
              if (allocated(wav_coeff(v,k)%data(d)%elts)) deallocate (wav_coeff(v,k)%data(d)%elts)
           end do
-          do k = 1, zlevels
-             if (allocated(trend(v,k)%data(d)%elts)) deallocate (trend(v,k)%data(d)%elts)
-          end do
+          if (allocated(trend)) then
+             do k = 1, size(trend,2)
+                if (allocated(trend(v,k)%data(d)%elts)) deallocate (trend(v,k)%data(d)%elts)
+             end do
+          end if
        end do
 
        if (vert_diffuse) then
@@ -1529,9 +1562,11 @@ contains
           if (allocated (sol_mean(v,k)%data))  deallocate (sol_mean(v,k)%data)
           if (allocated (wav_coeff(v,k)%data)) deallocate (wav_coeff(v,k)%data)
        end do
-       do k = 1, zlevels
-          if (allocated (trend(v,k)%data)) deallocate (trend(v,k)%data)
-       end do
+       if (allocated(trend)) then
+          do k = 1, size(trend,2)
+             if (allocated (trend(v,k)%data)) deallocate (trend(v,k)%data)
+          end do
+       end if
     end do
 
     if (vert_diffuse) then

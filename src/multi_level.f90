@@ -233,7 +233,8 @@ contains
     implicit none
 
     type(Float_Field), intent(inout), target :: &
-         q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
+         q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout), target, optional :: dq(1:N_VARIABLE,1:zlevels)
 
     integer :: k, l, compatibility_last, velocity_domain
 #ifdef WAVETRISK_TEST_MASS_CUT
@@ -257,7 +258,11 @@ contains
     call detail_enter(DP_SHARED)
     call detail_enter(DP_PRIMITIVE)
     call update_bdry(q,NONE,1067)
-    call zero_float(dq)
+#if !defined(WAVETRISK_TEST_MASS_CUT) && !defined(WAVETRISK_TEST_TEMPERATURE_CUT) && !defined(WAVETRISK_TEST_VELOCITY_CUT)
+    if (block_dynamics_validation_enabled() .neqv. present(dq)) &
+         error stop "Domain tendency argument is reserved for the independent oracle"
+#endif
+    if (present(dq)) call zero_float(dq)
     call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
     call detail_leave(DP_PRIMITIVE)
     validate_velocity_source = block_dynamics_validation_enabled()
@@ -273,7 +278,7 @@ contains
     mass_transaction=.true.
     mass_oracle=validate_velocity_source
 #ifdef WAVETRISK_TEST_MASS_CUT
-    if (.not.mass_oracle) then
+    if (.not.mass_oracle .and. present(dq)) then
        allocate(mass_scratch(size(grid)))
        do velocity_domain=1,size(grid)
           do k=1,zlevels
@@ -291,7 +296,7 @@ contains
        native_velocity(velocity_domain)%tendency=0.0_dp
     end do
 #ifdef WAVETRISK_TEST_VELOCITY_CUT
-    if (.not. validate_velocity_source) then
+    if (.not. validate_velocity_source .and. present(dq)) then
        do velocity_domain=1,size(grid)
           do k=1,zlevels
              dq(S_VELO,k)%data(velocity_domain)%elts=ieee_value(0.0_dp,ieee_quiet_nan)
@@ -302,7 +307,7 @@ contains
     compatibility_last=S_MASS
     if (validate_velocity_source) compatibility_last=scalars(2)
 #ifdef WAVETRISK_TEST_TEMPERATURE_CUT
-    if (.not. validate_velocity_source) then
+    if (.not. validate_velocity_source .and. present(dq)) then
        allocate(temperature_scratch(size(grid)))
        do poison_domain=1,size(grid)
           do k=1,zlevels
@@ -322,7 +327,7 @@ contains
        if (Laplace_sclr == 2) call cal_Laplacian_scalars(q,k)
        if (Laplace_divu == 2) call cal_Laplacian_divu
 #ifdef WAVETRISK_TEST_MASS_CUT
-       if (.not.mass_oracle) then
+       if (.not.mass_oracle .and. present(dq)) then
           do velocity_domain=1,size(grid)
              mass_scratch(velocity_domain)%value=horiz_flux(S_MASS)%data(velocity_domain)%elts
              horiz_flux(S_MASS)%data(velocity_domain)%elts=ieee_value(0.0_dp,ieee_quiet_nan)
@@ -333,7 +338,7 @@ contains
        ! The retained physics interface uses this scratch field to form the
        ! biharmonic diffusion input. Poison after that single physics prepass:
        ! no advective flux, restriction or tendency may subsequently use it.
-       if (.not. validate_velocity_source) then
+       if (.not. validate_velocity_source .and. present(dq)) then
           do poison_domain=1,size(grid)
              temperature_scratch(poison_domain)%value=horiz_flux(S_TEMP)%data(poison_domain)%elts
              horiz_flux(S_TEMP)%data(poison_domain)%elts=ieee_value(0.0_dp,ieee_quiet_nan)
@@ -422,7 +427,7 @@ contains
        if (validate_velocity_source) &
             call finish_velocity_source_measurement(k)
 #ifdef WAVETRISK_TEST_MASS_CUT
-       if (.not.mass_oracle) then
+       if (.not.mass_oracle .and. present(dq)) then
           do velocity_domain=1,size(grid)
              if (.not.all(ieee_is_nan(dq(S_MASS,k)%data(velocity_domain)%elts))) &
                   error stop "native mass cut wrote Domain mass tendency"
@@ -433,7 +438,7 @@ contains
        end if
 #endif
 #ifdef WAVETRISK_TEST_TEMPERATURE_CUT
-    if (.not. validate_velocity_source) then
+    if (.not. validate_velocity_source .and. present(dq)) then
        do poison_domain=1,size(grid)
           if (.not. all(ieee_is_nan(horiz_flux(S_TEMP)%data(poison_domain)%elts))) &
                error stop "temperature cut wrote the Domain flux workspace"
@@ -446,7 +451,7 @@ contains
 #endif
     end do
 #ifdef WAVETRISK_TEST_VELOCITY_CUT
-    if (.not. validate_velocity_source) then
+    if (.not. validate_velocity_source .and. present(dq)) then
        do velocity_domain=1,size(grid)
           do k=1,zlevels
              if (.not. all(ieee_is_nan(dq(S_VELO,k)%data(velocity_domain)%elts))) &
@@ -457,7 +462,7 @@ contains
 #endif
     native_velocity_transaction=.false.
     mass_transaction=.false.
-    dq%bdry_uptodate = .false.
+    if (present(dq)) dq%bdry_uptodate = .false.
     call detail_leave(DP_SHARED)
 
   end subroutine block_tendency_compatibility_ml
@@ -1029,7 +1034,8 @@ contains
     
     implicit none
     
-    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), target, intent(inout), optional :: dq(1:N_VARIABLE,1:zlevels)
     integer,                   intent(in)    :: k, l
     logical,                   intent(in)    :: mass_only_compatibility
 
@@ -1040,6 +1046,10 @@ contains
 
     call detail_enter(DP_BASIC)
     capture_scalar_physics = block_scalar_capture_active()
+    if (.not.present(dq)) then
+       if (.not.mass_transaction .or. mass_oracle .or. .not.mass_only_compatibility) &
+            error stop "shared primitive attempted a Domain tendency fallback"
+    end if
 
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
@@ -1057,12 +1067,12 @@ contains
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
           if (capture_scalar_physics) then
-             call step1(dq,q,grid(d),grid(d)%lev(l)%elts(j),k,0, &
-                  scalar_physics,mass_only_compatibility)
+             call step1(q=q,dom=grid(d),p=grid(d)%lev(l)%elts(j),zlev=k,itype=0, &
+                  scalar_physics=scalar_physics,native_temperature=mass_only_compatibility)
              call capture_block_scalar_physics_patch( &
                   d,grid(d)%lev(l)%elts(j),k,scalar_physics)
           else
-             call step1(dq,q,grid(d),grid(d)%lev(l)%elts(j),k,0)
+             call step1(q=q,dom=grid(d),p=grid(d)%lev(l)%elts(j),zlev=k,itype=0)
           end if
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)

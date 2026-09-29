@@ -22,6 +22,7 @@ module domain_mod
   public :: init_field, sides_dims, chd_offs
   public :: grid, topography, topography_data, sso_param, exner_fun, horiz_flux, penal_node, penal_edge, Kv, Kt, tke
   public :: wav_tke, Laplacian_scalar, Laplacian_vector, sol, sol_mean, trend, wav_coeff
+  public :: domain_tendency_storage_required
   public :: diag, mass, mass1, h_flux, h_mflux, dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
   public :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
   public :: mean_m, mean_t, Laplacian,  bernoulli, divu, exner, ke, qe, vort,  wc_s, wc_u
@@ -127,6 +128,8 @@ module domain_mod
   type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, penal_node, penal_edge
   type(Float_Field), dimension(:),   allocatable, target :: Kv, Kt, tke, wav_tke
   type(Float_Field), dimension(:),   allocatable, target :: Laplacian_scalar, Laplacian_vector
+  ! Legacy/oracle numerical tendencies; production block RK does not allocate them.
+  logical, save :: domain_tendency_storage_required = .true.
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_mean, trend
   type(Float_Field), dimension(:,:), allocatable, target :: wav_coeff
 

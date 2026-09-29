@@ -269,10 +269,10 @@ contains
        call extend (exner_fun(k)%data(d),       num, 0.0_dp)
        
        do v = scalars(1), scalars(2)
-          if (k > 0) call extend (trend(v,k)%data(d), num, 0.0_dp)
+          if (k > 0 .and. allocated(trend)) call extend (trend(v,k)%data(d), num, 0.0_dp)
           call extend (wav_coeff(v,k)%data(d), num, 0.0_dp)
        end do
-       if (k > 0) call extend (trend(S_VELO,k)%data(d), EDGE*num, 0.0_dp)
+       if (k > 0 .and. allocated(trend)) call extend (trend(S_VELO,k)%data(d), EDGE*num, 0.0_dp)
        call extend (wav_coeff(S_VELO,k)%data(d), EDGE*num, 0.0_dp)
     end do
     call extend (exner_fun(zmax+1)%data(d), num, 0.0_dp)
