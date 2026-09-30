@@ -615,3 +615,13 @@ FFLAGS += -DBLOCK_RK
 endif
 
 $(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_diffusion.o
+
+# Simple-physics hydrostatic scratch migration; keep the legacy route available.
+PHYSICS_COLUMN_LOCAL ?= off
+ifneq ($(filter $(PHYSICS_COLUMN_LOCAL),on check),)
+FFLAGS += -DPHYSICS_COLUMN_LOCAL
+endif
+ifeq ($(PHYSICS_COLUMN_LOCAL),check)
+FFLAGS += -DPHYSICS_COLUMN_ORACLE
+endif
+$(BUILD_DIR)/physics_simple.o: $(BUILD_DIR)/parallel_block_primitive_kernels.o

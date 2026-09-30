@@ -1,0 +1,135 @@
+{
+  "stage": 237,
+  "checkpoint_commit": "6e528e9293bf8ab9aa3512c7ac3bd1ae0c7aea9c",
+  "classification": "Manual dependency and ordering audit, source anchored; not measured performance attribution",
+  "dependencies": [
+    {
+      "family": "RK publication",
+      "file": "src/parallel_block_mpi.f90",
+      "sha256": "9213b804448b7d0da75d4c2e9a7ef6d977ee0c50614f54d288ca13d696ba1574",
+      "anchors": [
+        {
+          "routine": "prepare_parallel_block_grid_change",
+          "line": 1459
+        }
+      ],
+      "ownership_and_lifetime": "Final owners -> explicit Domain physical/alias image; retained atmospheric wavelets remain pending.",
+      "next_migration": "Preserve the distinct saved final-consumer alias epoch; cannot delete publication while physics and adaptation consume it."
+    },
+    {
+      "family": "Simple physics",
+      "file": "src/physics/physics_simple.f90",
+      "sha256": "700ca285d595005814a8d929634556f533228cc9ce8fa30f05c82ca4d079bb76",
+      "anchors": [
+        {
+          "routine": "physics_simple_step",
+          "line": 50
+        },
+        {
+          "routine": "physics_call",
+          "line": 156
+        }
+      ],
+      "ownership_and_lifetime": "Reads atmospheric sol, means, topography, geometry, mask and soil; writes velocity, temperature and soil in Domain traversal order.",
+      "next_migration": "First bounded migration removes Domain hydrostatic scratch reads/writes. Owner dispatch still needs versioned kinetic-energy neighbors and validation of the package state/first-call contract."
+    },
+    {
+      "family": "Physics initialization",
+      "file": "src/physics/init_physics_module.f90",
+      "sha256": "14607dc5702c8b06db238b41a88acc6f8e7fc9379b6afbabf3381c141c3db5a1",
+      "anchors": [
+        {
+          "routine": "init_physics",
+          "line": 56
+        }
+      ],
+      "ownership_and_lifetime": "Package parameters and extra levels are initialized on every rank before stepping, including zero-Domain ranks.",
+      "next_migration": "Preserve first-call and per-column package state when changing execution ownership."
+    },
+    {
+      "family": "Kinetic energy ordering",
+      "file": "src/diagnostics.f90",
+      "sha256": "c1e8f83a734b059d7da0b0e03565185b65028e54b08b0f985168c4e17523ab5e",
+      "anchors": [
+        {
+          "routine": "kinetic_energy",
+          "line": 844
+        }
+      ],
+      "ownership_and_lifetime": "Reads current and west/southwest/south velocity stencils; preceding physics columns can already have updated them.",
+      "next_migration": "Compile read-after-write dependencies or establish a separately validated simultaneous-update formulation before parallel dispatch."
+    },
+    {
+      "family": "Other physics",
+      "file": "src/main.f90",
+      "sha256": "aa81070f4531ece9f2c8074acadfeec3a3a7237a916cf0245dae98b8246e1812",
+      "anchors": [
+        {
+          "routine": "apply_domain_physics_consumers",
+          "line": 562
+        }
+      ],
+      "ownership_and_lifetime": "Vertical diffusion and Held-Suarez remain distinct optional Domain consumers; Simple is the qualification target.",
+      "next_migration": "Migrate these only with fixtures exercising their actual branches."
+    },
+    {
+      "family": "Soil wavelets",
+      "file": "src/main.f90",
+      "sha256": "aa81070f4531ece9f2c8074acadfeec3a3a7237a916cf0245dae98b8246e1812",
+      "anchors": [
+        {
+          "routine": "update_domain_soil_wavelet_consumer",
+          "line": 600
+        }
+      ],
+      "ownership_and_lifetime": "Simple physics writes sol temperature zmin:0; legacy WT writes soil wav_coeff; atmospheric pending decision state must remain unchanged.",
+      "next_migration": "Move soil transform operands, coarse restriction and signed aliases together. Surface/soil fields are not atmospheric RK scratch."
+    },
+    {
+      "family": "Adaptation and rebuild",
+      "file": "src/main.f90",
+      "sha256": "aa81070f4531ece9f2c8074acadfeec3a3a7237a916cf0245dae98b8246e1812",
+      "anchors": [
+        {
+          "routine": "time_step",
+          "line": 700
+        }
+      ],
+      "ownership_and_lifetime": "adapt mutates geometry and wavelets, legacy inverse reconstructs physical fields, build_source_blocks imports the new topology.",
+      "next_migration": "Separate metadata mutation from numerical prolongation and restrict/import lifetimes before deleting Domain arrays."
+    },
+    {
+      "family": "Restart",
+      "file": "src/main.f90",
+      "sha256": "aa81070f4531ece9f2c8074acadfeec3a3a7237a916cf0245dae98b8246e1812",
+      "anchors": [
+        {
+          "routine": "restart",
+          "line": 620
+        }
+      ],
+      "ownership_and_lifetime": "Checkpoint reload supplies Domain physical/reference state before block construction and migration.",
+      "next_migration": "Introduce bounded I/O-to-owner import including poles, means, masks and soil; preserve exact reload behavior."
+    },
+    {
+      "family": "Output and checkpoint",
+      "file": "src/main.f90",
+      "sha256": "aa81070f4531ece9f2c8074acadfeec3a3a7237a916cf0245dae98b8246e1812",
+      "anchors": [
+        {
+          "routine": "write_output_consumer",
+          "line": 528
+        },
+        {
+          "routine": "prepare_end_step_domain_consumers",
+          "line": 441
+        }
+      ],
+      "ownership_and_lifetime": "Audited ready-state consumers serialize the compatibility image.",
+      "next_migration": "Replace persistent numerical mirrors with bounded serialization adapters after remaining mutators migrate."
+    }
+  ],
+  "first_boundary": "Simple physics column-local hydrostatics",
+  "complete_physics_owner_migration": false,
+  "performance_claim": null
+}

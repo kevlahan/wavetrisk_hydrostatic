@@ -23,28 +23,86 @@ module physics_simple_mod
   use single_column_mod,  only : change_latitude_longitude, physics_call_single_col
   use utils_mod,          only : interp
 
+#ifdef PHYSICS_COLUMN_LOCAL
+  use iso_fortran_env, only: int64
+  use shared_mod, only: compressible,c_p,p_0,kappa
+  use arch_mod, only: rank
+  use domain_ops_mod, only: apply_onescale_to_patch
+  use init_mod, only: surf_geopot
+  use parallel_block_primitive_kernels_mod, only: pressure_layer
+#endif
   implicit none
 
   private
   public :: physics_simple_step, Rayleigh_friction
   
+#ifdef PHYSICS_COLUMN_LOCAL
+  ! Integer visitation metadata only. Numerical hydrostatic state belongs to
+  ! the active column; no replacement Domain-shaped pressure image is kept.
+  type :: Physics_Visits
+     integer,allocatable :: surface(:),seen(:)
+  end type
+  type(Physics_Visits),allocatable :: column_visits(:)
+  integer(int64) :: column_count=0,layer_checks=0
+#endif
   real(sp) :: phys_dt
 contains
   subroutine physics_simple_step (h)
     ! Uses simple physics modules to take a Backwards Euler step for physics using time step dt set by dynamics
     implicit none
     real(dp) :: h ! time step
+#ifdef PHYSICS_COLUMN_LOCAL
+    integer :: d,p
+#endif
     
     phys_dt = real (h, kind=sp)
     
+#ifdef PHYSICS_COLUMN_LOCAL
+    if(.not.compressible) error stop "local Simple-physics columns require compressible dynamics"
+    if(allocated(column_visits)) error stop "unfinished Simple-physics column epoch"
+    allocate(column_visits(size(grid)))
+    column_count=0;layer_checks=0
+    do d=1,size(grid)
+       allocate(column_visits(d)%surface(grid(d)%node%length),column_visits(d)%seen(grid(d)%node%length))
+       column_visits(d)%surface=0;column_visits(d)%seen=0
+       do p=3,grid(d)%patch%length
+          call apply_onescale_to_patch(register_surface_visit,grid(d),p-1,0,0,1)
+       end do
+    end do
+#endif
+#if !defined(PHYSICS_COLUMN_LOCAL) || defined(PHYSICS_COLUMN_ORACLE)
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
+#endif
 
     ! Compute Simple Physics split step on all columns
     call apply_no_bdry2 (physics_call, z_null)
 
     sol%bdry_uptodate      = .false.
-    physics_firstcall_flag = .false.   
+    physics_firstcall_flag = .false.
+#ifdef PHYSICS_COLUMN_LOCAL
+    write(*,'(a,i0,a,2(1x,i0))') 'Local physics columns rank=',rank,' columns/layer checks=',column_count,layer_checks
+    deallocate(column_visits)
+#endif
   end subroutine physics_simple_step
+
+#ifdef PHYSICS_COLUMN_LOCAL
+  subroutine register_surface_visit(dom,i,j,k,offs,dims)
+    type(Domain),intent(inout)::dom
+    integer,intent(in)::i,j,k,offs(N_BDRY+1),dims(2,N_BDRY+1)
+    integer::id
+    id=idx(i,j,offs,dims)+1
+    column_visits(dom%id+1)%surface(id)=column_visits(dom%id+1)%surface(id)+1
+  end subroutine
+#ifdef PHYSICS_COLUMN_ORACLE
+  subroutine check_physics_value(actual,expected)
+    real(dp),intent(in)::actual,expected
+    if(transfer(actual,0_int64)/=transfer(expected,0_int64)) then
+       write(*,*) 'Physics hydrostatic mismatch rank, local, reference:',rank,actual,expected
+       error stop "independent physics hydrostatic mismatch"
+    end if
+  end subroutine
+#endif
+#endif
 
   subroutine Rayleigh_friction (dom, i, j, zlev, offs, dims)
     ! Rayleigh friction in atmospheric boundary layer
@@ -173,26 +231,70 @@ contains
       ! Gathers all required variables from wavetrisk data structure for all layers of column into physics data structure 
       integer  :: k
       real(dp) :: rho_dz_theta
+#ifdef PHYSICS_COLUMN_LOCAL
+      integer :: visit
+      real(dp) :: column_surface,local_lower,local_geopot,local_pressure,local_exner,local_geopot_lower
+      if(.not.allocated(column_visits)) error stop "Simple-physics column epoch absent"
+      if(column_visits(d)%seen(id_i)/=0) error stop "duplicate Simple-physics column consumer"
+      column_visits(d)%seen(id_i)=1
+      column_count=column_count+1
+      column_surface=0.0_dp
+      do k=1,zlevels
+         do visit=1,column_visits(d)%surface(id_i)
+            column_surface=column_surface+(sol_mean(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(id_i))
+         end do
+      end do
+      column_surface=grav_accel*column_surface+p_top
+      local_lower=column_surface
+      local_geopot=surf_geopot(d,id_i)
+#ifdef PHYSICS_COLUMN_ORACLE
+      call check_physics_value(column_surface,dom%surf_press%elts(id_i))
+#endif
+      phys_Pint(0)=real(column_surface,kind=sp)
+#else
 
       phys_Pint(0)  = real (dom%surf_press%elts(id_i), kind=4)
+#endif
 
       do k = 1, zlevels
          mass   =>      sol(S_MASS,k)%data(d)%elts
          temp   =>      sol(S_TEMP,k)%data(d)%elts
          mean_m => sol_mean(S_MASS,k)%data(d)%elts
          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+#if !defined(PHYSICS_COLUMN_LOCAL) || defined(PHYSICS_COLUMN_ORACLE)
          exner  =>       exner_fun(k)%data(d)%elts
+#endif
 
          rho_dz(k)    = mass(id_i) + mean_m(id_i)
          rho_dz_theta = temp(id_i) + mean_t(id_i)
 
          ! Pressure at layers and interface and geopotential at next interface (set in dom%geopot)
+#ifdef PHYSICS_COLUMN_LOCAL
+         call pressure_layer(mass(id_i),mean_m(id_i),temp(id_i),mean_t(id_i),grav_accel,c_p,p_0,kappa, &
+              local_lower,local_geopot,local_pressure,local_exner,local_geopot_lower)
+#ifdef PHYSICS_COLUMN_ORACLE
          call integrate_pressure_up (dom, i, j, zlev, offs, dims)
+         call check_physics_value(local_lower,dom%press_lower%elts(id_i))
+         call check_physics_value(local_pressure,dom%press%elts(id_i))
+         call check_physics_value(local_geopot,dom%geopot%elts(id_i))
+         call check_physics_value(local_geopot_lower,dom%geopot_lower%elts(id_i))
+         call check_physics_value(local_exner,exner(id_i))
+         layer_checks=layer_checks+1
+#endif
+#else
+         call integrate_pressure_up (dom, i, j, zlev, offs, dims)
+#endif
 
          ! Input variables for simple physics module
+#ifdef PHYSICS_COLUMN_LOCAL
+         phys_Pint(k)=real(local_lower,kind=sp)
+         phys_Play(k)=real(local_pressure,kind=sp)
+         phys_Phi(k)=real(interp(local_geopot_lower,local_geopot),kind=sp)
+#else
          phys_Pint(k)  = real (dom%press_lower%elts(id_i),                                  kind=sp)
          phys_Play(k)  = real (dom%press%elts(id_i),                                        kind=sp)
          phys_Phi(k)   = real (interp (dom%geopot_lower%elts(id_i), dom%geopot%elts(id_i)), kind=sp)
+#endif
          phys_Umag(k)  = real (sqrt (2 * kinetic_energy (dom, i, j, k, offs, dims)),        kind=sp)
          phys_U(k)     = real (sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1),                    kind=sp)
          phys_V(k)     = real (sol(S_VELO,k)%data(d)%elts(EDGE*id+DG+1),                    kind=sp)
