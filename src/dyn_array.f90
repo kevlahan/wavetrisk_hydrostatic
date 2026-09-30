@@ -7,7 +7,7 @@ module dyn_arrays
   implicit none
 
   private
-  public :: append, extend, init
+  public :: append, extend, init, float_extent, release_float_storage, materialize_float_storage
   public :: Areas_Array, Bdry_Patch_Array, Coord_Array, Float_Array, Int_Array, Iu_Wgt_Array
   public :: Logical_Array, Overl_Area_Array, Patch_Array, RF_Wgt_Array, Topo_Array
   
@@ -19,6 +19,8 @@ module dyn_arrays
   type Float_Array
      real(dp), dimension(:), allocatable :: elts
      integer                             :: length
+     integer :: capacity=0
+     logical :: metadata_only=.false.
   end type Float_Array
 
   type Logical_Array
@@ -97,6 +99,33 @@ module dyn_arrays
 
   
 contains
+
+  integer function float_extent(arr) result(n)
+    type(Float_Array),intent(in)::arr
+    if(allocated(arr%elts)) then
+       n=size(arr%elts)
+    else
+       if(.not.arr%metadata_only) error stop 'field extent without allocation or metadata'
+       n=arr%capacity
+    end if
+  end function float_extent
+
+  subroutine release_float_storage(arr)
+    type(Float_Array),intent(inout)::arr
+    if(arr%metadata_only.or..not.allocated(arr%elts)) error stop 'field release outside materialized view'
+    arr%capacity=size(arr%elts)
+    deallocate(arr%elts)
+    arr%metadata_only=.true.
+  end subroutine release_float_storage
+
+  subroutine materialize_float_storage(arr)
+    type(Float_Array),intent(inout)::arr
+    if(.not.arr%metadata_only.or.allocated(arr%elts)) error stop 'field materialization overlaps live view'
+    allocate(arr%elts(arr%capacity))
+    arr%elts=0.0_dp
+    arr%metadata_only=.false.
+  end subroutine materialize_float_storage
+
 
 
   subroutine init_Float_Array (arr, N)
@@ -365,6 +394,12 @@ contains
     integer,           intent(in)    :: N
     real(dp),          intent(in)    :: items
 
+    if(arr%metadata_only) then
+       if(allocated(arr%elts)) error stop 'suspended field unexpectedly allocated'
+       if(arr%length+N>arr%capacity) arr%capacity=2*(arr%length+N)
+       arr%length=arr%length+N
+       return
+    end if
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Float_Array (arr, arr%length + N)
 
     arr%elts(arr%length+1:arr%length+N) = items

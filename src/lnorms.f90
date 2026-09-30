@@ -1,5 +1,6 @@
 module lnorms_mod
-  use parallel_block_inverse_mod, only: native_transition_ready,native_transition_field
+  use parallel_block_inverse_mod, only: native_transition_ready,native_transition_field, &
+       native_lifecycle_ready,native_lifecycle_field
   use parallel_block_mod, only: BLOCK_PAYLOAD_SOL
 
   use kind_mod,   only : dp
@@ -23,6 +24,10 @@ contains
     integer,intent(in)::variable,layer,d,address
     if(native_transition_ready()) then
        x=native_transition_field(BLOCK_PAYLOAD_SOL,variable,layer,d,address)
+#ifdef LIFECYCLE_NATIVE
+    else if(native_lifecycle_ready()) then
+       x=native_lifecycle_field(BLOCK_PAYLOAD_SOL,variable,layer,d,address)
+#endif
     else
        x=sol(variable,layer)%data(d)%elts(address)
     end if

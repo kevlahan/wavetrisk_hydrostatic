@@ -1,8 +1,10 @@
 module parallel_block_mpi_mod
-  use parallel_block_inverse_mod, only: native_lifecycle_field,install_native_vector_coefficients
+  use dyn_arrays, only: float_extent
+  use parallel_block_inverse_mod, only: native_lifecycle_field,install_native_vector_coefficients, &
+       activate_native_physics_consumer
   use parallel_block_inverse_mod, only: native_transition_ready,native_transition_field
   use parallel_block_inverse_mod, only: block_rk_enabled,prepare_retained_rk_aliases, &
-       finish_retained_rk_boundary,rk_scaffold_operand,rk_mass_alias_operand,retained_rk_cycle_active
+       finish_retained_rk_boundary,rk_scaffold_operand,rk_soil_alias_operand,rk_mass_alias_operand,retained_rk_cycle_active
   use parallel_block_diffusion_mod, only: owned_mass_node
   use parallel_block_mod, only: local_block_rk_base_vector
   use parallel_block_gradients_mod, only: owned_gradients_ready,copy_owned_gradient_patch,owned_gradient_node
@@ -543,6 +545,11 @@ module parallel_block_mpi_mod
   integer(int64), save :: block_writeback_plan_generation = 0_int64
   integer, save :: production_inverse_completed_mode = 0
   logical, save :: production_inverse_consumer_aliases_pending = .false.
+  logical :: native_io_storage_open=.false.
+#ifdef MIRROR_FREE
+  integer(int64) :: native_output_allocations=0_int64
+#endif
+  public :: begin_block_output_storage,end_block_output_storage
   integer, save :: production_multistage_candidate_stage = 0
   integer, save :: production_multistage_candidate_stage_count = 0
   integer, save :: production_multistage_captured_tendency_stage = 0
@@ -1180,6 +1187,45 @@ module parallel_block_mpi_mod
 
 contains
 
+  integer function numeric_stage_extent(n,oracle_only) result(extent)
+    integer,intent(in)::n
+    logical,intent(in)::oracle_only
+    extent=max(1,n)
+#ifdef MIRROR_FREE
+    if(oracle_only.or..not.native_io_storage_open) extent=0
+#endif
+  end function numeric_stage_extent
+
+  subroutine begin_block_output_storage
+#ifdef MIRROR_FREE
+    integer::n
+    if(native_io_storage_open) return
+    if(.not.block_writeback_plan%ready) call fail('output storage requires ready plan')
+    n=0
+    if(size(grid)>0) n=block_writeback_plan%domain_patch_displ(size(grid))+grid(size(grid))%patch%length
+    deallocate(block_writeback_plan%scalar_domain_stage)
+    allocate(block_writeback_plan%scalar_domain_stage(max(1,n*block_writeback_plan%scalar_patch_nvalue)))
+    block_writeback_plan%scalar_domain_stage=0.0_dp
+    native_io_storage_open=.true.
+    native_output_allocations=native_output_allocations+1_int64
+#endif
+  end subroutine begin_block_output_storage
+
+  subroutine end_block_output_storage
+#ifdef MIRROR_FREE
+    if(.not.native_io_storage_open) call fail('output storage is not open')
+    deallocate(block_writeback_plan%scalar_domain_stage)
+    allocate(block_writeback_plan%scalar_domain_stage(0))
+    native_io_storage_open=.false.
+    if(size(block_writeback_plan%native_scalar_stage)/=0.or.size(block_writeback_plan%native_vector_stage)/=0) &
+         call fail('obsolete native snapshot storage remains')
+    native_output_allocations=native_output_allocations+1_int64
+    write(*,'(a,i0,a,i0)') 'Legacy scalar staging and RK snapshots absent rank=',rank, &
+         ' bounded allocation events=',native_output_allocations
+#endif
+  end subroutine end_block_output_storage
+
+
 
   subroutine clear_parallel_block_state
     ! Release persistent and staging block data before a checkpoint
@@ -1487,10 +1533,9 @@ contains
 
     validate_oracle = block_adaptation_validation_enabled()
     dynamics_oracle = block_dynamics_validation_enabled()
-    ! The final native inverse has already installed SOL, and compression plus
-    ! inverse alias publication has installed WAV_COEFF. Its completed refresh
-    ! changes only ghost/derived state. The pending consumer aliases below are
-    ! a distinct saved version and must still be selected after this point.
+    ! The final inverse and compression retain both native field families.
+    ! Legacy views, when selected, have already been published. Physics uses
+    ! a distinct saved alias version; production needs no numerical reimport.
     native_publication_ready = production_inverse_consumer_aliases_pending .and. &
          production_inverse_completed_mode == 0 .and. &
          .not.validate_oracle .and. .not.dynamics_oracle
@@ -1517,7 +1562,11 @@ contains
     ! state. Only now select the legacy alias epoch for the physics consumer;
     ! those aliases must not be re-imported as native kernel dependencies.
     if (production_inverse_consumer_aliases_pending) then
+#ifdef MIRROR_FREE
+       call activate_native_physics_consumer
+#else
        call publish_native_inverse(sol(1:N_VARIABLE,1:zlevels),consumer_aliases=.true.)
+#endif
        production_inverse_consumer_aliases_pending=.false.
     end if
     production_grid_change_pending = .true.
@@ -1715,6 +1764,9 @@ contains
     call MPI_Allreduce(selected,high,1,MPI_INTEGER,MPI_MAX,comm,ierr)
     call check_mpi(ierr,"Stage 197 option maximum")
     if (low/=high) call fail("inconsistent Stage 197 options across ranks")
+#ifdef COEFFICIENT_NATIVE
+    if(.not.stage197_resident) call fail('native coefficient transfer requires resident scalar wavelets')
+#endif
     stage197_ready=.true.
     if(rank==0) write(6,'(a,i0)') 'Stage 197 requested resident wavelets = ',selected
 #ifdef STAGE203_INVERSE
@@ -3026,7 +3078,7 @@ contains
                    do v = scalars(1),scalars(2)
                       field_index = id+1
                       if (field_index > &
-                           size(wav_coeff(v,k)%data(d)%elts)) &
+                           float_extent(wav_coeff(v,k)%data(d))) &
                            call fail( &
                            "Domain scalar adaptation oracle is invalid")
                       if(native_transition_ready().and..not.covered) then
@@ -3131,7 +3183,7 @@ contains
                    active = level < level_fill
                    do k = 1,zlevels
                       if (field_index > &
-                           size(wav_coeff(S_VELO,k)%data(d)%elts)) &
+                           float_extent(wav_coeff(S_VELO,k)%data(d))) &
                            call fail( &
                            "Domain vector adaptation oracle is invalid")
                       if(native_transition_ready().and..not.covered) then
@@ -3738,8 +3790,13 @@ contains
                 call fail("block minimum-mass pole address is invalid")
              end if
              do k = 1,zlevels
+#ifdef LIFECYCLE_NATIVE
+                rho_dz(k)=native_lifecycle_field(BLOCK_PAYLOAD_SOL,S_MASS,k,d,field_index)+ &
+                     sol_mean(S_MASS,k)%data(d)%elts(field_index)
+#else
                 rho_dz(k) = sol(S_MASS,k)%data(d)%elts(field_index)+ &
                      sol_mean(S_MASS,k)%data(d)%elts(field_index)
+#endif
              end do
              pressure_surface = grav_accel*sum(rho_dz)+p_top
              do k = 1,zlevels
@@ -3908,8 +3965,8 @@ contains
 
 
   subroutine complete_block_native_vertical_remap
-    ! Import Domain-computed pole and cross-root boundary aliases after the
-    ! authoritative compact interiors have been written and refreshed.
+    ! Complete remap after native pole/boundary installation, or the legacy
+    ! compatibility import when the native lifecycle is disabled.
 
     implicit none
 
@@ -7833,6 +7890,7 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%preserved_patch_count = 0
     block_writeback_plan%production_writeback_count = 0_int64
     block_writeback_plan%production_trend_boundary_refresh_count = 0_int64
+    native_io_storage_open=.false.
     block_writeback_plan%production_multistage_boundary_refresh_count = &
          0_int64
     block_writeback_plan%native_stage = 0
@@ -8196,14 +8254,16 @@ end subroutine build_parallel_block_catalog
        call fail("writeback Domain stage value count exceeds range")
     end if
 
-    allocate(block_writeback_plan%scalar_domain_stage(max(1, &
-         int(total_patch)*block_writeback_plan%scalar_patch_nvalue)))
+    allocate(block_writeback_plan%scalar_domain_stage(numeric_stage_extent( &
+         int(total_patch)*block_writeback_plan%scalar_patch_nvalue,.false.)))
+    ! Active vector restriction/wavelet scratch, filled only from native owners
+    ! and retained scaffold operands in MIRROR_FREE. This is not an RK snapshot.
     allocate(block_writeback_plan%vector_domain_stage(max(1, &
          int(total_patch)*block_writeback_plan%vector_patch_nvalue)))
-    allocate(block_writeback_plan%native_scalar_stage(max(1, &
-         int(total_patch)*block_writeback_plan%scalar_patch_nvalue)))
-    allocate(block_writeback_plan%native_vector_stage(max(1, &
-         int(total_patch)*block_writeback_plan%vector_patch_nvalue)))
+    allocate(block_writeback_plan%native_scalar_stage(numeric_stage_extent( &
+         int(total_patch)*block_writeback_plan%scalar_patch_nvalue,.true.)))
+    allocate(block_writeback_plan%native_vector_stage(numeric_stage_extent( &
+         int(total_patch)*block_writeback_plan%vector_patch_nvalue,.true.)))
     allocate(block_writeback_plan%domain_patch_covered(max(1, &
          int(total_patch))))
     allocate(block_writeback_plan%domain_patch_reconstructed(max(1, &
@@ -8226,8 +8286,8 @@ end subroutine build_parallel_block_catalog
     do d = 1,size(grid)
        production_vector_transform_displ(d) = int(total_vector_transform)
        total_vector_transform = total_vector_transform + int( &
-            n_field_level*size(sol(S_VELO,first_field_level)% &
-            data(d)%elts),int64)
+            n_field_level*float_extent(sol(S_VELO,first_field_level)% &
+            data(d)),int64)
        if (total_vector_transform > int(huge(0),int64)) then
           call fail("native vector transform stage exceeds range")
        end if
@@ -9628,18 +9688,14 @@ end subroutine build_parallel_block_catalog
          max(1,stage_patch_count) .or. &
          size(block_writeback_plan%domain_patch_reconstructed) /= &
          max(1,stage_patch_count) .or. &
-         size(block_writeback_plan%scalar_domain_stage) /= max(1, &
-         stage_patch_count* &
-         block_writeback_plan%scalar_patch_nvalue) .or. &
+         size(block_writeback_plan%scalar_domain_stage) /= numeric_stage_extent( &
+         stage_patch_count*block_writeback_plan%scalar_patch_nvalue,.false.) .or. &
          size(block_writeback_plan%vector_domain_stage) /= max(1, &
-         stage_patch_count* &
-         block_writeback_plan%vector_patch_nvalue) .or. &
-         size(block_writeback_plan%native_scalar_stage) /= max(1, &
-         stage_patch_count* &
-         block_writeback_plan%scalar_patch_nvalue) .or. &
-         size(block_writeback_plan%native_vector_stage) /= max(1, &
-         stage_patch_count* &
-         block_writeback_plan%vector_patch_nvalue)) then
+         stage_patch_count*block_writeback_plan%vector_patch_nvalue) .or. &
+         size(block_writeback_plan%native_scalar_stage) /= numeric_stage_extent( &
+         stage_patch_count*block_writeback_plan%scalar_patch_nvalue,.true.) .or. &
+         size(block_writeback_plan%native_vector_stage) /= numeric_stage_extent( &
+         stage_patch_count*block_writeback_plan%vector_patch_nvalue,.true.)) then
        call fail("writeback Domain stage extent mismatch")
     end if
     ! Empty Domain owners retain one dummy element, just as in allocation.
@@ -11262,10 +11318,9 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine refresh_parallel_block_trend_boundary_state
-    ! Mirror the first production trend_ml update_bdry in the retained block
-    ! representation. Domain values remain authoritative: compact boundary
-    ! payloads are imported after update_bdry, while inter-block sol ghosts
-    ! are refreshed from exact block interiors through persistent routes.
+    ! Refresh inter-block ghosts after the selected initial boundary producer.
+    ! Native lifecycle aliases are already installed; only the off path imports
+    ! legacy boundary payloads.
 
     implicit none
 
@@ -12903,7 +12958,7 @@ end subroutine build_parallel_block_catalog
     ! interiors and boundary routes have disjoint provenance and are checked
     ! independently before this point.
     do d = 1,size(grid)
-       n_edge_value = size(sol(S_VELO,first_field_level)%data(d)%elts)
+       n_edge_value = float_extent(sol(S_VELO,first_field_level)%data(d))
        do p = 0,grid(d)%patch%length-1
           if (grid(d)%patch%elts(p+1)%deleted) cycle
           patch_slot = block_writeback_plan%domain_patch_displ(d)+p+1
@@ -13033,7 +13088,7 @@ end subroutine build_parallel_block_catalog
 
     count_local = 0_int64
     do d = 1,size(grid)
-       n_edge_value = size(sol(S_VELO,first_field_level)%data(d)%elts)
+       n_edge_value = float_extent(sol(S_VELO,first_field_level)%data(d))
        do level_slot = 1,n_field_level
           field_level = first_field_level+level_slot-1
           if (field_level < 1 .or. field_level > zlevels) cycle
@@ -13143,8 +13198,8 @@ end subroutine build_parallel_block_catalog
 
       coverage_local = 0_int64
       do d_stage = 1,size(grid)
-         n_edge_stage = size(sol(S_VELO,first_level_field)% &
-              data(d_stage)%elts)
+         n_edge_stage = float_extent(sol(S_VELO,first_level_field)% &
+              data(d_stage))
          do p_stage = 0,grid(d_stage)%patch%length-1
             if (grid(d_stage)%patch%elts(p_stage+1)%deleted .or. &
                  grid(d_stage)%patch%elts(p_stage+1)%level < &
@@ -13532,7 +13587,7 @@ end subroutine build_parallel_block_catalog
            size(grid(d_alias)%len%elts), &
            size(grid(d_alias)%pedlen%elts), &
            EDGE*size(grid(d_alias)%level%elts), &
-           size(sol(S_VELO,first_level_field)%data(d_alias)%elts))
+           float_extent(sol(S_VELO,first_level_field)%data(d_alias)))
       if (edge_alias < 0 .or. edge_alias >= geometry_extent) return
       if (grid(d_alias)%level%elts(edge_alias/EDGE+1) /= first_level) return
 
@@ -13803,8 +13858,8 @@ end subroutine build_parallel_block_catalog
            field_slot < 1 .or. field_slot > n_field_level) then
          call fail("complete vector route address is invalid")
       end if
-      edge_extent = size(sol(S_VELO,first_level_field)% &
-           data(d_index)%elts)
+      edge_extent = float_extent(sol(S_VELO,first_level_field)% &
+           data(d_index))
       if (edge_index < 0 .or. edge_index >= edge_extent) then
          call fail("complete vector route edge is invalid")
       end if
@@ -14490,7 +14545,7 @@ end subroutine build_parallel_block_catalog
     ! changed if this check rejects the transaction.
     do d = 1,size(grid)
        n_edge_value = &
-            size(sol(v_vector,first_field_level)%data(d)%elts)
+            float_extent(sol(v_vector,first_field_level)%data(d))
        do level_slot = 1,n_field_level
           field_level = first_field_level+level_slot-1
           if (field_level < 1 .or. field_level > zlevels) cycle
@@ -14504,8 +14559,8 @@ end subroutine build_parallel_block_catalog
              native_start = production_vector_transform_displ(d) + &
                   (level_slot-1)*n_edge_value+domain_start
              if (domain_start < 1 .or. &
-                  domain_start+n_value-1 > size( &
-                  domain_wavelet(v_vector,field_level)%data(d)%elts) .or. &
+                  domain_start+n_value-1 > float_extent(&
+                  domain_wavelet(v_vector,field_level)%data(d)) .or. &
                   native_start < 1 .or. &
                   native_start+n_value-1 > &
                   size(production_vector_wavelet_stage)) then
@@ -14527,7 +14582,7 @@ end subroutine build_parallel_block_catalog
 
 #ifdef COEFFICIENT_NATIVE
     do d=1,size(grid)
-       capacities(d)=size(sol(v_vector,first_field_level)%data(d)%elts)
+       capacities(d)=float_extent(sol(v_vector,first_field_level)%data(d))
     end do
     call install_native_vector_coefficients(block_writeback_plan_generation,first_level,first_field_level, &
          production_vector_transform_displ,capacities,production_vector_wavelet_stage)
@@ -14535,7 +14590,7 @@ end subroutine build_parallel_block_catalog
 #endif
     do d = 1,size(grid)
        n_edge_value = &
-            size(sol(v_vector,first_field_level)%data(d)%elts)
+            float_extent(sol(v_vector,first_field_level)%data(d))
        do level_slot = 1,n_field_level
           field_level = first_field_level+level_slot-1
           if (field_level < 1 .or. field_level > zlevels) cycle
@@ -14975,6 +15030,7 @@ end subroutine build_parallel_block_catalog
     ! Provisional production consumers read the all-level boundary version
     ! published below. No intervening operation reads this earlier q1 image.
     ! Final SOL and oracle boundary refresh still require the earlier image.
+#ifndef MIRROR_FREE
     if (.not.provisional_transform.or.validate_oracle) &
          call publish_native_inverse(domain_scaling)
     if (.not. validate_oracle) then
@@ -14984,6 +15040,8 @@ end subroutine build_parallel_block_catalog
     if(.not.block_rk_enabled.or..not.provisional_transform.or.validate_oracle) then
        call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL,domain_scaling)
     end if
+
+#endif
     call block_profile_leave(BLOCK_PROFILE_INVERSE_INSTALL)
     if (provisional_transform) then
        ! Complete the all-level boundary contract formerly provided by the
@@ -15020,7 +15078,11 @@ end subroutine build_parallel_block_catalog
        call fail("native inverse reallocated persistent transport")
     end if
     if (block_domain_production_writeback_count() /= writeback_before+ &
+#ifdef MIRROR_FREE
+         0_int64) then
+#else
          int(merge(4*(jmax-jmin)+2,merge(0,1,block_rk_enabled.and.provisional_transform),validate_oracle),int64)) then
+#endif
        call fail("native inverse writeback sequence is invalid")
     end if
     if (provisional_transform) then
@@ -30746,8 +30808,8 @@ end subroutine build_parallel_block_catalog
           case (BLOCK_PAYLOAD_SOL)
              if (present(domain_sol) .and. field_level >= 1 .and. &
                   field_level <= zlevels) then
-                if (start < 0 .or. start+n_value > size( &
-                     domain_sol(scalar_id,field_level)%data(d)%elts)) then
+                if (start < 0 .or. start+n_value > float_extent(&
+                     domain_sol(scalar_id,field_level)%data(d))) then
                    call fail("stage scalar sol payload extent is invalid")
                 end if
                 scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
@@ -30755,7 +30817,7 @@ end subroutine build_parallel_block_catalog
                      start+1:start+n_value)
              else
                 if (start < 0 .or. start+n_value > &
-                     size(sol(scalar_id,field_level)%data(d)%elts)) then
+                     float_extent(sol(scalar_id,field_level)%data(d))) then
                    call fail( &
                         "legacy scalar sol writeback extent is invalid")
                 end if
@@ -30766,8 +30828,8 @@ end subroutine build_parallel_block_catalog
           case (BLOCK_PAYLOAD_WAV_COEFF)
              if (present(domain_sol) .and. field_level >= 1 .and. &
                   field_level <= zlevels) then
-                if (start < 0 .or. start+n_value > size( &
-                     domain_sol(scalar_id,field_level)%data(d)%elts)) then
+                if (start < 0 .or. start+n_value > float_extent(&
+                     domain_sol(scalar_id,field_level)%data(d))) then
                    call fail( &
                         "stage scalar wav_coeff extent is invalid")
                 end if
@@ -30775,8 +30837,8 @@ end subroutine build_parallel_block_catalog
                      domain_sol(scalar_id,field_level)%data(d)%elts( &
                      start+1:start+n_value)
              else
-                if (start < 0 .or. start+n_value > size( &
-                     wav_coeff(scalar_id,field_level)%data(d)%elts)) then
+                if (start < 0 .or. start+n_value > float_extent(&
+                     wav_coeff(scalar_id,field_level)%data(d))) then
                    call fail( &
                         "legacy scalar wav_coeff extent is invalid")
                 end if
@@ -30815,7 +30877,7 @@ end subroutine build_parallel_block_catalog
           if (present(domain_sol) .and. field_level >= 1 .and. &
                field_level <= zlevels) then
              if (start < 0 .or. start+n_value > &
-                  size(domain_sol(v_vector,field_level)%data(d)%elts)) then
+                  float_extent(domain_sol(v_vector,field_level)%data(d))) then
                 call fail("stage vector sol payload extent is invalid")
              end if
              vector_payload(vector_pos:vector_pos+n_value-1) = &
@@ -30823,7 +30885,7 @@ end subroutine build_parallel_block_catalog
                   start+1:start+n_value)
           else
              if (start < 0 .or. start+n_value > &
-                  size(sol(v_vector,field_level)%data(d)%elts)) then
+                  float_extent(sol(v_vector,field_level)%data(d))) then
                 call fail("legacy vector sol writeback extent is invalid")
              end if
              vector_payload(vector_pos:vector_pos+n_value-1) = &
@@ -30833,16 +30895,16 @@ end subroutine build_parallel_block_catalog
        case (BLOCK_PAYLOAD_WAV_COEFF)
           if (present(domain_sol) .and. field_level >= 1 .and. &
                field_level <= zlevels) then
-             if (start < 0 .or. start+n_value > size( &
-                  domain_sol(v_vector,field_level)%data(d)%elts)) then
+             if (start < 0 .or. start+n_value > float_extent(&
+                  domain_sol(v_vector,field_level)%data(d))) then
                 call fail("stage vector wav_coeff extent is invalid")
              end if
              vector_payload(vector_pos:vector_pos+n_value-1) = &
                   domain_sol(v_vector,field_level)%data(d)%elts( &
                   start+1:start+n_value)
           else
-             if (start < 0 .or. start+n_value > size( &
-                  wav_coeff(v_vector,field_level)%data(d)%elts)) then
+             if (start < 0 .or. start+n_value > float_extent(&
+                  wav_coeff(v_vector,field_level)%data(d))) then
                 call fail("legacy vector wav_coeff extent is invalid")
              end if
              vector_payload(vector_pos:vector_pos+n_value-1) = &
@@ -31431,12 +31493,12 @@ end subroutine build_parallel_block_catalog
       end if
       if (present(domain_sol)) then
          if (node >= &
-              size(domain_sol(scalar_id,field_level)%data(d)%elts)) then
+              float_extent(domain_sol(scalar_id,field_level)%data(d))) then
             call fail("Domain Exner-difference stage extent is invalid")
          end if
          value = domain_sol(scalar_id,field_level)%data(d)%elts(node+1)
       else
-         if (node >= size(sol(scalar_id,field_level)%data(d)%elts)) then
+         if (node >= float_extent(sol(scalar_id,field_level)%data(d))) then
             call fail("Domain Exner-difference sol extent is invalid")
          end if
          value = sol(scalar_id,field_level)%data(d)%elts(node+1)
@@ -31486,7 +31548,7 @@ end subroutine build_parallel_block_catalog
     integer :: temperature_offset,temperature_width
     integer :: v_scalar,n_scalar,v_vector,first_level,n_level,m_scalar,m_vector
     integer :: k,start
-    logical :: temperature_only
+    logical :: temperature_only,vector_only
 
     if (.not. block_writeback_plan_is_ready()) then
        call fail("Domain reconstruction before writeback plan is ready")
@@ -31504,8 +31566,18 @@ end subroutine build_parallel_block_catalog
        call fail("Domain reconstruction patch origin extent mismatch")
     end if
 
+    vector_only=.false.
+#ifdef MIRROR_FREE
+    vector_only=.not.native_io_storage_open
+    if(vector_only.and.(payload_family/=BLOCK_PAYLOAD_SOL.or..not.retained_rk_cycle_active())) &
+         call fail('native vector staging outside RK producer')
+#endif
+    if(vector_only) then
+       call exchange_block_writeback_payloads(payload_family,BLOCK_WRITEBACK_VECTOR)
+    else
     call exchange_block_writeback_payloads( &
          payload_family,component_family)
+    end if
 
     temperature_only = .false.
     if (present(component_family)) &
@@ -31682,6 +31754,7 @@ end subroutine build_parallel_block_catalog
       integer::v,k,j,id,first,nlevel,sv,ns,vv,ms,mv
       call get_block_field_layout(sv,ns,vv,first,nlevel,ms,mv)
       if(ms/=1.or.mv/=EDGE) call fail('RK scaffold field multiplicity')
+      if(.not.vector_only) then
       do v=sv,sv+ns-1
          do k=first,first+nlevel-1
             do j=0,PATCH_SIZE**2-1
@@ -31696,6 +31769,7 @@ end subroutine build_parallel_block_catalog
             end do
          end do
       end do
+      end if
       do k=first,first+nlevel-1
          do j=0,PATCH_SIZE**2-1
             id=grid(d)%patch%elts(p+1)%elts_start+j
@@ -31703,7 +31777,11 @@ end subroutine build_parallel_block_catalog
                if(k>=1.and.k<=zlevels) then
                   block_writeback_plan%vector_domain_stage(vs)=rk_scaffold_operand(d,id,ns+v,k)
                else
+#ifdef MIRROR_FREE
+                  block_writeback_plan%vector_domain_stage(vs)=rk_soil_alias_operand(d,id,ns+v,k)
+#else
                   block_writeback_plan%vector_domain_stage(vs)=sol(vv,k)%data(d)%elts(EDGE*id+v)
+#endif
                end if
                vs=vs+1
             end do
@@ -31781,11 +31859,13 @@ end subroutine build_parallel_block_catalog
               block_writeback_plan%scalar_domain_stage( &
               scalar_stage_start:scalar_stage_start+temperature_width-1),temperature_only=.true.)
       else
+         if(.not.vector_only) then
          call get_local_block_scalar_patch_family_values( &
               b,local_patch,payload_family, &
               block_writeback_plan%scalar_domain_stage( &
               scalar_stage_start:scalar_stage_start+ &
               block_writeback_plan%scalar_patch_nvalue-1))
+         end if
          call get_local_block_vector_patch_family_values( &
               b,local_patch,payload_family, &
               block_writeback_plan%vector_domain_stage( &
@@ -31846,11 +31926,13 @@ end subroutine build_parallel_block_catalog
               scalar_payload(scalar_pos+temperature_offset: &
               scalar_pos+temperature_offset+temperature_width-1)
       else
+         if(.not.vector_only) then
          block_writeback_plan%scalar_domain_stage( &
               scalar_stage_start:scalar_stage_start+ &
               block_writeback_plan%scalar_patch_nvalue-1) = &
               scalar_payload(scalar_pos:scalar_pos+ &
               block_writeback_plan%scalar_patch_nvalue-1)
+         end if
          block_writeback_plan%vector_domain_stage( &
               vector_stage_start:vector_stage_start+ &
               block_writeback_plan%vector_patch_nvalue-1) = &
@@ -31927,20 +32009,20 @@ end subroutine build_parallel_block_catalog
           case (BLOCK_PAYLOAD_SOL)
              if (present(domain_sol) .and. field_level >= 1 .and. &
                   field_level <= zlevels) then
-                if (start+n_value > size( &
-                     domain_sol(scalar_id,field_level)%data(d)%elts)) return
+                if (start+n_value > float_extent(&
+                     domain_sol(scalar_id,field_level)%data(d))) return
              else
                 if (start+n_value > &
-                     size(sol(scalar_id,field_level)%data(d)%elts)) return
+                     float_extent(sol(scalar_id,field_level)%data(d))) return
              end if
           case (BLOCK_PAYLOAD_WAV_COEFF)
              if (present(domain_sol) .and. field_level >= 1 .and. &
                   field_level <= zlevels) then
-                if (start+n_value > size( &
-                     domain_sol(scalar_id,field_level)%data(d)%elts)) return
+                if (start+n_value > float_extent(&
+                     domain_sol(scalar_id,field_level)%data(d))) return
              else
-                if (start+n_value > size( &
-                     wav_coeff(scalar_id,field_level)%data(d)%elts)) return
+                if (start+n_value > float_extent(&
+                     wav_coeff(scalar_id,field_level)%data(d))) return
              end if
           end select
        end do
@@ -31955,20 +32037,20 @@ end subroutine build_parallel_block_catalog
        case (BLOCK_PAYLOAD_SOL)
           if (present(domain_sol) .and. field_level >= 1 .and. &
                field_level <= zlevels) then
-             if (start+n_value > size( &
-                  domain_sol(v_vector,field_level)%data(d)%elts)) return
+             if (start+n_value > float_extent(&
+                  domain_sol(v_vector,field_level)%data(d))) return
           else
              if (start+n_value > &
-                  size(sol(v_vector,field_level)%data(d)%elts)) return
+                  float_extent(sol(v_vector,field_level)%data(d))) return
           end if
        case (BLOCK_PAYLOAD_WAV_COEFF)
           if (present(domain_sol) .and. field_level >= 1 .and. &
                field_level <= zlevels) then
-             if (start+n_value > size( &
-                  domain_sol(v_vector,field_level)%data(d)%elts)) return
+             if (start+n_value > float_extent(&
+                  domain_sol(v_vector,field_level)%data(d))) return
           else
              if (start+n_value > &
-                  size(wav_coeff(v_vector,field_level)%data(d)%elts)) return
+                  float_extent(wav_coeff(v_vector,field_level)%data(d))) return
           end if
        end select
     end do
@@ -36190,7 +36272,7 @@ end subroutine build_parallel_block_catalog
 
           if (start < 0 .or. &
                start+n_value > &
-               size(sol(scalar_id,field_level)%data(d)%elts)) then
+               float_extent(sol(scalar_id,field_level)%data(d))) then
              call fail("legacy scalar patch extent is invalid")
           end if
 
@@ -36206,7 +36288,7 @@ end subroutine build_parallel_block_catalog
                start+1:start+n_value)**2)
 
           if (start+n_value > &
-               size(wav_coeff(scalar_id,field_level)%data(d)%elts)) then
+               float_extent(wav_coeff(scalar_id,field_level)%data(d))) then
              call fail("legacy scalar wavelet patch extent is invalid")
           end if
 
@@ -36251,7 +36333,7 @@ end subroutine build_parallel_block_catalog
 
        if (start < 0 .or. &
             start+n_value > &
-            size(sol(v_vector,field_level)%data(d)%elts)) then
+            float_extent(sol(v_vector,field_level)%data(d))) then
           call fail("legacy vector patch extent is invalid")
        end if
 
@@ -36267,7 +36349,7 @@ end subroutine build_parallel_block_catalog
             start+1:start+n_value)**2)
 
        if (start+n_value > &
-            size(wav_coeff(v_vector,field_level)%data(d)%elts)) then
+            float_extent(wav_coeff(v_vector,field_level)%data(d))) then
           call fail("legacy vector wavelet patch extent is invalid")
        end if
 
@@ -36427,16 +36509,16 @@ end subroutine build_parallel_block_catalog
     end if
     if (present(domain_sol)) then
        if (start+PATCH_SIZE**2 > &
-            size(domain_sol(S_MASS,1)%data(d)%elts) .or. &
+            float_extent(domain_sol(S_MASS,1)%data(d)) .or. &
             start+PATCH_SIZE**2 > &
-            size(domain_sol(S_TEMP,1)%data(d)%elts)) then
+            float_extent(domain_sol(S_TEMP,1)%data(d))) then
           call fail("stage hydrostatic patch extent is invalid")
        end if
     else
        if (start+PATCH_SIZE**2 > &
-            size(sol(S_MASS,1)%data(d)%elts) .or. &
+            float_extent(sol(S_MASS,1)%data(d)) .or. &
             start+PATCH_SIZE**2 > &
-            size(sol(S_TEMP,1)%data(d)%elts)) then
+            float_extent(sol(S_TEMP,1)%data(d))) then
           call fail("legacy hydrostatic patch extent is invalid")
        end if
     end if

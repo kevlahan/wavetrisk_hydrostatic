@@ -1060,6 +1060,7 @@ contains
 #ifdef PHYSICS_NATIVE_STATE
        call retain_native_physics_alias(d,id,is_pole,batch_return(:,consumed_columns))
 #endif
+#ifndef MIRROR_FREE
        do k=1,zlevels
           if(is_pole/=1) sol(S_VELO,k)%data(d)%elts(id_edge(id))= &
                batch_return(3*(k-1)+1:3*k,consumed_columns)
@@ -1068,6 +1069,7 @@ contains
        do k=zmin,0
           sol(S_TEMP,k)%data(d)%elts(id_i)=batch_return(4*zlevels+abs(k)+1,consumed_columns)
        end do
+#endif
        if(is_pole/=1) velocity_plan_by_domain(d)%version(id_i)=consumed_columns
        return
     end if

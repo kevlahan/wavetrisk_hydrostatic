@@ -1,4 +1,7 @@
 module main_mod
+  use domain_mod, only: domain_prognostic_view_present,release_domain_prognostic_view, &
+       materialize_domain_prognostic_view,assert_domain_prognostic_absent,reset_domain_prognostic_view
+  use parallel_block_mpi_mod, only: begin_block_output_storage,end_block_output_storage
   use parallel_block_mod, only: BLOCK_PAYLOAD_SOL
   use parallel_block_inverse_mod, only: native_lifecycle_ready,native_lifecycle_field, &
        invalidate_native_lifecycle,bootstrap_native_lifecycle,prepare_native_lifecycle_boundary, &
@@ -450,6 +453,21 @@ contains
     end if
   end subroutine set_time_integrator
 
+
+#ifdef MIRROR_FREE
+  subroutine open_native_output_view
+#ifdef MIRROR_FREE
+    if(.not.native_lifecycle_ready()) error stop 'output adapter outside native lifecycle'
+    call begin_block_output_storage
+    if(.not.domain_prognostic_view_present()) then
+       call materialize_domain_prognostic_view
+       call publish_native_inverse(sol,all_nodes=.true.)
+       call publish_native_inverse(wav_coeff,BLOCK_PAYLOAD_WAV_COEFF,all_nodes=.true.)
+    end if
+#endif
+  end subroutine open_native_output_view
+#endif
+
   subroutine prepare_end_step_domain_consumers ( &
        checkpoint_required,compatibility_ready)
     ! Share one authoritative compact-to-Domain transaction between checkpoint
@@ -472,6 +490,9 @@ contains
     if (.not. compressible .or. mode_split .or. &
          .not. block_state_ready) return
 
+#ifdef MIRROR_FREE
+    call open_native_output_view
+#endif
     writeback_before = block_domain_production_writeback_count()
     if (checkpoint_required) then
        call synchronize_parallel_block_checkpoint
@@ -520,6 +541,9 @@ contains
     block_state_ready = parallel_block_state_is_ready()
     if (compressible .and. .not. mode_split .and. block_state_ready) then
        if (.not. caller_synchronized) then
+#ifdef MIRROR_FREE
+          call open_native_output_view
+#endif
           writeback_before = block_domain_production_writeback_count()
           call synchronize_parallel_block_checkpoint
           writeback_after = block_domain_production_writeback_count()
@@ -558,9 +582,16 @@ contains
     if (compressible .and. .not. mode_split .and. block_state_before) &
          writeback_before = block_domain_production_writeback_count()
 
+#ifdef MIRROR_FREE
+    call open_native_output_view
+#endif
     call write_and_export(type)
 #ifdef LIFECYCLE_NATIVE
     call capture_native_output_aliases(sol)
+#ifdef MIRROR_FREE
+    call release_domain_prognostic_view
+    call end_block_output_storage
+#endif
 #endif
 
     if (compressible .and. .not. mode_split .and. block_state_before) then
@@ -636,7 +667,9 @@ contains
     call compare_native_inverse(wav_coeff(:,zmin:0),2,BLOCK_PAYLOAD_WAV_COEFF,exact=.true.)
     write(*,'(a,i0)') 'Native soil output exact rank=',rank
 #endif
+#ifndef MIRROR_FREE
     call publish_native_soil(sol(:,zmin:0),wav_coeff(:,zmin:0))
+#endif
 #else
     call WT_after_step(sol(:,zmin:0),wav_coeff(:,zmin:0),level_start-1)
 #endif
@@ -723,6 +756,11 @@ contains
          verbose=detailed_block_diagnostics, &
          full_validation=validate_block_bootstrap)
 #ifdef LIFECYCLE_NATIVE
+#ifdef MIRROR_FREE
+    if(block_dynamics_validation_enabled()) error stop 'mirror-free build requires separate dynamics oracle'
+    if(block_adaptation_validation_enabled()) error stop 'mirror-free build requires separate adaptation oracle'
+    if(block_vertical_remap_validation_enabled()) error stop 'mirror-free build requires separate remap oracle'
+#endif
     call bootstrap_native_lifecycle(native_velocity_plan_generation(),sol,wav_coeff)
 #endif
     call parallel_block_profile_end( &
@@ -754,6 +792,9 @@ contains
     timestep_profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_TIMESTEP)
 
+#ifdef MIRROR_FREE
+    call assert_domain_prognostic_absent
+#endif
     if (.not.domain_tendency_storage_required .and. allocated(trend)) &
          error stop "production block timestep retained Domain tendency storage"
 
@@ -930,10 +971,12 @@ contains
        call compare_native_inverse(wav_coeff,2,BLOCK_PAYLOAD_WAV_COEFF,exact=.true.)
        write(*,'(a,i0)') 'Native adaptation exact rank=',rank
 #endif
+#ifndef MIRROR_FREE
        call publish_native_inverse(sol,all_nodes=.true.)
        call publish_native_inverse(wav_coeff,payload_family=BLOCK_PAYLOAD_WAV_COEFF,all_nodes=.true.)
        sol%bdry_uptodate=.false.
        wav_coeff%bdry_uptodate=.false.
+#endif
 #endif
        call retain_post_grid_change_block_reconstruction
 #ifdef ADAPT_NATIVE
@@ -1156,6 +1199,9 @@ contains
     end if
 
     allocate (threshold(1:N_VARIABLE,zmin:zmax), threshold_def(1:N_VARIABLE,zmin:zmax))
+#ifdef MIRROR_FREE
+    call reset_domain_prognostic_view
+#endif
   end subroutine init_structures
 
   subroutine cal_total_mass (initialize_total_mass)

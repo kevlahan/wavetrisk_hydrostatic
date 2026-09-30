@@ -13,7 +13,7 @@ module domain_mod
 
   use dyn_arrays, only : Areas_Array, Bdry_Patch_Array, Coord_Array, Float_Array, Int_Array, &
        Iu_Wgt_Array, Logical_Array, Overl_Area_Array, Patch_Array, RF_Wgt_Array, Topo_Array, &
-       append, extend, init
+       append, extend, init, release_float_storage, materialize_float_storage
 
   implicit none
 
@@ -23,6 +23,8 @@ module domain_mod
   public :: grid, topography, topography_data, sso_param, exner_fun, horiz_flux, penal_node, penal_edge, Kv, Kt, tke
   public :: wav_tke, Laplacian_scalar, Laplacian_vector, sol, sol_mean, trend, wav_coeff
   public :: domain_tendency_storage_required
+  public :: domain_prognostic_view_present,release_domain_prognostic_view,materialize_domain_prognostic_view
+  public :: assert_domain_prognostic_absent,reset_domain_prognostic_view
   public :: diag, mass, mass1, h_flux, h_mflux, dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
   public :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
   public :: mean_m, mean_t, Laplacian,  bernoulli, divu, exner, ke, qe, vort,  wc_s, wc_u
@@ -142,7 +144,63 @@ module domain_mod
   real(dp), dimension(:), pointer :: wc_s, wc_u
 
 
+  logical :: prognostic_view_live=.true.
 contains
+  subroutine reset_domain_prognostic_view
+    prognostic_view_live=.true.
+    if(.not.domain_prognostic_view_present()) error stop 'bootstrap view missing'
+  end subroutine reset_domain_prognostic_view
+
+  logical function domain_prognostic_view_present() result(present_view)
+    integer::d,k,v
+    present_view=.false.
+    ! Empty geometry owners still carry field descriptors. The explicit flag
+    ! below is global to this rank and maintained even when it owns no Domain.
+    present_view=prognostic_view_live
+    do d=1,size(grid)
+       do k=lbound(sol,2),ubound(sol,2)
+          do v=1,size(sol,1)
+             if(allocated(sol(v,k)%data(d)%elts).neqv.present_view) error stop 'partial solution view'
+             if(allocated(wav_coeff(v,k)%data(d)%elts).neqv.present_view) error stop 'partial coefficient view'
+          end do
+       end do
+    end do
+  end function domain_prognostic_view_present
+
+  subroutine release_domain_prognostic_view
+    integer::d,k,v
+    if(.not.domain_prognostic_view_present()) error stop 'Domain view already released'
+    do d=1,size(grid)
+       do k=lbound(sol,2),ubound(sol,2)
+          do v=1,size(sol,1)
+             call release_float_storage(sol(v,k)%data(d))
+             call release_float_storage(wav_coeff(v,k)%data(d))
+          end do
+       end do
+    end do
+    prognostic_view_live=.false.
+    call assert_domain_prognostic_absent
+  end subroutine release_domain_prognostic_view
+
+  subroutine materialize_domain_prognostic_view
+    integer::d,k,v
+    if(domain_prognostic_view_present()) error stop 'Domain view already materialized'
+    do d=1,size(grid)
+       do k=lbound(sol,2),ubound(sol,2)
+          do v=1,size(sol,1)
+             call materialize_float_storage(sol(v,k)%data(d))
+             call materialize_float_storage(wav_coeff(v,k)%data(d))
+          end do
+       end do
+    end do
+    prognostic_view_live=.true.
+  end subroutine materialize_domain_prognostic_view
+
+  subroutine assert_domain_prognostic_absent
+    if(domain_prognostic_view_present()) error stop 'persistent Domain prognostic storage present'
+    write(*,'(a,i0)') 'Domain prognostic storage absent rank=',rank
+  end subroutine assert_domain_prognostic_absent
+
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

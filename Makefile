@@ -734,5 +734,19 @@ ifneq ($(filter $(COEFFICIENT_NATIVE),on check),)
 ifeq ($(filter $(LIFECYCLE_NATIVE),on check),)
 $(error COEFFICIENT_NATIVE requires LIFECYCLE_NATIVE=on/check)
 endif
+ifneq ($(BLOCK_RK),on)
+$(error COEFFICIENT_NATIVE requires BLOCK_RK=on)
+endif
 FFLAGS += -DCOEFFICIENT_NATIVE
+endif
+
+MIRROR_FREE ?= off
+ifeq ($(MIRROR_FREE),on)
+ifneq ($(COEFFICIENT_NATIVE),on)
+$(error MIRROR_FREE requires COEFFICIENT_NATIVE=on)
+endif
+ifneq ($(filter check,$(BLOCK_COLUMNS) $(BLOCK_PRIMITIVES) $(BLOCK_DIFFUSION) $(BLOCK_MASS_OWNER) $(BLOCK_VELOCITY_OWNER) $(PHYSICS_COLUMN_LOCAL) $(PHYSICS_VELOCITY_PLAN) $(PHYSICS_OWNER) $(PHYSICS_OWNER_BATCH) $(PHYSICS_NATIVE_INPUT) $(PHYSICS_NATIVE_STATE) $(SOIL_NATIVE) $(ADAPT_NATIVE) $(LIFECYCLE_NATIVE)),)
+$(error MIRROR_FREE requires separate oracle builds with legacy views)
+endif
+FFLAGS += -DMIRROR_FREE
 endif

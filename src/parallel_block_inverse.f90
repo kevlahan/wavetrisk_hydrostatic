@@ -23,7 +23,7 @@ module parallel_block_inverse_mod
   use domain_ops_mod, only: apply_onescale_to_patch,apply_interscale_d,apply_to_penta_d,apply_onescale_d,apply_interscale_d2
   use shared_mod, only: split_mean_perturbation,a_vert_mass,b_vert_mass,p_0,grav_accel,compressible,mode_split
   use shared_mod, only: BDRY_THICKNESS
-  use shared_mod, only: vert_diffuse
+  use shared_mod, only: vert_diffuse,physics_model,physics_type,timeint_type
   use domain_mod, only: Domain
   implicit none
   private
@@ -53,6 +53,7 @@ module parallel_block_inverse_mod
   integer,allocatable::rk_low_key(:,:),rk_low_slot(:)
   real(dp),allocatable::rk_low_value(:,:,:)
   integer::original_inverse_nodes=0
+  public :: rk_soil_alias_operand,activate_native_physics_consumer
   public :: retained_rk_cycle_active
   public :: compare_retained_rk_aliases
   public :: rk_alias_nodes,set_rk_mass_alias_layer,rk_mass_alias_operand
@@ -370,6 +371,18 @@ contains
        end do
     end if
   end subroutine
+
+  real(dp) function rk_soil_alias_operand(d,id,component,k) result(x)
+    integer,intent(in)::d,id,component,k
+    integer::p,q
+    if(.not.rk_base_ready.or..not.physics_reference_ready) call die('RK soil alias epoch')
+    if(k<zmin.or.k>0.or.component<1.or.component>nscalar+EDGE) call die('RK soil alias range')
+    p=nodes(d)%slot(id+1)
+    if(p<1) call die('RK soil alias unregistered')
+    q=consumer_alias_index(p)
+    if(q<1) call die('RK soil alias requested canonical owner')
+    x=physics_alias_soil(component,1-k,q)
+  end function rk_soil_alias_operand
 
   real(dp) function rk_scaffold_operand(d,id,component,k) result(x)
     integer,intent(in)::d,id,component,k
@@ -2054,6 +2067,13 @@ contains
     generation=plan_generation
   end subroutine export_native_soil_aliases
 
+  subroutine activate_native_physics_consumer
+    if(inverse_field_first/=1.or.inverse_levels/=zlevels.or..not.physics_reference_ready) &
+         call die('native physics consumer range/reference epoch')
+    if(physics_consumer_ready.or.physics_results_ready) call die('native physics consumer already open')
+    physics_consumer_ready=.true.
+  end subroutine activate_native_physics_consumer
+
   subroutine finish_physics_consumer_epoch
     if(.not.physics_consumer_ready) call die('physics consumer epoch already consumed')
     physics_consumer_ready=.false.
@@ -3052,6 +3072,10 @@ contains
     integer(int64),intent(in)::generation
     type(Float_Field),intent(in)::scaling(:,:),wavelet(:,:)
     if(.not.compressible.or.mode_split.or.vert_diffuse) call die('native lifecycle requires unsplit atmosphere')
+#ifdef MIRROR_FREE
+    if(.not.physics_model.or.trim(physics_type)/='Simple'.or.trim(timeint_type)/='RK4') &
+         call die('mirror-free lifecycle requires climate RK4 and Simple physics')
+#endif
     if(lifecycle_ready) call die('native lifecycle bootstrap overlaps live epoch')
     call prepare_native_inverse(generation,scaling,wavelet,level_start,.false., &
          field_first=zmin,field_count=zlevels-zmin+1,bootstrap_entry=.true.)

@@ -230,7 +230,9 @@ contains
        end do
        call prepare_native_lifecycle_boundary(.false.,.true.)
 #endif
+#ifndef MIRROR_FREE
        call write_block_native_vertical_remap_to_domains
+#endif
        sol%bdry_uptodate = .false.
 
 #ifdef LIFECYCLE_NATIVE
@@ -241,7 +243,9 @@ contains
           call compare_native_inverse(sol,2,exact=.true.)
        end if
 #endif
+#ifndef MIRROR_FREE
        call publish_native_inverse(sol,all_nodes=.true.)
+#endif
 #else
        call update_bdry(sol,NONE,910)
 #endif

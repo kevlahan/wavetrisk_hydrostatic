@@ -266,8 +266,14 @@ contains
 
     call detail_enter(DP_SHARED)
     call detail_enter(DP_PRIMITIVE)
+#ifdef LIFECYCLE_NATIVE
+    ! The main lifecycle refreshed the native initial boundary before arming
+    ! this tendency. Legacy fields are available only in the independent oracle.
+    if(block_dynamics_validation_enabled()) call update_bdry(q,NONE,1067)
+#else
     if(.not.block_rk_enabled.or.columns_initial_pending().or.block_dynamics_validation_enabled()) &
          call update_bdry(q,NONE,1067)
+#endif
     if(columns_initial_pending()) call prepare_initial_tendency_operands(native_velocity_plan_generation(),q)
 #if !defined(WAVETRISK_TEST_MASS_CUT) && !defined(WAVETRISK_TEST_TEMPERATURE_CUT) && !defined(WAVETRISK_TEST_VELOCITY_CUT)
     if (block_dynamics_validation_enabled() .neqv. present(dq)) &
