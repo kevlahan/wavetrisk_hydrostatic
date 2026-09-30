@@ -1,4 +1,8 @@
 module main_mod
+  use parallel_block_mod, only: BLOCK_PAYLOAD_SOL
+  use parallel_block_inverse_mod, only: native_lifecycle_ready,native_lifecycle_field, &
+       invalidate_native_lifecycle,bootstrap_native_lifecycle,prepare_native_lifecycle_boundary, &
+       capture_native_output_aliases
 
   use, intrinsic :: ieee_arithmetic
   use, intrinsic :: iso_fortran_env, only : int64
@@ -555,6 +559,9 @@ contains
          writeback_before = block_domain_production_writeback_count()
 
     call write_and_export(type)
+#ifdef LIFECYCLE_NATIVE
+    call capture_native_output_aliases(sol)
+#endif
 
     if (compressible .and. .not. mode_split .and. block_state_before) then
        block_state_after = parallel_block_state_is_ready()
@@ -648,6 +655,9 @@ contains
 
     restart_profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_RESTART)
+#ifdef LIFECYCLE_NATIVE
+    call invalidate_native_lifecycle
+#endif
     call clear_parallel_block_state
     call deallocate_structures  ! deallocate all dynamic arrays and variables
     call init_basic
@@ -712,6 +722,9 @@ contains
     call migrate_blocks( &
          verbose=detailed_block_diagnostics, &
          full_validation=validate_block_bootstrap)
+#ifdef LIFECYCLE_NATIVE
+    call bootstrap_native_lifecycle(native_velocity_plan_generation(),sol,wav_coeff)
+#endif
     call parallel_block_profile_end( &
          BLOCK_PROFILE_RESTART,restart_profile_start)
 
@@ -780,7 +793,16 @@ contains
     if (block_state_ready .and. compressible .and. .not. mode_split) then
        ! Exercise the production block equivalent of the first trend_ml
        ! boundary update while the Domain state remains authoritative.
+#ifdef LIFECYCLE_NATIVE
+       call prepare_native_lifecycle_boundary(.true.,.false.)
+#ifdef LIFECYCLE_NATIVE_ORACLE
        call update_bdry(sol(1:N_VARIABLE,1:zlevels),NONE,979)
+       call compare_native_inverse(sol,1,exact=.true.)
+       call compare_native_inverse(sol,2,exact=.true.)
+#endif
+#else
+       call update_bdry(sol(1:N_VARIABLE,1:zlevels),NONE,979)
+#endif
        call refresh_parallel_block_trend_boundary_state
        select case (trim(timeint_type))
        case ("Euler")
@@ -1159,9 +1181,9 @@ contains
     do k = 1, zlevels
        select case (int_type)
        case ("hex") ! coarsest level only
-          total_mass = total_mass + integrate_hex (rho_dz_i, k, level_start)
+          total_mass = total_mass + integrate_hex (lifecycle_rho_dz_i, k, level_start)
        case ("tri") ! all levels
-          total_mass = total_mass + integrate_tri (rho_dz_i, k)
+          total_mass = total_mass + integrate_tri (lifecycle_rho_dz_i, k)
        end select
     end do
     if (initialize_total_mass) initial_total_mass = total_mass
@@ -1186,6 +1208,28 @@ contains
             error stop "total-mass diagnostic performed a writeback"
     end if
   end subroutine cal_total_mass
+
+  real(dp) function lifecycle_solution(variable,layer,d,address) result(x)
+    integer,intent(in)::variable,layer,d,address
+#ifdef LIFECYCLE_NATIVE
+    if(native_lifecycle_ready()) then
+       x=native_lifecycle_field(BLOCK_PAYLOAD_SOL,variable,layer,d,address)
+       return
+    end if
+    if(parallel_block_state_is_ready()) error stop 'native diagnostic epoch absent'
+#endif
+    ! Bounded initialization/restart, or the explicitly selected legacy path.
+    x=sol(variable,layer)%data(d)%elts(address)
+  end function lifecycle_solution
+
+  function lifecycle_rho_dz_i(dom,i,j,zlev,offs,dims) result(x)
+    type(Domain),intent(inout)::dom
+    integer,intent(in)::i,j,zlev,offs(N_BDRY+1),dims(2,N_BDRY+1)
+    real(dp)::x
+    integer::d,id
+    d=dom%id+1;id=idx(i,j,offs,dims)
+    x=lifecycle_solution(S_MASS,zlev,d,id+1)+sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
+  end function lifecycle_rho_dz_i
 
   real(dp) function cpt_dt ()
     ! Calculate the timestep and active-node diagnostics. During production
@@ -1255,22 +1299,27 @@ contains
              P(zlevels) = p_top
              do l = zlevels-1, 0, -1
                 k = l + 1 
-                rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i) 
+                rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + lifecycle_solution(S_MASS,k,d,id_i) 
                 P(l)   = P(l+1) + grav_accel * rho_dz
                 P_k    = interp (P(l), P(l+1))
 
-                theta  = theta_i (dom, i, j, k, offs, dims)
+                theta  = (sol_mean(S_TEMP,k)%data(d)%elts(id_i)+ &
+                      lifecycle_solution(S_TEMP,k,d,id_i))/rho_dz
                 T      = theta2temp (theta, P_k)
 
                 acoustic_speed = sqrt (gamma * R_d * T)
-                speed          = abs (sol(S_VELO,k)%data(d)%elts(ide))
+                do e=1,EDGE
+                   speed(e)=abs(lifecycle_solution(S_VELO,k,d,ide(e)))
+                end do
 
                 dt_adv = cfl_safety * minval (r_adv * dx/4 / (speed + acoustic_speed))
                 dt_loc = min (dt_init, dt_loc, dt_adv)
              end do
           else
              do k = 1, zlevels
-                speed = abs (sol(S_VELO,k)%data(d)%elts(ide))
+                do e=1,EDGE
+                   speed(e)=abs(lifecycle_solution(S_VELO,k,d,ide(e)))
+                end do
 
                 dt_adv = cfl_safety * minval (r_adv * dx/4 / (speed + wave_speed))
                 dt_loc = min (dt_init, dt_loc, dt_adv)

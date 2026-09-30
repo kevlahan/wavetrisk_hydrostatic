@@ -1,5 +1,8 @@
 #   include "ppr/ppr_1d.f90"
 module remap_mod
+  use parallel_block_inverse_mod, only: native_lifecycle_field,set_native_lifecycle_scalar, &
+       prepare_native_lifecycle_boundary,publish_native_inverse,compare_native_inverse
+  use parallel_block_mod, only: BLOCK_PAYLOAD_SOL
 
   use mpi_f08, only : MPI_Allreduce, MPI_DOUBLE_PRECISION, MPI_INTEGER, &
        MPI_MAX, MPI_SUCCESS, MPI_SUM, MPI_Wtime
@@ -173,7 +176,16 @@ contains
     
     ! Refresh the pre-remap compatibility boundary. Compact blocks import
     ! only these aliases and then refresh their own inter-block ghosts.
+#ifdef LIFECYCLE_NATIVE
+    call prepare_native_lifecycle_boundary(.false.,.false.)
+#ifdef LIFECYCLE_NATIVE_ORACLE
+    call update_bdry(sol,NONE,900)
+    call compare_native_inverse(sol,1,exact=.true.)
+    call compare_native_inverse(sol,2,exact=.true.)
+#endif
+#else
     call update_bdry (sol, NONE, 900)
+#endif
 
     block_remap = .false.
     validate_oracle = .false.
@@ -205,15 +217,34 @@ contains
           ! Polar scalar columns are outside compact patch interiors. The
           ! oracle remaps them above; production must do so explicitly too.
           ! Work from the still-unmodified Domain image before writeback.
+#ifndef LIFECYCLE_NATIVE
           do level = level_start,level_end
              call apply_to_pole(remap_compressible_pole,level,z_null,1,.true.)
           end do
+#endif
        end if
 
+#ifdef LIFECYCLE_NATIVE
+       do level=level_start,level_end
+          call apply_to_pole(remap_compressible_pole,level,z_null,1,.true.)
+       end do
+       call prepare_native_lifecycle_boundary(.false.,.true.)
+#endif
        call write_block_native_vertical_remap_to_domains
        sol%bdry_uptodate = .false.
 
+#ifdef LIFECYCLE_NATIVE
+#ifdef LIFECYCLE_NATIVE_ORACLE
+       if(validate_oracle) then
+          call update_bdry(sol,NONE,910)
+          call compare_native_inverse(sol,1,exact=.true.)
+          call compare_native_inverse(sol,2,exact=.true.)
+       end if
+#endif
+       call publish_native_inverse(sol,all_nodes=.true.)
+#else
        call update_bdry(sol,NONE,910)
+#endif
 
        call complete_block_native_vertical_remap
 
@@ -252,6 +283,25 @@ contains
   end subroutine remap_vertical_coordinates
 
 
+  real(dp) function remap_pole_value(variable,layer,d,address) result(x)
+    integer,intent(in)::variable,layer,d,address
+#ifdef LIFECYCLE_NATIVE
+    x=native_lifecycle_field(BLOCK_PAYLOAD_SOL,variable,layer,d,address)
+#else
+    x=sol(variable,layer)%data(d)%elts(address)
+#endif
+  end function remap_pole_value
+
+  subroutine set_remap_pole_value(variable,layer,d,address,x)
+    integer,intent(in)::variable,layer,d,address
+    real(dp),intent(in)::x
+#ifdef LIFECYCLE_NATIVE
+    call set_native_lifecycle_scalar(variable,layer,d,address,x)
+#else
+    sol(variable,layer)%data(d)%elts(address)=x
+#endif
+  end subroutine set_remap_pole_value
+
   subroutine remap_compressible_pole (dom, p_null, i, j, zlev, offs, dims, is_pole)
     ! Scalar part of remap_compressible for a non-block-owned polar column.
     ! Snapshot this entire column before changing it. No neighboring pressure
@@ -268,9 +318,9 @@ contains
     id_i = idx(i,j,offs,dims)+1
     if (dom%mask_n%elts(id_i) < ADJZONE) return
     do k = 1,zlevels
-       rho_dz(k) = sol_mean(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(id_i)
+       rho_dz(k) = sol_mean(S_MASS,k)%data(d)%elts(id_i)+remap_pole_value(S_MASS,k,d,id_i)
        theta_old(zlevels-k+1) = &
-            (sol_mean(S_TEMP,k)%data(d)%elts(id_i)+sol(S_TEMP,k)%data(d)%elts(id_i))/rho_dz(k)
+            (sol_mean(S_TEMP,k)%data(d)%elts(id_i)+remap_pole_value(S_TEMP,k,d,id_i))/rho_dz(k)
     end do
     p_old(0) = p_top
     do k = 1,zlevels
@@ -280,9 +330,9 @@ contains
     rho_dz_new = (p_new(zlevels:1:-1)-p_new(zlevels-1:0:-1))/grav_accel
     call interpolate(zlevels,theta_new,p_new,theta_old,p_old)
     do k = 1,zlevels
-       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz_new(k)-sol_mean(S_MASS,k)%data(d)%elts(id_i)
-       sol(S_TEMP,k)%data(d)%elts(id_i) = &
-            rho_dz_new(k)*theta_new(zlevels-k+1)-sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+       call set_remap_pole_value(S_MASS,k,d,id_i,rho_dz_new(k)-sol_mean(S_MASS,k)%data(d)%elts(id_i))
+       call set_remap_pole_value(S_TEMP,k,d,id_i, &
+            rho_dz_new(k)*theta_new(zlevels-k+1)-sol_mean(S_TEMP,k)%data(d)%elts(id_i))
     end do
   end subroutine remap_compressible_pole
   

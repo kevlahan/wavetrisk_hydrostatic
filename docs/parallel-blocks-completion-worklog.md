@@ -413,3 +413,5 @@ but RUNNING85522 loaded old9-case list: afteritfinishes manually buildvariantora
 and run rk-oracle3-4 with --oracles --checks, thenreview. Mustn't accept earlier.
 
 Stage244 accepted: all ten cases and final source-bound reviewer PASS, including full independent RK oracle. See handoff244 and results manifest. Continuing lifecycle and storage cleanup; no bbserv run.
+
+Stage245 lifecycle PASS: frozen candidate2 production full4 trajectory (12 exact states, two remaps, 62 exact VTK members and checkpoint gate), checked native one-step4 PASS. Source-bound reviewer passed. Initial candidate compile failed missing BLOCK_PAYLOAD_SOL import; preserved. Native lifecycle retains full-range aliases across steps, adapts to atmosphere-only RK input, and supplies timestep/mass diagnostics and remap poles/boundaries. Remaining: coefficient transport and persistent mirrors. Final 41-rank qualification will cover integrated cleanup.

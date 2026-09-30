@@ -23,6 +23,7 @@ module parallel_block_inverse_mod
   use domain_ops_mod, only: apply_onescale_to_patch,apply_interscale_d,apply_to_penta_d,apply_onescale_d,apply_interscale_d2
   use shared_mod, only: split_mean_perturbation,a_vert_mass,b_vert_mass,p_0,grav_accel,compressible,mode_split
   use shared_mod, only: BDRY_THICKNESS
+  use shared_mod, only: vert_diffuse
   use domain_mod, only: Domain
   implicit none
   private
@@ -121,6 +122,14 @@ module parallel_block_inverse_mod
   integer :: soil_domain=0,soil_layer=0,soil_variable=0
   integer :: inverse_field_first=1,inverse_levels=0
   logical :: physics_results_ready=.false.
+  logical :: lifecycle_ready=.false.
+  type(Node_Map),allocatable :: initial_alias_map(:)
+  real(dp),allocatable :: initial_alias_data(:,:,:)
+  integer(int64) :: initial_alias_generation=-1_int64
+  public :: native_lifecycle_ready,invalidate_native_lifecycle,native_lifecycle_field
+  public :: set_native_lifecycle_scalar,prepare_native_lifecycle_boundary,bootstrap_native_lifecycle
+  public :: capture_native_output_aliases
+
   integer(int64) :: plan_generation=-1_int64
   integer :: nnode=0,noperation=0,nscalar=0
   ! The selector is compile-time; the original path remains the default.
@@ -406,7 +415,14 @@ contains
     ! the distinct saved final-inverse consumer epoch or perform another inverse.
     integer(int64),intent(in)::generation
     type(Float_Field),intent(in)::physical(1:N_VARIABLE,1:zlevels)
+#ifdef LIFECYCLE_NATIVE
+    call capture_initial_native_aliases(generation)
+#endif
     call prepare_native_inverse(generation,physical,physical,level_start,.false.,consumer_only=.true.)
+#ifdef LIFECYCLE_NATIVE
+    deallocate(initial_alias_map,initial_alias_data)
+    initial_alias_generation=-1_int64
+#endif
   end subroutine
 
   function inverse_operand_generation() result(generation)
@@ -542,7 +558,7 @@ contains
   end function
 
   subroutine prepare_native_inverse(generation,scaling,wavelet,first_level,profile,consumer_only, &
-       field_first,field_count,entry_alias_address,entry_alias_value,transition_entry)
+       field_first,field_count,entry_alias_address,entry_alias_value,transition_entry,bootstrap_entry)
     integer(int64), intent(in) :: generation
     integer, intent(in) :: first_level
     logical, intent(in) :: profile
@@ -552,15 +568,20 @@ contains
     integer,intent(in),optional::field_first,field_count,entry_alias_address(:,:)
     real(dp),intent(in),optional::entry_alias_value(:,:,:)
     integer::selected_first,selected_count,old_first,old_count
-    logical,optional,intent(in)::transition_entry
-    logical::from_transition
+    logical,optional,intent(in)::transition_entry,bootstrap_entry
+    logical::from_transition,from_bootstrap
     logical::native_entry
     logical,allocatable::entry_seen(:)
     integer :: d,id,q,k,v,total,b,p,r,pos,n,next_patch
+#ifdef LIFECYCLE_NATIVE
+    integer::initial_slot
+#endif
     integer, allocatable :: sc(:),rc(:),sd(:),rd(:),sb(:,:),rb(:,:),request(:,:),slots(:)
     type(Boundary_Manifest) :: manifest
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
+    from_bootstrap=.false.
+    if(present(bootstrap_entry)) from_bootstrap=bootstrap_entry
     from_transition=.false.
     if(present(transition_entry)) from_transition=transition_entry
     selected_first=1;selected_count=zlevels
@@ -573,7 +594,8 @@ contains
     if(native_entry.neqv.present(entry_alias_address)) call die('incomplete native inverse entry')
     if(.not.native_entry.and..not.from_transition) then
        if(.not.present(scaling).or..not.present(wavelet)) call die('inverse compatibility inputs absent')
-       if(selected_first/=1.or.selected_count/=zlevels) call die('non-atmospheric inverse requires native entry')
+       if(.not.from_bootstrap.and.(selected_first/=1.or.selected_count/=zlevels)) &
+            call die('non-atmospheric inverse requires native entry')
        if(size(scaling,1)/=N_VARIABLE.or.size(scaling,2)/=selected_count.or. &
             size(wavelet,1)/=N_VARIABLE.or.size(wavelet,2)/=selected_count) call die('inverse input shape')
     end if
@@ -866,6 +888,30 @@ contains
        call detail_add(DC_INVERSE_REUSE,1_int64)
     end if
     call detail_leave(DP_INVERSE_PLAN)
+    if(from_bootstrap) then
+       if(native_entry.or.from_transition.or.initial_consumer) call die('bootstrap entry overlaps numerical epoch')
+       do p=1,nnode
+          d=node_domain(p);id=node_id(p)
+          do k=1,inverse_levels
+             do v=1,nscalar
+                value(v,k,p,1)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
+                value(v,k,p,2)=wavelet(scalars(1)+v-1,k)%data(d)%elts(id+1)
+             end do
+             do v=1,EDGE
+                value(nscalar+v,k,p,1)=scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)
+                value(nscalar+v,k,p,2)=wavelet(S_VELO,k)%data(d)%elts(EDGE*id+v)
+             end do
+          end do
+       end do
+       do q=1,2
+          call native_inverse_gather(q,BLOCK_PAYLOAD_SOL,.false.)
+          call native_inverse_gather(q,BLOCK_PAYLOAD_WAV_COEFF,.false.)
+       end do
+       do q=1,size(consumer_alias_slot)
+          consumer_alias_value(:,:,q)=value(:,:,consumer_alias_slot(q),1)
+       end do
+       return
+    end if
     if(from_transition) then
        if(.not.native_transition_ready()) call die('transition entry is not ready')
        do p=1,nnode
@@ -942,14 +988,25 @@ contains
        do q=1,size(consumer_alias_slot)
           p=consumer_alias_slot(q);d=node_domain(p);id=node_id(p)
           if(nodes(d)%key(1,id+1)/=0) call die('initial alias includes canonical interior')
+#ifdef LIFECYCLE_NATIVE
+          initial_slot=initial_native_alias_slot(d,id)
+#endif
 #ifdef PHYSICS_NATIVE_STATE
           do k=zmin,0
 #ifdef SOIL_NATIVE
              do v=1,nscalar
+#ifdef LIFECYCLE_NATIVE
+                physics_alias_soil(v,1-k,q)=initial_alias_data(v,k,initial_slot)
+#else
                 physics_alias_soil(v,1-k,q)=sol(scalars(1)+v-1,k)%data(d)%elts(id+1)
+#endif
              end do
+#ifdef LIFECYCLE_NATIVE
+             physics_alias_soil(nscalar+1:nscalar+EDGE,1-k,q)=initial_alias_data(nscalar+1:nscalar+EDGE,k,initial_slot)
+#else
              physics_alias_soil(nscalar+1:nscalar+EDGE,1-k,q)= &
                   sol(S_VELO,k)%data(d)%elts(EDGE*id+1:EDGE*id+EDGE)
+#endif
 #else
              physics_alias_soil(S_TEMP-scalars(1)+1,1-k,q)=sol(S_TEMP,k)%data(d)%elts(id+1)
 #endif
@@ -962,9 +1019,17 @@ contains
 #endif
           do k=1,inverse_levels
              do v=1,nscalar
+#ifdef LIFECYCLE_NATIVE
+                value(v,k,p,BLOCK_PAYLOAD_SOL)=initial_alias_data(v,k,initial_slot)
+#else
                 value(v,k,p,BLOCK_PAYLOAD_SOL)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
+#endif
              end do
+#ifdef LIFECYCLE_NATIVE
+             value(nscalar+1:nscalar+EDGE,k,p,BLOCK_PAYLOAD_SOL)=initial_alias_data(nscalar+1:nscalar+EDGE,k,initial_slot)
+#else
              value(nscalar+1:nscalar+EDGE,k,p,BLOCK_PAYLOAD_SOL)=scaling(S_VELO,k)%data(d)%elts(EDGE*id+1:EDGE*id+EDGE)
+#endif
           end do
        end do
        if(block_rk_enabled) then
@@ -1709,17 +1774,18 @@ contains
     end do
   end subroutine
 
-  subroutine native_inverse_boundary(component,family,first,last)
+  subroutine native_inverse_boundary(component,family,first,last,first_field,field_count)
     integer, intent(in) :: component,family,first,last
+    integer,optional,intent(in)::first_field,field_count
     real(dp) :: started
     started=0.0_dp
     if (timing) started=MPI_Wtime()
     if (first==last) then
-       call apply_aliases(aliases(component,first),component,family)
+       call apply_aliases(aliases(component,first),component,family,first_field,field_count)
     else if (last==level_end .and. first==level_start-1) then
-       call apply_aliases(range_alias(component,1),component,family)
+       call apply_aliases(range_alias(component,1),component,family,first_field,field_count)
     else if (last==level_end .and. first==level_start) then
-       call apply_aliases(range_alias(component,2),component,family)
+       call apply_aliases(range_alias(component,2),component,family,first_field,field_count)
     else
        call die('uncompiled alias level range')
     end if
@@ -1729,30 +1795,37 @@ contains
     end if
   end subroutine
 
-  subroutine apply_aliases(a,component,family)
+  subroutine apply_aliases(a,component,family,first_field,field_count)
     type(Alias_Plan), intent(inout) :: a
     integer, intent(in) :: component,family
+    integer,optional,intent(in)::first_field,field_count
+    integer :: first_k,last_k
     integer :: p,k,v,nv,n,q,t,nrequest
 #ifdef STAGE202_INVERSE
     integer :: sn,dn,sf,df
     logical :: negative
 #endif
     nv=merge(nscalar,1,component==1)
-    n=nv*inverse_levels
+    first_k=1;last_k=inverse_levels
+    if(present(first_field).neqv.present(field_count)) call die('incomplete alias vertical range')
+    if(present(first_field)) first_k=first_field
+    if(present(field_count)) last_k=first_k+field_count-1
+    if(first_k<1.or.last_k<first_k.or.last_k>inverse_levels) call die('alias vertical range')
+    n=nv*(last_k-first_k+1)
     ! Remote sends are snapshots BEFORE the ordered, all-level local copies.
     call detail_enter(DP_INVERSE_PACK)
     q=0
     do p=1,size(a%source)
 #ifdef STAGE202_INVERSE
        call alias_address(a%source(p),component,sn,sf)
-       do k=1,inverse_levels
+       do k=first_k,last_k
           do v=1,nv
              q=q+1
              alias_send(q)=value(sf+v-1,k,sn,family)
           end do
        end do
 #else
-       do k=1,inverse_levels
+       do k=first_k,last_k
           do v=1,nv
              q=q+1
              alias_send(q)=alias_value(a%source(p),component,v,k,family)
@@ -1772,20 +1845,20 @@ contains
        negative=component==2.and.local_alias(component)%dest(p)<0
        ! Keep p,k,v ordering: local alias chains can consume earlier writes.
        if (negative) then
-          do k=1,inverse_levels
+          do k=first_k,last_k
              do v=1,nv
                 value(df+v-1,k,dn,family)=-value(sf+v-1,k,sn,family)
              end do
           end do
        else
-          do k=1,inverse_levels
+          do k=first_k,last_k
              do v=1,nv
                 value(df+v-1,k,dn,family)=value(sf+v-1,k,sn,family)
              end do
           end do
        end if
 #else
-       do k=1,inverse_levels
+       do k=first_k,last_k
           do v=1,nv
              call set_alias(local_alias(component)%dest(p),component,v,k,family, &
                   alias_value(local_alias(component)%source(p),component,v,k,family))
@@ -1804,14 +1877,14 @@ contains
 #ifdef STAGE202_INVERSE
        call alias_address(a%dest(t),component,dn,df)
        if (component==2.and.a%dest(t)<0) then
-          do k=1,inverse_levels
+          do k=first_k,last_k
              do v=1,nv
                 q=q+1
                 value(df+v-1,k,dn,family)=-alias_recv(q)
              end do
           end do
        else
-          do k=1,inverse_levels
+          do k=first_k,last_k
              do v=1,nv
                 q=q+1
                 value(df+v-1,k,dn,family)=alias_recv(q)
@@ -1819,7 +1892,7 @@ contains
           end do
        end if
 #else
-       do k=1,inverse_levels
+       do k=first_k,last_k
           do v=1,nv
              q=q+1
              call set_alias(a%dest(t),component,v,k,family,alias_recv(q))
@@ -2809,8 +2882,140 @@ contains
        call native_inverse_scatter(c,BLOCK_PAYLOAD_WAV_COEFF,.true.)
     end do
 
+#ifdef LIFECYCLE_NATIVE
+    lifecycle_ready=.true.
+#endif
     write(*,'(a,i0)') 'Native adaptation reconstruction rank=',rank
   end subroutine native_adaptation_reconstruct
+
+  logical function native_lifecycle_ready() result(ready)
+    ready=lifecycle_ready
+    if(ready.and.(inverse_field_first/=zmin.or.inverse_levels/=zlevels-zmin+1)) &
+         call die('native lifecycle range changed while ready')
+  end function native_lifecycle_ready
+
+  subroutine invalidate_native_lifecycle
+    lifecycle_ready=.false.
+    if(allocated(initial_alias_map)) deallocate(initial_alias_map,initial_alias_data)
+    initial_alias_generation=-1_int64
+  end subroutine invalidate_native_lifecycle
+
+  real(dp) function native_lifecycle_field(family,variable,layer,d,address) result(x)
+    integer,intent(in)::family,variable,layer,d,address
+    integer::v,id,p,k
+    if(.not.native_lifecycle_ready()) call die('native lifecycle field outside epoch')
+    if(family/=1.and.family/=2) call die('native lifecycle family')
+    if(d<1.or.d>size(nodes).or.layer<zmin.or.layer>zlevels.or.address<1) &
+         call die('native lifecycle address')
+    if(variable==S_VELO) then
+       id=(address-1)/EDGE;v=nscalar+mod(address-1,EDGE)+1
+    else
+       if(variable<scalars(1).or.variable>scalars(2)) call die('native lifecycle variable')
+       id=address-1;v=variable-scalars(1)+1
+    end if
+    if(id>=size(nodes(d)%slot)) call die('native lifecycle topology extent')
+    p=nodes(d)%slot(id+1);k=layer-zmin+1
+    if(p<1) call die('native lifecycle operand unregistered')
+    x=value(v,k,p,family)
+  end function native_lifecycle_field
+
+  subroutine set_native_lifecycle_scalar(variable,layer,d,address,x)
+    integer,intent(in)::variable,layer,d,address
+    real(dp),intent(in)::x
+    real(dp)::old
+    integer::p
+    old=native_lifecycle_field(BLOCK_PAYLOAD_SOL,variable,layer,d,address)
+    if(variable==S_VELO) call die('native lifecycle scalar setter variable')
+    if(.not.ieee_is_finite(old)) call die('native lifecycle scalar setter nonfinite input')
+    p=nodes(d)%slot(address)
+    if(nodes(d)%key(1,address)>0) call die('native lifecycle alias setter targets canonical owner')
+    value(variable-scalars(1)+1,layer-zmin+1,p,BLOCK_PAYLOAD_SOL)=x
+  end subroutine set_native_lifecycle_scalar
+
+  subroutine prepare_native_lifecycle_boundary(atmosphere_only,owners_updated)
+    logical,intent(in)::atmosphere_only,owners_updated
+    integer::c,first,count
+    if(.not.native_lifecycle_ready()) call die('native lifecycle boundary epoch')
+    if(owners_updated) then
+       do c=1,2
+          call native_inverse_gather(c,BLOCK_PAYLOAD_SOL,.false.)
+       end do
+    end if
+    first=1;count=inverse_levels
+    if(atmosphere_only) then
+       first=2-zmin;count=zlevels
+    end if
+    do c=1,2
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_SOL,level_start-1,level_end, &
+            first_field=first,field_count=count)
+       call native_inverse_scatter(c,BLOCK_PAYLOAD_SOL,.false.)
+    end do
+  end subroutine prepare_native_lifecycle_boundary
+
+#ifdef LIFECYCLE_NATIVE
+  subroutine capture_initial_native_aliases(generation)
+    integer(int64),intent(in)::generation
+    integer::q,p,d,id
+    if(.not.native_lifecycle_ready().or.generation/=plan_generation) call die('initial native alias generation')
+    if(allocated(initial_alias_map)) call die('initial native alias bridge already open')
+    initial_alias_map=nodes
+    do d=1,size(initial_alias_map)
+       initial_alias_map(d)%slot=0
+    end do
+    allocate(initial_alias_data(nscalar+EDGE,zmin:zlevels,size(consumer_alias_slot)))
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q);d=node_domain(p);id=node_id(p)
+       if(nodes(d)%key(1,id+1)/=0) call die('initial native alias includes canonical interior')
+       initial_alias_map(d)%slot(id+1)=q
+       initial_alias_data(:,:,q)=value(:,:,p,BLOCK_PAYLOAD_SOL)
+    end do
+    initial_alias_generation=generation
+    lifecycle_ready=.false.
+  end subroutine capture_initial_native_aliases
+
+  integer function initial_native_alias_slot(d,id) result(q)
+    integer,intent(in)::d,id
+    if(.not.allocated(initial_alias_map).or.initial_alias_generation/=plan_generation) &
+         call die('initial native alias bridge epoch')
+    if(d<1.or.d>size(initial_alias_map)) call die('initial native alias Domain')
+    if(id<0.or.id>=size(initial_alias_map(d)%slot)) call die('initial native alias id')
+    q=initial_alias_map(d)%slot(id+1)
+    if(q<1) call die('initial native alias bridge missing operand')
+  end function initial_native_alias_slot
+
+#endif
+  subroutine capture_native_output_aliases(scaling)
+    type(Float_Field),intent(in)::scaling(:,:)
+    integer::p,d,id,k,v,n
+    if(.not.native_lifecycle_ready()) call die('output alias adapter outside native lifecycle')
+    if(size(scaling,1)/=N_VARIABLE.or.size(scaling,2)/=inverse_levels) call die('output alias adapter shape')
+    n=0
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)
+       if(nodes(d)%key(1,id+1)>0.and..not.btest(node_flags(p),0).and..not.btest(node_flags(p),1)) cycle
+       n=n+1
+       do k=1,inverse_levels
+          do v=1,nscalar
+             value(v,k,p,1)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
+          end do
+          do v=1,EDGE
+             value(nscalar+v,k,p,1)=scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)
+          end do
+       end do
+    end do
+    write(*,'(a,i0,a,i0)') 'Native output alias adapter rank=',rank,' slots=',n
+  end subroutine capture_native_output_aliases
+
+  subroutine bootstrap_native_lifecycle(generation,scaling,wavelet)
+    integer(int64),intent(in)::generation
+    type(Float_Field),intent(in)::scaling(:,:),wavelet(:,:)
+    if(.not.compressible.or.mode_split.or.vert_diffuse) call die('native lifecycle requires unsplit atmosphere')
+    if(lifecycle_ready) call die('native lifecycle bootstrap overlaps live epoch')
+    call prepare_native_inverse(generation,scaling,wavelet,level_start,.false., &
+         field_first=zmin,field_count=zlevels-zmin+1,bootstrap_entry=.true.)
+    lifecycle_ready=.true.
+    write(*,'(a,i0)') 'Native lifecycle bootstrap rank=',rank
+  end subroutine bootstrap_native_lifecycle
 
   subroutine publish_native_soil(scaling,wavelet)
     type(Float_Field),intent(inout)::scaling(:,:),wavelet(:,:)

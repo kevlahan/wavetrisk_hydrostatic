@@ -715,3 +715,16 @@ endif
 $(BUILD_DIR)/mask.o $(BUILD_DIR)/parallel_block_build.o: $(BUILD_DIR)/parallel_block_inverse.o
 
 $(BUILD_DIR)/lnorms.o: $(BUILD_DIR)/parallel_block_inverse.o
+
+# Native between-step numerical lifecycle and explicit I/O adapters.
+LIFECYCLE_NATIVE ?= off
+ifneq ($(filter $(LIFECYCLE_NATIVE),on check),)
+ifeq ($(filter $(ADAPT_NATIVE),on check),)
+$(error LIFECYCLE_NATIVE requires ADAPT_NATIVE=on/check)
+endif
+FFLAGS += -DLIFECYCLE_NATIVE
+endif
+ifeq ($(LIFECYCLE_NATIVE),check)
+FFLAGS += -DLIFECYCLE_NATIVE_ORACLE
+endif
+$(BUILD_DIR)/remap.o: $(BUILD_DIR)/parallel_block_inverse.o

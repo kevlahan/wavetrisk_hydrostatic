@@ -1,4 +1,5 @@
 module parallel_block_mpi_mod
+  use parallel_block_inverse_mod, only: native_lifecycle_field
   use parallel_block_inverse_mod, only: native_transition_ready,native_transition_field
   use parallel_block_inverse_mod, only: block_rk_enabled,prepare_retained_rk_aliases, &
        finish_retained_rk_boundary,rk_scaffold_operand,rk_mass_alias_operand,retained_rk_cycle_active
@@ -3517,8 +3518,10 @@ contains
     vector_ghost_recv_size_before = &
          size(ghost_exchange_plan%vector_recv_buffer)
 
+#ifndef LIFECYCLE_NATIVE
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.,include_vector=.false.)
+#endif
     call exchange_block_scalar_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
 
@@ -3679,9 +3682,14 @@ contains
                 end if
                 field_index = id+1
                 do k = 1,zlevels
+#ifdef LIFECYCLE_NATIVE
+                   rho_dz(k)=native_lifecycle_field(BLOCK_PAYLOAD_SOL,S_MASS,k,d,field_index)+ &
+                        sol_mean(S_MASS,k)%data(d)%elts(field_index)
+#else
                    rho_dz(k) = &
                         sol(S_MASS,k)%data(d)%elts(field_index)+ &
                         sol_mean(S_MASS,k)%data(d)%elts(field_index)
+#endif
                 end do
                 pressure_surface = grav_accel*sum(rho_dz)+p_top
                 do k = 1,zlevels
@@ -3921,8 +3929,10 @@ contains
     allocation_before = block_writeback_plan_allocation_count()
     writeback_before = block_domain_production_writeback_count()
 
+#ifndef LIFECYCLE_NATIVE
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.)
+#endif
     call refresh_block_sol_ghosts
     call invalidate_local_block_hydrostatic_state
     if (block_dynamics_validation_enabled()) then
@@ -11327,10 +11337,14 @@ end subroutine build_parallel_block_catalog
        call block_profile_enter(BLOCK_PROFILE_ORACLE)
        call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
     end if
+#ifndef LIFECYCLE_NATIVE
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.)
+#endif
+#ifndef LIFECYCLE_NATIVE
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.true.)
+#endif
     call refresh_block_sol_ghosts
     if (validate_oracle) then
        call local_block_scalar_stencil_statistics( &
@@ -11340,8 +11354,10 @@ end subroutine build_parallel_block_catalog
 
        ! Prove idempotence only in exact-oracle mode.  Repeating this complete
        ! ghost transaction on every production timestep was pure validation.
+#ifndef LIFECYCLE_NATIVE
        call import_domain_boundary_field_family_to_blocks( &
             BLOCK_PAYLOAD_SOL,.true.)
+#endif
        call refresh_block_sol_ghosts
        call local_block_scalar_stencil_statistics( &
             scalar_address_second,scalar_value_second, &
