@@ -562,11 +562,11 @@ contains
 
 
   subroutine apply_domain_physics_consumers
-    ! Physics remains a deliberate Domain compatibility mutation after the
-    ! authoritative compact dynamics state has been materialized for grid
-    ! change.  It may update atmospheric prognostics, diagnostic work fields
-    ! and Simple-physics soil temperatures, but it must not alter the retained
-    ! compact transaction or perform another block writeback.
+    ! Split physics runs within the pending grid-change transaction. Native
+    ! Simple physics retains updated physical and soil values on their owners;
+    ! the pre-physics atmospheric wavelet decision image remains unchanged.
+    ! Compatibility publication serves the remaining soil/adaptation consumers.
+    ! No consumer may change the transaction phase or hide a block writeback.
 
     implicit none
 

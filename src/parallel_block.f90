@@ -29,7 +29,7 @@ module parallel_block_mod
 
   public :: transfer_local_block_inverse_node
   public :: compile_local_block_inverse_routes, transfer_local_block_inverse_routes
-  public :: read_local_block_physics_routes
+  public :: read_local_block_physics_routes,write_local_block_physics_routes
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
@@ -958,6 +958,46 @@ subroutine compile_local_block_inverse_routes(key,address)
      end associate
   end do
 end subroutine compile_local_block_inverse_routes
+
+subroutine write_local_block_physics_routes(address,values,write_velocity)
+  ! Install only fields produced by physics. Atmospheric decision wavelets and
+  ! mass/mean/reference data retain their distinct pre-physics epoch.
+  integer,intent(in)::address(:,:)
+  real(dp),intent(in)::values(4*zlevels+1-zmin,size(address,2))
+  logical,intent(in)::write_velocity(size(address,2))
+  integer::p,b,n,node,k,ti,vi,st,nf,first
+  do p=1,size(address,2)
+     b=address(1,p);n=address(4,p);node=address(3,p)+1
+     associate(block=>block_local(b))
+       nf=block%n_field_level;first=block%field_level
+       st=S_TEMP-block%scalar_variable
+       if(st<0.or.st>=block%n_scalar_variable.or.block%scalar_mult/=1) &
+            error stop 'physics native output scalar layout'
+       if(first>zmin.or.first+nf-1<zlevels) error stop 'physics native output layer extent'
+       do k=1,zlevels
+          ti=(st*nf+k-first)*n+node;vi=EDGE*((k-first)*n+node-1)
+          select case(address(2,p))
+          case(STORE_PATCH)
+             block%scalar(ti)=values(3*zlevels+k,p)
+             if(write_velocity(p)) block%vector(vi+1:vi+EDGE)=values(3*(k-1)+1:3*k,p)
+          case(STORE_BDRY)
+             block%bdry_scalar(ti)=values(3*zlevels+k,p)
+             if(write_velocity(p)) block%bdry_vector(vi+1:vi+EDGE)=values(3*(k-1)+1:3*k,p)
+          case default
+             error stop 'physics native output storage class'
+          end select
+       end do
+       do k=zmin,0
+          ti=(st*nf+k-first)*n+node
+          if(address(2,p)==STORE_PATCH) then
+             block%scalar(ti)=values(4*zlevels+1-k,p)
+          else
+             block%bdry_scalar(ti)=values(4*zlevels+1-k,p)
+          end if
+       end do
+     end associate
+  end do
+end subroutine write_local_block_physics_routes
 
 subroutine read_local_block_physics_routes(address,values)
   ! Read only final-owner physical state. Numerical source Domains are absent.

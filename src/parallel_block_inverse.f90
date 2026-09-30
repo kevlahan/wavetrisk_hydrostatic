@@ -11,9 +11,9 @@ module parallel_block_inverse_mod
        MPI_Request, MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_STATUSES_IGNORE, MPI_Allreduce, MPI_MIN, MPI_MAX
   use kind_mod, only : dp
   use shared_mod, only : EDGE, AT_NODE, AT_EDGE, N_VARIABLE, N_BDRY, N_CHDRN, &
-       scalars, S_VELO, S_TEMP, zlevels, n_domain, level_start, level_end, end_pt, opp_no, hex_sides, hex_s_offs, &
+       scalars, S_VELO, S_TEMP, zlevels, zmin, n_domain, level_start, level_end, end_pt, opp_no, hex_sides, hex_s_offs, &
        DG, FROZEN, LORT, UPLT, TRIAG, RT, UP, NORTHEAST, NORTHWEST, IMINUSJPLUS, IPLUSJMINUS, IJMINUS
-  use domain_mod, only : grid, sol, Float_Field, idx, ed_idx, get_offs_Domain, chd_offs
+  use domain_mod, only : grid, sol, sol_mean, Float_Field, idx, ed_idx, get_offs_Domain, chd_offs
   use patch_mod, only : PATCH_SIZE, LAST
   use arch_mod, only : comm, rank, n_process, glo_id, loc_id, owner, block_catalog, abort_run
   use parallel_block_mod, only : Block_Data, STORE_PATCH, STORE_BDRY, BLOCK_PAYLOAD_SOL, &
@@ -30,7 +30,7 @@ module parallel_block_inverse_mod
   public :: complete_inverse_operand_epoch, require_provisional_inverse_operands
   public :: require_tendency_operands,prepare_initial_tendency_operands
   public :: capture_native_inverse_consumer_aliases
-  public :: physics_consumer_alias,finish_physics_consumer_epoch
+  public :: physics_consumer_alias,finish_physics_consumer_epoch,install_physics_consumer_alias
   real(dp), public :: native_inverse_seconds(3)=0.0_dp
   integer(int64), public :: native_inverse_calls(3)=0_int64, native_inverse_messages(3)=0_int64, &
        native_inverse_bytes(3)=0_int64
@@ -103,6 +103,8 @@ module parallel_block_inverse_mod
   integer, allocatable :: consumer_alias_slot(:),consumer_alias_index(:)
   logical :: physics_consumer_ready=.false.
   real(dp), allocatable :: consumer_alias_value(:,:,:)
+  real(dp), allocatable :: physics_alias_mean(:,:,:),physics_alias_soil(:,:)
+  logical :: physics_reference_ready=.false.
   integer, allocatable :: node_flags(:)
   real(dp), allocatable :: scaffold_value(:,:,:)
   integer(int64), allocatable :: coverage(:,:)
@@ -555,7 +557,7 @@ contains
        if (allocated(nodes)) deallocate(nodes,node_domain,node_id,value,aliases,operations,coverage, &
             scaffold_slot,scaffold_value,operation_first,operation_last,node_flags,level_interior,level_boundary, &
             outer_install,transfer_send,transfer_recv,alias_send,alias_recv,consumer_alias_slot,consumer_alias_value, &
-            consumer_alias_index)
+            consumer_alias_index,physics_alias_mean,physics_alias_soil)
        do q=1,2
           if (allocated(local_alias(q)%source)) deallocate(local_alias(q)%source,local_alias(q)%dest)
        end do
@@ -755,6 +757,8 @@ contains
           if (nodes(node_domain(p))%key(1,node_id(p)+1)==0) n=n+1
        end do
        allocate(consumer_alias_slot(n),consumer_alias_value(nscalar+EDGE,zlevels,n),consumer_alias_index(nnode))
+       allocate(physics_alias_mean(nscalar,zlevels,n),physics_alias_soil(1-zmin,n))
+       physics_reference_ready=.false.
        consumer_alias_index=0
        n=0
        do p=1,nnode
@@ -809,6 +813,14 @@ contains
        do q=1,size(consumer_alias_slot)
           p=consumer_alias_slot(q);d=node_domain(p);id=node_id(p)
           if(nodes(d)%key(1,id+1)/=0) call die('initial alias includes canonical interior')
+          do k=zmin,0
+             physics_alias_soil(1-k,q)=sol(S_TEMP,k)%data(d)%elts(id+1)
+          end do
+          do k=1,zlevels
+             do v=1,nscalar
+                physics_alias_mean(v,k,q)=sol_mean(scalars(1)+v-1,k)%data(d)%elts(id+1)
+             end do
+          end do
           do k=1,zlevels
              do v=1,nscalar
                 value(v,k,p,BLOCK_PAYLOAD_SOL)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
@@ -825,6 +837,7 @@ contains
           end do
        end if
        initial_operands_ready=.true.
+       physics_reference_ready=.true.
        write(*,'(a,i0,a,i0)') 'Initial tendency alias epoch rank=',rank,' registered aliases=',size(consumer_alias_slot)
        return
     end if
@@ -1750,11 +1763,12 @@ contains
     bits=transfer(x,bits)
   end function
 
-  subroutine physics_consumer_alias(d,id,operand)
+  subroutine physics_consumer_alias(d,id,operand,mean,soil)
     ! The saved final-inverse consumer version is distinct from the current
     ! initial/provisional tendency epoch and from canonical block interiors.
     integer,intent(in)::d,id
     real(dp),intent(out)::operand(nscalar+EDGE,zlevels)
+    real(dp),intent(out),optional::mean(nscalar,zlevels),soil(1-zmin)
     integer::key(4),p,q
     if(.not.physics_consumer_ready) call die('physics consumer alias epoch is not ready')
     call inverse_operand_key(d,id,key)
@@ -1763,9 +1777,29 @@ contains
     if(p<1.or.p>original_inverse_nodes) call die('physics alias is outside the consumer closure')
     q=consumer_alias_index(p)
     if(q<1) call die('physics alias index absent')
+    if(.not.physics_reference_ready) call die('physics reference alias epoch is not ready')
     operand=consumer_alias_value(:,:,q)
+    if(present(mean)) mean=physics_alias_mean(:,:,q)
+    if(present(soil)) soil=physics_alias_soil(:,q)
     if(.not.all(ieee_is_finite(operand))) call die('nonfinite saved physics alias')
   end subroutine
+
+  subroutine install_physics_consumer_alias(d,id,result,write_velocity)
+    integer,intent(in)::d,id
+    real(dp),intent(in)::result(4*zlevels+1-zmin)
+    logical,intent(in)::write_velocity
+    real(dp)::entry(nscalar+EDGE,zlevels)
+    integer::q,k
+    call physics_consumer_alias(d,id,entry)
+    q=consumer_alias_index(nodes(d)%slot(id+1))
+    consumer_alias_value(S_TEMP-scalars(1)+1,:,q)=result(3*zlevels+1:4*zlevels)
+    if(write_velocity) then
+       do k=1,zlevels
+          consumer_alias_value(nscalar+1:nscalar+EDGE,k,q)=result(3*(k-1)+1:3*k)
+       end do
+    end if
+    physics_alias_soil(:,q)=result(4*zlevels+1:)
+  end subroutine install_physics_consumer_alias
 
   subroutine finish_physics_consumer_epoch
     if(.not.physics_consumer_ready) call die('physics consumer epoch already consumed')

@@ -1,139 +1,132 @@
-# Remaining migration — active implementation
+# Remaining migration — current implementation record
 
-User authorization: complete the remaining implementation before performance work
-on bbserv. Do not stop at another partial handoff and do not launch bbserv jobs.
-Use the authoritative worktree `/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic`.
+User authorization: **complete the remaining implementation before performance
+work on bbserv**. Do not stop at another partial handoff or launch bbserv jobs.
+The authoritative worktree is `/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic`,
+branch `codex/performance-investigation`. The tool default cwd26d8 is not this tree.
 The local machine has four usable cores: one solver job at a time, library threads
-one; 41 ranks is an oversubscribed correctness check only.
+one, builds `-j1`. Forty-one MPI ranks is oversubscribed correctness coverage only.
+No subagents. Main must remain `6a245db7f1632b0205c2bebe95e5f0cd535c2582`.
+Mutations/tests in7173 require the approved escalation mode. Never stage all files;
+many unrelated historical artifacts and generated package objects are untracked.
 
-## Accepted checkpoint
+## Accepted checkpoints
 
-Stage239 owner package execution and its nine qualification cases are committed
-as `58416b11`. The earlier retained RK migration is complete. Main is unchanged.
+- Stage236 retained RK/tendencies: `6e528e92`.
+- Stage237 local physics pressure scratch: `efdd9b9b`.
+- Stage238 explicit velocity versions: `1a63854f`.
+- Stage239 ordered owner package calls: `58416b11` (nine accepted cases).
+- Stage240 owner physics DAG/bulk publication: `f1bd9886` (ten accepted cases).
+- Stage241 native canonical input gathering/saved atmospheric aliases: `0a69c3ba`
+  (fourteen accepted cases, including destructive entry poison).
 
-## Active change
+Frozen candidate trees, binaries and trajectories are under `.stageNNN-validation`.
+Never silently refresh a frozen tree after source edits. Preserve failed attempts.
+Stage240 first failed replay consumed pressure scratch twice; resetting surface
+pressure/geopotential before independent replay fixed it. Failed attempts are kept.
+All accepted full runs match12 step states, two remaps and62 VTK members at4/41 ranks.
 
-Stage240 adds `PHYSICS_OWNER_BATCH`: import column records to their final owners,
-recompute pressure/velocity inputs there, execute a velocity-dependency DAG, send
-only required updated predecessor edges, and publish completed state in bulk.
-The original serial path is the reference. The checker replays source-column
-order independently and compares complete packets and double-precision state.
-The production publication callback reads no numerical Domain operands.
+## Stage242 — accepted; ready to commit
 
-Build currently targets `.stage240-validation/candidate`, with helper
-`test/parallel_block_profile/physics_240/build_physics.py`. All ten qualification cases and final source-bound review now pass, including
-exact full 4/41 trajectories and destructive poison. This checkpoint is ready to
-commit before beginning native input gathering. Preserve all older frozen
-evidence and do not silently refresh a frozen tree if source changes.
+Five solver files changed: Makefile, src/main.f90 comments, src/parallel_block.f90,
+src/parallel_block_inverse.f90, src/physics/physics_simple.f90.
+`PHYSICS_NATIVE_STATE=on/check` requires native input and retained RK.
 
-## Still required before claiming completion
+- Alias mean/soil references are captured at initial RK entry; those fields remain
+  unchanged within RK. Atmospheric aliases use their distinct saved final-inverse
+  consumer epoch. Production physics now reads no Domain prognostic/mean/soil
+  input; geometry and fixed reference inputs remain geometry metadata.
+- After complete DAG execution, canonical temperature/velocity/soil results are
+  retained on final owners. Primary alias results are retained in native alias
+  storage. Header27 carries is_pole, preserving non-writing pole velocity.
+- Mass, means and atmospheric decision wavelets remain unchanged. Main's consumer
+  audit preserves pending phase and writeback counts; its comment now explains
+  native physical updates. The audit does not hash numerical payloads.
+- The check build reads stored values back, checking exact scalar/vector/soil,
+  mass/mean/pole invariants; independent serial replay still checks scientific
+  equivalence of complete packets and results.
+- Final Domain publication still serves legacy soil/adaptation. Native state is
+  rebuilt from Domain after adaptation; the complete lifecycle is NOT migrated.
 
-- Qualify the owner-resident physics DAG and bulk publication, including exact
-  4/41 trajectories, old-source poison, independent replay and invalid dependencies.
-- Replace remaining physics entry export from Domain numerical fields with native
-  owner storage and explicitly versioned alias adapters; retain updated owner
-  atmospheric and soil fields across the lifecycle transition.
-- Migrate the soil wavelet transform and adaptation/reconstruction numerical
-  consumers. Preserve the separate pre-physics atmospheric wavelet decision image
-  and post-physics physical scaling values. The inverse reconstructs fine values
-  from coarse physical values plus wavelets; do not assume physics atmospheric
-  updates are simply discarded.
-- Replace persistent restart/output numerical mirrors with bounded owner import
-  and serialization adapters. Geometry-only Domain metadata may remain.
-- Remove obsolete production numerical storage and compatibility round trips only
-  after all producers/consumers have moved; preserve independent oracles/off paths.
-- Run complete local source-bound qualification of the final integrated route.
-  Prepare a precise bbserv performance candidate after correctness is complete;
-  no performance claim follows from these local oversubscribed runs.
+All four builds passed. Frozen tree `.stage242-validation/candidate`, build driver
+`/tmp/build242-driver.log`, completed build session92112. Qualification session85276 completed0. All sixteen cases and final reviewer
+(session5439) passed. No solver/build jobs remain active. Commit this checkpoint,
+then continue the soil/range migration.
 
-This file is an implementation continuity record, not an acceptance claim.
+Passed: oracle-4 (35,812 native storage readbacks), full4/41, control, route,
+dependency, version, output, publication poison, package-soil poison, native-route,
+native-epoch, native-value, entry-poison, retained-owner and retained-alias. Each full run retains
+460,368 canonical and240 alias columns. The alias test now logs `Inject retained
+alias corruption` before mutation; helper and reviewer require the marker so its
+shared mismatch diagnostic cannot yield a false positive.
 
-## Next owner-input implementation details
+Helpers: `test/parallel_block_profile/physics_242`; audit, handoff and final
+source-bound results JSON are complete.
+The entry poison now poisons ALL old atmospheric/mean/soil inputs while gathering,
+then restores test buffers before legacy consumers. It exercises20 primary alias
+columns. Distinguish this from publication poison, which has NO backup/restoration.
+Helpers/include parse successfully. Keep source frozen until final review. Update
+handoff/worklog and commit focused paths after acceptance, then continue remaining
+work; do not end the user's task after this checkpoint.
 
-Use the existing inverse operand keys for the seven column/velocity storage
-identities. Positive catalogue keys must fetch physical scalar/vector, means and
-soil directly from final-owner Block_Data; key-zero entry aliases must use the
-saved final-inverse consumer epoch, not the tendency epoch. Preserve each alias
-storage identity and expected writer ordinal. The six positive-version velocity
-inputs still advance only through the DAG edges. Geometry and fixed reference
-inputs may remain source metadata. Remove production pack_physics_vars reads
-once native entry gathering is wired; retain the old packing in independent replay.
+## Remaining implementation
 
-A native alias accessor needs explicit epoch validation and a node-slot to alias
-index map; inverse_scalar_operand and inverse_vector_operand are prohibited here
-because their contracts select initial/provisional tendency epochs. Current
-capture_native_inverse_consumer_aliases stores the required distinct version.
-Do not read current value(:,:,slot,SOL) as a substitute for that saved epoch.
+1. Native soil wavelet transform/inverse, preserving atmospheric decision wavelets.
+2. Native numerical adaptation/reconstruction and topology migration. Geometry-only
+   Domain metadata may remain, but numerical blocks must not rebuild from mirrors.
+3. Replace the initial alias import and restart/output mirrors with explicitly
+   versioned bounded adapters. Output may mutate aliases/diagnostic scratch: audit
+   actual behavior rather than assuming serialization is side-effect free.
+4. Remove obsolete persistent production numerical storage only after all producers
+   and consumers have moved. Preserve off paths and independent oracles.
+5. Complete source-bound integrated qualification, then prepare the bbserv candidate.
+   No remote jobs or local performance claims yet.
 
-After native input qualification, install physical/soil updates into owner storage
-while preserving the retained atmospheric wavelet image. Amend the pending
-consumer lifecycle contract explicitly; do not bypass its mutation audit. Soil
-wavelets and post-adaptation inverse still need vertical-range generalization.
+## Scientific/lifecycle constraints
 
-## Current Stage241 candidate (after committed Stage240)
+Atmospheric wav_coeff is the PRE-physics decision image, while physical scaling
+is POST-physics. The legacy inverse reconstructs from coarse physical values plus
+wavelets; do not assume physics updates are discarded. Soil WT_after_step computes
+coefficients without scalar restriction, compresses, then inverses. Keep that order.
+Native inverse consumer aliases are deliberately older than fresh kernel aliases:
+post-prolongation scalar aliases, and pre-finest-inner vector aliases. Preserve
+those versions for downstream consumers, including a soil inverse.
 
-Stage240 is committed as `f1bd9886`; all ten cases and source-bound review passed.
-Stage241 is now implemented but unqualified. `PHYSICS_NATIVE_INPUT` sends native
-column/edge keys to execution owners, fetches canonical atmospheric/mean/soil
-values directly from final-owner Block_Data, and uses guarded saved final-inverse
-atmospheric aliases. Production queue packing skips the legacy atmospheric pack.
-Zero-key means and soil still use an explicit Domain alias adapter. Output remains
-the Stage240 write-only Domain publication. This is still not complete migration.
+The initial/provisional accessors inverse_scalar_operand/inverse_vector_operand
+must never substitute for the final consumer alias. Stage241/242 physics uses
+physics_consumer_alias with readiness and registration guards. The new result
+setter updates only physical alias fields; finish closes entry access afterward.
 
-Build is running as session 73427, driver `/tmp/build241-driver.log`, frozen tree
-`.stage241-validation/candidate`. Oracle binary has compiled. No solver is active.
-New helpers are under `test/parallel_block_profile/physics_241`; qualifier reuses
-Stage240 injection helpers and Stage239 package-soil injection. Reviewer and audit
-are drafted, and will need source/evidence checks after qualification. Next run:
-`python3 test/parallel_block_profile/physics_241/qualify.py` after all builds finish.
-No live source changes while the frozen candidate is qualifying.
+## Next soil/range work — findings and drafts
 
-Temporary draft generators `/tmp/edit241.py` and `/tmp/prepare241_storage.py` have
-already been applied. Do not rerun blindly. Storage/exchange/alias drafts are in
-`/tmp/native241_{storage,exchange,alias,fill}.txt`; live source includes subsequent
-fixes. Always treat current source as authoritative.
+`/tmp/native243_transfer.txt` is an UNAPPLIED draft adding optional field_first /
+field_count to transfer_local_block_inverse_routes, keeping atmospheric defaults.
+Its offsets/counts need validation; do not treat the draft as tested code.
+Old generators `/tmp/edit241.py`, `/tmp/edit242.py`, `/tmp/prepare241_storage.py`
+were already applied. DO NOT rerun them. Live source is authoritative.
 
-Stage241 update: all four builds passed. Qualification runs sequentially in session
-94318. The oracle-4 case passed exactly (35,812 column checks); production-4 is
-running. Four additional cases are queued after inherited tests: native-route,
-native-epoch, native-value, entry-poison. New injection helper and include parsed
-successfully. Entry poison deliberately backs up old Domain values, poisons all
-atmospheric solution plus canonical mean/soil values during native gathering, and
-restores them after execute_physics_batch, before normal publication/adaptation.
-This proves entry-read independence only; retain the separate Stage240 publication
-poison with no backup/restoration. Reviewer includes the four extra cases and
-helper/include hashes. Final review has not run.
+Native inverse has68 zlevels references. Stage203 scalar/inner kernels use node
+slots and runtime layer loops, so topology is mostly vertical-independent. Add an
+explicit selected range, updating transfer counts, address(5), buffers and epoch
+contracts together. Do not mutate the global zlevels parameter. Atmospheric
+physics/tendency accessors must reject soil-only epochs; soil publication must
+not mark the atmospheric physics epoch ready.
 
-Further lifecycle inspection: main.f90 Domain_Consumer_Audit checks transaction
-phase and writeback counts only, not numerical payload checksums. Its comments
-currently forbid compact transaction changes. Native physical writes need an
-explicit named lifecycle contract preserving atmospheric wavelets, not silent
-assumptions about numeric audits. Physical output installation must carry the
-is_pole flag because pole columns do not write velocity; current 26-field owner
-header does not include that flag.
+prepare_native_inverse currently requires rk_boundary_ready and reads wavelet
+aliases from its Domain wavelet argument. A soil entry mode needs native physical
+and wavelet seeding, not a fake RK stage. Preserve/export post-physics soil aliases
+before a range-plan rebuild reallocates consumer arrays. For generic soil support,
+retain all soil scalar/vector aliases, not only S_TEMP. Do not silently assume all
+other soil fields are zero (including signed-zero behavior).
 
-For removal of the remaining physics alias mean/soil reads, capture those bounded
-alias fields at the initial inverse-consumer epoch (before RK; they remain unchanged
-within RK), and retain them until final physics consumption. This moves the explicit
-upstream alias adapter out of physics; it does not itself finish the adaptation /
-initial-input lifecycle migration. The saved atmospheric consumer alias remains
-its separate final-inverse version. Do not conflate these epochs.
+produce_block_scalar_wavelets (parallel_block_mpi.f90 around16353) and
+compute_block_scalar_wavelet (around16590) already address arbitrary block field
+levels, but producer loops skip outside1:zlevels. Inactive soil geometry records
+can be zero: explicitly select the physical geometry class for geometry, while
+reading numerical values at their actual soil level. The same issue applies to
+vector operators. zero_resident_wavelets currently zeros entire arrays: a soil
+path must zero ONLY soil coefficients to protect atmospheric decision wavelets.
 
-Stage241 full 4/41 trajectories and control have now passed exactly. Each full
-run has 3,122,100 canonical native requests and 102,156 explicit alias requests.
-Guard/poison tests are still running in session94318; no final review yet.
-
-Next-change drafts (not applied): `/tmp/parallel_block_inverse_242.f90` captures
-bounded alias mean/soil references at initial RK entry and offers them as optional
-physics_consumer_alias results. `/tmp/native242_state.txt` writes completed
-physical temperature/velocity/soil into compiled final-owner routes while leaving
-wavelets unchanged. These need integration and tests, not blind copying. Native
-output installation must carry is_pole; consider a 27th header field and validate
-primary native column key against the execution owner. Preserve keys through result
-installation instead of freeing entry_keys immediately after input fetch.
-
-Stage241 is now fully qualified: all fourteen cases passed, final reviewer passed,
-and source/main/prior evidence hashes matched. The entry-poison test exercised
-20 primary alias columns (ranks0..3:6,4,6,4), so the alias reference adapter has
-actual coverage. Qualification session94318 and review11999 both completed0.
-No solver jobs remain active. Commit this checkpoint, then continue Stage242.
+Stage242 reference arrays currently allocate/capture at initial native RK entry
+even when PHYSICS_NATIVE_STATE is off (numerically inert). Guard that cost when
+preparing final performance baselines; do not change frozen242 source mid-review.

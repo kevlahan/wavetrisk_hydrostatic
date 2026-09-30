@@ -675,3 +675,14 @@ endif
 ifeq ($(PHYSICS_NATIVE_INPUT),check)
 FFLAGS += -DPHYSICS_NATIVE_INPUT_ORACLE
 endif
+
+PHYSICS_NATIVE_STATE ?= off
+ifneq ($(filter $(PHYSICS_NATIVE_STATE),on check),)
+ifeq ($(filter $(PHYSICS_NATIVE_INPUT),on check),)
+$(error PHYSICS_NATIVE_STATE requires PHYSICS_NATIVE_INPUT=on/check)
+endif
+FFLAGS += -DPHYSICS_NATIVE_STATE
+endif
+ifeq ($(PHYSICS_NATIVE_STATE),check)
+FFLAGS += -DPHYSICS_NATIVE_STATE_ORACLE
+endif

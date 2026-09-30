@@ -1,0 +1,82 @@
+{
+  "stage": 242,
+  "checkpoint_commit": "0a69c3bad924bdbc593cd34074ebeb84223edfc7",
+  "sources": [
+    {
+      "file": "src/parallel_block.f90",
+      "sha256": "44f698c47d811572f325d01f1d6ccab8a5e8f9d5619d29191a26cefef1ec7fc5",
+      "contract": "Canonical physical scalar/vector, mean and soil inputs use final-owner Block_Data. Completed physical temperature/velocity/soil results are retained there; mass, means, pole velocities and atmospheric wavelets are preserved."
+    },
+    {
+      "file": "src/parallel_block_inverse.f90",
+      "sha256": "350cfa36b839f6940f50f3b4ec7f18e54bd1e45e9f1cc3784f1c46c4366fb6a1",
+      "contract": "Atmospheric aliases use the saved final-inverse consumer epoch; mean/soil references are captured at initial RK entry. Physics updates retain alias temperature/velocity/soil. Readiness and closure guards prevent stale or canonical access."
+    },
+    {
+      "file": "src/arch.f90",
+      "sha256": "20c7816afa642d72ba9a5f6b436a047da6c7a2800c24f40fab8a54ca63f81632",
+      "contract": "block_catalog supplies final owner, global root Domain and subtree patch identity."
+    },
+    {
+      "file": "src/domain_ops.f90",
+      "sha256": "5c0eaa093dfeb45f8d5ce0da5ad77b5a9be2e5a501757bf711308c662c7c6616",
+      "contract": "Original local column traversal and pole order are preserved."
+    },
+    {
+      "file": "src/physics/physics_simple.f90",
+      "sha256": "edd74f1c2c617199d1af7fd9128087b279b07664beabf001162ac7eae72f0627",
+      "contract": "Import column keys and explicit alias/reference inputs to execution owners; fetch canonical atmospheric, mean and soil values from native storage owners. Compile source-local predecessor identities into DAG waves; compute hydrostatics, kinetic energy and package updates on owners. Exchange only required updated edges, preserving entry aliases. Publish completed double-precision state once. Fixed scaffold remains an explicit compatibility case."
+    },
+    {
+      "file": "src/physics/init_physics_module.f90",
+      "sha256": "14607dc5702c8b06db238b41a88acc6f8e7fc9379b6afbabf3381c141c3db5a1",
+      "contract": "init_physics initializes parameters, geometry and extra-level contract on every rank. physics_checkpoint_restart is empty; do not assume it allocates package arrays."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/single_column_mod.F90",
+      "sha256": "aa2aeac741b7ba08f1823a54978208b3c082a7cfbe23aadf773faa2867c6a41d",
+      "contract": "Before every non-first call, reload Tsurf/Tsoil from the packet; after every call, return them. Reload latitude/longitude and trigonometric geometry for every column."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/phyparam_mod.F90",
+      "sha256": "a0d0d3253fe79bb81c27506cb6ca3d9f8d55dabc222b0db3d1477f9291ab673e",
+      "contract": "firstcall_alloc is rank-local and private. firstcall is per-column epoch semantics: preserve it in the packet. Late first use initializes via a disposable first-call copy before the requested non-first call. icount and zDay_last have no numerical consumers in this package."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/soil_mod.F90",
+      "sha256": "5065919a07603de0d03135df986900a2f4670877d54e6a8f8268c98ea049bf6a",
+      "contract": "Tsurf/Tsoil are mutable package scratch; dz1/dz2 and surface property arrays are initialized geometry/parameters. Soil state travels in each packet."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/radiative_mod.F90",
+      "sha256": "57394d53a8467690923305bcdd47256864afdf6e26d28313656b90fafd777f76",
+      "contract": "Radiative inputs and outputs are recomputed per call; no saved column tendency cache."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/turbulence.F90",
+      "sha256": "7a94dda71a3a49ec97700131719a5e30efa33b8c467546271986ece4074f67b9",
+      "contract": "Saved members are model constants/parameters; numerical column work arrays are local."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/astronomy.F90",
+      "sha256": "105df7c9b2924e81437ddd26584de5958867d9833c57c286a1b35a814d69a9af",
+      "contract": "Orbit constants are initialized per rank; SolarLon/Orbite compute from the supplied time."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/comgeomfi.F90",
+      "sha256": "3d4cd79d2f0d0209d750e739066ed9db303da1b7bfc86bbab443643c78e58cd5",
+      "contract": "Location arrays are rank-local mutable scratch, overwritten for every dispatched column."
+    },
+    {
+      "file": "src/main.f90",
+      "sha256": "ff1ea9303262442e17ba8a65de6bcd7792ad3592a17562fc9245aa1dde15e8bb",
+      "contract": "Native physical/soil updates and compatibility publication precede soil wavelets and adaptation. The pending phase and atmospheric wavelet decision image remain intact."
+    }
+  ],
+  "route": "Column and edge native keys are sent to execution owners, which request canonical data directly from storage owners. Global metadata defines predecessor edges by source Domain/node, ordinal and block. Only required updated velocity components are exchanged.",
+  "source_identity": "Each of six operands carries local node ID, expected writer ordinal, and catalogue index where covered. Zero identifies a saved atmospheric consumer alias; its mean/soil reference adapter remains explicit. Do not replace entry aliases with newer canonical values.",
+  "transport": "Bulk owner-local packets and double-precision raw inputs. Topological waves execute ready columns; targeted all-to-all edge updates carry producer components. Bulk double-precision results return to a write-only compatibility callback.",
+  "limits": "Owner-resident epoch and DAG replace per-column Domain reads/writes during execution. Canonical atmospheric/mean/soil reads use owner storage; atmospheric aliases use saved native consumer values. The bounded initial alias reference import and final publication still use Domain compatibility storage; physics itself reads native entry operands and retains complete physical/soil results. Persistent adaptation and I/O migration remain required.",
+  "package_audit": "Manual source review; scientific equivalence is additionally checked by exact trajectory and per-column owner-output oracles.",
+  "performance_claim": null
+}

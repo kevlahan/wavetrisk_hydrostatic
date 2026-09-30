@@ -42,6 +42,10 @@ module physics_simple_mod
   use parallel_block_inverse_mod, only: inverse_operand_key,physics_consumer_alias,finish_physics_consumer_epoch
   use parallel_block_mod, only: compile_local_block_inverse_routes,read_local_block_physics_routes
 #endif
+#ifdef PHYSICS_NATIVE_STATE
+  use parallel_block_mod, only: write_local_block_physics_routes
+  use parallel_block_inverse_mod, only: install_physics_consumer_alias
+#endif
   implicit none
 
   private
@@ -73,7 +77,7 @@ module physics_simple_mod
 #endif
 #ifdef PHYSICS_OWNER
   integer,parameter :: OWNER_COMMAND=28101,OWNER_INPUT=28102,OWNER_OUTPUT=28103,OWNER_TOKEN=28104
-  integer,parameter :: OWNER_HEADER=26
+  integer,parameter :: OWNER_HEADER=27
   integer,allocatable :: last_owner_column(:)
   logical :: owner_package_started=.false.
   integer(int64) :: owner_executed=0,owner_remote=0,owner_scaffold=0,owner_checks=0
@@ -81,6 +85,9 @@ module physics_simple_mod
 #ifdef PHYSICS_OWNER_BATCH
 #ifdef PHYSICS_NATIVE_INPUT
   integer,allocatable :: batch_entry_key(:,:,:)
+#ifdef PHYSICS_NATIVE_STATE
+  integer::retained_columns=0,retained_aliases=0,retained_checks=0
+#endif
 #endif
   integer :: batch_phase=0,batch_waves=0
   integer,allocatable :: batch_header(:,:)
@@ -164,6 +171,9 @@ contains
 #ifdef PHYSICS_NATIVE_INPUT
     allocate(batch_entry_key(4,7,planned_columns))
 #endif
+#ifdef PHYSICS_NATIVE_STATE
+    retained_columns=0;retained_aliases=0;retained_checks=0
+#endif
     batch_phase=1
     call apply_no_bdry2(physics_call,z_null)
     call execute_physics_batch
@@ -187,6 +197,10 @@ contains
 #endif
     call apply_no_bdry2(physics_call,z_null)
     batch_phase=0
+#ifdef PHYSICS_NATIVE_STATE
+    write(*,'(a,i0,a,3(1x,i0))') 'Physics native state rank=',rank, &
+         ' canonical/aliases/checks=',retained_columns,retained_aliases,retained_checks
+#endif
 #ifdef PHYSICS_NATIVE_INPUT
     call finish_physics_consumer_epoch
     deallocate(batch_entry_key)
@@ -242,7 +256,7 @@ contains
     id=idx(i,j,offs,dims)+1
     column_visits(dom%id+1)%surface(id)=column_visits(dom%id+1)%surface(id)+1
   end subroutine
-#if defined(PHYSICS_COLUMN_ORACLE) || defined(PHYSICS_NATIVE_INPUT_ORACLE)
+#if defined(PHYSICS_COLUMN_ORACLE) || defined(PHYSICS_NATIVE_INPUT_ORACLE) || defined(PHYSICS_NATIVE_STATE_ORACLE)
   subroutine check_physics_value(actual,expected)
     real(dp),intent(in)::actual,expected
     if(transfer(actual,0_int64)/=transfer(expected,0_int64)) then
@@ -398,8 +412,8 @@ contains
 #endif
 
   subroutine dispatch_physics_owner(d,p,id,mask,latitude,longitude,day,fraction, &
-       play,pint,phi,phisurf,umag,u,v,w,theta,soil)
-    integer,intent(in)::d,p,id,mask
+       play,pint,phi,phisurf,umag,u,v,w,theta,soil,is_pole)
+    integer,intent(in)::d,p,id,mask,is_pole
     real(sp),intent(in)::latitude,longitude,day,fraction,play(:),pint(0:),phi(:),phisurf(:),umag(:)
     real(sp),intent(inout)::u(:),v(:),w(:),theta(:),soil(:)
     integer::header(OWNER_HEADER),reply(OWNER_HEADER),destination,b,ierr,n,count_received
@@ -419,6 +433,7 @@ contains
     associate(plan=>velocity_plan_by_domain(d))
       b=plan%patch_catalog(p+1)
       header(1:8)=[1,b,glo_id(rank+1,d),p,id,consumed_columns,merge(1,0,physics_firstcall_flag),mask]
+      header(27)=is_pole
       header(9:14)=plan%expected(:,id)
       header(15:20)=plan%sources(:,id)
       header(21:26)=plan%node_catalog(plan%sources(:,id))
@@ -505,10 +520,103 @@ contains
 
 #ifdef PHYSICS_OWNER_BATCH
 #ifdef PHYSICS_NATIVE_INPUT
+#ifdef PHYSICS_NATIVE_STATE
+  subroutine retain_native_physics_results(keys,h,gi,result)
+    integer,intent(in)::keys(:,:,:),h(:,:),gi(:)
+    real(dp),intent(in)::result(:,:)
+    integer::j,p,nc,g
+    integer,allocatable::key(:,:),address(:,:)
+    real(dp),allocatable::output(:,:)
+    logical,allocatable::write_velocity(:)
+#ifdef PHYSICS_NATIVE_STATE_ORACLE
+    integer::n
+    real(dp),allocatable::before(:,:),after(:,:)
+#endif
+#ifdef PHYSICS_NATIVE_STATE_ORACLE
+    n=zlevels
+#endif
+    nc=count(keys(1,1,:)>0)
+    allocate(key(4,nc),output(size(result,1),nc),write_velocity(nc))
+    p=0
+    do j=1,size(gi)
+       if(keys(1,1,j)==0) cycle
+       g=gi(j)
+       if(keys(1,1,j)/=h(2,g)) error stop 'physics output primary owner key mismatch'
+       if(block_catalog(keys(1,1,j))%owner/=rank) error stop 'physics output nonlocal owner'
+       p=p+1;key(:,p)=keys(:,1,j);output(:,p)=result(:,j);write_velocity(p)=h(27,g)/=1
+    end do
+    call compile_local_block_inverse_routes(key,address)
+#ifdef PHYSICS_NATIVE_STATE_ORACLE
+    allocate(before(7*n+Nsoil+1,nc),after(7*n+Nsoil+1,nc))
+    call read_local_block_physics_routes(address,before)
+#endif
+    call write_local_block_physics_routes(address,output,write_velocity)
+#ifdef PHYSICS_NATIVE_STATE_ORACLE
+    call read_local_block_physics_routes(address,after)
+    do p=1,nc
+       if(any(transfer(after(1:2*n,p),[0_int64],2*n)/=transfer(before(1:2*n,p),[0_int64],2*n)).or. &
+            any(transfer(after(3*n+1:4*n,p),[0_int64],n)/=transfer(before(3*n+1:4*n,p),[0_int64],n))) &
+            error stop 'physics owner changed invariant input'
+       if(any(transfer(after(2*n+1:3*n,p),[0_int64],n)/=transfer(output(3*n+1:4*n,p),[0_int64],n)).or. &
+            any(transfer(after(7*n+1:,p),[0_int64],Nsoil+1)/= &
+            transfer(output(4*n+1:,p),[0_int64],Nsoil+1))) error stop 'physics owner retained scalar mismatch'
+       if(write_velocity(p)) then
+          if(any(transfer(after(4*n+1:7*n,p),[0_int64],3*n)/=transfer(output(1:3*n,p),[0_int64],3*n))) &
+               error stop 'physics owner retained velocity mismatch'
+       else
+          if(any(transfer(after(4*n+1:7*n,p),[0_int64],3*n)/= &
+               transfer(before(4*n+1:7*n,p),[0_int64],3*n))) error stop 'physics owner changed pole velocity'
+       end if
+    end do
+    retained_checks=retained_checks+nc
+#endif
+    retained_columns=retained_columns+nc
+  end subroutine retain_native_physics_results
+
+  subroutine retain_native_physics_alias(d,id,is_pole,result)
+    integer,intent(in)::d,id,is_pole
+    real(dp),intent(in)::result(:)
+    integer::key(4)
+#ifdef PHYSICS_NATIVE_STATE_ORACLE
+    integer::k,n,ns
+    real(dp)::before(scalars(2)-scalars(1)+1+EDGE,zlevels),after(scalars(2)-scalars(1)+1+EDGE,zlevels)
+    real(dp)::mean(scalars(2)-scalars(1)+1,zlevels),soil(Nsoil+1)
+#endif
+    call inverse_operand_key(d,id,key)
+    if(key(1)>0) return
+#ifdef PHYSICS_NATIVE_STATE_ORACLE
+    n=zlevels;ns=scalars(2)-scalars(1)+1
+    call physics_consumer_alias(d,id,before)
+#endif
+    call install_physics_consumer_alias(d,id,result,is_pole/=1)
+#ifdef PHYSICS_NATIVE_STATE_ORACLE
+    call physics_consumer_alias(d,id,after,mean,soil)
+    do k=1,n
+       call check_physics_value(after(S_MASS-scalars(1)+1,k),before(S_MASS-scalars(1)+1,k))
+       call check_physics_value(after(S_TEMP-scalars(1)+1,k),result(3*n+k))
+       if(is_pole/=1) then
+          if(any(transfer(after(ns+1:ns+EDGE,k),[0_int64],EDGE)/= &
+               transfer(result(3*(k-1)+1:3*k),[0_int64],EDGE))) error stop 'physics retained alias velocity mismatch'
+       else
+          if(any(transfer(after(ns+1:ns+EDGE,k),[0_int64],EDGE)/= &
+               transfer(before(ns+1:ns+EDGE,k),[0_int64],EDGE))) error stop 'physics alias changed pole velocity'
+       end if
+    end do
+    if(any(transfer(soil,[0_int64],Nsoil+1)/=transfer(result(4*n+1:),[0_int64],Nsoil+1))) &
+         error stop 'physics retained alias soil mismatch'
+    retained_checks=retained_checks+1
+#endif
+    retained_aliases=retained_aliases+1
+  end subroutine retain_native_physics_alias
+#endif
+
   subroutine fill_native_physics_entry(d,id,slot,edges)
     integer,intent(in)::d,id,slot,edges(6)
     integer::s,k,n,component,source_id
     real(dp)::alias(scalars(2)-scalars(1)+1+EDGE,zlevels)
+#ifdef PHYSICS_NATIVE_STATE
+    real(dp)::reference_mean(scalars(2)-scalars(1)+1,zlevels),reference_soil(Nsoil+1)
+#endif
     n=zlevels
     call inverse_operand_key(d,id-1,batch_entry_key(:,1,slot))
     do s=1,6
@@ -519,16 +627,29 @@ contains
     batch_input(1:10*n,slot)=0.0_dp
 #endif
     if(batch_entry_key(1,1,slot)==0) then
+#ifdef PHYSICS_NATIVE_STATE
+       call physics_consumer_alias(d,id-1,alias,reference_mean,reference_soil)
+       batch_packet(8*n+3:8*n+Nsoil+3,slot)=real(reference_soil,sp)
+#else
        call physics_consumer_alias(d,id-1,alias)
+#endif
        do k=1,n
 #ifdef PHYSICS_NATIVE_INPUT_ORACLE
           call check_physics_value(alias(S_MASS-scalars(1)+1,k),batch_input(6*n+k,slot))
           call check_physics_value(alias(S_TEMP-scalars(1)+1,k),batch_input(8*n+k,slot))
 #endif
           batch_input(6*n+k,slot)=alias(S_MASS-scalars(1)+1,k)
+#ifdef PHYSICS_NATIVE_STATE
+          batch_input(7*n+k,slot)=reference_mean(S_MASS-scalars(1)+1,k)
+#else
           batch_input(7*n+k,slot)=sol_mean(S_MASS,k)%data(d)%elts(id)
+#endif
           batch_input(8*n+k,slot)=alias(S_TEMP-scalars(1)+1,k)
+#ifdef PHYSICS_NATIVE_STATE
+          batch_input(9*n+k,slot)=reference_mean(S_TEMP-scalars(1)+1,k)
+#else
           batch_input(9*n+k,slot)=sol_mean(S_TEMP,k)%data(d)%elts(id)
+#endif
        end do
     end if
     do s=1,6
@@ -744,7 +865,7 @@ contains
     call MPI_Alltoallv(send_keys,sc*28,sd*28,MPI_INTEGER,entry_keys,rc*28,rd*28,MPI_INTEGER,comm,ierr)
     call check_owner_mpi(ierr)
     call fetch_physics_native_entries(entry_keys,q,x)
-    deallocate(entry_keys,send_keys)
+    deallocate(send_keys)
 #endif
     deallocate(qs,xs)
     allocate(ec(n_process),ed(n_process),fc(n_process),fd(n_process))
@@ -809,6 +930,12 @@ contains
     do l=1,nj
        call physics_batch_result(q(:,l),x(:,l),result(:,l))
     end do
+#ifdef PHYSICS_NATIVE_STATE
+    call retain_native_physics_results(entry_keys,h,gi,result)
+#endif
+#ifdef PHYSICS_NATIVE_INPUT
+    deallocate(entry_keys)
+#endif
     call MPI_Alltoallv(result,rc*no,rd*no,MPI_DOUBLE_PRECISION,back,sc*no,sd*no,MPI_DOUBLE_PRECISION,comm,ierr)
     call check_owner_mpi(ierr)
     call MPI_Alltoallv(q,rc*np,rd*np,MPI_REAL,qb,sc*np,sd*np,MPI_REAL,comm,ierr)
@@ -930,6 +1057,9 @@ contains
 #endif
 #ifdef PHYSICS_OWNER_BATCH
     if(batch_phase==2) then
+#ifdef PHYSICS_NATIVE_STATE
+       call retain_native_physics_alias(d,id,is_pole,batch_return(:,consumed_columns))
+#endif
        do k=1,zlevels
           if(is_pole/=1) sol(S_VELO,k)%data(d)%elts(id_edge(id))= &
                batch_return(3*(k-1)+1:3*k,consumed_columns)
@@ -960,7 +1090,7 @@ contains
     phys_Phisurf=real(grav_accel*topography%data(d)%elts(id_i),kind=sp)
     mask=grid(d)%mask_n%elts(id_i)
     call dispatch_physics_owner(d,p_null,id_i,mask,real(latitude,sp),real(longitude,sp),nth_day,day_fraction, &
-         phys_Play,phys_Pint,phys_Phi,phys_Phisurf,phys_Umag,phys_U,phys_V,phys_W,phys_Theta,Tsoil)
+         phys_Play,phys_Pint,phys_Phi,phys_Phisurf,phys_Umag,phys_U,phys_V,phys_W,phys_Theta,Tsoil,is_pole)
 #else
     ! Update physics latitude and longitude
     call change_latitude_longitude (real (latitude, kind=sp), real (longitude, kind=sp))
@@ -991,6 +1121,9 @@ contains
 #ifdef PHYSICS_VELOCITY_PLAN
     if(is_pole/=1) velocity_plan_by_domain(d)%version(id_i)=consumed_columns
 #endif
+#ifdef PHYSICS_NATIVE_STATE
+    call retain_native_physics_alias(d,id,is_pole,batch_return(:,consumed_columns))
+#endif
     ! Assign soil column solution at t+phys_dt to WAVETRISK data structure
     do k = zmin, 0
        sol(S_TEMP,k)%data(d)%elts(id_i) = real (Tsoil(abs(k)+1), kind=dp)
@@ -998,17 +1131,21 @@ contains
   contains
 #if defined(PHYSICS_NATIVE_INPUT) && !defined(PHYSICS_NATIVE_INPUT_ORACLE)
     subroutine queue_native_column
+#ifndef PHYSICS_NATIVE_STATE
       integer::key(4),k
+#endif
       ! Atmospheric packets are recomputed from native operands on execution
-      ! owners. Only zero-key soil aliases still use the compatibility adapter.
+      ! owners. Retained state uses the RK-entry soil alias snapshot.
       phys_Play=0;phys_Pint=0;phys_Phi=0;phys_Umag=0
       phys_U=0;phys_V=0;phys_W=0;phys_Theta=0;Tsoil=0
+#ifndef PHYSICS_NATIVE_STATE
       call inverse_operand_key(d,id,key)
       if(key(1)==0) then
          do k=zmin,0
             Tsoil(1-k)=real(sol(S_TEMP,k)%data(d)%elts(id_i),sp)
          end do
       end if
+#endif
       if(column_visits(d)%seen(id_i)/=0) error stop 'duplicate native physics column'
       column_visits(d)%seen(id_i)=1;column_count=column_count+1
     end subroutine queue_native_column
