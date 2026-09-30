@@ -46,6 +46,17 @@ assert kernels['status']=='passed' and len(kernels['kernels'])==15
 for n,sha in kernels['sources'].items():assert digest(BASE/n)==sha
 main=subprocess.check_output(['git','rev-parse','main'],cwd=BASE,text=True).strip()
 assert main=='6a245db7f1632b0205c2bebe95e5f0cd535c2582'
+# Keep detailed counters in immutable case files; bind them without duplicating
+# millions of repeated scalar counters in the tracked acceptance manifest.
+case_manifest={}
+for name,r in cases.items():
+    folder='reject-poison-exact-capacity' if name=='reject-poison' else name
+    evidence=ROOT/folder/('results.json' if name.startswith('reject-') else 'soil-results.json')
+    case_manifest[name]=dict(path=str(evidence.relative_to(BASE)),sha256=digest(evidence),
+        status='passed',binary_sha256=r['binary_sha256'],log_sha256=r['log_sha256'])
+    for key in ('steps','ranks','soil_check','expected_failure'):
+        if key in r:case_manifest[name][key]=r[key]
+cases=case_manifest
 helpers={str(p.relative_to(BASE)):digest(p) for p in sorted(Path(__file__).parent.iterdir()) if p.is_file()}
 save(BASE/'docs/parallel-blocks-stage243-results.json',dict(stage=243,status='passed',main_unchanged=main,build=build,helpers=helpers,cases=cases,kernel_audit_sha256=digest(audit),
     scope='Native soil transform/inverse with exact alias traversal and selected-range owner storage; adaptation and bounded lifecycle adapters remain'))
