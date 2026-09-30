@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "kernels": {
+    "Compute_scalar_wavelets": "947c8d10187f22bc62b979dafc432abca5e32bd382019ccc94fb03a4f3dd8a5f",
+    "Compute_velo_wavelets": "569a18d345f273f00b8720b0bceaf143f6014a3e1108e0f8f053f3a288c2d45e",
+    "Compute_velo_wavelets_penta": "1fbd425ac9dcb4825d1d4d7b47439ba00b573fa13f94bffae2c8ce6e9c9b7091",
+    "velo_interp_penta_corr": "cfdc66ac86be2f1e2175af07b7b3b5fbecad5149d44885d2121d19000780a227",
+    "Interp_inner_velo": "47ba903afed2e783765062f0f844ab13d42bd65ab1fe96097ba2114f1786beca",
+    "Interp_outer_velo": "8c89f0668f61aaa3d1e111cee9d359d5dbbfd287bddd5cce3f3a47de75791ea3",
+    "Restrict_velo": "b3c3f25b4fa1d9c14d8d4a7ab987a774e30d52d44074d5618f0942cc2b768fcb",
+    "Interp_node": "86a8a47e048d65b7c69ae144373c3cbc749514275e12e0c55d25e220a3937a62",
+    "compress_scalar": "f93177e73ea6997c981455357443e29261836089c7bbe5a6e978dd83e2c3f772",
+    "compress_vector": "2ef0f8e5a2e3ef3c58e5732b8c41d3f7501e497dd27c1cc95b0f68de540c20b3",
+    "Prolong_scalar": "4c13d1e8216e56a61f80a407fac2ee30eae3b0fdf5048c5c32e6d30f76ec9462",
+    "Reconstruct_scalar": "4aa8928dffeb36ef38711d32137603a7ddaeaa71081812c84ccdb1191a8444c9",
+    "Reconstruct_outer_velo": "167ce9b28315652e317588df75a1a6b0b6ed5457fc30a547eddd60fae81bd1c4",
+    "Reconstruct_inner_velo": "c8ebdf5acd26a24c2f1da6931c6b005a92c48a852e589bf3428452a0572a334b",
+    "Reconstruct_velo_penta": "b5556a0140d6754a0165806619738995f8b2ab52cc2d4814149614fad0d8f51d"
+  },
+  "normalization": "Ignore comments/whitespace/continuations; rename native storage accessors and expand setter calls back to assignments.",
+  "sources": {
+    "src/wavelet.f90": "504564302cccc9fbb5d2f225a5c740fab4febb5e30273ee1fd0efc4ed782ab25",
+    "src/adapt.f90": "647c5fa53180b2ee0ca65630c7119bbdd2307eaa6e0de59b5bb41af8e2a33e80",
+    "src/parallel_block_inverse.f90": "05ea7c0a76b916b13921bd7b7c76539704d386252272df19e72fa61a9c408d71"
+  }
+}

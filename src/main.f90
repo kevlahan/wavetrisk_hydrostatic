@@ -60,6 +60,10 @@ module main_mod
 
   use coord_arithmetic_mod
 
+#ifdef SOIL_NATIVE
+  use parallel_block_inverse_mod, only: native_soil_transform,publish_native_soil,compare_native_inverse
+  use parallel_block_mod, only: BLOCK_PAYLOAD_WAV_COEFF
+#endif
   use parallel_block_build_mod, only : build_source_blocks
   use parallel_block_mpi_mod, only : block_stage191_fast_install_enabled
 
@@ -600,9 +604,9 @@ contains
 
 
   subroutine update_domain_soil_wavelet_consumer
-    ! Soil levels are intentionally outside the atmospheric compact payload.
-    ! Their legacy transform may update Domain wav_coeff(zmin:0), but it must
-    ! leave the pending atmospheric block decision image intact.
+    ! Soil has a separate native range and completed-physics entry epoch.
+    ! Its transform preserves the pending atmospheric decision coefficients;
+    ! publication supports the remaining adaptation consumer.
 
     implicit none
 
@@ -612,8 +616,20 @@ contains
 
     call begin_domain_consumer_audit( &
          audit,DOMAIN_CONSUMER_PENDING)
-    call WT_after_step( &
-         sol(:,zmin:0),wav_coeff(:,zmin:0),level_start-1)
+#ifdef SOIL_NATIVE
+    call native_soil_transform
+#ifdef SOIL_NATIVE_ORACLE
+    call WT_after_step(sol(:,zmin:0),wav_coeff(:,zmin:0),level_start-1)
+    call compare_native_inverse(sol(:,zmin:0),1,consumer_aliases=.true.,exact=.true.)
+    call compare_native_inverse(sol(:,zmin:0),2,consumer_aliases=.true.,exact=.true.)
+    call compare_native_inverse(wav_coeff(:,zmin:0),1,BLOCK_PAYLOAD_WAV_COEFF,exact=.true.)
+    call compare_native_inverse(wav_coeff(:,zmin:0),2,BLOCK_PAYLOAD_WAV_COEFF,exact=.true.)
+    write(*,'(a,i0)') 'Native soil output exact rank=',rank
+#endif
+    call publish_native_soil(sol(:,zmin:0),wav_coeff(:,zmin:0))
+#else
+    call WT_after_step(sol(:,zmin:0),wav_coeff(:,zmin:0),level_start-1)
+#endif
     call end_domain_consumer_audit(audit)
 
   end subroutine update_domain_soil_wavelet_consumer

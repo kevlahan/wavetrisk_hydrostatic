@@ -26,61 +26,32 @@ Stage240 first failed replay consumed pressure scratch twice; resetting surface
 pressure/geopotential before independent replay fixed it. Failed attempts are kept.
 All accepted full runs match12 step states, two remaps and62 VTK members at4/41 ranks.
 
-## Stage242 — accepted; ready to commit
+## Stage242 — accepted d0bf509e
 
-Five solver files changed: Makefile, src/main.f90 comments, src/parallel_block.f90,
-src/parallel_block_inverse.f90, src/physics/physics_simple.f90.
-`PHYSICS_NATIVE_STATE=on/check` requires native input and retained RK.
+Native physics output retention and alias mean/soil inputs passed sixteen cases.
+Frozen evidence: `.stage242-validation/candidate`. Full4/41 trajectories match
+12 states, two remaps and62 VTK members.
 
-- Alias mean/soil references are captured at initial RK entry; those fields remain
-  unchanged within RK. Atmospheric aliases use their distinct saved final-inverse
-  consumer epoch. Production physics now reads no Domain prognostic/mean/soil
-  input; geometry and fixed reference inputs remain geometry metadata.
-- After complete DAG execution, canonical temperature/velocity/soil results are
-  retained on final owners. Primary alias results are retained in native alias
-  storage. Header27 carries is_pole, preserving non-writing pole velocity.
-- Mass, means and atmospheric decision wavelets remain unchanged. Main's consumer
-  audit preserves pending phase and writeback counts; its comment now explains
-  native physical updates. The audit does not hash numerical payloads.
-- The check build reads stored values back, checking exact scalar/vector/soil,
-  mass/mean/pole invariants; independent serial replay still checks scientific
-  equivalence of complete packets and results.
-- Final Domain publication still serves legacy soil/adaptation. Native state is
-  rebuilt from Domain after adaptation; the complete lifecycle is NOT migrated.
+## Stage243 — accepted
 
-All four builds passed. Frozen tree `.stage242-validation/candidate`, build driver
-`/tmp/build242-driver.log`, completed build session92112. Qualification session85276 completed0. All sixteen cases and final reviewer
-(session5439) passed. No solver/build jobs remain active. Commit this checkpoint,
-then continue the soil/range migration.
-
-Passed: oracle-4 (35,812 native storage readbacks), full4/41, control, route,
-dependency, version, output, publication poison, package-soil poison, native-route,
-native-epoch, native-value, entry-poison, retained-owner and retained-alias. Each full run retains
-460,368 canonical and240 alias columns. The alias test now logs `Inject retained
-alias corruption` before mutation; helper and reviewer require the marker so its
-shared mismatch diagnostic cannot yield a false positive.
-
-Helpers: `test/parallel_block_profile/physics_242`; audit, handoff and final
-source-bound results JSON are complete.
-The entry poison now poisons ALL old atmospheric/mean/soil inputs while gathering,
-then restores test buffers before legacy consumers. It exercises20 primary alias
-columns. Distinguish this from publication poison, which has NO backup/restoration.
-Helpers/include parse successfully. Keep source frozen until final review. Update
-handoff/worklog and commit focused paths after acceptance, then continue remaining
-work; do not end the user's task after this checkpoint.
+Native soil selected-range transform/inverse passes all ten source-bound cases.
+Frozen evidence: `.stage243b-validation/candidate`; results and kernel audit are
+in docs/parallel-blocks-stage243-{results,kernels}.json. Full4/41 and full Domain
+poison trajectory match12 states, two remaps and62 VTK members. Exact owner
+readbacks pass4/41; stale epoch, invalid range and alias corruption are rejected.
+The 15 soil kernels normalize exactly to legacy arithmetic. Preserve geometric
+alias traversal: canonical-only inverse traversal missed alias writes.
+Failed attempts remain under .stage243-validation and reject-poison. The latter
+had a test backup capacity error; corrected independent allocation backups and
+slice restoration pass the complete trajectory. No active solver jobs remain.
 
 ## Remaining implementation
 
-1. Native soil wavelet transform/inverse, preserving atmospheric decision wavelets.
-2. Native numerical adaptation/reconstruction and topology migration. Geometry-only
-   Domain metadata may remain, but numerical blocks must not rebuild from mirrors.
-3. Replace the initial alias import and restart/output mirrors with explicitly
-   versioned bounded adapters. Output may mutate aliases/diagnostic scratch: audit
-   actual behavior rather than assuming serialization is side-effect free.
-4. Remove obsolete persistent production numerical storage only after all producers
-   and consumers have moved. Preserve off paths and independent oracles.
-5. Complete source-bound integrated qualification, then prepare the bbserv candidate.
-   No remote jobs or local performance claims yet.
+1. Native numerical adaptation/reconstruction and topology migration, without
+   rebuilding prognostic blocks from Domain numerical arrays.
+2. Initial aliases and restart/output bounded adapters; audit output mutations.
+3. Remove obsolete persistent production numerical mirrors; retain off/oracle.
+4. Integrated qualification and bbserv candidate preparation; no remote runs yet.
 
 ## Scientific/lifecycle constraints
 
@@ -130,3 +101,179 @@ path must zero ONLY soil coefficients to protect atmospheric decision wavelets.
 Stage242 reference arrays currently allocate/capture at initial native RK entry
 even when PHYSICS_NATIVE_STATE is off (numerically inert). Guard that cost when
 preparing final performance baselines; do not change frozen242 source mid-review.
+
+## Stage243 — in progress, not accepted
+
+Live source changes add selected vertical ranges to native bulk inverse storage,
+explicit post-physics soil alias export/entry, native soil forward/compression and
+Stage203 inverse. `SOIL_NATIVE=on/check` requires native physics state and Stage203.
+The check path executes independent legacy soil transform then exact comparison.
+No adaptation changes yet. Remaining lifecycle scope above still applies.
+
+- `.stage243-validation/range-core`: pre-driver range-generalization checked build
+  and `range-core-4` one-step atmospheric regression PASS (all Stage242 checks).
+- `soil-attempt1`/`soil-attempt2`: preserved failed Fortran syntax builds.
+- `soil-attempt3`: checked native build passed; first exact soil run
+  `soil-attempt3-4` in progress (session40739, log /tmp/run243-soil3.log).
+- Build helper `test/parallel_block_profile/soil_243/build_soil.py` is new/untracked.
+  It preserves frozen sources; do not refresh earlier trees. Other helper stages
+  remain frozen. Build sessions31472,14613,34994,13559 finished (last succeeded).
+- Temporary generators /tmp/edit243_core.py, /tmp/add243_soil.py,
+  /tmp/fix243_setters.py have ALREADY BEEN APPLIED. Do not rerun.
+  Live source is authoritative. Core script originally had invalid Python '&'
+  dead code, fixed before applying. Setters are explicit calls because single-line
+  Fortran IF rejects pointer-function assignment. Original legacy arithmetic has
+  been retained with native storage getters/setters.
+- No new checkpoint commit yet. Do not claim the soil path verified until the
+  exact oracle and full trajectory qualification actually pass.
+
+Stage243 update: attempt3 exact oracle failed on key-zero scalar alias nodes
+(level5, differences up to2.8e-11). Do NOT loosen tolerance. The canonical203 tape
+omits geometric alias writes performed by the legacy soil inverse. Attempt4 uses
+complete native getter/setter traversal of legacy inverse geometry, preserving
+those writes. Attempt4 checked build and one-step exact soil entry/output PASS.
+The current candidate adds explicit output-check markers, guards reference arrays
+when native physics state is off, and keeps only temperature soil references when
+soil migration is off. Frozen `.stage243-validation/candidate` builds native,
+production,control sequentially (session85305; /tmp/build243-final.log). Native and
+production built; control finishing at last check. Run helper soil_243/qualify.py
+only after all builds finish. It runs 8 cases sequentially, full12step4/41 cases
+plus exact oracle4/control4 and4 adversarial cases. One-step helper explicitly
+compares step states; full helper also checks remaps/checkpoint/62VTK payloads.
+Temporary /tmp/inverse243_soil.py ALREADY APPLIED, never rerun. Source frozen during
+qualification. Need accepted result docs/reviewer and commit, then continue full
+remaining lifecycle work. No bbserv runs and no final partial handoff.
+
+Stage243 final qualification currently active: session86168, /tmp/qualify243.log.
+Candidate build completed all3 variants. `oracle-4` PASS with exact soil entry and
+output checks; full production-4 active at last inspection. Remaining qualifier
+cases production41/control4/epoch/range/alias/poison follow serially. Poison test
+now runs FULL12step4rank trajectory, checks2remaps/62VTK/checkpoint through existing
+validate(), and retains that result in its manifest (not just one-step mass).
+Reviewer soil_243/review_soil.py prepared but MUST run only when all8 cases finish.
+No solver source edits until this source-bound qualification completes.
+
+Next adaptation design notes (NOT IMPLEMENTED; verify before acting):
+- `install_block_native_adaptation_mask_seed` already uses native coefficients,
+  then clears all block state. Capture a versioned native numerical transition
+  image BEFORE that clear; topology currently extends stable Domain node ids.
+- `adapt` still calls Domain compress_wavelets and analytic update_case.
+  Climate update_case initializes reference means/topography on new patches and
+  refreshes their boundaries; it does not evolve prognostic sol. Treat this as
+  a bounded reference initialization adapter, not a prognostic source.
+- New source blocks should be populated from the native transition image (old
+  physical values and PRE-physics atmospheric wavelets, post-soil wavelets),
+  zeroing genuinely new nodes like extend_Domain does, then migrated before
+  native compression/reconstruction on the new topology. Do not silently use
+  Domain sol/wav fields as fallback. Existing `build_source_blocks` has many
+  scalar/vector/ghost/boundary reads and comparisons; use explicit native field
+  provider callbacks in all of them. Preserve Domain off/oracle path.
+- Before soil plan rebuild, archive atmospheric consumer aliases and coefficient
+  aliases; the soil range rebuild otherwise destroys those saved arrays.
+- Full native inverse traversal used by soil now exactly preserves geometric
+  alias writes. Generalize that traversal for post-adaptation reconstruction;
+  Stage203 canonical tape alone failed the exact soil alias oracle. Keep bounded
+  numerical transition storage temporary; persistent canonical state remains on
+  final-owner blocks. Further remove initial alias import and output/restart
+  mirrors only after their consumers move.
+- Makefile orders inverse before build module, so build can depend explicitly on
+  a native provider if no module cycle is introduced. Main currently invokes
+  Domain inverse, closes adaptation, builds/migrates blocks, then retains state;
+  native ordering must build/migrate from native old state first, reconstruct,
+  then close/retain. Recheck lifecycle flags around clear/migration carefully.
+
+Source arithmetic audit soil_243/audit_kernels.py PASS: all15 copied native kernels
+normalize IDENTICALLY to legacy math when getter/setter addressing is reversed.
+Result docs/parallel-blocks-stage243-kernels.json. Include this in final reviewer.
+Qualification oracle4 and fullproduction4 PASS. Fullproduction41 active now.
+Important next-step correction: extend_Domain new atmospheric scalar defaults are
+NOT always zero. If split_mean_perturbation=false, both scalar defaults are
+`a_vert_mass(k)+b_vert_mass(k)*p_0/grav_accel` in compressible mode; vectors and soil
+are zero. Preserve these exact defaults in any native topology extension.
+
+Final243 first candidate qualification stopped at control4: physics_consumer_alias
+unconditionally required reference readiness even when mean/soil outputs were NOT
+requested. New off-storage guard exposed that latent coupling. Fixed readiness
+check to apply only when optional mean or soil is present. Preserve entire old
+.stage243-validation tree, including passing full4/41 and failed control. Fresh
+final tree is .stage243b-validation/candidate; qualifier/reviewer ROOT updated.
+All8 cases must rerun against freshly bound binaries. Re-run kernel audit too.
+
+Fresh243b serial build active session77966 (/tmp/build243b-final.log); no solver
+currently active. Previous qualifier86168 ended nonzero at old control4. All old
+.stage243-validation evidence remains untouched. New qualifier now runs control4
+FIRST, then exact oracle4/full4/full41/four fault cases. Fresh range-core and
+soil math are unchanged except conditional optional-reference readiness guard.
+/tmp/native244_provider.txt is an UNAPPLIED draft for a native source-block
+serialization provider (range/scalar/subtree access), requiring transition-state
+APIs. Existing builder has28 sol/wav reads:4 whole-field subtree copies,20 range
+reads,4 scalar sample reads. All must switch under explicit native-transition
+selection; reference means remain a separate bounded initialization boundary.
+`native_velocity_plan_generation()` already exposes current block writeback
+plan generation for native inverse re-entry. `retain_post_grid_change_block_reconstruction`
+also unconditionally reimports Domain SOL/WAV boundary families; native adaptation
+must replace that import, not merely switch initial source-block construction.
+
+Fresh243b build completed all3 variants. Qualification active session40381,
+/tmp/qualify243b.log. Corrected control4 PASS, exact soil oracle4 PASS; full4 active
+at last check, full41/faults follow. Prior build77966 ended0. Do not re-poll old
+sessions. No Stage243 acceptance/commit yet; reviewer waits for all8 cases.
+Additional UNAPPLIED draft /tmp/native244_transition.txt provides sparse native
+atmospheric/soil transition capture + field getter/defaults/epoch guards. It needs
+module declarations/imports, explicit ADAPT_NATIVE guards/hooks, full-range native
+inverse entry and native builder selection before use. Draft new-node defaults
+must enforce compressible scope. Do not apply blindly. Source providers in
+/tmp/native244_provider.txt require these APIs. No Stage244 live source changes.
+
+Further adaptation audit (not implemented): mask_active(block_seed_installed=true)
+STILL calls update_bdry1(wav_coeff), then mask_tol_boundary_vars reads Domain
+coefficients for aliases. validate_and_install_domain_patch_decisions also reads
+Domain coefficients for uncatalogued scaffold patches. Native transition must
+cover BOTH dependencies, not just source block packing. Preserve two coefficient
+versions: scaffold decisions precede boundary refresh; boundary mask decisions
+follow it. A full-range native transition workspace/alias plan must be prepared
+while old blocks still exist, so boundary alias exchange can run after mask-seed
+clears block state. Exchange uses native workspace values, not stale block routes.
+Then update transition coefficient records for new source construction. Refine
+happens after mask_active, so old integer alias plan remains valid during this
+boundary exchange. Force new plan generation after topology/build/migration.
+Do NOT simply gather old block coefficients after constructing this transition:
+canonical compressed images and consumer aliases have distinct versions. Soil
+workspace holds its exact final consumer image; retain that image for transition.
+Existing draft transition/provider files alone do not implement these requirements.
+
+Qualification expanded to TEN cases: two added injected readback modes
+`owner-readback` and `owner-readback-41` (variant native) call check_gather203 on
+canonical soil coefficients immediately after install, and on final soil physical
+values after scatter. This proves actual owner storage, not merely workspace or
+compatibility publication. No solver-source edits needed; injection helpers bind
+original and injected hashes. Reviewer now requires10 cases.
+IMPORTANT: running qualifier40381 loaded the OLD8-case list before this helper
+edit. After it finishes, run the two extra reject_invalid.py modes sequentially
+MANUALLY into .stage243b-validation/reject-owner-readback and
+reject-owner-readback-41, then run review_soil.py. The saved qualifier.py now has
+all10 for future reproductions. Keep main/source frozen until review succeeds.
+
+Fresh243b full4/full41 PASS; epoch and range fault rejection PASS. Alias fault and
+full poisoned run follow. Draft source-builder rewrite generated by
+/tmp/draft244_build.py into /tmp/parallel_block_build244.f90, with origin SHA in
+/tmp/parallel_block_build244-origin.json. It replaces all28 prognostic/coeff reads
+(4 subtree copies +20 ranges +4 scalar samples) through the drafted native provider,
+adds explicit optional native_transition selection and rejects legacy fallback
+while a native transition is open. NOT APPLIED/COMPILED; reference mean/TKE reads
+are intentionally still visible and need their own bounded adapter work.
+
+Fresh243b qualifier40381 ENDED NONZERO: original poisoned full run completed but
+step states diverged at step10; first9 states and BOTH VTK outputs were exact.
+This run is preserved in reject-poison (do not delete). Test backup incorrectly
+assumed scalar/vector/wavelet allocated capacities share one nn. Float_Array elts
+is allocatable; restoring entire arrays can resize them. Corrected poison helper
+now backs up EACH variable/layer/Domain allocation separately, verifies capacities
+are unchanged during transform, and restores slices to prevent reallocation.
+This is a test-harness diagnosis to verify, NOT yet proof the solver is clean.
+Fresh corrected run goes to reject-poison-exact-capacity. Reviewer/qualifier updated.
+Current active session53529 runs /tmp/finish243b.py (/tmp/finish243b.log): positive
+owner-readback4, owner-readback41, then corrected full poison, then final reviewer.
+No solver source edits; all fresh candidate hashes remain frozen. Fresh243b normal
+full4/full41, control, exact oracle, epoch/range/alias faults already PASS.
+Do NOT accept/commit until these remaining cases and reviewer actually pass.

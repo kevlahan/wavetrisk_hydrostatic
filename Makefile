@@ -686,3 +686,17 @@ endif
 ifeq ($(PHYSICS_NATIVE_STATE),check)
 FFLAGS += -DPHYSICS_NATIVE_STATE_ORACLE
 endif
+
+SOIL_NATIVE ?= off
+ifneq ($(filter $(SOIL_NATIVE),on check),)
+ifeq ($(filter $(PHYSICS_NATIVE_STATE),on check),)
+$(error SOIL_NATIVE requires PHYSICS_NATIVE_STATE=on/check)
+endif
+ifneq ($(STAGE203),on)
+$(error SOIL_NATIVE requires STAGE203=on)
+endif
+FFLAGS += -DSOIL_NATIVE
+endif
+ifeq ($(SOIL_NATIVE),check)
+FFLAGS += -DSOIL_NATIVE_ORACLE
+endif

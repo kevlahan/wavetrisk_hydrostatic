@@ -1045,7 +1045,7 @@ subroutine read_local_block_physics_routes(address,values)
 end subroutine read_local_block_physics_routes
 
 subroutine transfer_local_block_inverse_routes(address,family,component,install,buffer,selected_edge, &
-     workspace,local_first,local_slots)
+     workspace,local_first,local_slots,field_first,field_count)
   ! Pack directly into the wire buffer. Family/storage dispatch is per node,
   ! not per scalar/layer; no per-node automatic sample or RESHAPE temporary.
   integer, intent(in) :: address(:,:),family,component
@@ -1056,8 +1056,14 @@ subroutine transfer_local_block_inverse_routes(address,family,component,install,
   ! is independent of block fields; callers preserve remote snapshot ordering.
   real(dp), optional, intent(inout) :: workspace(:,:,:)
   integer, optional, intent(in) :: local_first,local_slots(:)
-  integer :: p,b,nv,base,step,scalar_step,offset,ws_first,ws_node
+  integer,optional,intent(in)::field_first,field_count
+  integer :: p,b,nv,base,step,scalar_step,offset,ws_first,ws_node,levels,first,field_offset
   logical :: direct
+  levels=zlevels;first=1
+  if(present(field_first)) first=field_first
+  if(present(field_count)) levels=field_count
+  if(present(field_first).neqv.present(field_count)) error stop 'inverse routes: incomplete vertical range'
+  if(levels<1) error stop 'inverse routes: empty vertical range'
   if (component/=1 .and. component/=2) error stop "inverse routes: component"
   if (family/=BLOCK_PAYLOAD_SOL .and. family/=BLOCK_PAYLOAD_WAV_COEFF) error stop "inverse routes: family"
   if (present(selected_edge)) then
@@ -1067,15 +1073,18 @@ subroutine transfer_local_block_inverse_routes(address,family,component,install,
   if (present(workspace)) then
      if (.not.present(local_first).or..not.present(local_slots)) error stop "inverse routes: local arguments"
      if (local_first<1.or.local_first+size(local_slots)-1>size(address,2)) error stop "inverse routes: local range"
-     if (size(workspace,2)/=zlevels) error stop "inverse routes: workspace levels"
+     if (size(workspace,2)/=levels) error stop "inverse routes: workspace levels"
      if (any(local_slots<1).or.any(local_slots>size(workspace,3))) error stop "inverse routes: local slots"
   end if
   do p=1,size(address,2)
      b=address(1,p)
      associate(block=>block_local(b))
+       if(first<block%field_level.or.first+levels>block%field_level+block%n_field_level) &
+            error stop 'inverse routes: selected vertical extent'
+       field_offset=address(5,p)+first-1
        nv=merge(block%n_scalar_variable,EDGE,component==1)
        if (present(selected_edge)) nv=1
-       offset=(p-1)*nv*zlevels
+       offset=(p-1)*nv*levels
        direct=.false.
        if (present(workspace)) then
           direct=p>=local_first.and.p<local_first+size(local_slots)
@@ -1086,11 +1095,11 @@ subroutine transfer_local_block_inverse_routes(address,family,component,install,
           end if
        end if
        if (component==1) then
-          base=address(5,p)*address(4,p)+address(3,p)+1
+          base=field_offset*address(4,p)+address(3,p)+1
           step=address(4,p)
           scalar_step=address(6,p)*step
        else
-          base=EDGE*(address(5,p)*address(4,p)+address(3,p))+1
+          base=EDGE*(field_offset*address(4,p)+address(3,p))+1
           step=EDGE*address(4,p)
           scalar_step=1
           if (present(selected_edge)) base=base+selected_edge(p)-1
@@ -1132,13 +1141,13 @@ contains
     integer :: k,v,q
     if (direct) then
        if (install) then
-          do k=0,zlevels-1
+          do k=0,levels-1
              do v=0,nv-1
                 field(base+k*step+v*scalar_step)=workspace(ws_first+v,k+1,ws_node)
              end do
           end do
        else
-          do k=0,zlevels-1
+          do k=0,levels-1
              do v=0,nv-1
                 workspace(ws_first+v,k+1,ws_node)=field(base+k*step+v*scalar_step)
              end do
@@ -1148,14 +1157,14 @@ contains
     end if
     q=offset
     if (install) then
-       do k=0,zlevels-1
+       do k=0,levels-1
           do v=0,nv-1
              q=q+1
              field(base+k*step+v*scalar_step)=buffer(q)
           end do
        end do
     else
-       do k=0,zlevels-1
+       do k=0,levels-1
           do v=0,nv-1
              q=q+1
              buffer(q)=field(base+k*step+v*scalar_step)

@@ -12,15 +12,15 @@ module parallel_block_inverse_mod
   use kind_mod, only : dp
   use shared_mod, only : EDGE, AT_NODE, AT_EDGE, N_VARIABLE, N_BDRY, N_CHDRN, &
        scalars, S_VELO, S_TEMP, zlevels, zmin, n_domain, level_start, level_end, end_pt, opp_no, hex_sides, hex_s_offs, &
-       DG, FROZEN, LORT, UPLT, TRIAG, RT, UP, NORTHEAST, NORTHWEST, IMINUSJPLUS, IPLUSJMINUS, IJMINUS
-  use domain_mod, only : grid, sol, sol_mean, Float_Field, idx, ed_idx, get_offs_Domain, chd_offs
+       ADJZONE, Z_NULL, DG, FROZEN, LORT, UPLT, TRIAG, RT, UP, NORTHEAST, NORTHWEST, IMINUSJPLUS, IPLUSJMINUS, IJMINUS
+  use domain_mod, only : grid, sol, sol_mean, Float_Field, idx, ed_idx, get_offs_Domain, chd_offs, idx__fast
   use patch_mod, only : PATCH_SIZE, LAST
   use arch_mod, only : comm, rank, n_process, glo_id, loc_id, owner, block_catalog, abort_run
   use parallel_block_mod, only : Block_Data, STORE_PATCH, STORE_BDRY, BLOCK_PAYLOAD_SOL, &
        BLOCK_PAYLOAD_WAV_COEFF, apply_local_block_field_consumer, &
        compile_local_block_inverse_routes, transfer_local_block_inverse_routes
   use parallel_block_primitive_walk_mod, only: walk_primitive_patch
-  use domain_ops_mod, only: apply_onescale_to_patch,apply_interscale_d
+  use domain_ops_mod, only: apply_onescale_to_patch,apply_interscale_d,apply_to_penta_d,apply_onescale_d,apply_interscale_d2
   use domain_mod, only: Domain
   implicit none
   private
@@ -31,6 +31,7 @@ module parallel_block_inverse_mod
   public :: require_tendency_operands,prepare_initial_tendency_operands
   public :: capture_native_inverse_consumer_aliases
   public :: physics_consumer_alias,finish_physics_consumer_epoch,install_physics_consumer_alias
+  public :: export_native_soil_aliases,native_soil_transform,publish_native_soil
   real(dp), public :: native_inverse_seconds(3)=0.0_dp
   integer(int64), public :: native_inverse_calls(3)=0_int64, native_inverse_messages(3)=0_int64, &
        native_inverse_bytes(3)=0_int64
@@ -103,12 +104,15 @@ module parallel_block_inverse_mod
   integer, allocatable :: consumer_alias_slot(:),consumer_alias_index(:)
   logical :: physics_consumer_ready=.false.
   real(dp), allocatable :: consumer_alias_value(:,:,:)
-  real(dp), allocatable :: physics_alias_mean(:,:,:),physics_alias_soil(:,:)
+  real(dp), allocatable :: physics_alias_mean(:,:,:),physics_alias_soil(:,:,:)
   logical :: physics_reference_ready=.false.
   integer, allocatable :: node_flags(:)
   real(dp), allocatable :: scaffold_value(:,:,:)
   integer(int64), allocatable :: coverage(:,:)
-  real(dp), allocatable :: value(:,:,:,:)
+  real(dp), allocatable,target :: value(:,:,:,:)
+  integer :: soil_domain=0,soil_layer=0,soil_variable=0
+  integer :: inverse_field_first=1,inverse_levels=0
+  logical :: physics_results_ready=.false.
   integer(int64) :: plan_generation=-1_int64
   integer :: nnode=0,noperation=0,nscalar=0
   ! The selector is compile-time; the original path remains the default.
@@ -382,6 +386,7 @@ contains
   end subroutine
 
   subroutine require_tendency_operands
+    if(inverse_field_first/=1.or.inverse_levels/=zlevels) call die('non-atmospheric tendency epoch')
     if(.not.provisional_operands_ready.and..not.initial_operands_ready) call die('tendency operand epoch is not ready')
   end subroutine
 
@@ -528,18 +533,41 @@ contains
     end if
   end function
 
-  subroutine prepare_native_inverse(generation,scaling,wavelet,first_level,profile,consumer_only)
+  subroutine prepare_native_inverse(generation,scaling,wavelet,first_level,profile,consumer_only, &
+       field_first,field_count,entry_alias_address,entry_alias_value)
     integer(int64), intent(in) :: generation
     integer, intent(in) :: first_level
     logical, intent(in) :: profile
     logical,intent(in),optional :: consumer_only
     logical :: initial_consumer
-    type(Float_Field), intent(in) :: scaling(1:N_VARIABLE,1:zlevels),wavelet(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in),optional :: scaling(:,:),wavelet(:,:)
+    integer,intent(in),optional::field_first,field_count,entry_alias_address(:,:)
+    real(dp),intent(in),optional::entry_alias_value(:,:,:)
+    integer::selected_first,selected_count,old_first,old_count
+    logical::native_entry
+    logical,allocatable::entry_seen(:)
     integer :: d,id,q,k,v,total,b,p,r,pos,n,next_patch
     integer, allocatable :: sc(:),rc(:),sd(:),rd(:),sb(:,:),rb(:,:),request(:,:),slots(:)
     type(Boundary_Manifest) :: manifest
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
+    selected_first=1;selected_count=zlevels
+    if(present(field_first)) selected_first=field_first
+    if(present(field_count)) selected_count=field_count
+    if(present(field_first).neqv.present(field_count)) call die('incomplete inverse vertical range')
+    if(selected_count<1.or.selected_first<zmin.or.selected_first+selected_count-1>zlevels) &
+         call die('invalid inverse vertical range')
+    native_entry=present(entry_alias_value)
+    if(native_entry.neqv.present(entry_alias_address)) call die('incomplete native inverse entry')
+    if(.not.native_entry) then
+       if(.not.present(scaling).or..not.present(wavelet)) call die('inverse compatibility inputs absent')
+       if(selected_first/=1.or.selected_count/=zlevels) call die('non-atmospheric inverse requires native entry')
+       if(size(scaling,1)/=N_VARIABLE.or.size(scaling,2)/=selected_count.or. &
+            size(wavelet,1)/=N_VARIABLE.or.size(wavelet,2)/=selected_count) call die('inverse input shape')
+    end if
+    old_first=inverse_field_first;old_count=inverse_levels
+    inverse_field_first=selected_first;inverse_levels=selected_count
+    physics_results_ready=.false.
     provisional_operands_ready=.false.;initial_operands_ready=.false.
     physics_consumer_ready=.false.
     initial_consumer=.false.
@@ -552,7 +580,9 @@ contains
     native_inverse_calls=0_int64
     native_inverse_messages=0_int64
     native_inverse_bytes=0_int64
-    if (plan_generation /= generation) then
+    if(initial_consumer.and.(native_entry.or.selected_first/=1.or.selected_count/=zlevels)) &
+         call die('initial tendency requires atmospheric entry')
+    if (plan_generation /= generation.or.old_first/=selected_first.or.old_count/=selected_count) then
        call detail_add(DC_INVERSE_BUILD,1_int64)
        if (allocated(nodes)) deallocate(nodes,node_domain,node_id,value,aliases,operations,coverage, &
             scaffold_slot,scaffold_value,operation_first,operation_last,node_flags,level_interior,level_boundary, &
@@ -592,8 +622,8 @@ contains
           call combine_aliases(range_alias(q,1),q,level_start-1)
           call combine_aliases(range_alias(q,2),q,level_start)
        end do
-       allocate(alias_send(max(1,zlevels*max(nscalar*sum(range_alias(1,1)%sc),sum(range_alias(2,1)%sc)))))
-       allocate(alias_recv(max(1,zlevels*max(nscalar*sum(range_alias(1,1)%rc),sum(range_alias(2,1)%rc)))))
+       allocate(alias_send(max(1,inverse_levels*max(nscalar*sum(range_alias(1,1)%sc),sum(range_alias(2,1)%sc)))))
+       allocate(alias_recv(max(1,inverse_levels*max(nscalar*sum(range_alias(1,1)%rc),sum(range_alias(2,1)%rc)))))
        ! The upper bound is conservative; records are reused for all fields.
        allocate(operations(max(1,EDGE*total)))
        allocate(coverage(4,level_start-1:level_end))
@@ -719,8 +749,8 @@ contains
        call build_transfer(interior_plan,request,slots)
        ! Every transfer completes before the next one starts. Subplans keep
        ! only integer routing metadata, sharing this one maximum-size pair.
-       allocate(transfer_send(max(1,max(nscalar,EDGE)*zlevels*(sum(interior_plan%sc)+sum(boundary_plan%sc)))))
-       allocate(transfer_recv(max(1,max(nscalar,EDGE)*zlevels*(sum(interior_plan%rc)+sum(boundary_plan%rc)))))
+       allocate(transfer_send(max(1,max(nscalar,EDGE)*inverse_levels*(sum(interior_plan%sc)+sum(boundary_plan%sc)))))
+       allocate(transfer_recv(max(1,max(nscalar,EDGE)*inverse_levels*(sum(interior_plan%rc)+sum(boundary_plan%rc)))))
        allocate(level_interior(2,level_start-2:level_end),level_boundary(2,level_start-2:level_end))
        do q=1,2
           do b=level_start-2,level_end
@@ -751,13 +781,22 @@ contains
           call prepare_self_routes(outer_install(b))
        end do
 #endif
-       allocate(value(nscalar+EDGE,zlevels,nnode,2))
+       allocate(value(nscalar+EDGE,inverse_levels,nnode,2))
        n=0
        do p=1,nnode
           if (nodes(node_domain(p))%key(1,node_id(p)+1)==0) n=n+1
        end do
-       allocate(consumer_alias_slot(n),consumer_alias_value(nscalar+EDGE,zlevels,n),consumer_alias_index(nnode))
-       allocate(physics_alias_mean(nscalar,zlevels,n),physics_alias_soil(1-zmin,n))
+       allocate(consumer_alias_slot(n),consumer_alias_value(nscalar+EDGE,inverse_levels,n),consumer_alias_index(nnode))
+#ifdef PHYSICS_NATIVE_STATE
+       allocate(physics_alias_mean(nscalar,inverse_levels,n))
+#ifdef SOIL_NATIVE
+       allocate(physics_alias_soil(nscalar+EDGE,1-zmin,n))
+#else
+       allocate(physics_alias_soil(S_TEMP-scalars(1)+1:S_TEMP-scalars(1)+1,1-zmin,n))
+#endif
+#else
+       allocate(physics_alias_mean(0,0,0),physics_alias_soil(0,0,0))
+#endif
        physics_reference_ready=.false.
        consumer_alias_index=0
        n=0
@@ -771,7 +810,7 @@ contains
        do p=1,nnode
           if (nodes(node_domain(p))%key(2,node_id(p)+1)==-1) n=n+1
        end do
-       allocate(scaffold_slot(n),scaffold_value(nscalar+EDGE,zlevels,n))
+       allocate(scaffold_slot(n),scaffold_value(nscalar+EDGE,inverse_levels,n))
        n=0
        do p=1,nnode
           if (nodes(node_domain(p))%key(2,node_id(p)+1)/=-1) cycle
@@ -787,7 +826,7 @@ contains
              if (.not.btest(node_flags(p),0).and..not.btest(node_flags(p),1)) cycle
              n=n+1;restore203_index(p)=n
           end do
-          allocate(restore203_slot(n),restore203(nscalar+EDGE,zlevels,n),saved203(nscalar+EDGE,zlevels,n))
+          allocate(restore203_slot(n),restore203(nscalar+EDGE,inverse_levels,n),saved203(nscalar+EDGE,inverse_levels,n))
           do p=1,nnode
              if (restore203_index(p)>0) restore203_slot(restore203_index(p))=p
           end do
@@ -797,31 +836,76 @@ contains
        call detail_add(DC_INVERSE_REUSE,1_int64)
     end if
     call detail_leave(DP_INVERSE_PLAN)
+    if(native_entry) then
+       if(size(entry_alias_address,1)/=2.or.size(entry_alias_value,1)/=nscalar+EDGE.or. &
+            size(entry_alias_value,2)/=inverse_levels.or. &
+            size(entry_alias_value,3)/=size(entry_alias_address,2)) call die('native inverse entry shape')
+       value=0.0_dp
+       allocate(entry_seen(nnode));entry_seen=.false.
+       do q=1,size(entry_alias_address,2)
+          d=entry_alias_address(1,q);id=entry_alias_address(2,q)
+          if(d<1.or.d>size(nodes)) call die('native inverse entry Domain')
+          if(id<0.or.id>=size(nodes(d)%slot)) call die('native inverse entry node')
+          p=nodes(d)%slot(id+1)
+          if(p<1.or.nodes(d)%key(1,id+1)>0) call die('native inverse entry is not an alias')
+          if(entry_seen(p)) call die('duplicate native inverse entry')
+          value(:,:,p,BLOCK_PAYLOAD_SOL)=entry_alias_value(:,:,q);entry_seen(p)=.true.
+       end do
+       do q=1,size(consumer_alias_slot)
+          p=consumer_alias_slot(q)
+          if(.not.entry_seen(p)) call die('native inverse alias entry missing')
+       end do
+       do q=1,size(scaffold_slot)
+          scaffold_value(:,:,q)=value(:,:,scaffold_slot(q),BLOCK_PAYLOAD_SOL)
+       end do
+       do q=1,2
+          call native_inverse_gather(q,BLOCK_PAYLOAD_SOL,.false.)
+       end do
+       if(stage203_inverse) then
+          do q=1,size(restore203_slot)
+             restore203(:,:,q)=value(:,:,restore203_slot(q),BLOCK_PAYLOAD_SOL)
+          end do
+       end if
+       do q=1,size(consumer_alias_slot)
+          consumer_alias_value(:,:,q)=value(:,:,consumer_alias_slot(q),BLOCK_PAYLOAD_SOL)
+       end do
+       return
+    end if
     if(initial_consumer) then
        if(block_rk_enabled) then
           if(rk_boundary_ready) call die('RK boundary not consumed before next step')
           if(allocated(rk_alias_base)) deallocate(rk_alias_base,rk_mass_rhs,rk_mass_ready,rk_alias_index)
-          allocate(rk_mass_rhs(zlevels,size(consumer_alias_slot)),rk_mass_ready(zlevels),rk_alias_index(nnode))
+          allocate(rk_mass_rhs(inverse_levels,size(consumer_alias_slot)),rk_mass_ready(inverse_levels),rk_alias_index(nnode))
           rk_mass_ready=.false.;rk_alias_index=0
           do q=1,size(consumer_alias_slot)
              rk_alias_index(consumer_alias_slot(q))=q
           end do
-          allocate(rk_alias_base(nscalar+EDGE,zlevels,size(consumer_alias_slot)))
+          allocate(rk_alias_base(nscalar+EDGE,inverse_levels,size(consumer_alias_slot)))
           rk_stage=0;rk_stages=0;rk_base_ready=.true.
           call prepare_rk_low_scaffold
        end if
        do q=1,size(consumer_alias_slot)
           p=consumer_alias_slot(q);d=node_domain(p);id=node_id(p)
           if(nodes(d)%key(1,id+1)/=0) call die('initial alias includes canonical interior')
+#ifdef PHYSICS_NATIVE_STATE
           do k=zmin,0
-             physics_alias_soil(1-k,q)=sol(S_TEMP,k)%data(d)%elts(id+1)
+#ifdef SOIL_NATIVE
+             do v=1,nscalar
+                physics_alias_soil(v,1-k,q)=sol(scalars(1)+v-1,k)%data(d)%elts(id+1)
+             end do
+             physics_alias_soil(nscalar+1:nscalar+EDGE,1-k,q)= &
+                  sol(S_VELO,k)%data(d)%elts(EDGE*id+1:EDGE*id+EDGE)
+#else
+             physics_alias_soil(S_TEMP-scalars(1)+1,1-k,q)=sol(S_TEMP,k)%data(d)%elts(id+1)
+#endif
           end do
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nscalar
                 physics_alias_mean(v,k,q)=sol_mean(scalars(1)+v-1,k)%data(d)%elts(id+1)
              end do
           end do
-          do k=1,zlevels
+#endif
+          do k=1,inverse_levels
              do v=1,nscalar
                 value(v,k,p,BLOCK_PAYLOAD_SOL)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
              end do
@@ -837,7 +921,9 @@ contains
           end do
        end if
        initial_operands_ready=.true.
+#ifdef PHYSICS_NATIVE_STATE
        physics_reference_ready=.true.
+#endif
        write(*,'(a,i0,a,i0)') 'Initial tendency alias epoch rank=',rank,' registered aliases=',size(consumer_alias_slot)
        return
     end if
@@ -850,7 +936,7 @@ contains
        d=node_domain(p)
        id=node_id(p)
        if (nodes(d)%key(1,id+1)>0) cycle
-       do k=1,zlevels
+       do k=1,inverse_levels
           do v=1,nscalar
              if(.not.block_rk_enabled) value(v,k,p,1)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
              value(v,k,p,2)=wavelet(scalars(1)+v-1,k)%data(d)%elts(id+1)
@@ -869,7 +955,7 @@ contains
        p=scaffold_slot(q)
        d=node_domain(p)
        id=node_id(p)
-       do k=1,zlevels
+       do k=1,inverse_levels
           do v=1,nscalar
              scaffold_value(v,k,q)=sol(scalars(1)+v-1,k)%data(d)%elts(id+1)
           end do
@@ -1188,7 +1274,7 @@ contains
        if (family/=BLOCK_PAYLOAD_SOL) call die('resident gather family')
        if (.not.present(changed_level)) call die('resident gather requires phase')
        if (oracle203) call check_gather203(level_interior(component,changed_level),component,family)
-       if(ledger203) work203(5)=work203(5)+int(size(restore203_slot),int64)*(last-first+1)*zlevels
+       if(ledger203) work203(5)=work203(5)+int(size(restore203_slot),int64)*(last-first+1)*inverse_levels
        if(ledger203) work203(1)=work203(1)+1_int64
        return
     end if
@@ -1253,7 +1339,7 @@ contains
        if (.not.install .or. component/=2) call die('edgewise transfer outside vector install')
        nv=1
     end if
-    n=nv*zlevels
+    n=nv*inverse_levels
 #ifdef STAGE202_INVERSE
     self_first=plan%sd(rank+1)+1
     self_last=plan%sd(rank+1)+plan%sc(rank+1)
@@ -1277,14 +1363,14 @@ contains
              source_first=nscalar+mod(node-1,EDGE)+1
              node=(node-1)/EDGE+1
           end if
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nv
                 q=q+1
                 transfer_send(q)=value(source_first+v-1,k,node,family)
              end do
           end do
 #else
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nv
                 q=q+1
                 if (plan%edgewise) then
@@ -1307,16 +1393,20 @@ contains
        if (plan%edgewise) then
 #ifdef STAGE202_INVERSE
           call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv, &
-               plan%address(7,:),value(:,:,:,family),local_first,plan%self_slot)
+               plan%address(7,:),value(:,:,:,family),local_first,plan%self_slot, &
+            field_first=inverse_field_first,field_count=inverse_levels)
 #else
-       call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv,plan%address(7,:))
+       call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv,plan%address(7,:), &
+            field_first=inverse_field_first,field_count=inverse_levels)
 #endif
        else
 #ifdef STAGE202_INVERSE
           call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv, &
-               workspace=value(:,:,:,family),local_first=local_first,local_slots=plan%self_slot)
+               workspace=value(:,:,:,family),local_first=local_first,local_slots=plan%self_slot, &
+            field_first=inverse_field_first,field_count=inverse_levels)
 #else
-       call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv)
+       call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv, &
+            field_first=inverse_field_first,field_count=inverse_levels)
 #endif
        end if
        call detail_leave(DP_INVERSE_INSTALL)
@@ -1325,9 +1415,11 @@ contains
 
 #ifdef STAGE202_INVERSE
        call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv, &
-            workspace=value(:,:,:,family),local_first=local_first,local_slots=plan%self_slot)
+            workspace=value(:,:,:,family),local_first=local_first,local_slots=plan%self_slot, &
+            field_first=inverse_field_first,field_count=inverse_levels)
 #else
-       call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv)
+       call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv, &
+            field_first=inverse_field_first,field_count=inverse_levels)
 #endif
        call detail_leave(DP_INVERSE_PACK)
 
@@ -1342,7 +1434,7 @@ contains
           if (p>=self_first.and.p<=self_last) cycle
 #endif
           q=(p-1)*n
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nv
                 q=q+1
                 value(first+v-1,k,plan%slot(p),family)=transfer_send(q)
@@ -1591,21 +1683,21 @@ contains
     logical :: negative
 #endif
     nv=merge(nscalar,1,component==1)
-    n=nv*zlevels
+    n=nv*inverse_levels
     ! Remote sends are snapshots BEFORE the ordered, all-level local copies.
     call detail_enter(DP_INVERSE_PACK)
     q=0
     do p=1,size(a%source)
 #ifdef STAGE202_INVERSE
        call alias_address(a%source(p),component,sn,sf)
-       do k=1,zlevels
+       do k=1,inverse_levels
           do v=1,nv
              q=q+1
              alias_send(q)=value(sf+v-1,k,sn,family)
           end do
        end do
 #else
-       do k=1,zlevels
+       do k=1,inverse_levels
           do v=1,nv
              q=q+1
              alias_send(q)=alias_value(a%source(p),component,v,k,family)
@@ -1625,20 +1717,20 @@ contains
        negative=component==2.and.local_alias(component)%dest(p)<0
        ! Keep p,k,v ordering: local alias chains can consume earlier writes.
        if (negative) then
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nv
                 value(df+v-1,k,dn,family)=-value(sf+v-1,k,sn,family)
              end do
           end do
        else
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nv
                 value(df+v-1,k,dn,family)=value(sf+v-1,k,sn,family)
              end do
           end do
        end if
 #else
-       do k=1,zlevels
+       do k=1,inverse_levels
           do v=1,nv
              call set_alias(local_alias(component)%dest(p),component,v,k,family, &
                   alias_value(local_alias(component)%source(p),component,v,k,family))
@@ -1657,14 +1749,14 @@ contains
 #ifdef STAGE202_INVERSE
        call alias_address(a%dest(t),component,dn,df)
        if (component==2.and.a%dest(t)<0) then
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nv
                 q=q+1
                 value(df+v-1,k,dn,family)=-alias_recv(q)
              end do
           end do
        else
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nv
                 q=q+1
                 value(df+v-1,k,dn,family)=alias_recv(q)
@@ -1672,7 +1764,7 @@ contains
           end do
        end if
 #else
-       do k=1,zlevels
+       do k=1,inverse_levels
           do v=1,nv
              q=q+1
              call set_alias(a%dest(t),component,v,k,family,alias_recv(q))
@@ -1718,12 +1810,18 @@ contains
     end if
   end subroutine
 
-  subroutine compare_native_inverse(scaling,component,payload_family)
-    type(Float_Field), intent(in) :: scaling(1:N_VARIABLE,1:zlevels)
+  subroutine compare_native_inverse(scaling,component,payload_family,consumer_aliases,exact)
+    type(Float_Field), intent(in) :: scaling(:,:)
+    logical,intent(in),optional::consumer_aliases,exact
+    logical::consumer,strict
     integer, intent(in) :: component
     integer, optional, intent(in) :: payload_family
     integer :: p,d,id,k,v,first,last,var,address,family
     real(dp) :: reference,native,allowed
+    consumer=.false.;strict=.false.
+    if(present(consumer_aliases)) consumer=consumer_aliases
+    if(present(exact)) strict=exact
+    if(size(scaling,1)/=N_VARIABLE.or.size(scaling,2)/=inverse_levels) call die('inverse comparison shape')
     first=merge(1,nscalar+1,component==1)
     last=merge(nscalar,nscalar+EDGE,component==1)
     family=BLOCK_PAYLOAD_SOL
@@ -1731,10 +1829,10 @@ contains
     do p=1,nnode
        ! Additional registered nodes only supply fixed scaffold staging; they
        ! were not published to the independent provisional reference field.
-       if(block_rk_enabled.and.p>original_inverse_nodes) cycle
+       if(block_rk_enabled.and.inverse_field_first==1.and.inverse_levels==zlevels.and.p>original_inverse_nodes) cycle
        d=node_domain(p)
        id=node_id(p)
-       do k=1,zlevels
+       do k=1,inverse_levels
           do v=first,last
              if (component==1) then
                 var=scalars(1)+v-1
@@ -1744,11 +1842,13 @@ contains
                 address=EDGE*id+v-nscalar
              end if
              native=value(v,k,p,family)
+             if(consumer.and.nodes(d)%key(1,id+1)==0) &
+                  native=consumer_alias_value(v,k,consumer_alias_index(p))
              reference=scaling(var,k)%data(d)%elts(address)
              if (transfer_bits(native)==transfer_bits(reference)) cycle
              if (.not. ieee_is_finite(native) .or. .not. ieee_is_finite(reference)) call die('nonfinite oracle difference')
              allowed=128.0_dp*epsilon(1.0_dp)*max(1.0_dp,abs(native),abs(reference))
-             if (abs(native-reference) <= allowed) cycle
+             if (.not.strict.and.abs(native-reference) <= allowed) cycle
              write(error_unit,'(a,5i8,3es25.16)') 'Inverse phase mismatch d,node,k,var,component: ', &
                   d,id,k,var,v,native,reference,native-reference
              write(error_unit,'(a,5i8)') 'level and native key: ',grid(d)%level%elts(id+1),nodes(d)%key(:,id+1)
@@ -1770,6 +1870,7 @@ contains
     real(dp),intent(out)::operand(nscalar+EDGE,zlevels)
     real(dp),intent(out),optional::mean(nscalar,zlevels),soil(1-zmin)
     integer::key(4),p,q
+    if(inverse_field_first/=1.or.inverse_levels/=zlevels) call die('physics accessor received non-atmospheric epoch')
     if(.not.physics_consumer_ready) call die('physics consumer alias epoch is not ready')
     call inverse_operand_key(d,id,key)
     if(key(1)/=0) call die('physics alias accessor attempted canonical interior')
@@ -1777,10 +1878,11 @@ contains
     if(p<1.or.p>original_inverse_nodes) call die('physics alias is outside the consumer closure')
     q=consumer_alias_index(p)
     if(q<1) call die('physics alias index absent')
-    if(.not.physics_reference_ready) call die('physics reference alias epoch is not ready')
+    if((present(mean).or.present(soil)).and..not.physics_reference_ready) &
+         call die('physics reference alias epoch is not ready')
     operand=consumer_alias_value(:,:,q)
     if(present(mean)) mean=physics_alias_mean(:,:,q)
-    if(present(soil)) soil=physics_alias_soil(:,q)
+    if(present(soil)) soil=physics_alias_soil(S_TEMP-scalars(1)+1,:,q)
     if(.not.all(ieee_is_finite(operand))) call die('nonfinite saved physics alias')
   end subroutine
 
@@ -1798,12 +1900,30 @@ contains
           consumer_alias_value(nscalar+1:nscalar+EDGE,k,q)=result(3*(k-1)+1:3*k)
        end do
     end if
-    physics_alias_soil(:,q)=result(4*zlevels+1:)
+    physics_alias_soil(S_TEMP-scalars(1)+1,:,q)=result(4*zlevels+1:)
   end subroutine install_physics_consumer_alias
+
+  subroutine export_native_soil_aliases(address,operand,generation)
+    integer,allocatable,intent(out)::address(:,:)
+    real(dp),allocatable,intent(out)::operand(:,:,:)
+    integer(int64),intent(out)::generation
+    integer::q,p
+    if(.not.physics_results_ready.or..not.physics_reference_ready) call die('post-physics soil epoch absent')
+    if(inverse_field_first/=1.or.inverse_levels/=zlevels) call die('soil export requires completed atmosphere')
+    allocate(address(2,size(consumer_alias_slot)),operand(nscalar+EDGE,1-zmin,size(consumer_alias_slot)))
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q);address(:,q)=[node_domain(p),node_id(p)]
+       operand(:,:,q)=physics_alias_soil(:,1-zmin:1:-1,q)
+    end do
+    generation=plan_generation
+  end subroutine export_native_soil_aliases
 
   subroutine finish_physics_consumer_epoch
     if(.not.physics_consumer_ready) call die('physics consumer epoch already consumed')
     physics_consumer_ready=.false.
+#ifdef PHYSICS_NATIVE_STATE
+    physics_results_ready=.true.
+#endif
   end subroutine
 
   subroutine capture_native_inverse_consumer_aliases(component,level)
@@ -1820,27 +1940,30 @@ contains
     end do
   end subroutine
 
-  subroutine publish_native_inverse(scaling,payload_family,consumer_aliases)
+  subroutine publish_native_inverse(scaling,payload_family,consumer_aliases,all_nodes)
     ! One compatibility publication after the complete native transaction.
     ! Interior installation remains the standard final-owner publication.
-    type(Float_Field), intent(inout) :: scaling(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: scaling(:,:)
     integer, optional, intent(in) :: payload_family
-    logical, optional, intent(in) :: consumer_aliases
+    logical, optional, intent(in) :: consumer_aliases,all_nodes
     integer :: p,d,id,k,v,family,q
-    logical :: consumer
+    logical :: consumer,publish_all
+    publish_all=.false.
+    if(present(all_nodes)) publish_all=all_nodes
+    if(size(scaling,1)/=N_VARIABLE.or.size(scaling,2)/=inverse_levels) call die('inverse publication shape')
     family=BLOCK_PAYLOAD_SOL
     if (present(payload_family)) family=payload_family
     consumer=.false.
     if (present(consumer_aliases)) consumer=consumer_aliases
     if (consumer.and.family/=BLOCK_PAYLOAD_SOL) call die('consumer aliases require solution')
     if (consumer) then
-       physics_consumer_ready=.true.
+       physics_consumer_ready=inverse_field_first==1.and.inverse_levels==zlevels
        do q=1,size(consumer_alias_slot)
           p=consumer_alias_slot(q)
-          if(block_rk_enabled.and.p>original_inverse_nodes) cycle
+          if(block_rk_enabled.and.inverse_field_first==1.and.inverse_levels==zlevels.and.p>original_inverse_nodes) cycle
           d=node_domain(p)
           id=node_id(p)
-          do k=1,zlevels
+          do k=1,inverse_levels
              do v=1,nscalar
                 scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)=consumer_alias_value(v,k,q)
              end do
@@ -1852,11 +1975,11 @@ contains
        return
     end if
     do p=1,nnode
-       if(block_rk_enabled.and.p>original_inverse_nodes) cycle
+       if(block_rk_enabled.and.inverse_field_first==1.and.inverse_levels==zlevels.and.p>original_inverse_nodes) cycle
        d=node_domain(p)
        id=node_id(p)
-       if (nodes(d)%key(1,id+1)>0) cycle
-       do k=1,zlevels
+       if (nodes(d)%key(1,id+1)>0.and..not.publish_all) cycle
+       do k=1,inverse_levels
           do v=1,nscalar
              scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)=value(v,k,p,family)
           end do
@@ -1877,7 +2000,7 @@ contains
           do pi=1,grid(d)%lev(l)%length
              p=grid(d)%lev(l)%elts(pi)
              if (.not. any(grid(d)%patch%elts(p+1)%children>0)) cycle
-             coverage(1,l)=coverage(1,l)+int(zlevels,int64)
+             coverage(1,l)=coverage(1,l)+int(inverse_levels,int64)
              call get_offs_Domain(grid(d),p,op,dp0)
              do c=1,N_CHDRN
                 child=grid(d)%patch%elts(p+1)%children(c)
@@ -1889,7 +2012,7 @@ contains
                    do i=1,PATCH_SIZE/2+1
                       ic=2*(i-1)
                       ip=i-1+chd_offs(1,c)
-                      coverage(2,l)=coverage(2,l)+int(zlevels,int64)
+                      coverage(2,l)=coverage(2,l)+int(inverse_levels,int64)
                       do e=RT,UP
                          item=Outer_Operation(level=l)
                          a=idx(ic+end_pt(1,1,e+1),jc+end_pt(2,1,e+1),oc,dc)
@@ -1911,7 +2034,7 @@ contains
                          item%source(12)=side(ip+end_pt(1,1,e+1),jp+end_pt(2,1,e+1),hex_s_offs(e+1)+1)
                          item%source(13)=side(ip+opp_no(1,2,e+1),jp+opp_no(2,2,e+1),hex_s_offs(e+1)+2)
                          call append_operation
-                         coverage(3,l)=coverage(3,l)+2_int64*zlevels
+                         coverage(3,l)=coverage(3,l)+2_int64*inverse_levels
                       end do
                    end do
                 end do
@@ -1990,7 +2113,7 @@ contains
       noperation=noperation+1
       if (noperation>size(operations)) call die('outer tape capacity')
       operations(noperation)=item
-      if (item%kind/=0) coverage(4,l)=coverage(4,l)+2_int64*zlevels
+      if (item%kind/=0) coverage(4,l)=coverage(4,l)+2_int64*inverse_levels
     end subroutine
   end subroutine
 
@@ -2003,7 +2126,7 @@ contains
     count=coverage(:,level)
     first=0.0_dp
     second=0.0_dp
-    do k=1,zlevels
+    do k=1,inverse_levels
        do p=operation_first(level),operation_last(level)
           associate(op=>operations(p))
             do q=1,13
@@ -2062,13 +2185,13 @@ contains
     integer :: lo,hi,p,k,v
     real(dp), allocatable :: expected(:,:,:)
     lo=merge(1,nscalar+1,component==1);hi=merge(nscalar,nscalar+EDGE,component==1)
-    allocate(expected(lo:hi,zlevels,size(plan%slot)))
+    allocate(expected(lo:hi,inverse_levels,size(plan%slot)))
     do p=1,size(plan%slot)
        expected(:,:,p)=value(lo:hi,:,plan%slot(p),family)
     end do
     call transfer_nodes(plan,component,family,.false.)
     do p=1,size(plan%slot)
-       do k=1,zlevels
+       do k=1,inverse_levels
           do v=lo,hi
              if (transfer_bits(expected(v,k,p))/=transfer_bits(value(v,k,plan%slot(p),family))) then
                 write(error_unit,*) 'Stage203 phase mismatch rank/component/node/k/v ',rank,component,plan%slot(p),k,v
@@ -2109,7 +2232,7 @@ contains
        saved203(:,:,q)=value(:,:,restore203_slot(q),1)
        value(:,:,restore203_slot(q),1)=restore203(:,:,q)
     end do
-    if(ledger203) work203(6)=work203(6)+int(size(interior_plan%slot),int64)*(nscalar+EDGE)*zlevels
+    if(ledger203) work203(6)=work203(6)+int(size(interior_plan%slot),int64)*(nscalar+EDGE)*inverse_levels
     do c=1,2
        call transfer_nodes(interior_plan,c,BLOCK_PAYLOAD_SOL,.true.)
     end do
@@ -2262,7 +2385,7 @@ contains
             w(q)=grid(d)%overl_areas%elts(op%geometry(q)+1)%a(merge(wi(q),q,phase==1))
          end do
          do v=1,nscalar
-            do k=1,zlevels
+            do k=1,inverse_levels
                s=0.0_dp
                do q=1,op%n
                   s=s+value(v,k,op%source(q),merge(2,1,phase==1))*w(q)
@@ -2275,7 +2398,7 @@ contains
                call store203(op%target,v,k,x)
             end do
          end do
-         if(ledger203) work203(3)=work203(3)+int(zlevels,int64)*nscalar
+         if(ledger203) work203(3)=work203(3)+int(inverse_levels,int64)*nscalar
        end associate
     end do
   end subroutine
@@ -2299,7 +2422,7 @@ contains
                g(q)=grid(d)%len%elts(EDGE*id+e+1)
             end if
          end do
-         do k=1,zlevels
+         do k=1,inverse_levels
             do q=1,size(inputs)
                t=inputs(q);u(t)=alias_value(op%source(t),2,1,k,1)
             end do
@@ -2318,9 +2441,716 @@ contains
                call store203(slot,comp,k,x(q)+value(comp,k,slot,2))
             end do
          end do
-         if(ledger203) work203(4)=work203(4)+int(zlevels,int64)
+         if(ledger203) work203(4)=work203(4)+int(inverse_levels,int64)
        end associate
     end do
   end subroutine
 
+
+  subroutine native_soil_transform
+    ! Soil entry is the completed physics result, with its own retained aliases.
+    ! Atmospheric coefficients are deliberately outside the selected transfer range.
+    integer,allocatable::address(:,:)
+    real(dp),allocatable::entry(:,:,:)
+    integer(int64)::generation
+    integer::l,d,k,v,q,c
+    if(zmin>0) return
+    call export_native_soil_aliases(address,entry,generation)
+    call prepare_native_inverse(generation,first_level=level_start,profile=.false., &
+         field_first=zmin,field_count=1-zmin,entry_alias_address=address,entry_alias_value=entry)
+#ifdef SOIL_NATIVE_ORACLE
+    call compare_native_inverse(sol(:,zmin:0),1,exact=.true.)
+    call compare_native_inverse(sol(:,zmin:0),2,exact=.true.)
+    write(*,'(a,i0)') 'Native soil entry exact rank=',rank
+#endif
+    do k=1,inverse_levels
+       soil_layer=k
+       do d=1,size(grid)
+          soil_domain=d
+          call apply_interscale_d(soil_Restrict_velo,grid(d),level_start-1,k,0,0)
+       end do
+    end do
+    do q=1,size(scaffold_slot)
+       scaffold_value(:,:,q)=value(:,:,scaffold_slot(q),1)
+    end do
+    do c=1,2
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_SOL,level_start-1,level_end)
+    end do
+    do l=level_start-1,level_end-1
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             do v=1,nscalar
+                soil_variable=v
+                call apply_interscale_d(soil_Compute_scalar_wavelets,grid(d),l,Z_NULL,0,0)
+             end do
+             call apply_interscale_d(soil_Compute_velo_wavelets,grid(d),l,Z_NULL,0,0)
+          end do
+       end do
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             call apply_to_penta_d(soil_Compute_velo_wavelets_penta,grid(d),l,Z_NULL)
+          end do
+       end do
+    end do
+    do c=1,2
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_WAV_COEFF,level_start-1,level_end)
+    end do
+    do k=1,inverse_levels
+       soil_layer=k
+       do l=level_start+1,level_end
+          do d=1,size(grid)
+             soil_domain=d
+             do v=1,nscalar
+                soil_variable=v
+                call apply_onescale_d(soil_compress_scalar,grid(d),l,Z_NULL,0,1)
+             end do
+             call apply_onescale_d(soil_compress_vector,grid(d),l,Z_NULL,0,0)
+          end do
+       end do
+    end do
+    do c=1,2
+       call transfer_nodes(interior_plan,c,BLOCK_PAYLOAD_WAV_COEFF,.true.)
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_WAV_COEFF,level_start,level_end)
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_SOL,level_start,level_end)
+    end do
+    ! Unlike the canonical atmospheric tape, soil reconstruction also writes
+    ! geometric aliases. Keep the complete legacy walk on native operands.
+    do l=level_start,level_end-1
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             do v=1,nscalar
+                soil_variable=v
+                call apply_interscale_d2(soil_Prolong_scalar,grid(d),l,Z_NULL,0,1)
+             end do
+          end do
+       end do
+       call native_inverse_boundary(1,BLOCK_PAYLOAD_SOL,l+1,l+1)
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             call apply_interscale_d2(soil_Reconstruct_outer_velo,grid(d),l,Z_NULL,0,1)
+             call apply_to_penta_d(soil_Reconstruct_velo_penta,grid(d),l,Z_NULL)
+          end do
+       end do
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             do v=1,nscalar
+                soil_variable=v
+                call apply_interscale_d(soil_Reconstruct_scalar,grid(d),l,Z_NULL,0,0)
+             end do
+          end do
+       end do
+       call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,l+1,l+1)
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             call apply_interscale_d(soil_Reconstruct_inner_velo,grid(d),l,Z_NULL,0,0)
+          end do
+       end do
+       if(l<level_end-1) call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,l+1,l+1)
+    end do
+    do q=1,size(consumer_alias_slot)
+       consumer_alias_value(:,:,q)=value(:,:,consumer_alias_slot(q),1)
+    end do
+    do c=1,2
+       call native_inverse_scatter(c,BLOCK_PAYLOAD_SOL,.true.)
+    end do
+    write(*,'(a,i0,a,i0)') 'Native soil transform rank=',rank,' layers=',inverse_levels
+  end subroutine native_soil_transform
+
+
+
+  subroutine publish_native_soil(scaling,wavelet)
+    type(Float_Field),intent(inout)::scaling(:,:),wavelet(:,:)
+    if(inverse_field_first/=zmin.or.inverse_levels/=1-zmin) call die('soil publication epoch')
+    call publish_native_inverse(scaling,all_nodes=.true.)
+    call publish_native_inverse(scaling,consumer_aliases=.true.)
+    call publish_native_inverse(wavelet,payload_family=BLOCK_PAYLOAD_WAV_COEFF,all_nodes=.true.)
+    scaling%bdry_uptodate=.false.
+    wavelet%bdry_uptodate=.false.
+  end subroutine publish_native_soil
+
+  function soil_scalar(address) result(x)
+    integer,intent(in)::address
+    real(dp),pointer::x
+    integer::id,p,v
+    id=address-1
+    v=soil_variable
+    if(soil_domain<1.or.soil_domain>size(nodes)) call die('soil callback Domain')
+    if(id<0.or.id>=size(nodes(soil_domain)%slot)) call die('soil callback address')
+    p=nodes(soil_domain)%slot(id+1)
+    if(p<1) then
+       write(error_unit,*) 'Missing soil operand rank/domain/id ',rank,soil_domain,id
+       call die('soil dependency not registered')
+    end if
+    x=>value(v,soil_layer,p,1)
+  end function soil_scalar
+
+  function soil_vector(address) result(x)
+    integer,intent(in)::address
+    real(dp),pointer::x
+    integer::id,p,v
+    id=(address-1)/EDGE
+    v=nscalar+mod(address-1,EDGE)+1
+    if(soil_domain<1.or.soil_domain>size(nodes)) call die('soil callback Domain')
+    if(id<0.or.id>=size(nodes(soil_domain)%slot)) call die('soil callback address')
+    p=nodes(soil_domain)%slot(id+1)
+    if(p<1) then
+       write(error_unit,*) 'Missing soil operand rank/domain/id ',rank,soil_domain,id
+       call die('soil dependency not registered')
+    end if
+    x=>value(v,soil_layer,p,1)
+  end function soil_vector
+
+  function soil_scalar_wavelet(address) result(x)
+    integer,intent(in)::address
+    real(dp),pointer::x
+    integer::id,p,v
+    id=address-1
+    v=soil_variable
+    if(soil_domain<1.or.soil_domain>size(nodes)) call die('soil callback Domain')
+    if(id<0.or.id>=size(nodes(soil_domain)%slot)) call die('soil callback address')
+    p=nodes(soil_domain)%slot(id+1)
+    if(p<1) then
+       write(error_unit,*) 'Missing soil operand rank/domain/id ',rank,soil_domain,id
+       call die('soil dependency not registered')
+    end if
+    x=>value(v,soil_layer,p,2)
+  end function soil_scalar_wavelet
+
+  function soil_vector_wavelet(address) result(x)
+    integer,intent(in)::address
+    real(dp),pointer::x
+    integer::id,p,v
+    id=(address-1)/EDGE
+    v=nscalar+mod(address-1,EDGE)+1
+    if(soil_domain<1.or.soil_domain>size(nodes)) call die('soil callback Domain')
+    if(id<0.or.id>=size(nodes(soil_domain)%slot)) call die('soil callback address')
+    p=nodes(soil_domain)%slot(id+1)
+    if(p<1) then
+       write(error_unit,*) 'Missing soil operand rank/domain/id ',rank,soil_domain,id
+       call die('soil dependency not registered')
+    end if
+    x=>value(v,soil_layer,p,2)
+  end function soil_vector_wavelet
+
+  subroutine set_soil_scalar_wavelet(address,x)
+    integer,intent(in)::address
+    real(dp),intent(in)::x
+    real(dp),pointer::destination
+    destination=>soil_scalar_wavelet(address)
+    destination=x
+  end subroutine set_soil_scalar_wavelet
+
+  subroutine set_soil_vector_wavelet(address,x)
+    integer,intent(in)::address
+    real(dp),intent(in)::x
+    real(dp),pointer::destination
+    destination=>soil_vector_wavelet(address)
+    destination=x
+  end subroutine set_soil_vector_wavelet
+
+  subroutine set_soil_scalar(address,x)
+    integer,intent(in)::address
+    real(dp),intent(in)::x
+    real(dp),pointer::destination
+    destination=>soil_scalar(address)
+    destination=x
+  end subroutine set_soil_scalar
+
+  subroutine set_soil_vector(address,x)
+    integer,intent(in)::address
+    real(dp),intent(in)::x
+    real(dp),pointer::destination
+    destination=>soil_vector(address)
+    destination=x
+  end subroutine set_soil_vector
+
+  subroutine soil_Compute_scalar_wavelets (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Compute wavelet coefficients for scalars
+    implicit none
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
+
+    integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
+
+    id_chd    = idx (i_chd,   j_chd,   offs_chd, dims_chd)
+    idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    id2N_chd  = idx (i_chd,   j_chd+2, offs_chd, dims_chd)
+    id2E_chd  = idx (i_chd+2, j_chd,   offs_chd, dims_chd)
+    id2S_chd  = idx (i_chd,   j_chd-2, offs_chd, dims_chd)
+    id2W_chd  = idx (i_chd-2, j_chd,   offs_chd, dims_chd)
+    id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
+
+    if (dom%mask_n%elts(idE_chd+1) >= ADJZONE)  call set_soil_scalar_wavelet(idE_chd+1,soil_scalar(idE_chd+1) - &
+         & soil_Interp_node (dom, idE_chd, id_chd, id2E_chd,  id2NE_chd, id2S_chd))
+
+    if (dom%mask_n%elts(idNE_chd+1) >= ADJZONE)  call set_soil_scalar_wavelet(idNE_chd+1,soil_scalar(idNE_chd+1) - &
+         & soil_Interp_node (dom, idNE_chd, id2NE_chd,  id_chd, id2E_chd, id2N_chd))
+
+    if (dom%mask_n%elts(idN_chd+1) >= ADJZONE)  call set_soil_scalar_wavelet(idN_chd+1,soil_scalar(idN_chd+1) - &
+         & soil_Interp_node (dom, idN_chd, id_chd, id2N_chd,  id2W_chd, id2NE_chd))
+  end subroutine soil_Compute_scalar_wavelets
+  subroutine soil_Compute_velo_wavelets (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Compute velocity wavelet coefficients (except at pentagons)
+    implicit none
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
+
+    integer                :: e, idN_chd, idE_chd, idNE_chd, id1, id2
+    real(dp)               :: u
+    real(dp), dimension(6) :: u_inner
+
+    ! Velocity wavelets at 6 outer child edges
+    do e = 1, EDGE
+       id1 = idx (i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
+       id2 = idx (i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
+
+       if (dom%mask_e%elts(EDGE*id2+e) < ADJZONE) cycle
+
+       u = soil_Interp_outer_velo (dom, i_par, j_par, id2, e, offs_par, dims_par)
+
+       call set_soil_vector_wavelet(EDGE*id2+e,soil_vector(EDGE*id2+e) - u)
+       call set_soil_vector_wavelet(EDGE*id1+e,- soil_vector_wavelet(EDGE*id2+e)) ! Restriction(Prolongation) = Identity
+    end do
+
+    ! Velocity wavelets at 6 inner child edges
+    u_inner = soil_Interp_inner_velo (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
+
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+
+    if (dom%mask_e%elts(EDGE*idE_chd+UP+1)  >= ADJZONE) call &
+         & set_soil_vector_wavelet(EDGE*idE_chd+UP+1,soil_vector(EDGE*idE_chd+UP+1)  - u_inner(1))
+    if (dom%mask_e%elts(EDGE*idE_chd+DG+1)  >= ADJZONE) call &
+         & set_soil_vector_wavelet(EDGE*idE_chd+DG+1,soil_vector(EDGE*idE_chd+DG+1)  - u_inner(2))
+    if (dom%mask_e%elts(EDGE*idNE_chd+RT+1) >= ADJZONE) call &
+         & set_soil_vector_wavelet(EDGE*idNE_chd+RT+1,soil_vector(EDGE*idNE_chd+RT+1) - u_inner(3))
+    if (dom%mask_e%elts(EDGE*idN_chd+RT+1)  >= ADJZONE) call &
+         & set_soil_vector_wavelet(EDGE*idN_chd+RT+1,soil_vector(EDGE*idN_chd+RT+1)  - u_inner(4))
+    if (dom%mask_e%elts(EDGE*idN_chd+DG+1)  >= ADJZONE) call &
+         & set_soil_vector_wavelet(EDGE*idN_chd+DG+1,soil_vector(EDGE*idN_chd+DG+1)  - u_inner(5))
+    if (dom%mask_e%elts(EDGE*idNE_chd+UP+1) >= ADJZONE) call &
+         & set_soil_vector_wavelet(EDGE*idNE_chd+UP+1,soil_vector(EDGE*idNE_chd+UP+1) - u_inner(6))
+  end subroutine soil_Compute_velo_wavelets
+  subroutine soil_Compute_velo_wavelets_penta (dom, p, c, offs, dims, zlev)
+    ! Compute velocity wavelet coefficients at pentagons.
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p, c, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer :: id_chd, idE_chd, idN_chd, p_chd
+    integer :: offs_chd(N_BDRY+1)
+    integer :: dims_chd(2,N_BDRY+1)
+
+    real(dp) :: v
+    real(dp) :: u(2)
+
+    p_chd = dom%patch%elts(p+1)%children(c-4)
+
+    if (p_chd == 0) return
+
+    call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
+
+    if (c == IMINUSJPLUS) then
+       ! Parts 3 and 4 of hexagon IMINUSJPLUS, at the upper-left
+       ! corner of the lozenge, combine to form a pentagon.
+       !
+       ! pedlen(EDGE*idW + RT + 1) = 0 in this case.
+       id_chd  = idx(0, LAST-1, offs_chd, dims_chd)
+       idN_chd = idx(0, LAST,   offs_chd, dims_chd)
+
+       v = -(  base_weight(8) +  real(dom%I_u_wgt%elts(idN_chd+1)%enc(8), kind=dp)  ) * (  soil_vector(idx(0,  &
+         & PATCH_SIZE, offs, dims)*EDGE + UP + 1) +  soil_vector(idx(-1, PATCH_SIZE, offs, dims)*EDGE + RT + 1)    )
+
+       if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) then
+          call set_soil_vector_wavelet(EDGE*id_chd +UP+1,soil_vector_wavelet(EDGE*id_chd +UP+1) - v)
+
+          call set_soil_vector_wavelet(EDGE*idN_chd+UP+1,soil_vector_wavelet(EDGE*idN_chd+UP+1) + v)
+       end if
+
+    else if (c == IPLUSJMINUS) then
+       ! Parts 5 and 6 of hexagon IPLUSJMINUS, at the lower-right
+       ! corner of the lozenge, combine to form a pentagon.
+       !
+       ! pedlen(EDGE*idS + UP + 1) = 0 in this case.
+       id_chd  = idx(LAST-1, 0, offs_chd, dims_chd)
+       idE_chd = idx(LAST,   0, offs_chd, dims_chd)
+
+       v = (  base_weight(7) +  real(dom%I_u_wgt%elts(idE_chd+1)%enc(7), kind=dp)  ) * (  soil_vector(idx(PATCH_SIZE,  &
+         & 0, offs, dims)*EDGE + RT + 1) +  soil_vector(idx(PATCH_SIZE, -1, offs, dims)*EDGE + UP + 1)    )
+
+       if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) then
+          call set_soil_vector_wavelet(EDGE*id_chd +RT+1,soil_vector_wavelet(EDGE*id_chd +RT+1) - v)
+
+          call set_soil_vector_wavelet(EDGE*idE_chd+RT+1,soil_vector_wavelet(EDGE*idE_chd+RT+1) + v)
+       end if
+    end if
+
+    if (c /= IJMINUS) return
+
+    ! Parts 4 and 5 of hexagon IJMINUS, at the lower-left corner
+    ! of the lozenge, combine to form a pentagon.
+    !
+    ! pedlen(EDGE*idSW + DG + 1) = 0 in this case.
+    id_chd  = idx(0, 0, offs_chd, dims_chd)
+    idN_chd = idx(0, 1, offs_chd, dims_chd)
+    idE_chd = idx(1, 0, offs_chd, dims_chd)
+
+    u = soil_velo_interp_penta_corr (dom, offs, dims, offs_chd, dims_chd)
+
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) then
+       call set_soil_vector_wavelet(EDGE*id_chd +UP+1,soil_vector_wavelet(EDGE*id_chd +UP+1) + u(1))
+
+       call set_soil_vector_wavelet(EDGE*idN_chd+UP+1,soil_vector_wavelet(EDGE*idN_chd+UP+1) - u(1))
+    end if
+
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) then
+       call set_soil_vector_wavelet(EDGE*id_chd +RT+1,soil_vector_wavelet(EDGE*id_chd +RT+1) + u(2))
+
+       call set_soil_vector_wavelet(EDGE*idE_chd+RT+1,soil_vector_wavelet(EDGE*idE_chd+RT+1) - u(2))
+    end if
+  end subroutine soil_Compute_velo_wavelets_penta
+  function soil_velo_interp_penta_corr (dom, offs, dims, offs_chd, dims_chd) result(val)
+
+    implicit none
+
+    type(Domain),                   intent(inout) :: dom
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims, dims_chd
+    real(dp)                                      :: val(2)
+
+    integer :: i, j, i_chd, j_chd
+
+    i     = 0
+    j     = 0
+    i_chd = 0
+    j_chd = 0
+
+    val = [   (base_weight(9)  + real (dom%I_u_wgt%elts(idx__fast(i_chd+end_pt(1,2,UP+1), j_chd+end_pt(2,2,UP+1), &
+         & offs_chd(1))+1)%enc(9),kind=dp)) *  ((-soil_vector(idx(0, -1, offs, dims)*EDGE+UP+1) - &
+         & (-soil_vector(idx(-1, -1, offs, dims)*EDGE+1))) -  (soil_vector(ed_idx(i+end_pt(1,1,UP+1), &
+         & j+end_pt(2,1,UP+1), hex_sides(:,hex_s_offs(UP+1)+0+1), offs, dims)+1) -  &
+         & soil_vector(ed_idx(i+opp_no(1,2,UP+1), j+opp_no(2,2,UP+1), hex_sides(:,hex_s_offs(UP+1)+1+1), offs, &
+         & dims)+1))),  (base_weight(6)  + real (dom%I_u_wgt%elts(idx__fast(i_chd + end_pt(1,2,RT+1), j_chd + &
+         & end_pt(2,2,RT+1), offs_chd(1))+1)%enc(6),kind=dp)) *  (soil_vector(idx(-1, -1, offs, dims)*EDGE+1) + &
+         & soil_vector(idx(-1, 0, offs, dims)*EDGE + RT+1)  - (soil_vector(ed_idx(i+opp_no(1,1,RT+1), &
+         & j+opp_no(2,1,RT+1), hex_sides(:,hex_s_offs(RT+1)+1+1), offs, dims)+1)  -  &
+         & soil_vector(ed_idx(i+end_pt(1,1,RT+1), j+end_pt(2,1,RT+1), hex_sides(:,hex_s_offs(RT+1)+2+1), offs, dims)+1))) ]
+  end function soil_velo_interp_penta_corr
+  function soil_Interp_inner_velo (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd) result(val)
+    ! Interpolate inner velocities to fine edges
+
+    implicit none
+
+    type(Domain), intent (in) :: dom
+    integer,      intent(in)  :: i_par, j_par, i_chd, j_chd
+    integer,      intent(in)  :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)  :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
+    real(dp)                  :: val(6)
+
+    integer                        :: id, id_par, id1_par, id2_par, t, idN, idE, idNE, idN2E, id2NE, idN2, idE2
+    real(dp), dimension(LORT:UPLT) :: curl_u
+
+    id_par = idx(i_par, j_par, offs_par, dims_par)
+
+    curl_u = 0.0_dp
+    do t = LORT, UPLT
+       id1_par = idx (i_par-t+1, j_par,   offs_par, dims_par)
+       id2_par = idx (i_par,     j_par+t, offs_par, dims_par)
+       curl_u(t) = (soil_vector(EDGE*id_par +DG+1)*dom%len%elts(EDGE*id_par+DG+1)  + &
+         & soil_vector(EDGE*id1_par+UP+1)*dom%len%elts(EDGE*id1_par+UP+1)  + &
+         & soil_vector(EDGE*id2_par+RT+1)*dom%len%elts(EDGE*id2_par+RT+1)) / dom%triarea%elts(TRIAG*id_par+t+1)
+    end do
+
+    id = idx (i_chd, j_chd, offs_chd, dims_chd)
+
+    idE   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+
+    idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
+    id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
+    idN2  = idx (i_chd,   j_chd+2, offs_chd, dims_chd)
+    idE2  = idx (i_chd+2, j_chd,   offs_chd, dims_chd)
+
+    val(1) = (dom%triarea%elts(TRIAG*id+LORT+1) * curl_u(LORT)  - soil_vector(EDGE*id+RT+1) * &
+         & dom%len%elts(EDGE*id+RT+1) - soil_vector(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1))  / dom%len%elts(EDGE*idE+UP+1)
+
+    val(2) = (dom%triarea%elts(TRIAG*idE+LORT+1) * curl_u(LORT)  - soil_vector(EDGE*idE+RT+1) * &
+         & dom%len%elts(EDGE*idE+RT+1) - soil_vector(EDGE*idE2+UP+1) * dom%len%elts(EDGE*idE2+UP+1))  / dom%len%elts(EDGE*idE+DG+1)
+
+    val(3) = (dom%triarea%elts(TRIAG*idNE+LORT+1) * curl_u(LORT)  - soil_vector(EDGE*idNE+DG+1) * &
+         & dom%len%elts(EDGE*idNE+DG+1) - soil_vector(EDGE*idN2E+UP+1) *  dom%len%elts(EDGE*idN2E+UP+1))  / &
+         & dom%len%elts(EDGE*idNE+RT+1)
+
+    val(4) = (dom%triarea%elts(TRIAG*id+UPLT+1) * curl_u(UPLT)  - soil_vector(EDGE*id+UP+1) * &
+         & dom%len%elts(EDGE*id+UP+1) - soil_vector(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1))  / dom%len%elts(EDGE*idN+RT+1)
+
+    val(5) = (dom%triarea%elts(TRIAG*idN+UPLT+1) * curl_u(UPLT)  - soil_vector(EDGE*idN+UP+1) * &
+         & dom%len%elts(EDGE*idN+UP+1) - soil_vector(EDGE*idN2+RT+1) * dom%len%elts(EDGE*idN2+RT+1))  / dom%len%elts(EDGE*idN+DG+1)
+
+    val(6) = (dom%triarea%elts(TRIAG*idNE+UPLT+1) * curl_u(UPLT)  - soil_vector(EDGE*idNE+DG+1) * &
+         & dom%len%elts(EDGE*idNE+DG+1) - soil_vector(EDGE*id2NE+RT+1) *  dom%len%elts(EDGE*id2NE+RT+1))  / &
+         & dom%len%elts(EDGE*idNE+UP+1)
+  end function soil_Interp_inner_velo
+  function soil_Interp_outer_velo (dom, i_par, j_par, ide, e, offs, dims) result(val)
+    ! Interpolate outer velocities to fine edge EDGE*ide + e
+    implicit none
+
+    type(Domain),                   intent(in) :: dom
+    integer,                        intent(in) :: i_par, j_par, ide, e
+    integer, dimension(N_BDRY+1),   intent(in) :: offs
+    integer, dimension(2,N_BDRY+1), intent(in) :: dims
+    real(dp)                                   :: val
+
+    real(dp), dimension(9) :: wgt
+
+    wgt = base_weight + real (dom%I_u_wgt%elts(ide+1)%enc, kind=dp)
+
+   val = sum (wgt * [ &
+         soil_vector(EDGE * idx(i_par, j_par, offs, dims) + e), &
+         soil_vector(ed_idx(i_par + end_pt(1,2,e), j_par + end_pt(2,2,e), hex_sides(:,hex_s_offs(e)+2+1), offs, dims) + 1), &
+         soil_vector(ed_idx(i_par + end_pt(1,1,e), j_par + end_pt(2,1,e), hex_sides(:,hex_s_offs(e)+3+1), offs, dims) + 1), &
+         soil_vector(ed_idx(i_par + end_pt(1,1,e), j_par + end_pt(2,1,e), hex_sides(:,hex_s_offs(e)+5+1), offs, dims) + 1), &
+         soil_vector(ed_idx(i_par + end_pt(1,2,e), j_par + end_pt(2,2,e), hex_sides(:,hex_s_offs(e)+0+1), offs, dims) + 1), &
+
+         soil_vector(ed_idx(i_par + opp_no(1,1,e), j_par + opp_no(2,1,e), hex_sides(:,hex_s_offs(e)+1+1), offs, dims) + 1) - &
+         soil_vector(ed_idx(i_par + end_pt(1,1,e), j_par + end_pt(2,1,e), hex_sides(:,hex_s_offs(e)+2+1), offs, dims) + 1), &
+
+         soil_vector(ed_idx(i_par + end_pt(1,2,e), j_par + end_pt(2,2,e), hex_sides(:,hex_s_offs(e)+3+1), offs, dims) + 1) - &
+         soil_vector(ed_idx(i_par + opp_no(1,1,e), j_par + opp_no(2,1,e), hex_sides(:,hex_s_offs(e)+4+1), offs, dims) + 1), &
+
+         soil_vector(ed_idx(i_par + opp_no(1,2,e), j_par + opp_no(2,2,e), hex_sides(:,hex_s_offs(e)+4+1), offs, dims) + 1) - &
+         soil_vector(ed_idx(i_par + end_pt(1,2,e), j_par + end_pt(2,2,e), hex_sides(:,hex_s_offs(e)+5+1), offs, dims) + 1), &
+
+         soil_vector(ed_idx(i_par + end_pt(1,1,e), j_par + end_pt(2,1,e), hex_sides(:,hex_s_offs(e)+0+1), offs, dims) + 1) - &
+         soil_vector(ed_idx(i_par + opp_no(1,2,e), j_par + opp_no(2,2,e), hex_sides(:,hex_s_offs(e)+1+1), offs, dims) + 1) ])
+  end function soil_Interp_outer_velo
+  subroutine soil_Restrict_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Circulation conserving velocity  restriction (note that fine edges are exact bisections of coarse edges)
+    implicit none
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
+
+    integer :: id_chd, idN_chd, idE_chd, idNE_chd, id_par
+
+    id_par   = idx (i_par, j_par, offs_par, dims_par)
+    id_chd   = idx (i_chd, j_chd, offs_chd, dims_chd)
+
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+
+    if (dom%mask_e%elts(EDGE*id_chd+RT+1) > 0) call set_soil_vector(EDGE*id_par+RT+1,0.5 * &
+         & (soil_vector(EDGE*id_chd+RT+1)    + soil_vector(EDGE*idE_chd+RT+1)))
+    if (dom%mask_e%elts(EDGE*id_chd+DG+1) > 0) call set_soil_vector(EDGE*id_par+DG+1,0.5 * &
+         & (soil_vector(EDGE*idNE_chd+DG+1)  + soil_vector(EDGE*id_chd+DG+1)))
+    if (dom%mask_e%elts(EDGE*id_chd+UP+1) > 0) call set_soil_vector(EDGE*id_par+UP+1,0.5 * &
+         & (soil_vector(EDGE*id_chd+UP+1)    + soil_vector(EDGE*idN_chd+UP+1)))
+  end subroutine soil_Restrict_velo
+  real(dp) function soil_Interp_node (dom, id, id1, id2, id3, id4)
+    ! Interpolation at nodes
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: id, id1, id2, id3, id4
+
+    soil_Interp_node = (  dom%overl_areas%elts(id+1)%a(1) * soil_scalar(id1+1) +  dom%overl_areas%elts(id+1)%a(2) * &
+         & soil_scalar(id2+1) +  dom%overl_areas%elts(id+1)%a(3) * soil_scalar(id3+1) +  &
+         & dom%overl_areas%elts(id+1)%a(4) * soil_scalar(id4+1)  ) * dom%areas%elts(id+1)%hex_inv
+  end function soil_Interp_node
+  subroutine soil_compress_scalar (dom, i, j, zlev, offs, dims)
+
+    implicit none
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+
+    integer :: id_i
+
+    id_i = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id_i) < ADJZONE) call set_soil_scalar_wavelet(id_i,0.0_dp)
+  end subroutine soil_compress_scalar
+  subroutine soil_compress_vector (dom, i, j, zlev, offs, dims)
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer :: e, id
+
+    id = idx (i, j, offs, dims)
+
+    do e = 1, EDGE
+       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) call set_soil_vector_wavelet(EDGE*id+e,0.0_dp)
+    end do
+  end subroutine soil_compress_vector
+
+  subroutine soil_Prolong_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
+    integer :: id_par, id_chd, idE, idNE, idN2E, id2NE, idN, idW, idNW, idS2W, idSW, idS, id2SW, idSE
+    id_par = idx (i_par, j_par, offs_par, dims_par)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+    if (dom%mask_n%elts(id_chd+1) == FROZEN) return
+    idE   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN2E = idx (i_chd+2, j_chd+1, offs_chd, dims_chd)
+    id2NE = idx (i_chd+1, j_chd+2, offs_chd, dims_chd)
+    idN   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    idW   = idx (i_chd-1, j_chd,   offs_chd, dims_chd)
+    idNW  = idx (i_chd-1, j_chd+1, offs_chd, dims_chd)
+    idS2W = idx (i_chd-2, j_chd-1, offs_chd, dims_chd)
+    idSW  = idx (i_chd-1, j_chd-1, offs_chd, dims_chd)
+    idS   = idx (i_chd,   j_chd-1, offs_chd, dims_chd)
+    id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
+    idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
+    call set_soil_scalar(id_chd+1,soil_scalar(id_par+1) - (  soil_scalar_wavelet(idE+1)   * dom%overl_areas%elts(idE  &
+         & +1)%a(1) +  soil_scalar_wavelet(idNE+1)  * dom%overl_areas%elts(idNE +1)%a(2) +  &
+         & soil_scalar_wavelet(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) +  soil_scalar_wavelet(idN+1)   * &
+         & dom%overl_areas%elts(idN  +1)%a(1) +  soil_scalar_wavelet(idW+1)   * dom%overl_areas%elts(idW  +1)%a(2) +  &
+         & soil_scalar_wavelet(idNW+1)  * dom%overl_areas%elts(idNW +1)%a(3) +  soil_scalar_wavelet(idS2W+1) * &
+         & dom%overl_areas%elts(idS2W+1)%a(4) +  soil_scalar_wavelet(idSW+1)  * dom%overl_areas%elts(idSW+ 1)%a(1) +  &
+         & soil_scalar_wavelet(idS+1)   * dom%overl_areas%elts(idS  +1)%a(2) +  soil_scalar_wavelet(id2SW+1) * &
+         & dom%overl_areas%elts(id2SW+1)%a(3) +  soil_scalar_wavelet(idSE+1)  * dom%overl_areas%elts(idSE +1)%a(4)  ) &
+         & * dom%areas%elts(id_par+1)%hex_inv)
+  end subroutine soil_Prolong_scalar
+
+  subroutine soil_Reconstruct_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
+    integer :: id_chd, idN_chd, idE_chd, idNE_chd, id2N_chd, id2E_chd, id2S_chd, id2W_chd, id2NE_chd
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+    idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    id2N_chd  = idx (i_chd,   j_chd+2, offs_chd, dims_chd)
+    id2E_chd  = idx (i_chd+2, j_chd,   offs_chd, dims_chd)
+    id2S_chd  = idx (i_chd,   j_chd-2, offs_chd, dims_chd)
+    id2W_chd  = idx (i_chd-2, j_chd,   offs_chd, dims_chd)
+    id2NE_chd = idx (i_chd+2, j_chd+2, offs_chd, dims_chd)
+    call set_soil_scalar(idE_chd+1,soil_Interp_node (dom, idE_chd,  id_chd,    id2E_chd, id2NE_chd, id2S_chd)  + &
+         & soil_scalar_wavelet(idE_chd+1))
+    call set_soil_scalar(idNE_chd+1,soil_Interp_node (dom, idNE_chd, id2NE_chd, id_chd,   id2E_chd,  id2N_chd)  + &
+         & soil_scalar_wavelet(idNE_chd+1))
+    call set_soil_scalar(idN_chd+1,soil_Interp_node (dom, idN_chd,  id_chd,    id2N_chd, id2W_chd,  id2NE_chd) + &
+         & soil_scalar_wavelet(idN_chd+1))
+  end subroutine soil_Reconstruct_scalar
+
+  subroutine soil_Reconstruct_outer_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
+    integer  :: e, id_par, id1, id2
+    real(dp) :: u
+    id_par = idx (i_par, j_par, offs_par, dims_par)
+    do e = 1, EDGE
+       id1    = idx (i_chd + end_pt(1,1,e), j_chd + end_pt(2,1,e), offs_chd, dims_chd)
+       id2    = idx (i_chd + end_pt(1,2,e), j_chd + end_pt(2,2,e), offs_chd, dims_chd)
+       u = soil_Interp_outer_velo (dom, i_par, j_par, id2, e, offs_par, dims_par)
+       call set_soil_vector(EDGE*id2+e,u + soil_vector_wavelet(EDGE*id2+e))
+       call set_soil_vector(EDGE*id1+e,2 * soil_vector(EDGE*id_par+e) - soil_vector(EDGE*id2+e))
+    end do
+  end subroutine soil_Reconstruct_outer_velo
+
+  subroutine soil_Reconstruct_inner_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
+    integer                :: id_chd, idN_chd, idE_chd, idNE_chd
+    real(dp), dimension(6) :: u_inner
+    id_chd   = idx (i_chd, j_chd, offs_chd, dims_chd)
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    u_inner = soil_Interp_inner_velo (dom, i_par, j_par, offs_par, dims_par, i_chd, j_chd, offs_chd, dims_chd)
+    call set_soil_vector(EDGE*idE_chd +UP+1,u_inner(1) + soil_vector_wavelet(EDGE*idE_chd +UP+1))
+    call set_soil_vector(EDGE*idE_chd +DG+1,u_inner(2) + soil_vector_wavelet(EDGE*idE_chd +DG+1))
+    call set_soil_vector(EDGE*idNE_chd+RT+1,u_inner(3) + soil_vector_wavelet(EDGE*idNE_chd+RT+1))
+    call set_soil_vector(EDGE*idN_chd +RT+1,u_inner(4) + soil_vector_wavelet(EDGE*idN_chd +RT+1))
+    call set_soil_vector(EDGE*idN_chd +DG+1,u_inner(5) + soil_vector_wavelet(EDGE*idN_chd +DG+1))
+    call set_soil_vector(EDGE*idNE_chd+UP+1,u_inner(6) + soil_vector_wavelet(EDGE*idNE_chd+UP+1))
+  end subroutine soil_Reconstruct_inner_velo
+
+  subroutine soil_Reconstruct_velo_penta (dom, p, c, offs, dims, z_null)
+    implicit none
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: p, c, z_null
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+    integer                        :: id_chd,  idE_chd, idN_chd, p_chd
+    integer, dimension(N_BDRY+1)   :: offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_chd
+    real(dp)                       :: v
+    real(dp), dimension(2)         :: u
+    p_chd = dom%patch%elts(p+1)%children(c-4)
+    if (p_chd == 0) return
+    call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
+    if (c == IMINUSJPLUS) then
+       id_chd  = idx (0, LAST-1, offs_chd, dims_chd)
+       idN_chd = idx (0, LAST,   offs_chd, dims_chd)
+       v = (base_weight(8) + real (dom%I_u_wgt%elts(idN_chd+1)%enc(8),kind=dp))*(  soil_vector(EDGE*idx( 0, &
+         & PATCH_SIZE, offs, dims)+UP+1)  + soil_vector(EDGE*idx(-1, PATCH_SIZE, offs, dims)+RT+1))
+       call set_soil_vector(EDGE*id_chd+UP+1,soil_vector(EDGE*id_chd +UP+1) - v)
+       call set_soil_vector(EDGE*idN_chd+UP+1,soil_vector(EDGE*idN_chd+UP+1) + v)
+    else
+       if (c == IPLUSJMINUS) then
+          id_chd  = idx (LAST-1, 0, offs_chd, dims_chd)
+          idE_chd = idx (LAST,   0, offs_chd, dims_chd)
+          v = -(base_weight(7) + real (dom%I_u_wgt%elts(idE_chd+1)%enc(7),kind=dp))*(  &
+         & soil_vector(EDGE*idx(PATCH_SIZE,  0, offs, dims)+RT+1)  + soil_vector(EDGE*idx(PATCH_SIZE, -1, offs, dims)+UP+1))
+          call set_soil_vector(EDGE*id_chd +RT+1,soil_vector(EDGE*id_chd +RT+1) - v)
+          call set_soil_vector(EDGE*idE_chd+RT+1,soil_vector(EDGE*idE_chd+RT+1) + v)
+       end if
+    end if
+    if (.not. c == IJMINUS) return
+    id_chd  = idx (0, 0, offs_chd, dims_chd)
+    idN_chd = idx (0, 1, offs_chd, dims_chd)
+    idE_chd = idx (1, 0, offs_chd, dims_chd)
+    u = soil_velo_interp_penta_corr (dom, offs, dims, offs_chd, dims_chd)
+    call set_soil_vector(EDGE*id_chd +UP+1,soil_vector(EDGE*id_chd +UP+1) - u(1))
+    call set_soil_vector(EDGE*idN_chd+UP+1,soil_vector(EDGE*idN_chd+UP+1) + u(1))
+    call set_soil_vector(EDGE*id_chd +RT+1,soil_vector(EDGE*id_chd +RT+1) - u(2))
+    call set_soil_vector(EDGE*idE_chd+RT+1,soil_vector(EDGE*idE_chd+RT+1) + u(2))
+  end subroutine soil_Reconstruct_velo_penta
 end module parallel_block_inverse_mod
