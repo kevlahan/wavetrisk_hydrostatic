@@ -30,6 +30,7 @@ module parallel_block_inverse_mod
   public :: complete_inverse_operand_epoch, require_provisional_inverse_operands
   public :: require_tendency_operands,prepare_initial_tendency_operands
   public :: capture_native_inverse_consumer_aliases
+  public :: physics_consumer_alias,finish_physics_consumer_epoch
   real(dp), public :: native_inverse_seconds(3)=0.0_dp
   integer(int64), public :: native_inverse_calls(3)=0_int64, native_inverse_messages(3)=0_int64, &
        native_inverse_bytes(3)=0_int64
@@ -99,7 +100,8 @@ module parallel_block_inverse_mod
   real(dp), allocatable, asynchronous :: alias_send(:),alias_recv(:)
   integer, allocatable :: node_domain(:),node_id(:),operation_first(:),operation_last(:)
   integer, allocatable :: scaffold_slot(:)
-  integer, allocatable :: consumer_alias_slot(:)
+  integer, allocatable :: consumer_alias_slot(:),consumer_alias_index(:)
+  logical :: physics_consumer_ready=.false.
   real(dp), allocatable :: consumer_alias_value(:,:,:)
   integer, allocatable :: node_flags(:)
   real(dp), allocatable :: scaffold_value(:,:,:)
@@ -537,6 +539,7 @@ contains
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
     provisional_operands_ready=.false.;initial_operands_ready=.false.
+    physics_consumer_ready=.false.
     initial_consumer=.false.
     if(present(consumer_only)) initial_consumer=consumer_only
     resident203=.false.
@@ -551,7 +554,8 @@ contains
        call detail_add(DC_INVERSE_BUILD,1_int64)
        if (allocated(nodes)) deallocate(nodes,node_domain,node_id,value,aliases,operations,coverage, &
             scaffold_slot,scaffold_value,operation_first,operation_last,node_flags,level_interior,level_boundary, &
-            outer_install,transfer_send,transfer_recv,alias_send,alias_recv,consumer_alias_slot,consumer_alias_value)
+            outer_install,transfer_send,transfer_recv,alias_send,alias_recv,consumer_alias_slot,consumer_alias_value, &
+            consumer_alias_index)
        do q=1,2
           if (allocated(local_alias(q)%source)) deallocate(local_alias(q)%source,local_alias(q)%dest)
        end do
@@ -750,12 +754,14 @@ contains
        do p=1,nnode
           if (nodes(node_domain(p))%key(1,node_id(p)+1)==0) n=n+1
        end do
-       allocate(consumer_alias_slot(n),consumer_alias_value(nscalar+EDGE,zlevels,n))
+       allocate(consumer_alias_slot(n),consumer_alias_value(nscalar+EDGE,zlevels,n),consumer_alias_index(nnode))
+       consumer_alias_index=0
        n=0
        do p=1,nnode
           if (nodes(node_domain(p))%key(1,node_id(p)+1)/=0) cycle
           n=n+1
           consumer_alias_slot(n)=p
+          consumer_alias_index(p)=n
        end do
        n=0
        do p=1,nnode
@@ -1744,6 +1750,28 @@ contains
     bits=transfer(x,bits)
   end function
 
+  subroutine physics_consumer_alias(d,id,operand)
+    ! The saved final-inverse consumer version is distinct from the current
+    ! initial/provisional tendency epoch and from canonical block interiors.
+    integer,intent(in)::d,id
+    real(dp),intent(out)::operand(nscalar+EDGE,zlevels)
+    integer::key(4),p,q
+    if(.not.physics_consumer_ready) call die('physics consumer alias epoch is not ready')
+    call inverse_operand_key(d,id,key)
+    if(key(1)/=0) call die('physics alias accessor attempted canonical interior')
+    p=nodes(d)%slot(id+1)
+    if(p<1.or.p>original_inverse_nodes) call die('physics alias is outside the consumer closure')
+    q=consumer_alias_index(p)
+    if(q<1) call die('physics alias index absent')
+    operand=consumer_alias_value(:,:,q)
+    if(.not.all(ieee_is_finite(operand))) call die('nonfinite saved physics alias')
+  end subroutine
+
+  subroutine finish_physics_consumer_epoch
+    if(.not.physics_consumer_ready) call die('physics consumer epoch already consumed')
+    physics_consumer_ready=.false.
+  end subroutine
+
   subroutine capture_native_inverse_consumer_aliases(component,level)
     integer, intent(in) :: component,level
     integer :: q,p,d,id,first,last
@@ -1772,6 +1800,7 @@ contains
     if (present(consumer_aliases)) consumer=consumer_aliases
     if (consumer.and.family/=BLOCK_PAYLOAD_SOL) call die('consumer aliases require solution')
     if (consumer) then
+       physics_consumer_ready=.true.
        do q=1,size(consumer_alias_slot)
           p=consumer_alias_slot(q)
           if(block_rk_enabled.and.p>original_inverse_nodes) cycle

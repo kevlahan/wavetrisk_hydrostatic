@@ -8,12 +8,12 @@
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 module physics_simple_mod
-  
+
   use, intrinsic :: iso_c_binding, only : C_BOOL
-  
+
   use kind_mod,   only : dp, sp
   use shared_mod, only : DAY, EDGE, N_BDRY, N_VARIABLE, zlevels, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
-       Nsoil, dt, grav_accel, p_top, time, zlevels, zmin, z_null 
+       Nsoil, dt, grav_accel, p_top, time, zlevels, zmin, z_null
 
   use diagnostics_mod,    only : cal_surf_press, kinetic_energy, integrate_pressure_up
   use domain_mod,         only : Domain, exner, exner_fun, mass, temp, mean_m, mean_t, grid, sol, sol_mean, topography, id_edge, idx
@@ -37,11 +37,16 @@ module physics_simple_mod
   use domain_mod, only: get_offs_Domain
   use patch_mod, only: PATCH_SIZE
 #endif
+#ifdef PHYSICS_NATIVE_INPUT
+  use shared_mod, only: scalars
+  use parallel_block_inverse_mod, only: inverse_operand_key,physics_consumer_alias,finish_physics_consumer_epoch
+  use parallel_block_mod, only: compile_local_block_inverse_routes,read_local_block_physics_routes
+#endif
   implicit none
 
   private
   public :: physics_simple_step, Rayleigh_friction
-  
+
 #ifdef PHYSICS_COLUMN_LOCAL
   ! Integer visitation metadata only. Numerical hydrostatic state belongs to
   ! the active column; no replacement Domain-shaped pressure image is kept.
@@ -74,6 +79,9 @@ module physics_simple_mod
   integer(int64) :: owner_executed=0,owner_remote=0,owner_scaffold=0,owner_checks=0
 #endif
 #ifdef PHYSICS_OWNER_BATCH
+#ifdef PHYSICS_NATIVE_INPUT
+  integer,allocatable :: batch_entry_key(:,:,:)
+#endif
   integer :: batch_phase=0,batch_waves=0
   integer,allocatable :: batch_header(:,:)
   real(sp),allocatable :: batch_packet(:,:),batch_return_packet(:,:)
@@ -94,9 +102,9 @@ contains
 #endif
 #endif
 #endif
-    
+
     phys_dt = real (h, kind=sp)
-    
+
 #ifdef PHYSICS_COLUMN_LOCAL
     if(.not.compressible) error stop "local Simple-physics columns require compressible dynamics"
     if(allocated(column_visits)) error stop "unfinished Simple-physics column epoch"
@@ -153,6 +161,9 @@ contains
 #ifdef PHYSICS_OWNER_BATCH
     allocate(batch_header(OWNER_HEADER,planned_columns),batch_packet(8*zlevels+Nsoil+8,planned_columns), &
          batch_input(10*zlevels+15,planned_columns))
+#ifdef PHYSICS_NATIVE_INPUT
+    allocate(batch_entry_key(4,7,planned_columns))
+#endif
     batch_phase=1
     call apply_no_bdry2(physics_call,z_null)
     call execute_physics_batch
@@ -176,6 +187,10 @@ contains
 #endif
     call apply_no_bdry2(physics_call,z_null)
     batch_phase=0
+#ifdef PHYSICS_NATIVE_INPUT
+    call finish_physics_consumer_epoch
+    deallocate(batch_entry_key)
+#endif
     deallocate(batch_header,batch_packet,batch_input,batch_return,batch_return_packet)
     write(*,'(a,i0,a,i0)') 'Physics dependency waves rank=',rank,' waves=',batch_waves
 #else
@@ -227,7 +242,7 @@ contains
     id=idx(i,j,offs,dims)+1
     column_visits(dom%id+1)%surface(id)=column_visits(dom%id+1)%surface(id)+1
   end subroutine
-#ifdef PHYSICS_COLUMN_ORACLE
+#if defined(PHYSICS_COLUMN_ORACLE) || defined(PHYSICS_NATIVE_INPUT_ORACLE)
   subroutine check_physics_value(actual,expected)
     real(dp),intent(in)::actual,expected
     if(transfer(actual,0_int64)/=transfer(expected,0_int64)) then
@@ -389,7 +404,10 @@ contains
     real(sp),intent(inout)::u(:),v(:),w(:),theta(:),soil(:)
     integer::header(OWNER_HEADER),reply(OWNER_HEADER),destination,b,ierr,n,count_received
 #ifdef PHYSICS_OWNER_BATCH
-    integer::k,slot,edges(6)
+    integer::slot,edges(6)
+#if !defined(PHYSICS_NATIVE_INPUT) || defined(PHYSICS_NATIVE_INPUT_ORACLE)
+    integer::k
+#endif
     real(dp)::expected(4*zlevels+Nsoil+1)
 #endif
     real(sp)::packet(8*zlevels+Nsoil+8)
@@ -415,6 +433,7 @@ contains
        batch_header(:,slot)=header
        batch_packet(:,slot)=packet
        edges=velocity_plan_by_domain(d)%edges(:,id)
+#if !defined(PHYSICS_NATIVE_INPUT) || defined(PHYSICS_NATIVE_INPUT_ORACLE)
        do k=1,n
           batch_input(6*(k-1)+1:6*k,slot)=sol(S_VELO,k)%data(d)%elts(edges)
           batch_input(6*n+k,slot)=sol(S_MASS,k)%data(d)%elts(id)
@@ -422,6 +441,10 @@ contains
           batch_input(8*n+k,slot)=sol(S_TEMP,k)%data(d)%elts(id)
           batch_input(9*n+k,slot)=sol_mean(S_TEMP,k)%data(d)%elts(id)
        end do
+#endif
+#ifdef PHYSICS_NATIVE_INPUT
+       call fill_native_physics_entry(d,id,slot,edges)
+#endif
        batch_input(10*n+1:10*n+6,slot)=grid(d)%len%elts(edges)
        batch_input(10*n+7:10*n+12,slot)=grid(d)%pedlen%elts(edges)
        batch_input(10*n+13,slot)=grid(d)%areas%elts(id)%hex_inv
@@ -481,6 +504,108 @@ contains
 #endif
 
 #ifdef PHYSICS_OWNER_BATCH
+#ifdef PHYSICS_NATIVE_INPUT
+  subroutine fill_native_physics_entry(d,id,slot,edges)
+    integer,intent(in)::d,id,slot,edges(6)
+    integer::s,k,n,component,source_id
+    real(dp)::alias(scalars(2)-scalars(1)+1+EDGE,zlevels)
+    n=zlevels
+    call inverse_operand_key(d,id-1,batch_entry_key(:,1,slot))
+    do s=1,6
+       source_id=velocity_plan_by_domain(d)%sources(s,id)
+       call inverse_operand_key(d,source_id-1,batch_entry_key(:,s+1,slot))
+    end do
+#ifndef PHYSICS_NATIVE_INPUT_ORACLE
+    batch_input(1:10*n,slot)=0.0_dp
+#endif
+    if(batch_entry_key(1,1,slot)==0) then
+       call physics_consumer_alias(d,id-1,alias)
+       do k=1,n
+#ifdef PHYSICS_NATIVE_INPUT_ORACLE
+          call check_physics_value(alias(S_MASS-scalars(1)+1,k),batch_input(6*n+k,slot))
+          call check_physics_value(alias(S_TEMP-scalars(1)+1,k),batch_input(8*n+k,slot))
+#endif
+          batch_input(6*n+k,slot)=alias(S_MASS-scalars(1)+1,k)
+          batch_input(7*n+k,slot)=sol_mean(S_MASS,k)%data(d)%elts(id)
+          batch_input(8*n+k,slot)=alias(S_TEMP-scalars(1)+1,k)
+          batch_input(9*n+k,slot)=sol_mean(S_TEMP,k)%data(d)%elts(id)
+       end do
+    end if
+    do s=1,6
+       if(batch_entry_key(1,s+1,slot)>0) cycle
+       source_id=velocity_plan_by_domain(d)%sources(s,id)
+       component=mod(edges(s)-1,EDGE)+1
+       call physics_consumer_alias(d,source_id-1,alias)
+       do k=1,n
+#ifdef PHYSICS_NATIVE_INPUT_ORACLE
+          call check_physics_value(alias(size(alias,1)-EDGE+component,k),batch_input(6*(k-1)+s,slot))
+#endif
+          batch_input(6*(k-1)+s,slot)=alias(size(alias,1)-EDGE+component,k)
+       end do
+    end do
+  end subroutine fill_native_physics_entry
+
+  subroutine fetch_physics_native_entries(keys,q,x)
+    ! Called on execution owners. Positive keys are read on their native block
+    ! owners; zero-key entries were supplied from the saved consumer alias epoch.
+    integer,intent(in)::keys(:,:,:)
+    real(sp),intent(inout)::q(:,:)
+    real(dp),intent(inout)::x(:,:)
+    integer::j,s,b,r,p,k,n,nv,ierr,component
+    integer,allocatable::sc(:),sd(:),rc(:),rd(:),cursor(:),sendkey(:,:),recvkey(:,:),mapping(:,:),address(:,:)
+    real(dp),allocatable::owned(:,:),received(:,:)
+    n=zlevels;nv=7*n+Nsoil+1
+    if(Nsoil/=-zmin) error stop 'physics native soil extent'
+    allocate(sc(n_process),sd(n_process),rc(n_process),rd(n_process),cursor(n_process))
+    sc=0
+    do j=1,size(keys,3)
+       do s=1,7
+          b=keys(1,s,j)
+          if(b==0) cycle
+          if(b<1.or.b>size(block_catalog)) error stop 'physics input block key'
+          r=block_catalog(b)%owner+1;sc(r)=sc(r)+1
+       end do
+    end do
+    call batch_displacements(sc,sd);cursor=sd
+    allocate(sendkey(4,sum(sc)),mapping(2,sum(sc)),received(nv,sum(sc)))
+    do j=1,size(keys,3)
+       do s=1,7
+          b=keys(1,s,j)
+          if(b==0) cycle
+          r=block_catalog(b)%owner+1;cursor(r)=cursor(r)+1;p=cursor(r)
+          sendkey(:,p)=keys(:,s,j);mapping(:,p)=[s,j]
+       end do
+    end do
+    call MPI_Alltoall(sc,1,MPI_INTEGER,rc,1,MPI_INTEGER,comm,ierr)
+    call check_owner_mpi(ierr)
+    call batch_displacements(rc,rd)
+    allocate(recvkey(4,sum(rc)),owned(nv,sum(rc)))
+    call MPI_Alltoallv(sendkey,4*sc,4*sd,MPI_INTEGER,recvkey,4*rc,4*rd,MPI_INTEGER,comm,ierr)
+    call check_owner_mpi(ierr)
+    call compile_local_block_inverse_routes(recvkey,address)
+    call read_local_block_physics_routes(address,owned)
+    call MPI_Alltoallv(owned,nv*rc,nv*rd,MPI_DOUBLE_PRECISION,received,nv*sc,nv*sd, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_owner_mpi(ierr)
+    do p=1,size(mapping,2)
+       s=mapping(1,p);j=mapping(2,p)
+       if(s==1) then
+          x(6*n+1:10*n,j)=received(1:4*n,p)
+          q(8*n+3:8*n+Nsoil+3,j)=real(received(7*n+1:7*n+Nsoil+1,p),sp)
+       else
+          ! Slots 2..7 correspond to UP,DG,RT,UP_S,DG_SW,RT_W:
+          ! vector storage is RT,DG,UP, hence components 3,2,1,3,2,1.
+          component=3-mod(s-2,3)
+          do k=1,n
+             x(6*(k-1)+s-1,j)=received(4*n+3*(k-1)+component,p)
+          end do
+       end if
+    end do
+    write(*,'(a,i0,a,i0,a,i0)') 'Physics native input rank=',rank, &
+         ' canonical requests=',sum(sc),' alias requests=',7*size(keys,3)-sum(sc)
+  end subroutine fetch_physics_native_entries
+#endif
+
   subroutine batch_displacements(counts,displacements)
     integer,intent(in)::counts(:)
     integer,intent(out)::displacements(size(counts))
@@ -537,6 +662,9 @@ contains
     ! their execution owners. Exchanges carry only referenced predecessor edges.
     integer::nl,ng,nj,np,nr,no,n,ierr,r,g,l,b,s,parent,e,ne,round,pos,j,t,component,sender
     integer,allocatable::gc(:),gd(:),sc(:),sd(:),rc(:),rd(:),cursor(:),perm(:),si(:),gi(:)
+#ifdef PHYSICS_NATIVE_INPUT
+    integer,allocatable::entry_keys(:,:,:),send_keys(:,:,:)
+#endif
     integer,allocatable::h(:,:),source(:),destination(:),depth(:),slot(:),seen(:,:)
     integer,allocatable::head(:),next(:),target(:),edge_slot(:),producer(:),es(:),er(:)
     integer,allocatable::ec(:),ed(:),fc(:),fd(:)
@@ -608,6 +736,16 @@ contains
        if(destination(g)/=rank.or.slot(g)/=0) error stop "physics batch destination or duplicate mismatch"
        slot(g)=l
     end do
+#ifdef PHYSICS_NATIVE_INPUT
+    allocate(entry_keys(4,7,nj),send_keys(4,7,nl))
+    do pos=1,nl
+       send_keys(:,:,pos)=batch_entry_key(:,:,perm(pos))
+    end do
+    call MPI_Alltoallv(send_keys,sc*28,sd*28,MPI_INTEGER,entry_keys,rc*28,rd*28,MPI_INTEGER,comm,ierr)
+    call check_owner_mpi(ierr)
+    call fetch_physics_native_entries(entry_keys,q,x)
+    deallocate(entry_keys,send_keys)
+#endif
     deallocate(qs,xs)
     allocate(ec(n_process),ed(n_process),fc(n_process),fd(n_process))
     do round=1,batch_waves
@@ -703,15 +841,15 @@ contains
     real(dp), dimension(1:zlevels) :: Pk
 
     d = dom%id + 1
-    
+
     id   = idx (i, j, offs, dims)
     id_i = id + 1
     id_e = id_edge (id)
-    
+
     Pl(zlevels) = p_top
     do l = zlevels-1, 0, -1
        k = l + 1
-       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i) 
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
        Pl(l)  = Pl(l+1) + grav_accel * rho_dz
        Pk(k) = interp (Pl(l), Pl(l+1))
     end do
@@ -740,7 +878,7 @@ contains
     !-----------------------------------------------------------------------------------
 
     implicit none
-    
+
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: i, j, is_pole, p_null, zlev
     integer,      intent(in)    :: offs(N_BDRY+1)
@@ -762,7 +900,7 @@ contains
 
     real(dp)                       :: latitude, longitude     ! coordinates of the column
     real(dp), dimension(1:zlevels) :: rho_dz
-    
+
 #ifndef PHYSICS_OWNER
     logical(kind=C_BOOL)           :: lastcall_flag = .false.
 #endif
@@ -805,7 +943,15 @@ contains
     end if
 #endif
     ! Save prognostic variables in physics data structure
+#if defined(PHYSICS_NATIVE_INPUT) && !defined(PHYSICS_NATIVE_INPUT_ORACLE)
+    if(batch_phase==1) then
+       call queue_native_column
+    else
+       call pack_physics_vars
+    end if
+#else
     call pack_physics_vars
+#endif
 
     ! Get latitude and longitude of the column
     call cart2sph (dom%node%elts(id_i), longitude, latitude)
@@ -850,8 +996,25 @@ contains
        sol(S_TEMP,k)%data(d)%elts(id_i) = real (Tsoil(abs(k)+1), kind=dp)
     end do
   contains
+#if defined(PHYSICS_NATIVE_INPUT) && !defined(PHYSICS_NATIVE_INPUT_ORACLE)
+    subroutine queue_native_column
+      integer::key(4),k
+      ! Atmospheric packets are recomputed from native operands on execution
+      ! owners. Only zero-key soil aliases still use the compatibility adapter.
+      phys_Play=0;phys_Pint=0;phys_Phi=0;phys_Umag=0
+      phys_U=0;phys_V=0;phys_W=0;phys_Theta=0;Tsoil=0
+      call inverse_operand_key(d,id,key)
+      if(key(1)==0) then
+         do k=zmin,0
+            Tsoil(1-k)=real(sol(S_TEMP,k)%data(d)%elts(id_i),sp)
+         end do
+      end if
+      if(column_visits(d)%seen(id_i)/=0) error stop 'duplicate native physics column'
+      column_visits(d)%seen(id_i)=1;column_count=column_count+1
+    end subroutine queue_native_column
+#endif
     subroutine pack_physics_vars
-      ! Gathers all required variables from wavetrisk data structure for all layers of column into physics data structure 
+      ! Gathers all required variables from wavetrisk data structure for all layers of column into physics data structure
       integer  :: k
       real(dp) :: rho_dz_theta
 #ifdef PHYSICS_VELOCITY_PLAN
@@ -942,7 +1105,7 @@ contains
          phys_V(k)     = real (sol(S_VELO,k)%data(d)%elts(EDGE*id+DG+1),                    kind=sp)
          phys_W(k)     = real (sol(S_VELO,k)%data(d)%elts(EDGE*id+UP+1),                    kind=sp)
 #endif
-         phys_Theta(k) = real (rho_dz_theta / rho_dz(k),                                    kind=sp) 
+         phys_Theta(k) = real (rho_dz_theta / rho_dz(k),                                    kind=sp)
 
          nullify (mass, temp, mean_m, mean_t, exner)
       end do

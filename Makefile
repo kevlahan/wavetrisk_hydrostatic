@@ -661,3 +661,17 @@ endif
 ifeq ($(PHYSICS_OWNER_BATCH),check)
 FFLAGS += -DPHYSICS_OWNER_BATCH_ORACLE
 endif
+
+PHYSICS_NATIVE_INPUT ?= off
+ifneq ($(filter $(PHYSICS_NATIVE_INPUT),on check),)
+ifeq ($(filter $(PHYSICS_OWNER_BATCH),on check),)
+$(error PHYSICS_NATIVE_INPUT requires PHYSICS_OWNER_BATCH=on/check)
+endif
+ifneq ($(BLOCK_RK),on)
+$(error PHYSICS_NATIVE_INPUT requires BLOCK_RK=on)
+endif
+FFLAGS += -DPHYSICS_NATIVE_INPUT
+endif
+ifeq ($(PHYSICS_NATIVE_INPUT),check)
+FFLAGS += -DPHYSICS_NATIVE_INPUT_ORACLE
+endif

@@ -29,6 +29,7 @@ module parallel_block_mod
 
   public :: transfer_local_block_inverse_node
   public :: compile_local_block_inverse_routes, transfer_local_block_inverse_routes
+  public :: read_local_block_physics_routes
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
@@ -957,6 +958,51 @@ subroutine compile_local_block_inverse_routes(key,address)
      end associate
   end do
 end subroutine compile_local_block_inverse_routes
+
+subroutine read_local_block_physics_routes(address,values)
+  ! Read only final-owner physical state. Numerical source Domains are absent.
+  integer,intent(in)::address(:,:)
+  real(dp),intent(out)::values(7*zlevels+1-zmin,size(address,2))
+  integer::p,b,n,node,k,mi,ti,vi,sm,st,nf,first
+  do p=1,size(address,2)
+     b=address(1,p);n=address(4,p);node=address(3,p)+1
+     associate(block=>block_local(b))
+       nf=block%n_field_level;first=block%field_level
+       sm=S_MASS-block%scalar_variable;st=S_TEMP-block%scalar_variable
+       if(min(sm,st)<0.or.max(sm,st)>=block%n_scalar_variable.or.block%scalar_mult/=1) &
+            error stop 'physics native scalar layout'
+       if(first>zmin.or.first+nf-1<zlevels) error stop 'physics native layer extent'
+       do k=1,zlevels
+          mi=(sm*nf+k-first)*n+node;ti=(st*nf+k-first)*n+node
+          vi=EDGE*((k-first)*n+node-1)
+          select case(address(2,p))
+          case(STORE_PATCH)
+             values(k,p)=block%scalar(mi)
+             values(zlevels+k,p)=block%scalar_mean(mi)
+             values(2*zlevels+k,p)=block%scalar(ti)
+             values(3*zlevels+k,p)=block%scalar_mean(ti)
+             values(4*zlevels+3*(k-1)+1:4*zlevels+3*k,p)=block%vector(vi+1:vi+EDGE)
+          case(STORE_BDRY)
+             values(k,p)=block%bdry_scalar(mi)
+             values(zlevels+k,p)=block%bdry_scalar_mean(mi)
+             values(2*zlevels+k,p)=block%bdry_scalar(ti)
+             values(3*zlevels+k,p)=block%bdry_scalar_mean(ti)
+             values(4*zlevels+3*(k-1)+1:4*zlevels+3*k,p)=block%bdry_vector(vi+1:vi+EDGE)
+          case default
+             error stop 'physics native storage class'
+          end select
+       end do
+       do k=zmin,0
+          ti=(st*nf+k-first)*n+node
+          if(address(2,p)==STORE_PATCH) then
+             values(7*zlevels+1-k,p)=block%scalar(ti)
+          else
+             values(7*zlevels+1-k,p)=block%bdry_scalar(ti)
+          end if
+       end do
+     end associate
+  end do
+end subroutine read_local_block_physics_routes
 
 subroutine transfer_local_block_inverse_routes(address,family,component,install,buffer,selected_edge, &
      workspace,local_first,local_slots)
