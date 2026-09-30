@@ -8,8 +8,20 @@ module parallel_block_primitive_kernels_mod
   integer, parameter :: NORTH=1,EAST=2,SOUTH=3,WEST=4,NORTHEAST=5,SOUTHWEST=7
   integer, parameter :: IJMINUS=7,IPLUSJMINUS=6,IMINUSJPLUS=8,IJPLUS=5
   public :: primitive_regular, primitive_southwest, primitive_pentagon
+  public :: physics_kinetic_energy
   public :: pressure_layer, surface_pressure, scalar_diffusion_flux, velocity_diffusion_source
 contains
+  pure real(dp) function physics_kinetic_energy(velocity,length,dual_length,area_inverse) result(value)
+    ! Operand order: UP, DG, RT, UP at S, DG at SW, RT at W.
+    ! Preserve diagnostics_mod::kinetic_energy's multiplication and addition order.
+    real(dp),intent(in)::velocity(6),length(6),dual_length(6),area_inverse
+    real(dp)::primal(6),dual(6)
+    primal=velocity*length
+    dual=velocity*dual_length
+    value=(primal(1)*dual(1)+primal(2)*dual(2)+primal(3)*dual(3)+ &
+         primal(4)*dual(4)+primal(5)*dual(5)+primal(6)*dual(6))*area_inverse/4.0_dp
+  end function physics_kinetic_energy
+
   pure real(dp) function interp(a,b) result(v)
     real(dp), intent(in) :: a,b
     v=0.5*(a+b)

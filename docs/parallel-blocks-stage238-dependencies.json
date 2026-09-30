@@ -1,0 +1,122 @@
+{
+  "stage": 238,
+  "checkpoint_commit": "efdd9b9b6a8169ebdc4adfb5f6604c1087e52bca",
+  "sources": [
+    {
+      "file": "src/diagnostics.f90",
+      "sha256": "c1e8f83a734b059d7da0b0e03565185b65028e54b08b0f985168c4e17523ab5e",
+      "anchors": [
+        {
+          "routine": "kinetic_energy",
+          "line": 846
+        }
+      ]
+    },
+    {
+      "file": "src/domain.f90",
+      "sha256": "36c0849bcb5149c03585bdc1c198416647fc4552a970c8847d451469e781f241",
+      "anchors": [
+        {
+          "routine": "id_edge",
+          "line": 809
+        }
+      ]
+    },
+    {
+      "file": "src/domain_ops.f90",
+      "sha256": "5c0eaa093dfeb45f8d5ce0da5ad77b5a9be2e5a501757bf711308c662c7c6616",
+      "anchors": [
+        {
+          "routine": "apply_no_bdry2",
+          "line": 317
+        }
+      ]
+    },
+    {
+      "file": "src/physics/physics_simple.f90",
+      "sha256": "cee8c26282999397d34c84e99794c9ec72e34de71da9b3acd820c8d6cced845c",
+      "anchors": [
+        {
+          "routine": "physics_simple_step",
+          "line": 62
+        },
+        {
+          "routine": "plan_velocity_column",
+          "line": 144
+        },
+        {
+          "routine": "physics_call",
+          "line": 216
+        }
+      ]
+    },
+    {
+      "file": "src/parallel_block_primitive_kernels.f90",
+      "sha256": "99218929f07cf761bd9728b812177fa24dd1e810f03fda440bfdf68d57b83965",
+      "anchors": [
+        {
+          "routine": "physics_kinetic_energy",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "file": "src/main.f90",
+      "sha256": "aa81070f4531ece9f2c8074acadfeec3a3a7237a916cf0245dae98b8246e1812",
+      "anchors": [
+        {
+          "routine": "apply_domain_physics_consumers",
+          "line": 564
+        },
+        {
+          "routine": "update_domain_soil_wavelet_consumer",
+          "line": 602
+        },
+        {
+          "routine": "time_step",
+          "line": 701
+        }
+      ]
+    }
+  ],
+  "operands": [
+    {
+      "slot": 1,
+      "offset": "current",
+      "edge": "UP"
+    },
+    {
+      "slot": 2,
+      "offset": "current",
+      "edge": "DG"
+    },
+    {
+      "slot": 3,
+      "offset": "current",
+      "edge": "RT"
+    },
+    {
+      "slot": 4,
+      "offset": "south",
+      "edge": "UP"
+    },
+    {
+      "slot": 5,
+      "offset": "southwest",
+      "edge": "DG"
+    },
+    {
+      "slot": 6,
+      "offset": "west",
+      "edge": "RT"
+    }
+  ],
+  "read_version": "Zero: local alias at epoch entry. Positive: ordinal of latest preceding non-pole writer in the existing walk.",
+  "writes": "Non-pole columns write all three id_edge velocities at every atmospheric layer; poles do not write velocity. Temperature and soil updates remain in place.",
+  "ordering": "apply_no_bdry2: ascending levels, ordinary columns then poles at each level. Exact full local order retained, including read-before-write hazards.",
+  "aliases": "Storage identities are Domain-local. An alias with no local writer retains version zero even if another copy has a writer. Do not replace it with a newer canonical-owner value.",
+  "epochs": "Prepare after final RK Domain publication; destroy before soil wavelets/adaptation. Pending atmospheric wavelet transaction and soil lifetime are unchanged.",
+  "next_boundary": "Map these local storage-version pairs to canonical owner operands without refreshing entry aliases; assess package mutable state before dispatch.",
+  "complete_physics_owner_migration": false,
+  "performance_claim": null
+}

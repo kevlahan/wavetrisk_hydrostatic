@@ -625,3 +625,15 @@ ifeq ($(PHYSICS_COLUMN_LOCAL),check)
 FFLAGS += -DPHYSICS_COLUMN_ORACLE
 endif
 $(BUILD_DIR)/physics_simple.o: $(BUILD_DIR)/parallel_block_primitive_kernels.o
+
+# Explicit velocity read versions for the serial Simple-physics column walk.
+PHYSICS_VELOCITY_PLAN ?= off
+ifneq ($(filter $(PHYSICS_VELOCITY_PLAN),on check),)
+ifeq ($(filter $(PHYSICS_COLUMN_LOCAL),on check),)
+$(error PHYSICS_VELOCITY_PLAN requires PHYSICS_COLUMN_LOCAL=on/check)
+endif
+FFLAGS += -DPHYSICS_VELOCITY_PLAN
+endif
+ifeq ($(PHYSICS_VELOCITY_PLAN),check)
+FFLAGS += -DPHYSICS_VELOCITY_ORACLE
+endif

@@ -29,7 +29,7 @@ module physics_simple_mod
   use arch_mod, only: rank
   use domain_ops_mod, only: apply_onescale_to_patch
   use init_mod, only: surf_geopot
-  use parallel_block_primitive_kernels_mod, only: pressure_layer
+  use parallel_block_primitive_kernels_mod, only: pressure_layer,physics_kinetic_energy
 #endif
   implicit none
 
@@ -44,6 +44,18 @@ module physics_simple_mod
   end type
   type(Physics_Visits),allocatable :: column_visits(:)
   integer(int64) :: column_count=0,layer_checks=0
+#endif
+#ifdef PHYSICS_VELOCITY_PLAN
+  ! Local storage identities, not canonical block-owner identities. Stamp zero
+  ! means the epoch-entry value; a positive stamp names the preceding writer.
+  ! No numerical velocity image is retained. The walk also conservatively keeps
+  ! read-before-write dependencies, including boundary aliases and pole reads.
+  type :: Velocity_Plan
+     integer,allocatable :: edges(:,:),sources(:,:),expected(:,:),version(:),ordinal(:)
+  end type
+  type(Velocity_Plan),allocatable :: velocity_plan_by_domain(:)
+  integer :: planned_columns=0,consumed_columns=0
+  integer(int64) :: entry_reads=0,updated_reads=0,velocity_checks=0
 #endif
   real(sp) :: phys_dt
 contains
@@ -74,9 +86,33 @@ contains
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 #endif
 
+#ifdef PHYSICS_VELOCITY_PLAN
+    if(allocated(velocity_plan_by_domain)) error stop "unfinished physics velocity epoch"
+    allocate(velocity_plan_by_domain(size(grid)))
+    planned_columns=0;consumed_columns=0
+    entry_reads=0;updated_reads=0;velocity_checks=0
+    do d=1,size(grid)
+       associate(plan=>velocity_plan_by_domain(d))
+         allocate(plan%edges(6,grid(d)%node%length),plan%sources(6,grid(d)%node%length), &
+              plan%expected(6,grid(d)%node%length),plan%version(grid(d)%node%length), &
+              plan%ordinal(grid(d)%node%length))
+         plan%version=0;plan%ordinal=0
+       end associate
+    end do
+    call apply_no_bdry2(plan_velocity_column,z_null)
+    do d=1,size(grid)
+       velocity_plan_by_domain(d)%version=0
+    end do
+#endif
     ! Compute Simple Physics split step on all columns
     call apply_no_bdry2 (physics_call, z_null)
 
+#ifdef PHYSICS_VELOCITY_PLAN
+    if(consumed_columns/=planned_columns) error stop "incomplete physics velocity plan"
+    write(*,'(a,i0,a,4(1x,i0))') 'Physics velocity plan rank=',rank, &
+         ' columns/entry/updated/checks=',consumed_columns,entry_reads,updated_reads,velocity_checks
+    deallocate(velocity_plan_by_domain)
+#endif
     sol%bdry_uptodate      = .false.
     physics_firstcall_flag = .false.
 #ifdef PHYSICS_COLUMN_LOCAL
@@ -102,6 +138,29 @@ contains
     end if
   end subroutine
 #endif
+#endif
+
+#ifdef PHYSICS_VELOCITY_PLAN
+  subroutine plan_velocity_column(dom,p_null,i,j,zlev,offs,dims,is_pole)
+    type(Domain),intent(inout)::dom
+    integer,intent(in)::p_null,i,j,zlev,offs(N_BDRY+1),dims(2,N_BDRY+1),is_pole
+    integer::d,id,south,southwest,west
+    d=dom%id+1;id=idx(i,j,offs,dims)
+    south=idx(i,j-1,offs,dims);southwest=idx(i-1,j-1,offs,dims);west=idx(i-1,j,offs,dims)
+    associate(plan=>velocity_plan_by_domain(d))
+      if(plan%ordinal(id+1)/=0) error stop "duplicate physics velocity plan column"
+      planned_columns=planned_columns+1
+      plan%ordinal(id+1)=planned_columns
+      plan%edges(:,id+1)=[EDGE*id+UP+1,EDGE*id+DG+1,EDGE*id+RT+1, &
+           EDGE*south+UP+1,EDGE*southwest+DG+1,EDGE*west+RT+1]
+      plan%sources(:,id+1)=[id+1,id+1,id+1,south+1,southwest+1,west+1]
+      plan%expected(:,id+1)=plan%version(plan%sources(:,id+1))
+      entry_reads=entry_reads+count(plan%expected(:,id+1)==0)
+      updated_reads=updated_reads+count(plan%expected(:,id+1)>0)
+      ! Pole columns update temperature/soil but do not write velocity.
+      if(is_pole/=1) plan%version(id+1)=planned_columns
+    end associate
+  end subroutine plan_velocity_column
 #endif
 
   subroutine Rayleigh_friction (dom, i, j, zlev, offs, dims)
@@ -195,6 +254,15 @@ contains
     nth_day      = floor (day_fraction)
     day_fraction = real (day_fraction - nth_day, kind=sp)
 
+#ifdef PHYSICS_VELOCITY_PLAN
+    if(.not.allocated(velocity_plan_by_domain)) error stop "physics velocity epoch absent"
+    consumed_columns=consumed_columns+1
+    associate(plan=>velocity_plan_by_domain(d))
+      if(plan%ordinal(id_i)/=consumed_columns) error stop "physics velocity consumer order mismatch"
+      if(any(plan%version(plan%sources(:,id_i))/=plan%expected(:,id_i))) &
+           error stop "physics velocity source version mismatch"
+    end associate
+#endif
     ! Save prognostic variables in physics data structure
     call pack_physics_vars
 
@@ -222,6 +290,9 @@ contains
        sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz(k) * real (phys_Theta(k), kind=dp) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
 
+#ifdef PHYSICS_VELOCITY_PLAN
+    if(is_pole/=1) velocity_plan_by_domain(d)%version(id_i)=consumed_columns
+#endif
     ! Assign soil column solution at t+phys_dt to WAVETRISK data structure
     do k = zmin, 0
        sol(S_TEMP,k)%data(d)%elts(id_i) = real (Tsoil(abs(k)+1), kind=dp)
@@ -231,6 +302,10 @@ contains
       ! Gathers all required variables from wavetrisk data structure for all layers of column into physics data structure 
       integer  :: k
       real(dp) :: rho_dz_theta
+#ifdef PHYSICS_VELOCITY_PLAN
+      integer :: velocity_edges(6)
+      real(dp) :: velocity_values(6),column_kinetic
+#endif
 #ifdef PHYSICS_COLUMN_LOCAL
       integer :: visit
       real(dp) :: column_surface,local_lower,local_geopot,local_pressure,local_exner,local_geopot_lower
@@ -295,10 +370,26 @@ contains
          phys_Play(k)  = real (dom%press%elts(id_i),                                        kind=sp)
          phys_Phi(k)   = real (interp (dom%geopot_lower%elts(id_i), dom%geopot%elts(id_i)), kind=sp)
 #endif
+#ifdef PHYSICS_VELOCITY_PLAN
+         velocity_edges=velocity_plan_by_domain(d)%edges(:,id_i)
+         velocity_values=sol(S_VELO,k)%data(d)%elts(velocity_edges)
+         column_kinetic=physics_kinetic_energy(velocity_values,dom%len%elts(velocity_edges), &
+              dom%pedlen%elts(velocity_edges),dom%areas%elts(id_i)%hex_inv)
+#ifdef PHYSICS_VELOCITY_ORACLE
+         if(transfer(column_kinetic,0_int64)/=transfer(kinetic_energy(dom,i,j,k,offs,dims),0_int64)) &
+              error stop "independent physics velocity mismatch"
+         velocity_checks=velocity_checks+1
+#endif
+         phys_Umag(k)=real(sqrt(2*column_kinetic),kind=sp)
+         phys_U(k)=real(velocity_values(3),kind=sp)
+         phys_V(k)=real(velocity_values(2),kind=sp)
+         phys_W(k)=real(velocity_values(1),kind=sp)
+#else
          phys_Umag(k)  = real (sqrt (2 * kinetic_energy (dom, i, j, k, offs, dims)),        kind=sp)
          phys_U(k)     = real (sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1),                    kind=sp)
          phys_V(k)     = real (sol(S_VELO,k)%data(d)%elts(EDGE*id+DG+1),                    kind=sp)
          phys_W(k)     = real (sol(S_VELO,k)%data(d)%elts(EDGE*id+UP+1),                    kind=sp)
+#endif
          phys_Theta(k) = real (rho_dz_theta / rho_dz(k),                                    kind=sp) 
 
          nullify (mass, temp, mean_m, mean_t, exner)
