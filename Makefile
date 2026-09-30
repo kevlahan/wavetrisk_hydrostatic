@@ -637,3 +637,15 @@ endif
 ifeq ($(PHYSICS_VELOCITY_PLAN),check)
 FFLAGS += -DPHYSICS_VELOCITY_ORACLE
 endif
+
+# Conservative ordered package execution on final block owners.
+PHYSICS_OWNER ?= off
+ifneq ($(filter $(PHYSICS_OWNER),on check),)
+ifeq ($(filter $(PHYSICS_VELOCITY_PLAN),on check),)
+$(error PHYSICS_OWNER requires PHYSICS_VELOCITY_PLAN=on/check)
+endif
+FFLAGS += -DPHYSICS_OWNER
+endif
+ifeq ($(PHYSICS_OWNER),check)
+FFLAGS += -DPHYSICS_OWNER_ORACLE
+endif

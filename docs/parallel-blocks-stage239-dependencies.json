@@ -1,0 +1,72 @@
+{
+  "stage": 239,
+  "checkpoint_commit": "1a63854f9606ace7e414a476625592ebdc56f2a9",
+  "sources": [
+    {
+      "file": "src/arch.f90",
+      "sha256": "20c7816afa642d72ba9a5f6b436a047da6c7a2800c24f40fab8a54ca63f81632",
+      "contract": "block_catalog supplies final owner, global root Domain and subtree patch identity."
+    },
+    {
+      "file": "src/domain_ops.f90",
+      "sha256": "5c0eaa093dfeb45f8d5ce0da5ad77b5a9be2e5a501757bf711308c662c7c6616",
+      "contract": "Original local column traversal and pole order are preserved."
+    },
+    {
+      "file": "src/physics/physics_simple.f90",
+      "sha256": "b65fe29387ca0d9011a3c0ce9f92193318cf8a46e9e03b72ebb75a0deea3643e",
+      "contract": "Map catalogue subtrees to local patch/node IDs; transport source-local version keys with the column. Await each reply before the next gather. Fixed scaffold and unmapped entry aliases retain Domain compatibility ownership."
+    },
+    {
+      "file": "src/physics/init_physics_module.f90",
+      "sha256": "14607dc5702c8b06db238b41a88acc6f8e7fc9379b6afbabf3381c141c3db5a1",
+      "contract": "init_physics initializes parameters, geometry and extra-level contract on every rank. physics_checkpoint_restart is empty; do not assume it allocates package arrays."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/single_column_mod.F90",
+      "sha256": "aa2aeac741b7ba08f1823a54978208b3c082a7cfbe23aadf773faa2867c6a41d",
+      "contract": "Before every non-first call, reload Tsurf/Tsoil from the packet; after every call, return them. Reload latitude/longitude and trigonometric geometry for every column."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/phyparam_mod.F90",
+      "sha256": "a0d0d3253fe79bb81c27506cb6ca3d9f8d55dabc222b0db3d1477f9291ab673e",
+      "contract": "firstcall_alloc is rank-local and private. firstcall is per-column epoch semantics: preserve it in the packet. Late first use initializes via a disposable first-call copy before the requested non-first call. icount and zDay_last have no numerical consumers in this package."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/soil_mod.F90",
+      "sha256": "5065919a07603de0d03135df986900a2f4670877d54e6a8f8268c98ea049bf6a",
+      "contract": "Tsurf/Tsoil are mutable package scratch; dz1/dz2 and surface property arrays are initialized geometry/parameters. Soil state travels in each packet."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/radiative_mod.F90",
+      "sha256": "57394d53a8467690923305bcdd47256864afdf6e26d28313656b90fafd777f76",
+      "contract": "Radiative inputs and outputs are recomputed per call; no saved column tendency cache."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/turbulence.F90",
+      "sha256": "7a94dda71a3a49ec97700131719a5e30efa33b8c467546271986ece4074f67b9",
+      "contract": "Saved members are model constants/parameters; numerical column work arrays are local."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/astronomy.F90",
+      "sha256": "105df7c9b2924e81437ddd26584de5958867d9833c57c286a1b35a814d69a9af",
+      "contract": "Orbit constants are initialized per rank; SolarLon/Orbite compute from the supplied time."
+    },
+    {
+      "file": "src/physics/simple_physics/phyparam/physics/comgeomfi.F90",
+      "sha256": "3d4cd79d2f0d0209d750e739066ed9db303da1b7bfc86bbab443643c78e58cd5",
+      "contract": "Location arrays are rank-local mutable scratch, overwritten for every dispatched column."
+    },
+    {
+      "file": "src/main.f90",
+      "sha256": "aa81070f4531ece9f2c8074acadfeec3a3a7237a916cf0245dae98b8246e1812",
+      "contract": "Domain return updates occur before soil wavelets and adaptation. Retained atmospheric transaction remains unchanged."
+    }
+  ],
+  "route": "(global Domain, patch) -> subtree catalogue index -> final owner; scaffold index zero remains local.",
+  "source_identity": "Each of six operands carries local node ID, expected writer ordinal, and catalogue index where covered. Zero identifies a compatibility alias/scaffold. Do not replace entry aliases with newer canonical values.",
+  "transport": "Single-column single-precision package packet plus integer identity/version header. Serial geometry sources; synchronous owner reply before dependent source advances. No Domain-shaped numerical snapshot.",
+  "limits": "Owner execution migrates the package only. Input gathering, version authority, prognostic/soil return fields remain Domain-owned; no persistent Domain arrays removed.",
+  "package_audit": "Manual source review; scientific equivalence is additionally checked by exact trajectory and per-column owner-output oracles.",
+  "performance_claim": null
+}
