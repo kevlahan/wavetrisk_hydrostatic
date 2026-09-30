@@ -1,0 +1,389 @@
+{
+  "status": "arithmetic-extraction-validated",
+  "step1_complete": false,
+  "production_owner_migration": false,
+  "kernel_sha256": "86e487f77c34ee89dd3fabce7059770b691eebce78032dae2ed9f24e1603d5d0",
+  "test_source_hashes": {
+    "candidate": {
+      "Makefile": "9c5b49d8cc8813c16dc6bccafbc72aa7debd29e21f5638171e43fb7a67866700",
+      "src/parallel_block_primitive_kernels.f90": "86e487f77c34ee89dd3fabce7059770b691eebce78032dae2ed9f24e1603d5d0",
+      "src/primitive_oracle_232.f90": "de166ece2789d2cf5c739d16697529bb5f04153e3bc1be8c92615acfd0ce5db2",
+      "src/ops.f90": "fd8fe2049f6308ce990a4b5eae1550ecffd13f0e4fc7f7964716cdaffaba3e5a",
+      "src/diagnostics.f90": "0b01d66a490c0ae708e1c88ac2c099f1e31075eeeb5f75d0decd613f8d997bb1",
+      "test/climate/climate.f90": "34aa54dcef63ca8b396eb43695680722ec542aecdab2682a09f8a2622f22f5c0",
+      "test/climate/test_case_module.f90": "2833ad6a06de839392762873c991d743f5f036291f904c65681eba966702278a",
+      "src/parallel_block.f90": "1ba1a8d7bb7b98c3ab86ce64e95f47af98858a96ac7d43884b383e4aa46e99f4",
+      "src/parallel_block_mpi.f90": "f48033bdac1f43a4bfafd63797acd4b711eaa61753f7e5f8d434f5e939e7acf6",
+      "src/time_integr.f90": "2b541d3ca8a5fad2c4abe565ee1709a2af9715896e02ce16fcad87d77a181308"
+    },
+    "complete-kernel-check": {
+      "Makefile": "2893ae44a708e9377bfca8fd20dcbb879e2dcae53c823fc865e57ec448bb7b91",
+      "src/parallel_block_primitive_kernels.f90": "86e487f77c34ee89dd3fabce7059770b691eebce78032dae2ed9f24e1603d5d0",
+      "src/primitive_oracle_232.f90": "a79dcdf0f87363e33f0ad918cd33e0daeaf636641ce21e47fb593e95994d2197",
+      "src/ops.f90": "fd8fe2049f6308ce990a4b5eae1550ecffd13f0e4fc7f7964716cdaffaba3e5a",
+      "src/diagnostics.f90": "4bb21838c97292f67b3702718a25ab4c3d4ecbeb3553c6ea699f491e61f8828b",
+      "test/climate/climate.f90": "34aa54dcef63ca8b396eb43695680722ec542aecdab2682a09f8a2622f22f5c0",
+      "test/climate/test_case_module.f90": "4ca19339d5f3215af15c1de1fb0b44eeb77c2ff4d12a15984c94140fadc0419f",
+      "src/parallel_block.f90": "1ba1a8d7bb7b98c3ab86ce64e95f47af98858a96ac7d43884b383e4aa46e99f4",
+      "src/parallel_block_mpi.f90": "f48033bdac1f43a4bfafd63797acd4b711eaa61753f7e5f8d434f5e939e7acf6",
+      "src/time_integr.f90": "2b541d3ca8a5fad2c4abe565ee1709a2af9715896e02ce16fcad87d77a181308"
+    }
+  },
+  "long_trajectory": {
+    "status": "passed",
+    "ranks": 4,
+    "oracles": true,
+    "coverage": {
+      "domains": 40,
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "new_checkpoint": "localJ4J6_checkpoint_0003.bin.zst"
+    },
+    "reference_directory": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage230-validation/20260929/production-4",
+    "reference_ranks": 4,
+    "reference_binary_sha256": "17d7faaaebcb9f0b00243df9ca60a997fb1b668f9b042064526721499a3342b0",
+    "steps": 12,
+    "step_states_exact": true,
+    "numerical": {
+      "passed": true,
+      "exact_required": true,
+      "exact_observed": true,
+      "failures": [],
+      "policy": {
+        "id": "stage180-local-v1",
+        "atmosphere_absolute": {
+          "velocity": 1e-10,
+          "mass": 1e-10,
+          "temperature": 1e-07
+        },
+        "soil_absolute": 0.0
+      },
+      "report": {
+        "left": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage230-validation/20260929/production-4/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage232-validation/checked-oracles-4/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    },
+    "vtk_exact_members": 62,
+    "storage_headers": {
+      "absent": 0,
+      "retained": 2
+    },
+    "storage_ranks": [
+      [
+        4,
+        4
+      ],
+      [
+        4,
+        4
+      ]
+    ],
+    "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+    "seed_sha256": "285df4e715661c2a74836f5781f9cb099c777f9fff4e456a0b3593061dddf34c",
+    "environment": {
+      "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "1",
+      "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "1",
+      "WAVETRISK_VALIDATE_BLOCK_REMAP": "1",
+      "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+      "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+      "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+      "WAVETRISK_STAGE191_INSTALL": "1",
+      "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+      "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+      "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+      "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+      "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1"
+    },
+    "command": [
+      "mpirun",
+      "--oversubscribe",
+      "--bind-to",
+      "none",
+      "-n",
+      "4",
+      "./climate",
+      "simple.in"
+    ],
+    "binary_sha256": "d2ec1da4e82df4089c4beb932eb5f6eacc7d363c8e2a7085414b49712febcf9f",
+    "log_sha256": "452e7c7abbd071ea6d872023d833e921298870c7e738d40e4b2149b2494dcb79"
+  },
+  "long_kernel_counts": [
+    121756800,
+    10291920,
+    85680,
+    62400,
+    82560,
+    65280,
+    136984170
+  ],
+  "all_kernel_short_check": {
+    "status": "passed",
+    "scope": "One-step arithmetic extraction check; geometry-owner execution retained.",
+    "counts": {
+      "regular": 4737840,
+      "southwest": 407880,
+      "pentagon_NE": 3600,
+      "pentagon_SE": 2400,
+      "pentagon_SW": 3600,
+      "pentagon_NW": 2400,
+      "pressure_layer": 6950460,
+      "surface_pressure": 250544,
+      "scalar_diffusion": 9553320,
+      "velocity_diffusion": 2384880
+    },
+    "command": [
+      "mpirun",
+      "--oversubscribe",
+      "--bind-to",
+      "none",
+      "-n",
+      "4",
+      "./climate",
+      "simple.in"
+    ],
+    "binary_sha256": "430aefa76c1df7e067e645c1e2631e1b7a584f509fbed06986917aa93b993090",
+    "input_sha256": "4d524e71f4d909fbeca34406820b013f182ddf559d8312c980cb66cd76c1cf3d",
+    "seed_sha256": "285df4e715661c2a74836f5781f9cb099c777f9fff4e456a0b3593061dddf34c",
+    "log_sha256": "d72bc83ebcd98f6431f5813425905464e240a402e3d0b0b27072fdb0846f5ad2",
+    "production_owner_migration": false,
+    "performance_claim": null
+  },
+  "corruption_control": {
+    "status": "passed",
+    "expected_failure": true,
+    "returncode": 1,
+    "diagnostic": "primitive232 numerical mismatch: column pressure",
+    "original_source_sha256": "86e487f77c34ee89dd3fabce7059770b691eebce78032dae2ed9f24e1603d5d0",
+    "injected_source_sha256": "634c8f3960a71946cb3145ffd347cb78db6925b4391aaf2b5f0f702b4eba32c0",
+    "binary_sha256": "bcdfe67d71b8f9c7e5cbf53f4eea77bdd194866906bbc928f993311f5c754b9f",
+    "log_sha256": "7873b8192fe457c7572ddbf1666d843f33d6261bb284255c7cd73395d586df66",
+    "command": [
+      "mpirun",
+      "--oversubscribe",
+      "--bind-to",
+      "none",
+      "-n",
+      "4",
+      "./climate",
+      "simple.in"
+    ],
+    "compile": [
+      "mpif90",
+      "-cpp",
+      "-DPHYSICS",
+      "-Isrc/physics/simple_physics/phyparam/include",
+      "-ffree-line-length-132",
+      "-O0",
+      "-g",
+      "-Wall",
+      "-Wextra",
+      "-Wno-unused-dummy-argument",
+      "-Wline-truncation",
+      "-Wimplicit-interface",
+      "-Werror",
+      "-fmax-errors=10",
+      "-fcheck=all",
+      "-finit-real=snan",
+      "-finit-integer=-999999",
+      "-finit-logical=true",
+      "-ffpe-trap=invalid,zero,overflow",
+      "-ftrapping-math",
+      "-fbacktrace",
+      "-DSTAGE203_FIELDS",
+      "-DSTAGE203_INVERSE",
+      "-DSTAGE202_RECORDS",
+      "-DSTAGE202_INVERSE",
+      "-ffp-contract=off",
+      "-J/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage232-validation/corrupt-pressure/mod",
+      "-Ibuild-230-checked/mod",
+      "-I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include",
+      "-I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include",
+      "-c",
+      "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage232-validation/corrupt-pressure/corrupted.f90",
+      "-o",
+      "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage232-validation/corrupt-pressure/corrupted.o"
+    ],
+    "link": [
+      "mpif90",
+      "-L/opt/homebrew/Cellar/netcdf/4.9.3_1/lib",
+      "-Wl,-rpath,/opt/homebrew/Cellar/netcdf-fortran/4.6.2/lib",
+      "-Wl,-rpath,/opt/homebrew/Cellar/netcdf/4.9.3_1/lib",
+      "-L/opt/homebrew/opt/lapack/lib",
+      "-Lsrc/physics/simple_physics/phyparam/driver",
+      "-o",
+      "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage232-validation/corrupt-pressure/climate",
+      "build-230-checked/kind.o",
+      "build-230-checked/param_J4.o",
+      "build-230-checked/shared.o",
+      "build-230-checked/coord_arithmetic.o",
+      "build-230-checked/calendar.o",
+      "build-230-checked/geom.o",
+      "build-230-checked/patch.o",
+      "build-230-checked/dyn_array.o",
+      "build-230-checked/arch.o",
+      "build-230-checked/domain.o",
+      "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage232-validation/corrupt-pressure/corrupted.o",
+      "build-230-checked/primitive_oracle_232.o",
+      "build-230-checked/parallel_block_profile.o",
+      "build-230-checked/parallel_block_scalar_storage.o",
+      "build-230-checked/parallel_block.o",
+      "build-230-checked/parallel_block_velocity.o",
+      "build-230-checked/parallel_block_mass.o",
+      "build-230-checked/parallel_block_inverse.o",
+      "build-230-checked/parallel_block_mpi.o",
+      "build-230-checked/spline.o",
+      "build-230-checked/domain_ops.o",
+      "build-230-checked/init.o",
+      "build-230-checked/comm.o",
+      "build-230-checked/comm_mpi.o",
+      "build-230-checked/utils.o",
+      "build-230-checked/integrate.o",
+      "build-230-checked/diagnostics.o",
+      "build-230-checked/projection.o",
+      "build-230-checked/equation_of_state.o",
+      "build-230-checked/wavelet.o",
+      "build-230-checked/lnorms.o",
+      "build-230-checked/mask.o",
+      "build-230-checked/refine_patch.o",
+      "build-230-checked/coarse_grid.o",
+      "build-230-checked/ops.o",
+      "build-230-checked/parallel_block_build.o",
+      "build-230-checked/multi_level.o",
+      "build-230-checked/adapt.o",
+      "build-230-checked/lin_solve.o",
+      "build-230-checked/barotropic_2d.o",
+      "build-230-checked/time_integr.o",
+      "build-230-checked/checkpoint.o",
+      "build-230-checked/NCAR_topo.o",
+      "build-230-checked/vert_diffusion.o",
+      "build-230-checked/io_vtk.o",
+      "build-230-checked/remap.o",
+      "build-230-checked/std_atm_profile.o",
+      "build-230-checked/sso.o",
+      "build-230-checked/topo_grid_descriptor.o",
+      "build-230-checked/init_physics_module.o",
+      "build-230-checked/physics_simple.o",
+      "build-230-checked/phys_processing.o",
+      "build-230-checked/physics_Held_Suarez.o",
+      "build-230-checked/physics_trend.o",
+      "build-230-checked/main.o",
+      "build-230-checked/test_case_module.o",
+      "build-230-checked/test.o",
+      "-llapack",
+      "-L/opt/homebrew/Cellar/netcdf-fortran/4.6.2/lib",
+      "-lnetcdff",
+      "-lnetcdf",
+      "-lphyparam"
+    ]
+  },
+  "limitations": [
+    "Geometry-owner scheduling and Domain input adapters remain in production.",
+    "No all-inputs-unavailable production run or block-owner tendency path has been delivered.",
+    "These are local correctness checks, not timing, scaling or cluster qualification."
+  ]
+}

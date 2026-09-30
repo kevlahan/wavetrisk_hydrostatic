@@ -1,4 +1,13 @@
 module multi_level_mod
+  use parallel_block_inverse_mod, only: prepare_initial_tendency_operands,block_rk_enabled,block_rk_native
+  use parallel_block_velocity_owner_mod
+  use parallel_block_diffusion_mod
+  use parallel_block_gradients_mod, only: execute_block_gradients,install_block_gradients
+  use parallel_block_pentagons_mod, only: begin_pentagon_phase,end_pentagon_phase
+  use parallel_block_primitives_mod, only: require_primitive_bernoulli,restrict_primitive_bernoulli
+  use parallel_block_primitives_mod, only: begin_primitive_phase,end_primitive_phase,primitives_active,primitives_oracle
+  use parallel_block_columns_mod, only: owner_tendency_without_reference
+  use parallel_block_columns_mod, only: begin_column_phase, end_block_columns, columns_without_reference,columns_initial_pending
   use parallel_block_profile_mod
   use mpi_f08
   use arch_mod, only : comm, MPI_DP, rank, n_process, glo_id
@@ -257,13 +266,19 @@ contains
 
     call detail_enter(DP_SHARED)
     call detail_enter(DP_PRIMITIVE)
-    call update_bdry(q,NONE,1067)
+    if(.not.block_rk_enabled.or.columns_initial_pending().or.block_dynamics_validation_enabled()) &
+         call update_bdry(q,NONE,1067)
+    if(columns_initial_pending()) call prepare_initial_tendency_operands(native_velocity_plan_generation(),q)
 #if !defined(WAVETRISK_TEST_MASS_CUT) && !defined(WAVETRISK_TEST_TEMPERATURE_CUT) && !defined(WAVETRISK_TEST_VELOCITY_CUT)
     if (block_dynamics_validation_enabled() .neqv. present(dq)) &
          error stop "Domain tendency argument is reserved for the independent oracle"
 #endif
     if (present(dq)) call zero_float(dq)
-    call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
+    if(columns_without_reference()) then
+       call cal_surf_press()
+    else
+       call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
+    end if
     call detail_leave(DP_PRIMITIVE)
     validate_velocity_source = block_dynamics_validation_enabled()
     overlap_mass=block_stage191_option(2).and..not.validate_velocity_source
@@ -273,6 +288,17 @@ contains
     profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS_PLAN)
     call prepare_native_mass
     call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS_PLAN,profile_start)
+    if(block_rk_native.and..not.validate_velocity_source) then
+       do velocity_domain=1,size(native_mass)
+          if(allocated(native_mass(velocity_domain)%tendency).or.allocated(native_mass(velocity_domain)%rk)) &
+               error stop "removed mass RK storage allocated"
+       end do
+       do velocity_domain=1,size(native_velocity)
+          if(allocated(native_velocity(velocity_domain)%tendency).or.allocated(native_velocity(velocity_domain)%rk)) &
+               error stop "removed velocity RK storage allocated"
+       end do
+       write(*,'(a,i0)') 'Retained RK native return arrays absent rank=',rank
+    end if
     native_velocity_transaction = .true.
     native_velocity_oracle = validate_velocity_source
     mass_transaction=.true.
@@ -288,12 +314,12 @@ contains
     end if
 #endif
     do velocity_domain=1,size(native_mass)
-       native_mass(velocity_domain)%tendency=0.0_dp
+       if(allocated(native_mass(velocity_domain)%tendency)) native_mass(velocity_domain)%tendency=0.0_dp
        native_mass(velocity_domain)%ready=.false.
     end do
     do velocity_domain=1,size(native_velocity)
        native_velocity(velocity_domain)%ready=.false.
-       native_velocity(velocity_domain)%tendency=0.0_dp
+       if(allocated(native_velocity(velocity_domain)%tendency)) native_velocity(velocity_domain)%tendency=0.0_dp
     end do
 #ifdef WAVETRISK_TEST_VELOCITY_CUT
     if (.not. validate_velocity_source .and. present(dq)) then
@@ -323,9 +349,13 @@ contains
        end do
        if (validate_velocity_source) &
             call begin_velocity_source_measurement
-       if (Laplace_divu /= 0) call cal_divu_ml(q(S_VELO,k))
-       if (Laplace_sclr == 2) call cal_Laplacian_scalars(q,k)
-       if (Laplace_divu == 2) call cal_Laplacian_divu
+       call begin_block_diffusion(k)
+       if (.not.diffusion_active.or.diffusion_oracle) then
+          if (Laplace_divu /= 0) call cal_divu_ml(q(S_VELO,k))
+          if (Laplace_sclr == 2) call cal_Laplacian_scalars(q,k)
+          if (Laplace_divu == 2) call cal_Laplacian_divu
+       end if
+       call install_block_diffusion(k)
 #ifdef WAVETRISK_TEST_MASS_CUT
        if (.not.mass_oracle .and. present(dq)) then
           do velocity_domain=1,size(grid)
@@ -356,7 +386,7 @@ contains
                   q,physics_scalar_flux,0,k,l+1, &
                   domain_tendency=dq,dscalar_only=.true.)
           end if
-          if (l<level_end) then
+          if (l<level_end.and.(.not.mass_owner_active.or.mass_owner_oracle)) then
              profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS)
              if(overlap_mass) then
                 call finish_native_mass(AT_NODE,l+1,k)
@@ -373,11 +403,14 @@ contains
                BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY,profile_start)
           profile_start = parallel_block_profile_begin( &
                BLOCK_PROFILE_NATIVE_MASS)
+          if(.not.mass_owner_active.or.mass_owner_oracle) then
           call exchange_native_mass(AT_EDGE,l,k)
           do velocity_domain=1,size(native_mass)
              call execute_mass_divergence(native_mass(velocity_domain)%level(l)%divergence, &
                   native_mass(velocity_domain)%flux,native_mass(velocity_domain)%tendency(:,k))
           end do
+          end if
+          if(mass_owner_active) call install_owner_mass(k,l)
           call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS,profile_start)
           if (validate_velocity_source) then
              profile_start=parallel_block_profile_begin(BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY)
@@ -391,14 +424,16 @@ contains
              call update_bdry__start( &
                   dq(scalars(1):compatibility_last,k),l)
           end if
-          if(overlap_mass.and.l>level_start) then
+          if(overlap_mass.and.l>level_start.and.(.not.mass_owner_active.or.mass_owner_oracle)) then
              profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS)
              call begin_native_mass(AT_NODE,l,k)
              call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS,profile_start)
           end if
           profile_start = parallel_block_profile_begin( &
                BLOCK_PROFILE_NATIVE_VELOCITY_SOURCE)
-          call compute_native_velocity_source(q,k,l)
+          if(velocity_owner_enabled()) call execute_owner_velocity(k,l)
+          if(.not.velocity_owner_enabled().or.velocity_owner_check()) call compute_native_velocity_source(q,k,l)
+          if(velocity_owner_enabled()) call install_owner_velocity(k,l)
           call parallel_block_profile_end( &
                BLOCK_PROFILE_NATIVE_VELOCITY_SOURCE,profile_start)
           if (validate_velocity_source) then
@@ -462,6 +497,10 @@ contains
 #endif
     native_velocity_transaction=.false.
     mass_transaction=.false.
+    diffusion_active=.false.;mass_owner_active=.false.
+    call end_pentagon_phase
+    call end_primitive_phase
+    call end_block_columns
     if (present(dq)) dq%bdry_uptodate = .false.
     call detail_leave(DP_SHARED)
 
@@ -485,12 +524,13 @@ contains
        end if
        native_mass(d)=Native_Mass_Workspace()
        associate(w=>native_mass(d))
-       allocate(w%level(level_start:level_end),w%flux(EDGE*n),w%tendency(n,zlevels),w%rk(n,zlevels))
+       allocate(w%level(level_start:level_end),w%flux(EDGE*n))
+       if(.not.block_rk_native.or.block_dynamics_validation_enabled()) allocate(w%tendency(n,zlevels),w%rk(n,zlevels))
        allocate(w%active(n),w%restricted(EDGE*n),w%ready(zlevels))
        w%active=grid(d)%mask_n%elts(1:n)>=TRSK
        w%restricted=grid(d)%mask_e%elts(1:EDGE*n)>=RESTRCT
        w%flux=0.0_dp
-       w%tendency=0.0_dp
+       if(allocated(w%tendency)) w%tendency=0.0_dp
        w%ready=.false.
        mass_plan_domain=d
        do l=level_end,level_start,-1
@@ -833,7 +873,9 @@ contains
        associate(work=>native_velocity(d))
        allocate(work%level(level_start:level_end),work%physics_address(3,nnode))
        allocate(work%source(3,nnode),work%physics(3,nnode),work%physics_ready(nnode))
-       allocate(work%tendency(EDGE*nnode,zlevels),work%rk(EDGE*nnode,zlevels),work%ready(zlevels))
+       allocate(work%ready(zlevels))
+       if(.not.block_rk_native.or.block_dynamics_validation_enabled()) &
+            allocate(work%tendency(EDGE*nnode,zlevels),work%rk(EDGE*nnode,zlevels))
        allocate(work%rho(nnode),work%rho_theta(nnode))
        allocate(work%active_mask(nnode),work%restriction_mask(EDGE*nnode))
        work%active_mask=grid(d)%mask_n%elts(1:nnode)>=TRSK
@@ -1011,14 +1053,24 @@ contains
   subroutine compute_native_velocity_gradient(q,k)
     type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: k
-    integer :: d,nnode
+    integer :: d,nnode,s
     real(dp), pointer :: tendency_view(:,:)
+    if(primitives_active) then
+       call execute_block_gradients(k)
+       if(.not.primitives_oracle) then
+          call install_block_gradients(k)
+          return
+       end if
+    end if
     do d=1,size(grid)
        associate(work=>native_velocity(d))
        nnode=size(work%source,2)
        work%rho=sol_mean(S_MASS,k)%data(d)%elts(1:nnode)+q(S_MASS,k)%data(d)%elts(1:nnode)
        work%rho_theta=sol_mean(S_TEMP,k)%data(d)%elts(1:nnode)+q(S_TEMP,k)%data(d)%elts(1:nnode)
        tendency_view(1:EDGE,1:nnode)=>native_velocity(d)%tendency(:,k)
+       do s=1,size(work%gradient)
+          if(work%gradient(s)%active) call require_primitive_bernoulli(d,work%gradient(s)%node)
+       end do
        call execute_velocity_gradients(work%gradient,grid(d)%bernoulli%elts(1:nnode),exner_fun(k)%data(d)%elts(1:nnode), &
             work%rho,work%rho_theta,work%source,tendency_view)
        work%ready(k)=.true.
@@ -1026,6 +1078,7 @@ contains
        end associate
     end do
     nullify(tendency_view)
+    if(primitives_active) call install_block_gradients(k)
   end subroutine compute_native_velocity_gradient
 
   
@@ -1044,6 +1097,9 @@ contains
     real(dp) :: scalar_physics(EDGE,PATCH_SIZE**2,scalars(1):scalars(2))
     real(dp) :: mass_start
 
+    call begin_column_phase(k,l)
+    call begin_primitive_phase(k,l)
+    call begin_pentagon_phase(k,l)
     call detail_enter(DP_BASIC)
     capture_scalar_physics = block_scalar_capture_active()
     if (.not.present(dq)) then
@@ -1122,7 +1178,7 @@ contains
        if (level_start /= level_end) call update_bdry(horiz_flux,l,968)
     end if
 
-    if (mass_transaction) then
+    if (mass_transaction.and.(.not.mass_owner_active.or.mass_owner_oracle)) then
        mass_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS)
        do d=1,size(native_mass)
           call execute_mass_restriction(native_mass(d)%level(l)%restriction, &
@@ -1132,7 +1188,8 @@ contains
        call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS,mass_start)
     end if
 
-    if (Laplace_rotu == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
+    if (Laplace_rotu == 2.and.(.not.velocity_owner_enabled().or.velocity_owner_check())) &
+         call cal_Laplacian_vector_rot(l)
     call detail_leave(DP_BASIC)
 
   end subroutine basic_operators
@@ -1789,7 +1846,11 @@ contains
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
     id_par = idx (i_par, j_par, offs_par, dims_par)
 
-    if (dom%mask_n%elts(id_par+1) >= RESTRCT) scalar(id_par+1) = scalar(id_chd+1)
+    if (dom%mask_n%elts(id_par+1) >= RESTRCT) then
+       if(associated(scalar,grid(dom%id+1)%bernoulli%elts)) &
+            call restrict_primitive_bernoulli(dom%id+1,id_par+1,id_chd+1)
+       if(.not.owner_tendency_without_reference()) scalar(id_par+1) = scalar(id_chd+1)
+    end if
   end subroutine scalar_cpt_restr
 
   

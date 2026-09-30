@@ -1,0 +1,126 @@
+{
+  "stage": 236,
+  "status": "preflight-only-migration-not-implemented",
+  "authoritative_directory": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic",
+  "branch": "codex/performance-investigation",
+  "head": "4ea640128a71a857f9b8c6b9411dc34fc0aeb641",
+  "main": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "integrity": {
+    "frozen_changed_sources": {
+      "count": 69,
+      "mismatches": []
+    },
+    "frozen_sources": {
+      "count": 115,
+      "mismatches": []
+    },
+    "frozen_source_contents": {
+      "count": 115,
+      "mismatches": []
+    },
+    "live_changed_sources": {
+      "count": 69,
+      "mismatches": []
+    },
+    "frozen_binaries": {
+      "count": 4,
+      "mismatches": []
+    }
+  },
+  "classification": "Manual source review with verified anchors; not dynamic liveness or numerical acceptance.",
+  "dependencies": [
+    {
+      "boundary": "retained timestep base",
+      "file": "src/parallel_block.f90",
+      "routine": "begin_local_block_accumulated_tendency_trial",
+      "line": 2349,
+      "sha256": "e7f548809e37d3dcad1b380bda5c9f29320fe47245d46bc442264d64a23ed829",
+      "obligation": "Existing block_tendency_trial retains the base; do not allocate another Domain-shaped base."
+    },
+    {
+      "boundary": "interstage rollback",
+      "file": "src/parallel_block_mpi.f90",
+      "routine": "capture_block_domain_multistage_candidate_tendency",
+      "line": 29663,
+      "sha256": "7399ba232a125807c49943b678ea2c16c9963862e457f3e950406e3c1462b5c8",
+      "obligation": "Secure current tendency in accumulator before restoring timestep-start block state. Stage one has no pending checkpoint."
+    },
+    {
+      "boundary": "Domain RK closure",
+      "file": "src/time_integr.f90",
+      "routine": "RK_sub_step_compatibility",
+      "line": 531,
+      "sha256": "11661297f371b3c1a7c6bc62e65c532b5e930ecd95ef90a3c75c11b2caf7cff4",
+      "obligation": "Reads sols mass/velocity/temperature; native mass and velocity returns feed Domain q1/q; temperature closure has a separate sparse update."
+    },
+    {
+      "boundary": "temperature closure base",
+      "file": "src/parallel_block_mpi.f90",
+      "routine": "prepare_temperature_boundary_stage",
+      "line": 25060,
+      "sha256": "98b486b0143630009e61c4541800d3e10f2e174ed9f46a81f10376ff5ea54253",
+      "obligation": "Sparse tendency is owner-produced, but base still comes from sols on geometry owners."
+    },
+    {
+      "boundary": "candidate publication",
+      "file": "src/parallel_block_mpi.f90",
+      "routine": "retain_block_native_multistage_candidate",
+      "line": 29966,
+      "sha256": "890aae5ac8ce99294f79f01bfdfb908e36b2d018b7c6111e4befbca4baba3b82",
+      "obligation": "Publishes retained temperature before wavelet consumers; exact independent reference must precede publication."
+    },
+    {
+      "boundary": "forward boundary and coarse restriction",
+      "file": "src/adapt.f90",
+      "routine": "WT_after_step",
+      "line": 380,
+      "sha256": "6bd63293dff3876d6fdede6c8f4a7c3bc8555bdf89c964336f58caf910af218d",
+      "obligation": "Domain update_bdry and accepted-stage restrict_velo still read scaling before native callbacks."
+    },
+    {
+      "boundary": "scalar/vector wavelet boundary import",
+      "file": "src/parallel_block_mpi.f90",
+      "routine": "validate_candidate_block_scalar_wavelets",
+      "line": 14187,
+      "sha256": "f4cc4d49cb9f0c4d35c0c1bf4890ae1768170e3b8095663f37e11aeef02866ef",
+      "obligation": "Imports Domain boundary SOL into blocks before scalar and vector wavelet production."
+    },
+    {
+      "boundary": "inverse input versions",
+      "file": "src/parallel_block_inverse.f90",
+      "routine": "prepare_native_inverse",
+      "line": 273,
+      "sha256": "ef3f7ff994c8844cb75976cf3cf03aef6ac2af990f2663aed50d6be598cca491",
+      "obligation": "Seeds noncanonical scaling/wavelet operands; scaffold_value separately reads global sol, not provisional scaling."
+    },
+    {
+      "boundary": "inverse publication",
+      "file": "src/parallel_block_mpi.f90",
+      "routine": "activate_block_native_inverse_transform",
+      "line": 14697,
+      "sha256": "c6b9b106c4d56a784addec3d10f032aa7ce70ad255b91c8ce1263fa9ab33d130",
+      "obligation": "Publishes provisional and final Domain fields; completion and writeback counters encode these boundaries."
+    },
+    {
+      "boundary": "initial upstream aliases",
+      "file": "src/parallel_block_inverse.f90",
+      "routine": "prepare_initial_tendency_operands",
+      "line": 130,
+      "sha256": "d6282fcd710736d8879c98fb3dfebf964376bd108e8aca6442243a58d69054ba",
+      "obligation": "Only registered noncanonical aliases are upstream inputs. Keep separate from provisional and saved final consumer epochs."
+    },
+    {
+      "boundary": "velocity RK return",
+      "file": "src/parallel_block_gradients.f90",
+      "routine": "execute_block_gradients",
+      "line": 257,
+      "sha256": "777aad8d4d78eaae691a10b950889524bb58b384b7d8476d20ebd677e5813153",
+      "obligation": "Computed gradients retained on owners also return through MPI_Alltoallv for current RK closure; delete only after consumers migrate."
+    }
+  ],
+  "solver_changes": false,
+  "validation_jobs_run": false,
+  "remote_jobs_submitted": false,
+  "complete_RK_migration": false,
+  "performance_claim": null
+}

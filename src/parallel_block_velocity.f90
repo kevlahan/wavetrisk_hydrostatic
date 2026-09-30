@@ -89,6 +89,7 @@ contains
     if (.not. allocated(native_velocity)) error stop "native velocity workspace is absent"
     if (d < 1 .or. d > size(native_velocity)) error stop "native velocity workspace owner is invalid"
     if (.not. allocated(native_velocity(d)%ready)) error stop "native velocity readiness is absent"
+    if (.not. allocated(native_velocity(d)%tendency)) error stop "removed native velocity tendency requested"
     if (k < 1 .or. k > size(native_velocity(d)%ready)) error stop "native velocity layer is invalid"
     if (.not. native_velocity(d)%ready(k)) error stop "native velocity tendency is not ready"
     if (first < 1 .or. n < 0 .or. first+n-1 > size(native_velocity(d)%tendency,1)) &

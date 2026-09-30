@@ -16,6 +16,14 @@ FP_CONTRACT   ?= off
 # Stage226 comparison: STAGE202=on STAGE203=off; original path: both off.
 STAGE202      ?= on
 STAGE203      ?= on
+# Bounded interstage pressure-owner integration; not yet the full tendency path.
+BLOCK_COLUMNS ?= off
+BLOCK_PRIMITIVES ?= off
+BLOCK_DIFFUSION ?= off
+BLOCK_MASS_OWNER ?= off
+BLOCK_VELOCITY_OWNER ?= off
+BLOCK_TENDENCY_INITIAL ?= off
+BLOCK_RK ?= off
 TEST_CASE     ?= climate
 PARAM         ?= param_J5
 MPIF90        ?= mpif90
@@ -128,6 +136,30 @@ $(error Unknown DEBUG='$(DEBUG)'; use false, asan, or check)
 endif
 
 # Optional arithmetic control for solver code; external physics keeps its flags.
+ifneq ($(filter $(BLOCK_COLUMNS),on check),)
+ifneq ($(STAGE203),on)
+$(error BLOCK_COLUMNS=on requires STAGE203=on)
+endif
+FFLAGS += -DBLOCK_COLUMNS
+endif
+ifeq ($(BLOCK_COLUMNS),check)
+FFLAGS += -DBLOCK_COLUMNS_ORACLE
+endif
+ifneq ($(filter $(BLOCK_PRIMITIVES),on check),)
+ifeq ($(BLOCK_COLUMNS),off)
+$(error BLOCK_PRIMITIVES requires BLOCK_COLUMNS=on or check)
+endif
+FFLAGS += -DBLOCK_PRIMITIVES
+endif
+ifeq ($(BLOCK_PRIMITIVES),check)
+FFLAGS += -DBLOCK_PRIMITIVES_ORACLE
+endif
+ifeq ($(filter $(BLOCK_PRIMITIVES),off on check),)
+$(error BLOCK_PRIMITIVES must be off, on or check)
+endif
+ifeq ($(filter $(BLOCK_COLUMNS),off on check),)
+$(error BLOCK_COLUMNS must be off, on or check)
+endif
 ifeq ($(filter $(FP_CONTRACT),default off fast),)
 $(error Unknown FP_CONTRACT='$(FP_CONTRACT)'; use default, off, or fast)
 endif
@@ -302,11 +334,20 @@ SRC = kind.f90 \
       dyn_array.f90 \
       arch.f90 \
       domain.f90 \
+      parallel_block_primitive_walk.f90 \
+      parallel_block_resident_operands.f90 \
+      parallel_block_primitive_registry.f90 \
+      parallel_block_primitives.f90 \
+      parallel_block_pentagons.f90 \
+      parallel_block_gradients.f90 \
+      parallel_block_primitive_kernels.f90 \
+      parallel_block_columns.f90 \
       parallel_block_profile.f90 \
       parallel_block_scalar_storage.f90 \
       parallel_block.f90 \
       parallel_block_velocity.f90 \
       parallel_block_mass.f90 \
+      parallel_block_program.f90 \
       parallel_block_inverse.f90 \
       parallel_block_mpi.f90 \
       spline.f90 \
@@ -315,6 +356,7 @@ SRC = kind.f90 \
       comm.f90 \
       comm_mpi.f90 \
       utils.f90 \
+      parallel_block_diffusion.f90 \
       integrate.f90 \
       diagnostics.f90 \
       projection.f90 \
@@ -326,6 +368,8 @@ SRC = kind.f90 \
       coarse_grid.f90 \
       ops.f90 \
       parallel_block_build.f90 \
+      parallel_block_definition_exchange.f90 \
+      parallel_block_velocity_owner.f90 \
       multi_level.f90 \
       adapt.f90 \
       lin_solve.f90 \
@@ -482,3 +526,92 @@ clean:
 ifeq ($(PHYSICS),true)
 	$(MAKE) -C $(SRC_DIR)/physics/simple_physics/phyparam clean
 endif
+
+$(BUILD_DIR)/parallel_block_primitive_kernels.o: $(BUILD_DIR)/kind.o
+$(BUILD_DIR)/parallel_block_columns.o: $(BUILD_DIR)/parallel_block_inverse.o $(BUILD_DIR)/parallel_block_primitive_kernels.o $(BUILD_DIR)/init.o
+$(BUILD_DIR)/parallel_block_inverse.o: $(BUILD_DIR)/domain_ops.o
+$(BUILD_DIR)/diagnostics.o $(BUILD_DIR)/time_integr.o $(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_columns.o
+
+$(BUILD_DIR)/parallel_block_primitive_walk.o: $(BUILD_DIR)/domain.o
+$(BUILD_DIR)/parallel_block_resident_operands.o: $(BUILD_DIR)/parallel_block_inverse.o
+$(BUILD_DIR)/parallel_block_primitives.o: $(BUILD_DIR)/parallel_block_resident_operands.o $(BUILD_DIR)/parallel_block_columns.o $(BUILD_DIR)/parallel_block_primitive_walk.o
+$(BUILD_DIR)/parallel_block_inverse.o: $(BUILD_DIR)/parallel_block_primitive_walk.o
+$(BUILD_DIR)/ops.o $(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_primitives.o
+
+$(BUILD_DIR)/parallel_block_pentagons.o: $(BUILD_DIR)/parallel_block_primitives.o $(BUILD_DIR)/domain_ops.o
+$(BUILD_DIR)/ops.o $(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_pentagons.o
+
+$(BUILD_DIR)/parallel_block_gradients.o: $(BUILD_DIR)/parallel_block_primitives.o $(BUILD_DIR)/parallel_block_velocity.o
+$(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_gradients.o
+
+$(BUILD_DIR)/parallel_block_mpi.o $(BUILD_DIR)/time_integr.o: $(BUILD_DIR)/parallel_block_gradients.o
+
+$(BUILD_DIR)/parallel_block_program.o: $(BUILD_DIR)/parallel_block_mass.o $(BUILD_DIR)/parallel_block_resident_operands.o
+
+ifneq ($(filter $(BLOCK_DIFFUSION),on check),)
+ifneq ($(TEST_CASE),climate)
+$(error BLOCK_DIFFUSION currently requires TEST_CASE=climate)
+endif
+ifeq ($(filter $(BLOCK_PRIMITIVES),on check),)
+$(error BLOCK_DIFFUSION requires BLOCK_PRIMITIVES=on/check)
+endif
+FFLAGS += -DBLOCK_DIFFUSION
+endif
+ifeq ($(BLOCK_DIFFUSION),check)
+FFLAGS += -DBLOCK_DIFFUSION_ORACLE
+endif
+$(BUILD_DIR)/parallel_block_diffusion.o: $(BUILD_DIR)/parallel_block_program.o $(BUILD_DIR)/parallel_block_columns.o $(BUILD_DIR)/parallel_block_primitive_walk.o
+$(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_diffusion.o
+
+$(BUILD_DIR)/parallel_block_program.o: $(BUILD_DIR)/parallel_block_primitive_kernels.o
+$(BUILD_DIR)/parallel_block_diffusion.o: $(BUILD_DIR)/utils.o
+$(BUILD_DIR)/ops.o: $(BUILD_DIR)/parallel_block_diffusion.o
+
+ifneq ($(filter $(BLOCK_MASS_OWNER),on check),)
+ifeq ($(filter $(BLOCK_DIFFUSION),on check),)
+$(error BLOCK_MASS_OWNER requires BLOCK_DIFFUSION=on/check)
+endif
+FFLAGS += -DBLOCK_MASS_OWNER
+endif
+ifeq ($(BLOCK_MASS_OWNER),check)
+FFLAGS += -DBLOCK_MASS_OWNER_ORACLE
+endif
+
+$(BUILD_DIR)/parallel_block_primitive_registry.o: $(BUILD_DIR)/domain.o
+$(BUILD_DIR)/parallel_block_primitives.o $(BUILD_DIR)/parallel_block_pentagons.o: $(BUILD_DIR)/parallel_block_primitive_registry.o
+
+$(BUILD_DIR)/parallel_block_program.o: $(BUILD_DIR)/parallel_block_velocity.o
+
+ifneq ($(filter $(BLOCK_VELOCITY_OWNER),on check),)
+ifeq ($(filter $(BLOCK_MASS_OWNER),on check),)
+$(error BLOCK_VELOCITY_OWNER requires BLOCK_MASS_OWNER=on/check)
+endif
+FFLAGS += -DBLOCK_VELOCITY_OWNER
+endif
+ifeq ($(BLOCK_VELOCITY_OWNER),check)
+FFLAGS += -DBLOCK_VELOCITY_OWNER_ORACLE
+endif
+$(BUILD_DIR)/parallel_block_definition_exchange.o: $(BUILD_DIR)/domain.o
+$(BUILD_DIR)/parallel_block_velocity_owner.o: $(BUILD_DIR)/parallel_block_definition_exchange.o $(BUILD_DIR)/parallel_block_diffusion.o $(BUILD_DIR)/parallel_block_pentagons.o
+$(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_velocity_owner.o
+
+$(BUILD_DIR)/parallel_block_gradients.o: $(BUILD_DIR)/parallel_block_velocity_owner.o
+$(BUILD_DIR)/utils.o: $(BUILD_DIR)/comm_mpi.o
+$(BUILD_DIR)/comm_mpi.o: $(BUILD_DIR)/comm.o $(BUILD_DIR)/domain_ops.o
+$(BUILD_DIR)/comm.o: $(BUILD_DIR)/domain.o
+
+ifneq ($(filter $(BLOCK_TENDENCY_INITIAL),on check),)
+ifeq ($(filter $(BLOCK_VELOCITY_OWNER),on check),)
+$(error BLOCK_TENDENCY_INITIAL requires BLOCK_VELOCITY_OWNER=on/check)
+endif
+FFLAGS += -DBLOCK_TENDENCY_INITIAL
+endif
+
+ifneq ($(filter $(BLOCK_RK),on check),)
+ifeq ($(filter $(BLOCK_TENDENCY_INITIAL),on check),)
+$(error BLOCK_RK requires BLOCK_TENDENCY_INITIAL=on/check)
+endif
+FFLAGS += -DBLOCK_RK
+endif
+
+$(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_diffusion.o

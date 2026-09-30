@@ -6,7 +6,7 @@ module parallel_block_mass_mod
   private
   public :: Mass_Restriction, Mass_Divergence, Mass_Level, Native_Mass_Workspace
   public :: native_mass, mass_transaction, mass_oracle, execute_mass_restriction, execute_mass_divergence
-  public :: mass_work
+  public :: mass_work,mass_restriction_value
 
   type :: Mass_Restriction
      integer :: target=0
@@ -38,10 +38,23 @@ contains
     type(Mass_Restriction), intent(in) :: program(:)
     real(dp), intent(inout) :: flux(:)
     real(dp), intent(in) :: rhs(:)
-    real(dp) :: small(4),partial,coarse
-    integer :: s,e,n
+    real(dp) :: result(3)
+    integer :: s,e
     do s=1,size(program)
-       associate(p=>program(s))
+       result=mass_restriction_value(program(s),flux,rhs)
+       do e=1,3
+          if(program(s)%edge(e)) flux(3*(program(s)%target-1)+e)=result(e)
+       end do
+       mass_work(2)=mass_work(2)+count(program(s)%edge)
+    end do
+  end subroutine
+
+  pure function mass_restriction_value(p,flux,rhs) result(result)
+    type(Mass_Restriction), intent(in) :: p
+    real(dp), intent(in) :: flux(:),rhs(:)
+    real(dp) :: result(3),small(4),partial,coarse
+    integer :: n,e
+    result=0.0_dp
        do n=1,4
           small(n)=sum(flux(p%small(:,1,n))*p%weight(:,1,n)) + &
                sum((flux(p%small(:,2,n))-flux(p%small(:,3,n)))*p%weight(:,2,n))
@@ -59,12 +72,9 @@ contains
                +p%coarse(3,e)*0.5_dp*(rhs(p%coarse_node(4,e))-rhs(p%coarse_node(1,e))) &
                +p%coarse(4,e)*0.5_dp*(rhs(p%coarse_node(2,e))-rhs(p%coarse_node(5,e))) &
                +p%coarse(5,e)*0.5_dp*(rhs(p%coarse_node(2,e))-rhs(p%coarse_node(6,e)))
-          flux(3*(p%target-1)+e)=partial+coarse+small(e)+small(e+1)
+          result(e)=partial+coarse+small(e)+small(e+1)
        end do
-       mass_work(2)=mass_work(2)+count(p%edge)
-       end associate
-    end do
-  end subroutine
+  end function
 
   subroutine execute_mass_divergence(program,flux,rhs)
     type(Mass_Divergence), intent(in) :: program(:)

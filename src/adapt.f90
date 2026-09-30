@@ -1,4 +1,5 @@
 module adapt_mod
+  use parallel_block_inverse_mod, only: block_rk_enabled,compare_retained_rk_aliases
   use parallel_block_profile_mod, only : detail_enter, detail_leave, DP_WT_DRIVER
   use, intrinsic :: iso_fortran_env, only : int64
 
@@ -424,7 +425,8 @@ contains
 
     if (present(l_start0)) then
        l_start = l_start0
-       if (l_start == level_start-1) then
+       if (l_start == level_start-1.and.(.not.block_rk_enabled.or..not.native_output.or. &
+            block_dynamics_validation_enabled())) then
           do k = 1, size(scaling,2)
              do d = 1, size(grid)
                 velo => scaling(S_VELO,k)%data(d)%elts
@@ -446,11 +448,14 @@ contains
        error stop "complete native wavelet output requires restriction"
     end if
 
-    call update_bdry (scaling, NONE, 904)
+    if(.not.block_rk_enabled.or..not.native_output.or.block_dynamics_validation_enabled()) &
+         call update_bdry (scaling, NONE, 904)
     if (l_start == level_start-1 .and. &
          present(validate_velocity_restriction)) then
        call validate_velocity_restriction(scaling,level_start-1)
     end if
+    if(block_rk_enabled.and.native_output.and.block_dynamics_validation_enabled()) &
+         call compare_retained_rk_aliases(scaling)
 
     do l = l_start, level_end-1
        if (.not. native_output) then

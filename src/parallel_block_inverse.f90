@@ -11,7 +11,7 @@ module parallel_block_inverse_mod
        MPI_Request, MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_STATUSES_IGNORE, MPI_Allreduce, MPI_MIN, MPI_MAX
   use kind_mod, only : dp
   use shared_mod, only : EDGE, AT_NODE, AT_EDGE, N_VARIABLE, N_BDRY, N_CHDRN, &
-       scalars, S_VELO, zlevels, n_domain, level_start, level_end, end_pt, opp_no, hex_sides, hex_s_offs, &
+       scalars, S_VELO, S_TEMP, zlevels, n_domain, level_start, level_end, end_pt, opp_no, hex_sides, hex_s_offs, &
        DG, FROZEN, LORT, UPLT, TRIAG, RT, UP, NORTHEAST, NORTHWEST, IMINUSJPLUS, IPLUSJMINUS, IJMINUS
   use domain_mod, only : grid, sol, Float_Field, idx, ed_idx, get_offs_Domain, chd_offs
   use patch_mod, only : PATCH_SIZE, LAST
@@ -19,14 +19,44 @@ module parallel_block_inverse_mod
   use parallel_block_mod, only : Block_Data, STORE_PATCH, STORE_BDRY, BLOCK_PAYLOAD_SOL, &
        BLOCK_PAYLOAD_WAV_COEFF, apply_local_block_field_consumer, &
        compile_local_block_inverse_routes, transfer_local_block_inverse_routes
+  use parallel_block_primitive_walk_mod, only: walk_primitive_patch
+  use domain_ops_mod, only: apply_onescale_to_patch,apply_interscale_d
+  use domain_mod, only: Domain
   implicit none
   private
   public :: prepare_native_inverse, native_inverse_gather, native_inverse_boundary, &
        native_inverse_scatter, native_inverse_outer, compare_native_inverse, publish_native_inverse
+  public :: inverse_operand_key, inverse_scalar_operand, inverse_vector_operand, inverse_operand_generation
+  public :: complete_inverse_operand_epoch, require_provisional_inverse_operands
+  public :: require_tendency_operands,prepare_initial_tendency_operands
   public :: capture_native_inverse_consumer_aliases
   real(dp), public :: native_inverse_seconds(3)=0.0_dp
   integer(int64), public :: native_inverse_calls(3)=0_int64, native_inverse_messages(3)=0_int64, &
        native_inverse_bytes(3)=0_int64
+#ifdef BLOCK_RK
+  logical, parameter, public :: block_rk_enabled=.true.
+#else
+  logical, parameter, public :: block_rk_enabled=.false.
+#endif
+#if defined(BLOCK_RK) && !defined(BLOCK_COLUMNS_ORACLE) && !defined(BLOCK_PRIMITIVES_ORACLE) && !defined(BLOCK_DIFFUSION_ORACLE) && !defined(BLOCK_MASS_OWNER_ORACLE) && !defined(BLOCK_VELOCITY_OWNER_ORACLE)
+  logical,parameter,public::block_rk_native=.true.
+#else
+  logical,parameter,public::block_rk_native=.false.
+#endif
+  public :: prepare_retained_rk_aliases,finish_retained_rk_boundary,rk_scaffold_operand
+  public :: reset_retained_rk_scaffold
+  integer,allocatable::rk_low_key(:,:),rk_low_slot(:)
+  real(dp),allocatable::rk_low_value(:,:,:)
+  integer::original_inverse_nodes=0
+  public :: retained_rk_cycle_active
+  public :: compare_retained_rk_aliases
+  public :: rk_alias_nodes,set_rk_mass_alias_layer,rk_mass_alias_operand
+  real(dp), allocatable :: rk_alias_base(:,:,:),rk_mass_rhs(:,:)
+  integer,allocatable::rk_alias_index(:)
+  logical,allocatable::rk_mass_ready(:)
+  integer :: rk_stage=0,rk_stages=0
+  logical :: rk_boundary_ready=.false.,rk_base_ready=.false.
+  logical :: provisional_operands_ready=.false.,initial_operands_ready=.false.
   logical :: timing=.false.
   logical :: sparse_outer_install=.false., stage192_ready=.false.
 
@@ -106,6 +136,313 @@ module parallel_block_inverse_mod
        [16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp,-1.0_dp,-1.0_dp,1.0_dp,1.0_dp]/16.0_dp
 
 contains
+  subroutine reset_retained_rk_scaffold
+    if(allocated(rk_low_key)) deallocate(rk_low_key,rk_low_value)
+    if(allocated(rk_low_slot)) deallocate(rk_low_slot)
+    rk_base_ready=.false.;rk_boundary_ready=.false.;rk_stage=0;rk_stages=0
+  end subroutine
+  subroutine prepare_rk_low_scaffold
+    integer,allocatable::keys(:,:)
+    real(dp),allocatable::values(:,:,:)
+    integer::q,p,d,id,n,t,v,key(2)
+    if(allocated(rk_low_slot)) deallocate(rk_low_slot)
+    allocate(rk_low_slot(nnode));rk_low_slot=0
+    n=0
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q);d=node_domain(p);id=node_id(p)
+       if(id<grid(d)%patch%elts(3)%elts_start) n=n+1
+    end do
+    allocate(keys(2,n),values(nscalar+EDGE,zlevels,n));n=0
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q);d=node_domain(p);id=node_id(p)
+       if(id>=grid(d)%patch%elts(3)%elts_start) cycle
+       n=n+1;key=[glo_id(rank+1,d),id];keys(:,n)=key;rk_low_slot(p)=n
+       do v=1,nscalar
+          values(v,:,n)=real(N_VARIABLE-(scalars(1)+v-1),dp)
+       end do
+       values(nscalar+1:,:,n)=real(N_VARIABLE-S_VELO,dp)
+       if(.not.allocated(rk_low_key)) cycle
+       do t=1,size(rk_low_key,2)
+          if(all(rk_low_key(:,t)==key)) then
+             values(:,:,n)=rk_low_value(:,:,t)
+             exit
+          end if
+       end do
+    end do
+    call move_alloc(keys,rk_low_key);call move_alloc(values,rk_low_value)
+  end subroutine
+
+  logical function retained_rk_cycle_active() result(active)
+    active=block_rk_enabled.and.rk_base_ready.and.rk_stage>0
+  end function
+
+  subroutine rk_alias_nodes(address)
+    integer,allocatable,intent(out)::address(:,:)
+    integer::q,p
+    allocate(address(2,size(consumer_alias_slot)))
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q);address(:,q)=[node_domain(p),node_id(p)]
+    end do
+  end subroutine
+  subroutine set_rk_mass_alias_layer(k,rhs)
+    integer,intent(in)::k
+    real(dp),intent(in)::rhs(:)
+    if(.not.rk_base_ready.or.k<1.or.k>zlevels) call die('RK mass alias epoch')
+    if(rk_mass_ready(k).or.size(rhs)/=size(rk_mass_rhs,2)) call die('RK mass alias duplicate or extent')
+    rk_mass_rhs(k,:)=rhs;rk_mass_ready(k)=.true.
+  end subroutine
+  real(dp) function rk_mass_alias_operand(d,id,k) result(x)
+    integer,intent(in)::d,id,k
+    integer::p,q
+    if(.not.rk_base_ready.or..not.rk_mass_ready(k)) call die('RK mass alias layer unavailable')
+    p=nodes(d)%slot(id+1)
+    if(p==0) call die('RK mass alias not registered')
+    q=rk_alias_index(p)
+    if(q==0) call die('RK mass alias requested canonical interior')
+    x=rk_mass_rhs(k,q)
+  end function
+
+  subroutine prepare_retained_rk_aliases(h,stage,stages,rhs,vector_closure)
+    real(dp),intent(in)::h
+    integer,intent(in)::stage,stages
+    interface
+       subroutine rhs(d,id,k,tendency)
+         import dp
+         integer,intent(in)::d,id,k
+         real(dp),intent(out)::tendency(:)
+       end subroutine
+       function vector_closure(key,k,h) result(x)
+         import dp
+         integer,intent(in)::key(4),k
+         real(dp),intent(in)::h
+         real(dp)::x(3)
+       end function
+    end interface
+    integer::q,p,d,id,k,ierr,n
+    real(dp)::tendency(nscalar+EDGE)
+    if(.not.block_rk_enabled.or..not.rk_base_ready) call die('RK base is unavailable')
+    if(rk_boundary_ready.or.stage/=rk_stage+1) call die('RK closure stage sequence')
+    if(stages/=3.and.stages/=4) call die('RK closure method')
+    if(stage<1.or.stage>stages) call die('RK closure stage range')
+    if(stage>1.and.stages/=rk_stages) call die('RK closure method changed')
+    rk_stage=stage;rk_stages=stages
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q);d=node_domain(p);id=node_id(p)
+       do k=1,zlevels
+          call rhs(d,id,k,tendency)
+          if(.not.all(ieee_is_finite(tendency))) call die('RK alias missing tendency')
+          value(:,k,p,BLOCK_PAYLOAD_SOL)=rk_alias_base(:,k,q)+h*tendency
+          if(stage<stages.and.rk_low_slot(p)>0) then
+             value(:,k,p,BLOCK_PAYLOAD_SOL)=rk_low_value(:,k,rk_low_slot(p))
+             ! Native temperature publication preserves global-sol scaffold,
+             ! unlike the untouched provisional mass/velocity storage.
+             if(nodes(d)%key(2,id+1)==-1) &
+                  value(S_TEMP-scalars(1)+1,k,p,BLOCK_PAYLOAD_SOL)=rk_alias_base(S_TEMP-scalars(1)+1,k,q)
+          end if
+       end do
+    end do
+    if(stage==stages) then
+       do q=1,size(scaffold_slot)
+          scaffold_value(:,:,q)=value(:,:,scaffold_slot(q),BLOCK_PAYLOAD_SOL)
+       end do
+    end if
+    call native_inverse_gather(1,BLOCK_PAYLOAD_SOL,.false.)
+    ! The canonical block candidate includes the accepted add/subtract
+    ! recomposition. Physical aliases require the original RK rounding order.
+    ! Read the existing owner checkpoint and exact retained gradient directly.
+    n=EDGE*zlevels
+    do p=1,size(interior_plan%key,2)
+       do k=1,zlevels
+          q=(p-1)*n+(k-1)*EDGE
+          transfer_recv(q+1:q+EDGE)=vector_closure(interior_plan%key(:,p),k,h)
+       end do
+    end do
+    call MPI_Alltoallv(transfer_recv,n*interior_plan%rc,n*interior_plan%rd,MPI_DOUBLE_PRECISION, &
+         transfer_send,n*interior_plan%sc,n*interior_plan%sd,MPI_DOUBLE_PRECISION,comm,ierr)
+    call check(ierr,'RK exact vector closure')
+    do p=1,size(interior_plan%slot)
+       do k=1,zlevels
+          q=(p-1)*n+(k-1)*EDGE
+          value(nscalar+1:nscalar+EDGE,k,interior_plan%slot(p),BLOCK_PAYLOAD_SOL)=transfer_send(q+1:q+EDGE)
+       end do
+    end do
+    if(stage==stages) then
+       do d=1,size(grid)
+          do k=1,zlevels
+             call apply_interscale_d(restrict_rk_velocity,grid(d),level_start-1,k,0,0)
+          end do
+       end do
+       do q=1,size(scaffold_slot)
+          scaffold_value(:,:,q)=value(:,:,scaffold_slot(q),BLOCK_PAYLOAD_SOL)
+       end do
+    end if
+    rk_boundary_ready=.true.
+    rk_mass_ready=.false.
+    write(*,'(a,i0,a,i0,a,2(1x,i0))') 'Retained RK closure rank=',rank,' stage=',stage, &
+         ' aliases/owned operands=',size(consumer_alias_slot),size(interior_plan%key,2)
+  contains
+    subroutine restrict_rk_velocity(dom,ip,jp,ic,jc,k,op,dp_,oc,dc)
+      type(Domain),intent(inout)::dom
+      integer,intent(in)::ip,jp,ic,jc,k,op(N_BDRY+1),dp_(2,N_BDRY+1),oc(N_BDRY+1),dc(2,N_BDRY+1)
+      integer::target,c,e,ne,n,ts,cs,es,nes,ns
+      target=idx(ip,jp,op,dp_);c=idx(ic,jc,oc,dc)
+      e=idx(ic+1,jc,oc,dc);ne=idx(ic+1,jc+1,oc,dc);n=idx(ic,jc+1,oc,dc)
+      ts=nodes(d)%slot(target+1);cs=nodes(d)%slot(c+1);es=nodes(d)%slot(e+1)
+      nes=nodes(d)%slot(ne+1);ns=nodes(d)%slot(n+1)
+      if(min(ts,cs,es,nes,ns)<1) call die('RK coarse restriction operand missing')
+      if(dom%mask_e%elts(EDGE*c+RT+1)>0) value(nscalar+RT+1,k,ts,1)= &
+           0.5_dp*(value(nscalar+RT+1,k,cs,1)+value(nscalar+RT+1,k,es,1))
+      if(dom%mask_e%elts(EDGE*c+DG+1)>0) value(nscalar+DG+1,k,ts,1)= &
+           0.5_dp*(value(nscalar+DG+1,k,nes,1)+value(nscalar+DG+1,k,cs,1))
+      if(dom%mask_e%elts(EDGE*c+UP+1)>0) value(nscalar+UP+1,k,ts,1)= &
+           0.5_dp*(value(nscalar+UP+1,k,cs,1)+value(nscalar+UP+1,k,ns,1))
+    end subroutine
+  end subroutine
+
+  subroutine compare_retained_rk_aliases(reference)
+    type(Float_Field),intent(in)::reference(1:N_VARIABLE,1:zlevels)
+    integer::q,p,d,id,k,v,var,address
+    real(dp)::expected,actual
+    if(.not.rk_boundary_ready) call die('RK comparison outside boundary epoch')
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q)
+       if(p>original_inverse_nodes) cycle
+       d=node_domain(p);id=node_id(p)
+       do k=1,zlevels
+          do v=1,nscalar+EDGE
+             if(v<=nscalar) then
+                var=scalars(1)+v-1;address=id+1
+             else
+                var=S_VELO;address=EDGE*id+v-nscalar
+             end if
+             expected=reference(var,k)%data(d)%elts(address)
+             actual=value(v,k,p,BLOCK_PAYLOAD_SOL)
+             if(transfer_bits(actual)==transfer_bits(expected)) cycle
+             write(error_unit,*) 'RK alias exact mismatch rank/stage/d/id/k/v:',rank,rk_stage,d,id,k,v
+             write(error_unit,*) 'actual/reference:',actual,expected
+             call die('independent RK alias mismatch')
+          end do
+       end do
+    end do
+    write(*,'(a,i0,a,i0,a,i0)') 'Retained RK exact aliases rank=',rank,' stage=',rk_stage,' count=', &
+         size(consumer_alias_slot)*zlevels*(nscalar+EDGE)
+  end subroutine
+
+  subroutine finish_retained_rk_boundary
+    integer::q
+    if(.not.rk_boundary_ready) call die('RK boundary before closure')
+    call native_inverse_boundary(1,BLOCK_PAYLOAD_SOL,level_start-1,level_end)
+    call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,level_start-1,level_end)
+    call native_inverse_scatter(1,BLOCK_PAYLOAD_SOL,.false.)
+    call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.false.)
+    if(rk_stage==rk_stages) then
+       ! Final closure replaces global sol, including signed boundary aliases.
+       ! Subsequent scaffold gathers must use that completed boundary epoch.
+       do q=1,size(scaffold_slot)
+          scaffold_value(:,:,q)=value(:,:,scaffold_slot(q),BLOCK_PAYLOAD_SOL)
+       end do
+    end if
+  end subroutine
+
+  real(dp) function rk_scaffold_operand(d,id,component,k) result(x)
+    integer,intent(in)::d,id,component,k
+    integer::p,q
+    if(.not.rk_base_ready) call die('RK scaffold without base')
+    p=nodes(d)%slot(id+1)
+    if(p==0) call die('RK scaffold was not registered')
+    if(nodes(d)%key(1,id+1)/=0) call die('RK scaffold requested canonical interior')
+    do q=1,size(scaffold_slot)
+       if(scaffold_slot(q)==p) then
+          x=scaffold_value(component,k,q)
+          return
+       end if
+    end do
+    call die('RK scaffold absent')
+  end function
+
+  subroutine complete_inverse_operand_epoch(provisional)
+    logical, intent(in) :: provisional
+    integer::p
+    if(block_rk_enabled.and.provisional) then
+       do p=1,original_inverse_nodes
+          if(rk_low_slot(p)>0) rk_low_value(:,:,rk_low_slot(p))=value(:,:,p,BLOCK_PAYLOAD_SOL)
+       end do
+    end if
+    initial_operands_ready=.false.
+    provisional_operands_ready=provisional
+    if(.not.provisional) rk_base_ready=.false.
+  end subroutine
+
+  subroutine require_provisional_inverse_operands
+    if(.not.provisional_operands_ready) call die('provisional consumer operand epoch is not ready')
+  end subroutine
+
+  subroutine require_tendency_operands
+    if(.not.provisional_operands_ready.and..not.initial_operands_ready) call die('tendency operand epoch is not ready')
+  end subroutine
+
+  subroutine prepare_initial_tendency_operands(generation,physical)
+    ! Explicit input boundary for stage one: the upstream restart/adaptation/
+    ! physics producer still exports physical aliases through its compatibility
+    ! field. Only registered aliases/scaffold enter this epoch. Canonical
+    ! interiors always come from final-owner Block_Data. This does NOT select
+    ! the distinct saved final-inverse consumer epoch or perform another inverse.
+    integer(int64),intent(in)::generation
+    type(Float_Field),intent(in)::physical(1:N_VARIABLE,1:zlevels)
+    call prepare_native_inverse(generation,physical,physical,level_start,.false.,consumer_only=.true.)
+  end subroutine
+
+  function inverse_operand_generation() result(generation)
+    integer(int64) :: generation
+    generation=plan_generation
+  end function
+
+  subroutine inverse_operand_key(d,id,key)
+    integer, intent(in) :: d,id
+    integer, intent(out) :: key(4)
+    if (.not.allocated(nodes)) call die('operand plan is absent')
+    if (d<1.or.d>size(nodes)) call die('operand Domain address')
+    if (id<0.or.id>=size(nodes(d)%slot)) call die('operand node address')
+    key=nodes(d)%key(:,id+1)
+  end subroutine
+
+  function inverse_vector_operand(d,id,k) result(operand)
+    integer, intent(in) :: d,id,k
+    real(dp) :: operand(EDGE)
+    integer :: key(4),slot
+    call require_tendency_operands
+    call inverse_operand_key(d,id,key)
+    if(initial_operands_ready.and.key(1)>0) call die('initial epoch attempted an interior compatibility read')
+    slot=nodes(d)%slot(id+1)
+    if(slot==0) call die('required vector operand was not registered')
+    if(k<1.or.k>zlevels) call die('vector operand layer')
+    operand=value(nscalar+1:nscalar+EDGE,k,slot,BLOCK_PAYLOAD_SOL)
+    if(.not.all(ieee_is_finite(operand))) call die('nonfinite resident vector operand')
+  end function
+
+  real(dp) function inverse_scalar_operand(d,id,v,k) result(operand)
+    ! Named provisional or initial-physical epoch; never the saved final-
+    ! inverse consumer alias version.
+    integer, intent(in) :: d,id,v,k
+    integer :: key(4),slot
+    call require_tendency_operands
+    call inverse_operand_key(d,id,key)
+    if(initial_operands_ready.and.key(1)>0) call die('initial epoch attempted an interior compatibility read')
+    slot=nodes(d)%slot(id+1)
+    if(slot==0) call die('required scalar operand was not registered')
+    if(v<scalars(1).or.v>scalars(2).or.k<1.or.k>zlevels) call die('scalar operand component')
+    operand=value(v-scalars(1)+1,k,slot,BLOCK_PAYLOAD_SOL)
+    if(.not.ieee_is_finite(operand)) call die('nonfinite resident scalar operand')
+  end function
+
+#ifdef BLOCK_COLUMNS
+  subroutine register_column_operand(dom,i,j,k,offs,dims)
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: i,j,k,offs(N_BDRY+1),dims(2,N_BDRY+1)
+    integer :: slot
+    slot=node_slot(dom%id+1,idx(i,j,offs,dims))
+  end subroutine
+#endif
 
   subroutine configure_stage192
     character(16) :: setting
@@ -187,16 +524,21 @@ contains
     end if
   end function
 
-  subroutine prepare_native_inverse(generation,scaling,wavelet,first_level,profile)
+  subroutine prepare_native_inverse(generation,scaling,wavelet,first_level,profile,consumer_only)
     integer(int64), intent(in) :: generation
     integer, intent(in) :: first_level
     logical, intent(in) :: profile
+    logical,intent(in),optional :: consumer_only
+    logical :: initial_consumer
     type(Float_Field), intent(in) :: scaling(1:N_VARIABLE,1:zlevels),wavelet(1:N_VARIABLE,1:zlevels)
     integer :: d,id,q,k,v,total,b,p,r,pos,n,next_patch
     integer, allocatable :: sc(:),rc(:),sd(:),rd(:),sb(:,:),rb(:,:),request(:,:),slots(:)
     type(Boundary_Manifest) :: manifest
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
+    provisional_operands_ready=.false.;initial_operands_ready=.false.
+    initial_consumer=.false.
+    if(present(consumer_only)) initial_consumer=consumer_only
     resident203=.false.
     call configure_stage192
     call detail_enter(DP_INVERSE_PLAN)
@@ -289,6 +631,33 @@ contains
        end do
        ! Flags are carried in the existing request-key exchange. Both ends
        ! then derive identical per-level subplans without extra collectives.
+#ifdef BLOCK_COLUMNS
+       ! Register the exact pressure consumer closure, including repeated aliases.
+       ! No all-geometry solution snapshot is created.
+       do d=1,size(grid)
+          do p=3,grid(d)%patch%length
+             call apply_onescale_to_patch(register_column_operand,grid(d),p-1,0,0,1)
+          end do
+       end do
+#endif
+#ifdef BLOCK_PRIMITIVES
+       do d=1,size(grid)
+          do p=3,grid(d)%patch%length
+             if(grid(d)%patch%elts(p)%deleted) cycle
+             call walk_primitive_patch(grid(d),p-1,register_primitive_operand)
+          end do
+       end do
+#endif
+       original_inverse_nodes=nnode
+       if(block_rk_enabled) then
+          ! Fixed coarse patches remain explicit scaffold consumers of the
+          ! forward transform. Register this bounded subset, never interiors.
+          do d=1,size(nodes)
+             do id=0,size(nodes(d)%slot)-1
+                if(nodes(d)%key(2,id+1)==-1) r=node_slot(d,id)
+             end do
+          end do
+       end if
        allocate(node_flags(nnode))
        node_flags=0
        do q=1,2
@@ -418,6 +787,41 @@ contains
        call detail_add(DC_INVERSE_REUSE,1_int64)
     end if
     call detail_leave(DP_INVERSE_PLAN)
+    if(initial_consumer) then
+       if(block_rk_enabled) then
+          if(rk_boundary_ready) call die('RK boundary not consumed before next step')
+          if(allocated(rk_alias_base)) deallocate(rk_alias_base,rk_mass_rhs,rk_mass_ready,rk_alias_index)
+          allocate(rk_mass_rhs(zlevels,size(consumer_alias_slot)),rk_mass_ready(zlevels),rk_alias_index(nnode))
+          rk_mass_ready=.false.;rk_alias_index=0
+          do q=1,size(consumer_alias_slot)
+             rk_alias_index(consumer_alias_slot(q))=q
+          end do
+          allocate(rk_alias_base(nscalar+EDGE,zlevels,size(consumer_alias_slot)))
+          rk_stage=0;rk_stages=0;rk_base_ready=.true.
+          call prepare_rk_low_scaffold
+       end if
+       do q=1,size(consumer_alias_slot)
+          p=consumer_alias_slot(q);d=node_domain(p);id=node_id(p)
+          if(nodes(d)%key(1,id+1)/=0) call die('initial alias includes canonical interior')
+          do k=1,zlevels
+             do v=1,nscalar
+                value(v,k,p,BLOCK_PAYLOAD_SOL)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
+             end do
+             value(nscalar+1:nscalar+EDGE,k,p,BLOCK_PAYLOAD_SOL)=scaling(S_VELO,k)%data(d)%elts(EDGE*id+1:EDGE*id+EDGE)
+          end do
+       end do
+       if(block_rk_enabled) then
+          do q=1,size(consumer_alias_slot)
+             rk_alias_base(:,:,q)=value(:,:,consumer_alias_slot(q),BLOCK_PAYLOAD_SOL)
+          end do
+          do q=1,size(scaffold_slot)
+             scaffold_value(:,:,q)=value(:,:,scaffold_slot(q),BLOCK_PAYLOAD_SOL)
+          end do
+       end if
+       initial_operands_ready=.true.
+       write(*,'(a,i0,a,i0)') 'Initial tendency alias epoch rank=',rank,' registered aliases=',size(consumer_alias_slot)
+       return
+    end if
     call detail_enter(DP_INVERSE_SEED)
 
     ! Seed only compatibility/scaffold and pre-existing boundary state once
@@ -429,11 +833,11 @@ contains
        if (nodes(d)%key(1,id+1)>0) cycle
        do k=1,zlevels
           do v=1,nscalar
-             value(v,k,p,1)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
+             if(.not.block_rk_enabled) value(v,k,p,1)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
              value(v,k,p,2)=wavelet(scalars(1)+v-1,k)%data(d)%elts(id+1)
           end do
           do v=1,EDGE
-             value(nscalar+v,k,p,1)=scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)
+             if(.not.block_rk_enabled) value(nscalar+v,k,p,1)=scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)
              value(nscalar+v,k,p,2)=wavelet(S_VELO,k)%data(d)%elts(EDGE*id+v)
           end do
        end do
@@ -441,6 +845,7 @@ contains
     ! Legacy writeback preserves uncatalogued interior patches from global
     ! sol, NOT from the provisional scaling argument. Keep this fixed input
     ! separate from the pre-boundary seed and apply it at each gather point.
+    if(.not.block_rk_enabled) then
     do q=1,size(scaffold_slot)
        p=scaffold_slot(q)
        d=node_domain(p)
@@ -454,6 +859,11 @@ contains
           end do
        end do
     end do
+    end if
+    if(block_rk_enabled) then
+       if(.not.rk_boundary_ready) call die('inverse requires retained RK boundary')
+       rk_boundary_ready=.false.
+    end if
     do q=1,2
        do b=1,2
           call native_inverse_gather(q,b,.false.)
@@ -480,6 +890,16 @@ contains
     call detail_leave(DP_INVERSE_SEED)
 
   contains
+#ifdef BLOCK_PRIMITIVES
+    subroutine register_primitive_operand(ids,southwest)
+      integer, intent(in) :: ids(0:7)
+      logical, intent(in) :: southwest
+      integer :: q,slot
+      do q=0,7
+         slot=node_slot(d,ids(q))
+      end do
+    end subroutine
+#endif
     recursive subroutine map_patch(patch)
       integer, intent(in) :: patch
       integer :: c,child,i,j,id_local
@@ -1290,6 +1710,9 @@ contains
     family=BLOCK_PAYLOAD_SOL
     if (present(payload_family)) family=payload_family
     do p=1,nnode
+       ! Additional registered nodes only supply fixed scaffold staging; they
+       ! were not published to the independent provisional reference field.
+       if(block_rk_enabled.and.p>original_inverse_nodes) cycle
        d=node_domain(p)
        id=node_id(p)
        do k=1,zlevels
@@ -1351,6 +1774,7 @@ contains
     if (consumer) then
        do q=1,size(consumer_alias_slot)
           p=consumer_alias_slot(q)
+          if(block_rk_enabled.and.p>original_inverse_nodes) cycle
           d=node_domain(p)
           id=node_id(p)
           do k=1,zlevels
@@ -1365,6 +1789,7 @@ contains
        return
     end if
     do p=1,nnode
+       if(block_rk_enabled.and.p>original_inverse_nodes) cycle
        d=node_domain(p)
        id=node_id(p)
        if (nodes(d)%key(1,id+1)>0) cycle

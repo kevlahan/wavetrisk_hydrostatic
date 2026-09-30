@@ -1,4 +1,9 @@
 module parallel_block_mpi_mod
+  use parallel_block_inverse_mod, only: block_rk_enabled,prepare_retained_rk_aliases, &
+       finish_retained_rk_boundary,rk_scaffold_operand,rk_mass_alias_operand,retained_rk_cycle_active
+  use parallel_block_diffusion_mod, only: owned_mass_node
+  use parallel_block_mod, only: local_block_rk_base_vector
+  use parallel_block_gradients_mod, only: owned_gradients_ready,copy_owned_gradient_patch,owned_gradient_node
   use arch_mod, only : check_parallel_task_capacity
   use parallel_block_scalar_storage_mod
   use parallel_block_profile_mod
@@ -18,7 +23,7 @@ module parallel_block_mpi_mod
   use parallel_block_inverse_mod, only : prepare_native_inverse, native_inverse_gather, &
        native_inverse_boundary, native_inverse_scatter, native_inverse_outer, &
        compare_native_inverse, publish_native_inverse, native_inverse_seconds, &
-       capture_native_inverse_consumer_aliases, &
+       capture_native_inverse_consumer_aliases, complete_inverse_operand_epoch, &
        native_inverse_calls, native_inverse_messages, native_inverse_bytes
   use parallel_block_inverse_mod, only : stage203_inverse, begin_inverse203, end_inverse203, &
        scalar_inverse203, inner_inverse203, install_inverse203, work203, ledger203
@@ -95,6 +100,7 @@ module parallel_block_mpi_mod
        get_local_block_vector_ghost_family_values, &
        set_local_block_vector_ghost_family_values, &
        fill_local_block_vector_ghost_family_values, &
+       set_local_block_hydrostatic_enabled, assert_local_block_hydrostatic_absent, &
        invalidate_local_block_hydrostatic_state, &
        ensure_local_block_hydrostatic_state, &
        local_block_hydrostatic_state_ready, &
@@ -1146,6 +1152,9 @@ module parallel_block_mpi_mod
   public :: validate_candidate_block_scalar_wavelets
   public :: validate_candidate_block_outer_vector_wavelets
   public :: validate_candidate_block_velocity_restriction
+  integer,allocatable::rk_temperature_node_slot(:),rk_temperature_domain_offset(:)
+  integer(int64)::rk_temperature_generation=-1_int64
+  public :: prepare_retained_rk_closure
   public :: prepare_block_native_wavelet_compression
   public :: activate_block_native_wavelet_compression
   public :: activate_block_native_inverse_transform
@@ -3380,7 +3389,7 @@ contains
     call exchange_block_vector_ghost_payloads( &
          BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
 
-    if (compressible) then
+    if (compressible.and.block_dynamics_validation_enabled()) then
        call ensure_local_block_hydrostatic_state
        hydrostatic_ready = local_block_hydrostatic_state_ready()
        if (.not. hydrostatic_ready) then
@@ -3905,19 +3914,23 @@ contains
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.)
     call refresh_block_sol_ghosts
-    hydrostatic_refresh_before = &
-         local_block_hydrostatic_refresh_count()
     call invalidate_local_block_hydrostatic_state
-    call ensure_local_block_hydrostatic_state
-    hydrostatic_refresh_after = &
-         local_block_hydrostatic_refresh_count()
-    hydrostatic_ready = local_block_hydrostatic_state_ready()
-    if (.not. hydrostatic_ready) then
-       call fail("native vertical remap hydrostatic state is not ready")
-    end if
-    if (hydrostatic_refresh_after-hydrostatic_refresh_before /= &
-         int(n_local_blocks(),int64)) then
-       call fail("native vertical remap hydrostatic refresh is incomplete")
+    if (block_dynamics_validation_enabled()) then
+       hydrostatic_refresh_before = &
+            local_block_hydrostatic_refresh_count()
+       call ensure_local_block_hydrostatic_state
+       hydrostatic_refresh_after = &
+            local_block_hydrostatic_refresh_count()
+       hydrostatic_ready = local_block_hydrostatic_state_ready()
+       if (.not. hydrostatic_ready) then
+          call fail("native vertical remap hydrostatic state is not ready")
+       end if
+       if (hydrostatic_refresh_after-hydrostatic_refresh_before /= &
+            int(n_local_blocks(),int64)) then
+          call fail("native vertical remap hydrostatic refresh is incomplete")
+       end if
+    else
+       call assert_local_block_hydrostatic_absent
     end if
     if (block_writeback_plan_allocation_count() /= allocation_before .or. &
          block_domain_production_writeback_count() /= writeback_before) then
@@ -5468,7 +5481,7 @@ end subroutine build_parallel_block_catalog
     ! Establish the non-optional state required by the first production
     ! tendency independently of the exhaustive migration validation suite.
     ! A repeated call proves that unchanged topology reuses every persistent
-    ! tendency workspace and the hydrostatic cache.
+    ! tendency workspace. Hydrostatic diagnostics are validation-only.
 
     implicit none
 
@@ -5501,13 +5514,15 @@ end subroutine build_parallel_block_catalog
     if (.not. state_ready) &
          call fail("production preparation before block state is ready")
 
-    if (compressible) then
+    call set_local_block_hydrostatic_enabled(block_dynamics_validation_enabled())
+    if (compressible.and.block_dynamics_validation_enabled()) then
        call ensure_local_block_hydrostatic_state
        hydrostatic_ready = local_block_hydrostatic_state_ready()
        if (.not. hydrostatic_ready) &
             call fail("production hydrostatic state is not ready")
     end if
 
+    if (.not.block_dynamics_validation_enabled()) call assert_local_block_hydrostatic_absent
     call prepare_local_block_tendency_workspace
     call prepare_block_adaptation_decision_storage
     if (compressible) call prepare_block_vertical_remap_workspace
@@ -5529,7 +5544,7 @@ end subroutine build_parallel_block_catalog
     call build_block_writeback_plan
     call prepare_block_adaptation_decision_storage
     if (compressible) then
-       call ensure_local_block_hydrostatic_state
+       if (block_dynamics_validation_enabled()) call ensure_local_block_hydrostatic_state
        call prepare_block_vertical_remap_workspace
     end if
     call prepare_local_block_tendency_workspace
@@ -5573,8 +5588,13 @@ end subroutine build_parallel_block_catalog
     if (print_summary .and. &
          .not. production_state_preparation_reported .and. rank == 0) then
        write(6,'(a)') "Parallel-block production state preparation passed"
-       if (compressible) &
-            write(6,'(a)') "  hydrostatic cache prepared and reused"
+       if (compressible) then
+          if (block_dynamics_validation_enabled()) then
+             write(6,'(a)') "  hydrostatic cache retained for validation"
+          else
+             write(6,'(a)') "  unused block hydrostatic cache absent"
+          end if
+       end if
        write(6,'(a)') &
             "  tendency/import/accumulator workspaces prepared and reused"
        write(6,'(a)') &
@@ -5887,6 +5907,7 @@ end subroutine build_parallel_block_catalog
     call prepare_parallel_block_production_state(.false.)
 
     if (run_full_validation) then
+       call set_local_block_hydrostatic_enabled(.true.)
        call check_local_blocks(print_local)
        call check_block_field_inventory(print_local)
        call check_parallel_block_lifecycle(print_local)
@@ -11492,28 +11513,30 @@ end subroutine build_parallel_block_catalog
     end if
     call refresh_block_sol_ghosts
 
-    hydrostatic_refresh_before = &
-         local_block_hydrostatic_refresh_count()
     call invalidate_local_block_hydrostatic_state
-    call ensure_local_block_hydrostatic_state
-    hydrostatic_refresh_after = &
-         local_block_hydrostatic_refresh_count()
-    hydrostatic_ready = local_block_hydrostatic_state_ready()
-    if (.not. hydrostatic_ready) then
-       call fail("multistage provisional hydrostatic state is not ready")
-    end if
-    if (hydrostatic_refresh_after-hydrostatic_refresh_before /= &
-         int(n_local_blocks(),int64)) then
-       call fail("multistage provisional hydrostatic refresh is incomplete")
-    end if
     if (validate_oracle) then
+       hydrostatic_refresh_before = &
+            local_block_hydrostatic_refresh_count()
+       call ensure_local_block_hydrostatic_state
+       hydrostatic_refresh_after = &
+            local_block_hydrostatic_refresh_count()
+       hydrostatic_ready = local_block_hydrostatic_state_ready()
+       if (.not. hydrostatic_ready) then
+          call fail("multistage provisional hydrostatic state is not ready")
+       end if
+       if (hydrostatic_refresh_after-hydrostatic_refresh_before /= &
+            int(n_local_blocks(),int64)) then
+          call fail("multistage provisional hydrostatic refresh is incomplete")
+       end if
        call assert_candidate_block_hydrostatic_match(domain_sol)
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
-    end if
-    call ensure_local_block_hydrostatic_state
-    if (local_block_hydrostatic_refresh_count() /= &
-         hydrostatic_refresh_after) then
-       call fail("multistage provisional hydrostatic cache refreshed twice")
+       call ensure_local_block_hydrostatic_state
+       if (local_block_hydrostatic_refresh_count() /= &
+            hydrostatic_refresh_after) then
+          call fail("multistage provisional hydrostatic cache refreshed twice")
+       end if
+    else
+       call assert_local_block_hydrostatic_absent
     end if
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -13788,6 +13811,8 @@ end subroutine build_parallel_block_catalog
               production_vector_transform_stage(destination_index)))
          if (abs(production_vector_transform_stage(destination_index)- &
               propagated_value) > route_allowed) then
+            write(error_unit,*) 'RK route conflict rank/index/old/new:',rank,destination_index, &
+                 production_vector_transform_stage(destination_index),propagated_value
             call fail("complete propagated boundary values differ")
          end if
       else
@@ -14251,8 +14276,10 @@ end subroutine build_parallel_block_catalog
     ! WT_after_step has already refreshed the Domain scaling boundary. Import
     ! only compact boundary values; block interiors remain the native RK
     ! candidate. Inter-block ghosts are then produced from those interiors.
+    if(.not.block_rk_enabled) then
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
+    end if
     call refresh_block_sol_ghosts
     ! Final-stage comparison precedes coarse restriction in its producer.
     ! Its reconstruction must not overwrite the native coarse scratch values
@@ -14904,8 +14931,9 @@ end subroutine build_parallel_block_catalog
        call publish_native_inverse(domain_wavelet,BLOCK_PAYLOAD_WAV_COEFF)
        if (level_start<level_end) domain_wavelet%bdry_uptodate=.true.
     end if
-    call write_block_field_family_to_domains( &
-         BLOCK_PAYLOAD_SOL,domain_scaling)
+    if(.not.block_rk_enabled.or..not.provisional_transform.or.validate_oracle) then
+       call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL,domain_scaling)
+    end if
     call block_profile_leave(BLOCK_PROFILE_INVERSE_INSTALL)
     if (provisional_transform) then
        ! Complete the all-level boundary contract formerly provided by the
@@ -14922,7 +14950,7 @@ end subroutine build_parallel_block_catalog
           call compare_native_inverse(domain_scaling,1)
           call compare_native_inverse(domain_scaling,2)
           call block_profile_leave(BLOCK_PROFILE_ORACLE)
-       else
+       else if(.not.block_rk_enabled) then
           call publish_native_inverse(domain_scaling)
        end if
        call native_inverse_scatter(1,BLOCK_PAYLOAD_SOL,.false.)
@@ -14942,7 +14970,7 @@ end subroutine build_parallel_block_catalog
        call fail("native inverse reallocated persistent transport")
     end if
     if (block_domain_production_writeback_count() /= writeback_before+ &
-         int(merge(4*(jmax-jmin)+2,1,validate_oracle),int64)) then
+         int(merge(4*(jmax-jmin)+2,merge(0,1,block_rk_enabled.and.provisional_transform),validate_oracle),int64)) then
        call fail("native inverse writeback sequence is invalid")
     end if
     if (provisional_transform) then
@@ -14956,6 +14984,7 @@ end subroutine build_parallel_block_catalog
     if (stage203_inverse.and.ledger203) write(*,'(a,i0,a,6(1x,i0))') &
          'Stage203 inverse rank=',rank,' work=',work203
     call end_inverse203
+    call complete_inverse_operand_epoch(provisional_transform)
     production_block_inverse_active = .false.
     production_inverse_completed_mode=merge(1,2,provisional_transform)
     production_inverse_consumer_aliases_pending=final_transform
@@ -17195,7 +17224,7 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    type(Float_Field), intent(in) :: &
+    type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
     logical, intent(in) :: checkpoint_required
     logical, optional, intent(in) :: compatibility_remainder
@@ -17695,12 +17724,14 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    type(Float_Field), intent(in) :: &
+    type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
 
-    call refresh_candidate_block_velocity_remainder(domain_sol,.true.)
-    if (block_dynamics_validation_enabled()) &
-         call refresh_candidate_block_velocity_remainder(domain_sol,.true.,reference_only=.true.)
+    call refresh_candidate_block_velocity_remainder(compatibility_remainder=.true.)
+    if (block_dynamics_validation_enabled()) then
+       if (.not.present(domain_sol)) call fail("velocity remainder oracle requires Domain state")
+       call refresh_candidate_block_velocity_remainder(domain_sol,.true.,reference_only=.true.)
+    end if
   end subroutine prepare_block_native_velocity_remainder
 
   function native_velocity_plan_generation() result(generation)
@@ -17757,7 +17788,7 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    type(Float_Field), intent(in) :: &
+    type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
     logical, intent(in) :: compatibility_remainder
     logical, optional, intent(in) :: reference_only
@@ -17775,6 +17806,7 @@ end subroutine build_parallel_block_catalog
     integer :: r
     integer :: source
     integer :: slot
+    integer :: vs,ns,vv,first_level,nlevel,ms,mv
 
     integer(int64) :: allocation_after
     integer(int64) :: allocation_before
@@ -17790,6 +17822,10 @@ end subroutine build_parallel_block_catalog
        if (.not. block_dynamics_validation_enabled()) &
             call fail("velocity residual reference transaction requires the oracle")
        payload_family=BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS
+    end if
+    if (.not.present(domain_sol)) then
+       if (.not.compatibility_remainder.or.reference_transaction) &
+            call fail("non-native velocity remainder requires Domain state")
     end if
     if (residual_columns_active) call fail("nested thermodynamic residual transaction")
     if (reference_transaction) then
@@ -17807,6 +17843,25 @@ end subroutine build_parallel_block_catalog
     if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer) .or. &
          .not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
        call fail("velocity-residual retained patch buffers are absent")
+    end if
+    if(compatibility_remainder.and..not.reference_transaction.and.owned_gradients_ready()) then
+       call get_block_field_layout(vs,ns,vv,first_level,nlevel,ms,mv)
+       do local_index=1,n_local
+          b=local_block_catalog(local_index);n_patch=local_block_patch_count(b)
+          block_velocity_remainder(local_index)%ready=.false.
+          block_velocity_remainder(local_index)%reference_ready=.false.
+          block_velocity_remainder(local_index)%raw_trend=.true.
+          block_velocity_remainder(local_index)%installed_patch_count=0
+          do local_patch=0,n_patch-1
+             call copy_owned_gradient_patch(b,local_patch,first_level,nlevel,mv,ghost_exchange_plan%vector_patch_buffer)
+             call install_remainder_patch(b,local_patch,ghost_exchange_plan%vector_patch_buffer)
+          end do
+          if(block_velocity_remainder(local_index)%installed_patch_count/=n_patch) &
+               call fail('direct retained gradient coverage')
+          block_velocity_remainder(local_index)%ready=.true.
+       end do
+       write(*,'(a,i0,a,i0)') 'Block gradient direct retention rank=',rank,' blocks=',n_local
+       return
     end if
     call exchange_domain_to_block_payloads(payload_family, &
          domain_sol=domain_sol,vector_only=compatibility_remainder)
@@ -21952,7 +22007,7 @@ end subroutine build_parallel_block_catalog
       real(dp) :: closure_value(EDGE)
 
       closure_value=0.0_dp
-      if (scalar_capture_id==S_MASS.and..not.validate_oracle) then
+      if (scalar_capture_id==S_MASS.and..not.validate_oracle.and..not.block_rk_enabled) then
          closure_value=native_mass(d)%flux(EDGE*id+1:EDGE*(id+1))
       end if
       if (scalar_capture_id == S_TEMP .and. .not. capture_direct .and. .not. capture_dscalar) then
@@ -22151,6 +22206,7 @@ end subroutine build_parallel_block_catalog
     ! Production mass channel carries the completed native RHS, replacing
     ! the physics residual for the now oracle-only final-owner mass replay.
     integer::d,p,k,q,nk,kfirst,v,ns,vv,ms,mv,first,storage,field,address,id,sample
+    if(block_rk_enabled.and..not.block_dynamics_validation_enabled()) call fail("removed mass RK return requested")
     call get_block_field_layout(v,ns,vv,kfirst,nk,ms,mv)
     do d=1,size(block_scalar_capture_domain)
        if(.not.all(native_mass(d)%ready)) call fail("native mass publication before completion")
@@ -22236,7 +22292,7 @@ end subroutine build_parallel_block_catalog
        end do
     end do
     call complete_uncaptured_scalar_divergence_coverage
-    if (.not.validate_oracle) call publish_native_mass_rhs
+    if (.not.validate_oracle.and..not.block_rk_enabled) call publish_native_mass_rhs
     if (.not. all(block_scalar_divergence_plan%recv_covered)) then
        call fail("scalar-divergence Domain capture is incomplete")
     end if
@@ -24211,8 +24267,17 @@ end subroutine build_parallel_block_catalog
                    if (.not.all(block_scalar_tendency(local_index)%covered(first203:first203+PATCH_SIZE**2-1))) &
                         call fail("direct scalar-flux patch coverage incomplete")
                    if(block%scalar_variable+scalar_slot==S_MASS) then
+                      if(block_rk_enabled) then
+                         mass203=0.0_dp
+                         if(field_level>=1.and.field_level<=zlevels) then
+                            do q=0,PATCH_SIZE**2-1
+                               mass203(q+1)=owned_mass_node(catalog_index,p,q,field_level)
+                            end do
+                         end if
+                      else
                       call scalar_pack_fields203(block_scalar_tendency(local_index)%patch,first203,PATCH_SIZE**2, &
                            [BLOCK_SCALAR_PHYSICS_START],mass203)
+                      end if
                       call scalar_unpack_fields203(block_scalar_tendency(local_index)%patch,first203,PATCH_SIZE**2, &
                            [BLOCK_SCALAR_NATIVE_DSCALAR_INDEX],mass203)
                       statistics%sample_count=statistics%sample_count+PATCH_SIZE**2
@@ -24256,6 +24321,12 @@ end subroutine build_parallel_block_catalog
                    ! Production needs one mass slot or two edge triplets, not a
                    ! reconstructed 50-slot record. The oracle retains the full read.
                    if (block%scalar_variable+scalar_slot==S_MASS.and..not.statistics%validate_oracle) then
+                      if(block_rk_enabled) then
+                         call scalar_write(block_scalar_tendency(local_index)%patch, &
+                              remainder_index+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1, &
+                              owned_mass_node(catalog_index,p,q,field_level))
+                         cycle
+                      end if
                       call scalar_write(block_scalar_tendency(local_index)%patch, &
                            remainder_index+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1, &
                            scalar_read(block_scalar_tendency(local_index)%patch, &
@@ -24284,6 +24355,12 @@ end subroutine build_parallel_block_catalog
                    scalar_input = scalar_read_range(block_scalar_tendency(local_index)%patch,remainder_index, &
                         remainder_index+ BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
                    if (block%scalar_variable+scalar_slot==S_MASS.and..not.statistics%validate_oracle) then
+                      if(block_rk_enabled) then
+                         call scalar_write(block_scalar_tendency(local_index)%patch, &
+                              remainder_index+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1, &
+                              owned_mass_node(catalog_index,p,q,field_level))
+                         cycle
+                      end if
                       call scalar_write(block_scalar_tendency(local_index)%patch, &
                            remainder_index+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1,scalar_input(BLOCK_SCALAR_PHYSICS_START))
                       cycle
@@ -25013,6 +25090,56 @@ end subroutine build_parallel_block_catalog
       call fail("temperature RK boundary context is invalid")
     end select
   end subroutine compute_temperature_rk_boundary
+
+  subroutine prepare_retained_rk_closure(h,stage,stages)
+    real(dp),intent(in)::h
+    integer,intent(in)::stage,stages
+    integer::error,d,t,n
+    if(rk_temperature_generation/=block_writeback_plan_generation) then
+       if(allocated(rk_temperature_node_slot)) deallocate(rk_temperature_node_slot,rk_temperature_domain_offset)
+       allocate(rk_temperature_domain_offset(size(grid)+1));rk_temperature_domain_offset(1)=0
+       do d=1,size(grid)
+          rk_temperature_domain_offset(d+1)=rk_temperature_domain_offset(d)+grid(d)%node%length
+       end do
+       allocate(rk_temperature_node_slot(rk_temperature_domain_offset(size(grid)+1)))
+       rk_temperature_node_slot=0
+       do t=1,size(temperature_rk_boundary%destination,2)
+          d=temperature_rk_boundary%destination(1,t)
+          n=rk_temperature_domain_offset(d)+temperature_rk_boundary%destination(2,t)+1
+          if(rk_temperature_node_slot(n)/=0) call fail("RK temperature duplicate destination")
+          rk_temperature_node_slot(n)=t
+       end do
+       rk_temperature_generation=block_writeback_plan_generation
+    end if
+    associate(plan=>temperature_rk_boundary)
+    if(.not.all(plan%covered)) call fail("RK temperature closure incomplete")
+    call MPI_Alltoallv(plan%send_value,zlevels*plan%service_count,zlevels*plan%service_displ,MPI_DOUBLE_PRECISION, &
+         plan%recv_value,zlevels*plan%request_count,zlevels*plan%request_displ,MPI_DOUBLE_PRECISION,comm,error)
+    call check_mpi(error,"RK temperature closure")
+    end associate
+    call prepare_retained_rk_aliases(h,stage,stages,alias_rhs,vector_closure)
+    call finish_retained_rk_boundary
+  contains
+    function vector_closure(key,k,h) result(x)
+      integer,intent(in)::key(4),k
+      real(dp),intent(in)::h
+      real(dp)::x(EDGE)
+      if(key(2)/=STORE_PATCH) call fail("RK canonical vector storage")
+      x=local_block_rk_base_vector(key(1),key(3),key(4),k)+h*owned_gradient_node(key(1),key(3),key(4),k)
+    end function
+    subroutine alias_rhs(d,id,k,rhs)
+      integer,intent(in)::d,id,k
+      real(dp),intent(out)::rhs(:)
+      integer::t
+      rhs=0.0_dp
+      if(id<grid(d)%patch%elts(3)%elts_start) return
+      rhs(S_MASS-scalars(1)+1)=rk_mass_alias_operand(d,id,k)
+      ! Active gradient destinations are canonical interiors; noncanonical
+      ! velocity slots retain the original explicit zero tendency.
+      t=rk_temperature_node_slot(rk_temperature_domain_offset(d)+id+1)
+      if(t>0) rhs(S_TEMP-scalars(1)+1)=temperature_rk_boundary%recv_value(k,t)
+    end subroutine
+  end subroutine
 
   subroutine prepare_temperature_boundary_stage(sols,h)
     type(Float_Field),intent(in)::sols(1:N_VARIABLE,1:zlevels)
@@ -28610,7 +28737,7 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    type(Float_Field), intent(in) :: &
+    type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: payload_family
     logical, intent(in) :: thermodynamic_product
@@ -28679,6 +28806,8 @@ end subroutine build_parallel_block_catalog
        retain_tendency = retain_stage_tendency
     end if
     validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle.and..not.present(domain_sol)) &
+         call fail("tendency assembly oracle requires Domain state")
     if (retain_tendency .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
@@ -28733,8 +28862,11 @@ end subroutine build_parallel_block_catalog
     if (checkpoint_ready .neqv. require_checkpoint) then
        call fail("Exner-difference shadow checkpoint state is invalid")
     end if
-    if (.not. local_block_hydrostatic_state_ready()) then
-       call fail("Exner-difference shadow hydrostatic state is stale")
+    if (validate_oracle) then
+       if (.not.local_block_hydrostatic_state_ready()) &
+            call fail("Exner-difference shadow hydrostatic state is stale")
+    else
+       call assert_local_block_hydrostatic_absent
     end if
 
     call get_block_field_layout( &
@@ -29144,7 +29276,7 @@ end subroutine build_parallel_block_catalog
        call fail("Domain prognostic refresh retained stale tendencies")
     end if
 
-    if (compressible) then
+    if (compressible.and.block_dynamics_validation_enabled()) then
        call ensure_local_block_hydrostatic_state
        hydrostatic_ready = local_block_hydrostatic_state_ready()
        if (.not. hydrostatic_ready) then
@@ -29624,7 +29756,7 @@ end subroutine build_parallel_block_catalog
 
     integer, intent(in) :: stage
     integer, intent(in) :: stage_count
-    type(Float_Field), intent(in) :: &
+    type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
     logical, optional, intent(in) :: compatibility_remainder
 
@@ -29641,6 +29773,10 @@ end subroutine build_parallel_block_catalog
     use_compatibility_remainder = .false.
     if (present(compatibility_remainder)) &
          use_compatibility_remainder = compatibility_remainder
+    if (.not.present(domain_sol)) then
+       if (validate_oracle.or..not.use_compatibility_remainder) &
+            call fail("non-native tendency assembly requires Domain state")
+    end if
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("multistage tendency capture before state is ready")
@@ -29980,10 +30116,12 @@ end subroutine build_parallel_block_catalog
     ! The compatibility RK update no longer computes temperature. Publish its
     ! native stage before the wavelet/halo consumers read Domain-shaped input.
     ! The oracle comparison above remains independent and precedes publication.
+    if(.not.block_rk_enabled.or.validate_oracle) then
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_SOL,domain_sol,BLOCK_WRITEBACK_TEMPERATURE)
     production_multistage_native_transform_writeback_count = &
          production_multistage_native_transform_writeback_count+1_int64
+    end if
     call retain_native_multistage_candidate_snapshot(stage,stage_count)
 
     trial_active = local_block_tendency_trial_is_active()
@@ -30011,7 +30149,7 @@ end subroutine build_parallel_block_catalog
        call fail("native multistage retention reallocated snapshot storage")
     end if
     if (block_domain_production_writeback_count() /= &
-         production_writeback_before+1_int64) then
+         production_writeback_before+int(merge(1,0,.not.block_rk_enabled.or.validate_oracle),int64)) then
        call fail("native temperature stage publication count differs")
     end if
 
@@ -30372,6 +30510,7 @@ end subroutine build_parallel_block_catalog
     end if
 
     if (payload_family == BLOCK_PAYLOAD_NATIVE_VELOCITY_TENDENCY) then
+       if(owned_gradients_ready()) call fail('owner gradient attempted a geometry-owner tendency capture')
        ! Stage 175: this payload is native-workspace output in both modes.
        ! Do not reintroduce a read of trend(S_VELO): the non-oracle cut test
        ! deliberately leaves that completed Domain field poisoned.
@@ -31449,12 +31588,16 @@ end subroutine build_parallel_block_catalog
                       scalar_stage_start = scalar_stage_start+PATCH_SIZE**2
                    end do
                 else
+                   if(retained_rk_cycle_active().and.payload_family==BLOCK_PAYLOAD_SOL) then
+                      call pack_rk_scaffold(d,p,scalar_stage_start,vector_stage_start)
+                   else
                    call pack_domain_patch_prognostic( &
                         d,p,payload_family, &
                         block_writeback_plan%scalar_domain_stage, &
                         scalar_stage_start, &
                         block_writeback_plan%vector_domain_stage, &
                         vector_stage_start)
+                   end if
                 end if
                 block_writeback_plan%domain_patch_covered(patch_slot) = &
                      .true.
@@ -31478,6 +31621,41 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%preserved_patch_count = preserved_patch_count
 
   contains
+
+    subroutine pack_rk_scaffold(d,p,ss,vs)
+      integer,intent(in)::d,p
+      integer,intent(inout)::ss,vs
+      integer::v,k,j,id,first,nlevel,sv,ns,vv,ms,mv
+      call get_block_field_layout(sv,ns,vv,first,nlevel,ms,mv)
+      if(ms/=1.or.mv/=EDGE) call fail('RK scaffold field multiplicity')
+      do v=sv,sv+ns-1
+         do k=first,first+nlevel-1
+            do j=0,PATCH_SIZE**2-1
+               id=grid(d)%patch%elts(p+1)%elts_start+j
+               if(k>=1.and.k<=zlevels) then
+                  block_writeback_plan%scalar_domain_stage(ss)=rk_scaffold_operand(d,id,v-sv+1,k)
+               else
+                  ! Soil/surface levels are outside the atmospheric RK epoch.
+                  block_writeback_plan%scalar_domain_stage(ss)=sol(v,k)%data(d)%elts(id+1)
+               end if
+               ss=ss+1
+            end do
+         end do
+      end do
+      do k=first,first+nlevel-1
+         do j=0,PATCH_SIZE**2-1
+            id=grid(d)%patch%elts(p+1)%elts_start+j
+            do v=1,EDGE
+               if(k>=1.and.k<=zlevels) then
+                  block_writeback_plan%vector_domain_stage(vs)=rk_scaffold_operand(d,id,ns+v,k)
+               else
+                  block_writeback_plan%vector_domain_stage(vs)=sol(vv,k)%data(d)%elts(EDGE*id+v)
+               end if
+               vs=vs+1
+            end do
+         end do
+      end do
+    end subroutine
 
     subroutine claim_domain_patch ( &
          d,p,scalar_stage_start,vector_stage_start)

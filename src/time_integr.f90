@@ -1,4 +1,9 @@
 module time_integr_mod
+  use arch_mod, only: rank
+  use parallel_block_inverse_mod, only: block_rk_enabled,block_rk_native,reset_retained_rk_scaffold
+  use parallel_block_mpi_mod, only: prepare_retained_rk_closure
+  use parallel_block_gradients_mod, only: reset_owned_gradients
+  use parallel_block_columns_mod, only: arm_block_columns
   use parallel_block_profile_mod, only : detail_enter, detail_leave, DP_CAPTURE, DP_VELOCITY_PREP
 
   use, intrinsic :: iso_fortran_env, only : int64
@@ -156,6 +161,8 @@ contains
     real(dp) :: profile_start
 
     call detail_enter(DP_CAPTURE)
+    call reset_owned_gradients
+    call arm_block_columns(stage,validate_oracle)
     call begin_block_scalar_divergence_capture
     call detail_leave(DP_CAPTURE)
     profile_start = parallel_block_profile_begin( &
@@ -176,13 +183,23 @@ contains
     call finalize_block_scalar_divergence_capture
     call detail_leave(DP_CAPTURE)
     call detail_enter(DP_VELOCITY_PREP)
-    call prepare_block_native_velocity_remainder(domain_stage)
+    if (validate_oracle) then
+       call prepare_block_native_velocity_remainder(domain_stage)
+    else
+       call prepare_block_native_velocity_remainder()
+    end if
     call detail_leave(DP_VELOCITY_PREP)
     if (validate_oracle) &
          call call_domain_tendency_consumer(domain_stage,routine)
-    call capture_block_domain_multistage_candidate_tendency( &
-         stage,stage_count,domain_stage, &
-         compatibility_remainder=.true.)
+    if (validate_oracle) then
+       call capture_block_domain_multistage_candidate_tendency( &
+            stage,stage_count,domain_stage,compatibility_remainder=.true.)
+    else
+       ! The retained assembler consumes block state and native tendencies.
+       ! Domain solution is a reference-only argument, absent in production.
+       call capture_block_domain_multistage_candidate_tendency( &
+            stage,stage_count,compatibility_remainder=.true.)
+    end if
     call begin_block_domain_multistage_candidate_stage( &
          scale,stage,stage_count)
   end subroutine prepare_block_multistage_tendency
@@ -311,7 +328,12 @@ contains
     ! Native temperature publication then supplies the wavelet/halo input;
     ! its block-owned RK candidate must not be left only in compact storage.
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,h/3,q1)
+       if(block_rk_enabled) then
+          if(validate_oracle) call RK_sub_step_compatibility(q,h/3,q1)
+          call prepare_retained_rk_closure(h/3,1,3)
+       else
+          call RK_sub_step_compatibility(q,h/3,q1)
+       end if
     else
        call RK_sub_step(q,trend,h/3,q1)
     end if
@@ -331,7 +353,12 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,h/2,q1)
+       if(block_rk_enabled) then
+          if(validate_oracle) call RK_sub_step_compatibility(q,h/2,q1)
+          call prepare_retained_rk_closure(h/2,2,3)
+       else
+          call RK_sub_step_compatibility(q,h/2,q1)
+       end if
     else
        call RK_sub_step(q,trend,h/2,q1)
     end if
@@ -351,7 +378,12 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,h,q)
+       if(block_rk_enabled) then
+          if(validate_oracle) call RK_sub_step_compatibility(q,h,q)
+          call prepare_retained_rk_closure(h,3,3)
+       else
+          call RK_sub_step_compatibility(q,h,q)
+       end if
     else
        call RK_sub_step(q,trend,h,q)
     end if
@@ -423,7 +455,12 @@ contains
     ! Native temperature publication then supplies the wavelet/halo input;
     ! its block-owned RK candidate must not be left only in compact storage.
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,h/4,q1)
+       if(block_rk_enabled) then
+          if(validate_oracle) call RK_sub_step_compatibility(q,h/4,q1)
+          call prepare_retained_rk_closure(h/4,1,4)
+       else
+          call RK_sub_step_compatibility(q,h/4,q1)
+       end if
     else
        call RK_sub_step(q,trend,h/4,q1)
     end if
@@ -443,7 +480,12 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,h/3,q1)
+       if(block_rk_enabled) then
+          if(validate_oracle) call RK_sub_step_compatibility(q,h/3,q1)
+          call prepare_retained_rk_closure(h/3,2,4)
+       else
+          call RK_sub_step_compatibility(q,h/3,q1)
+       end if
     else
        call RK_sub_step(q,trend,h/3,q1)
     end if
@@ -463,7 +505,12 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,h/2,q1)
+       if(block_rk_enabled) then
+          if(validate_oracle) call RK_sub_step_compatibility(q,h/2,q1)
+          call prepare_retained_rk_closure(h/2,3,4)
+       else
+          call RK_sub_step_compatibility(q,h/2,q1)
+       end if
     else
        call RK_sub_step(q,trend,h/2,q1)
     end if
@@ -483,7 +530,12 @@ contains
        call call_domain_tendency_consumer(q1,routine)
     end if
     if (block_candidate) then
-       call RK_sub_step_compatibility(q,h,q)
+       if(block_rk_enabled) then
+          if(validate_oracle) call RK_sub_step_compatibility(q,h,q)
+          call prepare_retained_rk_closure(h,4,4)
+       else
+          call RK_sub_step_compatibility(q,h,q)
+       end if
     else
        call RK_sub_step(q,trend,h,q)
     end if
@@ -529,6 +581,9 @@ contains
     real(dp) :: profile_start
     type(Float_Field), allocatable :: temperature_reference(:,:)
     integer :: d,k,ibeg,iend
+
+    if(block_rk_enabled.and..not.block_dynamics_validation_enabled()) &
+         error stop "removed Domain RK compatibility closure requested"
 
     profile_start = parallel_block_profile_begin( &
          BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY)
@@ -657,6 +712,7 @@ contains
     
     integer :: d, k, v
 
+    if(block_rk_enabled) call reset_retained_rk_scaffold
     allocate (q1(1:N_VARIABLE,1:zmax))
 
     do k = 1, zmax
@@ -666,6 +722,10 @@ contains
 
        do d = 1, size(grid)
           do v = 1, N_VARIABLE
+             if(block_rk_native.and..not.block_dynamics_validation_enabled()) then
+                q1(v,k)%data(d)%length=sol(v,k)%data(d)%length
+                cycle
+             end if
              call init (q1(v,k)%data(d), sol(v,k)%data(d)%length)
              q1(v,k)%data(d)%elts = dble (N_VARIABLE-v)
           end do
@@ -680,9 +740,25 @@ contains
     
     integer :: d, k, v, n_new
 
+    if(block_rk_enabled.and.multistage_block_candidate_enabled.and..not.block_dynamics_validation_enabled()) then
+       do k=1,zmax
+          do d=1,size(grid)
+             do v=1,N_VARIABLE
+                if(allocated(q1(v,k)%data(d)%elts)) deallocate(q1(v,k)%data(d)%elts)
+             end do
+          end do
+       end do
+       write(*,'(a,i0)') 'Retained RK q1 absent rank=',rank
+       return
+    end if
+
     do k = 1, zmax
        do d = 1, size(grid)
           do v = 1, N_VARIABLE
+             if(.not.allocated(q1(v,k)%data(d)%elts)) then
+                call init(q1(v,k)%data(d),sol(v,k)%data(d)%length)
+                q1(v,k)%data(d)%elts=dble(N_VARIABLE-v)
+             end if
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
              if (n_new > 0) call extend (q1(v,k)%data(d), n_new, dble (N_VARIABLE-v))
           end do

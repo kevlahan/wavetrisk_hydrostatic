@@ -252,6 +252,7 @@ module parallel_block_mod
 
   logical :: block_store_ready = .false.
   logical :: block_hydrostatic_ready = .false.
+  logical :: block_hydrostatic_enabled = .true.
   integer(int64) :: block_hydrostatic_allocations = 0_int64
   integer(int64) :: block_hydrostatic_refreshes = 0_int64
   logical :: block_tendency_ready = .false.
@@ -319,6 +320,7 @@ module parallel_block_mod
   public :: get_local_block_vector_ghost_family_values
   public :: set_local_block_vector_ghost_family_values
   public :: fill_local_block_vector_ghost_family_values
+  public :: set_local_block_hydrostatic_enabled, assert_local_block_hydrostatic_absent
   public :: invalidate_local_block_hydrostatic_state
   public :: ensure_local_block_hydrostatic_state
   public :: local_block_hydrostatic_state_ready
@@ -348,6 +350,7 @@ module parallel_block_mod
   public :: begin_local_block_accumulated_tendency_trial
   public :: local_block_tendency_accumulator_state_ready
   public :: local_block_tendency_accumulator_allocation_count
+  public :: local_block_rk_base_vector
   public :: begin_local_block_tendency_trial
   public :: commit_local_block_tendency_trial
   public :: finalize_local_block_tendency_commit
@@ -2343,6 +2346,22 @@ subroutine begin_local_block_tendency_trial (scale)
 
 end subroutine begin_local_block_tendency_trial
 
+
+function local_block_rk_base_vector(catalog,patch,node,k) result(value)
+  integer,intent(in)::catalog,patch,node,k
+  real(dp)::value(EDGE)
+  integer::b,n,id,start
+  if(.not.block_tendency_commit_checkpoint_ready) error stop "RK base checkpoint unavailable"
+  b=catalog_local_block(catalog)
+  if(b<1) error stop "RK base read on non-owner"
+  associate(block=>block_local(b))
+  if(patch<1.or.patch>size(block%patch).or.node<0.or.node>=PATCH_SIZE**2) error stop "RK base node"
+  if(k<block%field_level.or.k>=block%field_level+block%n_field_level) error stop "RK base layer"
+  n=size(block%node);id=block%patch(patch)%elts_start+node
+  start=EDGE*((k-block%field_level)*n+id)
+  value=block_tendency_trial(b)%vector(start+1:start+EDGE)
+  end associate
+end function
 
 subroutine begin_local_block_accumulated_tendency_trial (scale)
   ! Snapshot authoritative fields and apply the current weighted multi-stage
@@ -5372,6 +5391,20 @@ subroutine compute_local_block_hydrostatic_patch ( &
 end subroutine compute_local_block_hydrostatic_patch
 
 
+subroutine set_local_block_hydrostatic_enabled(enabled)
+  ! No production numerical kernel consumes this diagnostic cache. Keep it
+  ! available only for explicit validation, without inventing a ready value.
+  logical, intent(in) :: enabled
+  block_hydrostatic_enabled=enabled
+  if (.not.enabled) call clear_local_block_hydrostatic_state
+end subroutine set_local_block_hydrostatic_enabled
+
+subroutine assert_local_block_hydrostatic_absent
+  if (allocated(block_hydrostatic)) error stop "unused block hydrostatic storage recreated"
+  if (block_hydrostatic_ready) error stop "absent block hydrostatic storage marked ready"
+end subroutine assert_local_block_hydrostatic_absent
+
+
 subroutine clear_local_block_hydrostatic_state
   ! Release derived hydrostatic fields. They are regenerated from the
   ! installed compact scalar and scalar-mean storage after migration.
@@ -5430,6 +5463,9 @@ subroutine prepare_local_block_hydrostatic_state
   implicit none
 
   integer :: local_index
+
+  if (.not.block_hydrostatic_enabled) &
+       error stop "block hydrostatic cache requested without a numerical consumer"
 
   if (allocated(block_hydrostatic)) then
      if (size(block_hydrostatic) /= size(block_local)) then

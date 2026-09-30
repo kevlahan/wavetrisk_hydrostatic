@@ -1,0 +1,203 @@
+{
+  "stage": 231,
+  "base_commit": "4ea640128a71a857f9b8c6b9411dc34fc0aeb641",
+  "classification": "Manual producer/consumer review with executable source-location/hash verification; not dynamic timing attribution.",
+  "dependencies": [
+    {
+      "family": "surface/column primitives",
+      "file": "src/diagnostics.f90",
+      "execution_owner": "Domain owner",
+      "state": "q/sol_mean -> surf_press, press, geopot, exner",
+      "required_migration": "Move ordered full-column producer and its actual primitive readers together; existing cached block Exner is not the restricted primitive Exner.",
+      "routines": [
+        {
+          "routine": "cal_surf_press",
+          "line": 311,
+          "sha256": "2d183208a0b6f0a1beccea1dbb168e6ef0d13060d6d6f4e2d05ac12b7023354c"
+        },
+        {
+          "routine": "integrate_pressure_up",
+          "line": 391,
+          "sha256": "1f168b59a22aaa1e9180408ea3fec6f621f2d052564ea745248b524e7c664931"
+        }
+      ]
+    },
+    {
+      "family": "shared primitive and diffusion inputs",
+      "file": "src/multi_level.f90",
+      "execution_owner": "Domain owner",
+      "state": "q, sol_mean, Domain geometry and diffusion/primitive scratch",
+      "required_migration": "Compile block-local operand/alias topology; preserve descending horizontal levels and ascending physical layers.",
+      "routines": [
+        {
+          "routine": "block_tendency_compatibility_ml",
+          "line": 224,
+          "sha256": "9ae105e61ff8bc70cb73c22a3edb3a0c8bdd8328fe5e63466a5d276e2326ba86"
+        },
+        {
+          "routine": "basic_operators",
+          "line": 1030,
+          "sha256": "7a12c79ff07f2df4eaf26a35777440230d346d9682ab8751e842d7cf2a7d60e0"
+        },
+        {
+          "routine": "cal_Laplacian_scalars",
+          "line": 1590,
+          "sha256": "0789eca3c1cf44a54b3d7b628ff0d86217fb8983574a8060fafa47f7d890827d"
+        }
+      ]
+    },
+    {
+      "family": "mass/velocity producer",
+      "file": "src/multi_level.f90",
+      "execution_owner": "Domain owner",
+      "state": "native_mass(d), native_velocity(d), Domain PV/Bernoulli/Exner and physics callbacks",
+      "required_migration": "Migrate stencil, restriction and dependency exchange with producer output; no more geometry-indexed replacement arrays.",
+      "routines": [
+        {
+          "routine": "compute_native_velocity_source",
+          "line": 963,
+          "sha256": "60e88f43267fc96c40b7016246118545e3bcbdb4ba1e732a31834085f20749e3"
+        },
+        {
+          "routine": "compute_native_velocity_gradient",
+          "line": 1010,
+          "sha256": "86484aa6567913ae85c79b707fe933b4d0e0f4e8dea5686e5f1e7e7163c600e1"
+        }
+      ]
+    },
+    {
+      "family": "retained native velocity delivery",
+      "file": "src/parallel_block_mpi.f90",
+      "execution_owner": "Domain owner -> block owner",
+      "state": "native velocity output; production Domain solution argument now absent",
+      "required_migration": "Delete source-owner return after its producer executes on final block owners. Current transport is still real.",
+      "routines": [
+        {
+          "routine": "prepare_block_native_velocity_remainder",
+          "line": 17704,
+          "sha256": "9be0b7b439446b555191c687ae4ef03ab974073fd4a1fd5604c662d37532da8c"
+        },
+        {
+          "routine": "refresh_candidate_block_velocity_remainder",
+          "line": 17768,
+          "sha256": "8da9d2fbe6d9d1c8be02d3c933ef3c5dfdbcd698e41ab41e9ff30c3d3d4c96d1"
+        }
+      ]
+    },
+    {
+      "family": "retained tendency assembly",
+      "file": "src/parallel_block_mpi.f90",
+      "execution_owner": "block owner",
+      "state": "retained scalar and velocity tendencies; compact scalar columns; production Domain solution argument now absent",
+      "required_migration": "Keep true inputs and stage-base checkpoint. Preserve add/subtract rounding contract until explicitly validated change.",
+      "routines": [
+        {
+          "routine": "capture_block_domain_multistage_candidate_tendency",
+          "line": 29639,
+          "sha256": "2d257e1afe53c0cfbbc0a7b8efa7518197ad46f5cbc44df54b6a6852fe8f67fb"
+        },
+        {
+          "routine": "evaluate_candidate_block_velocity_recomposition",
+          "line": 17200,
+          "sha256": "edc72796acdd47211d8dfe5b4e87dd0dc3d7114f78631a939b843b45088132f7"
+        },
+        {
+          "routine": "compute_block_exner_difference_kernel",
+          "line": 34167,
+          "sha256": "ac2624f658aa29feb09dcf43e1faf882f4f7ed6c6dff29893643f9638a7afa31"
+        }
+      ]
+    },
+    {
+      "family": "RK and wavelet stage",
+      "file": "src/time_integr.f90",
+      "execution_owner": "mixed Domain/block owners",
+      "state": "Domain q1/base q plus native geometry-indexed RHS and retained block RK state",
+      "required_migration": "Replace complete stage input/output path, including untouched scaffold, before deleting q1 or sol.",
+      "routines": [
+        {
+          "routine": "RK4",
+          "line": 393,
+          "sha256": "dd9a1b36dd4640ef97f1ec34cf4f70b3f92f5573702ade1a6bed85c4ef47e8f5"
+        },
+        {
+          "routine": "RK_sub_step_compatibility",
+          "line": 525,
+          "sha256": "183dc2aa3408228f4f12afa8be2619feaeffacd719c78030c2498046a50a5af1"
+        },
+        {
+          "routine": "native_provisional_WT",
+          "line": 232,
+          "sha256": "e162aaa18496e0756a5dfa17b153acc45d131237ca4e1946226388744ec0b4b3"
+        }
+      ]
+    },
+    {
+      "family": "inverse aliases",
+      "file": "src/parallel_block_inverse.f90",
+      "execution_owner": "geometry route owner -> Domain consumers",
+      "state": "canonical workspace values and phase-specific aliases",
+      "required_migration": "Preserve storage/version identity for scaffold/poles/aliases, not just coincident geometric coordinates.",
+      "routines": [
+        {
+          "routine": "publish_native_inverse",
+          "line": 1337,
+          "sha256": "687d4ed6d2a3ced8e5b7391c2612dc42f39de5830dbb8a36e1e5c5ece94f38aa"
+        }
+      ]
+    },
+    {
+      "family": "external physics and output",
+      "file": "src/main.f90",
+      "execution_owner": "Domain owner",
+      "state": "Simple physics, soil, adaptation boundary and output/checkpoint image",
+      "required_migration": "Migrate supported physics/soil state and retain only bounded explicit external adapters. Geometry/connectivity are not prognostic storage.",
+      "routines": [
+        {
+          "routine": "apply_domain_physics_consumers",
+          "line": 562,
+          "sha256": "445f37c9d157d4eae56a1ce91acad2f1b9168a0bf4a77a593eae030b0707cae1"
+        },
+        {
+          "routine": "update_domain_soil_wavelet_consumer",
+          "line": 600,
+          "sha256": "1476b8d01bead7e0cdd0e4a013b9deed49936d32e4316436b6d0e92d8c8f6dc7"
+        },
+        {
+          "routine": "prepare_end_step_domain_consumers",
+          "line": 441,
+          "sha256": "edea5774da40b43b7625858240dcd60dfb959c40bd27d42f6ddac5dfdee032b8"
+        }
+      ]
+    },
+    {
+      "family": "unused derived hydrostatic cache",
+      "file": "src/parallel_block.f90",
+      "execution_owner": "block owner, validation only",
+      "state": "surface_pressure, dynamic_exner, air_temperature",
+      "required_migration": "Removed from production readiness/allocation/refresh; explicit validation retains it. Not the live primitive pressure calculation.",
+      "routines": [
+        {
+          "routine": "compute_local_block_hydrostatic_patch",
+          "line": 5220,
+          "sha256": "160f8e4227b48d89c0a3f42bb78f6f7edf32f7147e99933529c00aca976f6797"
+        },
+        {
+          "routine": "apply_local_block_hydrostatic_consumer",
+          "line": 5845,
+          "sha256": "4acac5f5900ccf174683d70493c06f07e2b4af16dadd8ef2f332732b5b8f7ec4"
+        },
+        {
+          "routine": "local_block_hydrostatic_statistics",
+          "line": 5893,
+          "sha256": "5340b6098f1b16392b6bebac993fad25a2e32ce07f294d1b5beb8da8efbcc896"
+        }
+      ]
+    }
+  ],
+  "scaling": {
+    "source_fact": "Loops over size(grid) execute no Domain primitive/RK work on zero-Domain ranks. Native mass/velocity workspaces retain this ownership. Block count is determined by available four-child subtrees, not by MPI task count.",
+    "inference": "Remaining owner-limited work and Domain/block transfers can limit scaling past the Domain count; the relative contribution of computation, waiting, balance and bandwidth is not measured by this source audit.",
+    "follow_up": "After migration, compare fixed workload/block topology and placement at task counts below/above Domain count. Use bounded per-rank phase compute/wait evidence and separate-run confirmation, not timestep pseudoreplication."
+  }
+}

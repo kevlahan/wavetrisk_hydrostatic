@@ -1,4 +1,6 @@
 module diagnostics_mod
+  use parallel_block_columns_mod, only: owner_tendency_without_reference
+  use parallel_block_columns_mod, only: start_block_columns, column_surface, column_result, columns_active, columns_oracle
 
   ! Diagnostic routines and functions for physical quantities
 
@@ -316,11 +318,22 @@ contains
 
     implicit none
 
-    type(Float_Field), intent(inout), target :: q(N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout), target, optional :: q(N_VARIABLE,1:zlevels)
 
     integer :: d, k, p
 
+    call start_block_columns
     call apply (set_surf_geopot, z_null)
+    if(columns_active.and..not.columns_oracle) then
+       if(present(q)) error stop "block pressure production must not receive Domain solution operands"
+       do d=1,size(grid)
+          grid(d)%surf_press%elts=p_top
+          call column_surface(d,grid(d)%surf_press%elts)
+          grid(d)%press_lower%elts=grid(d)%surf_press%elts
+       end do
+       return
+    end if
+    if(.not.present(q)) error stop "legacy pressure requires explicit Domain solution operands"
 
     do d = 1, size(grid)
        grid(d)%surf_press%elts = 0.0_dp
@@ -336,6 +349,7 @@ contains
        end do
        grid(d)%surf_press%elts  = grav_accel * grid(d)%surf_press%elts + p_top
 
+       call column_surface(d,grid(d)%surf_press%elts)
        grid(d)%press_lower%elts = grid(d)%surf_press%elts
     end do
   end subroutine cal_surf_press
@@ -404,11 +418,20 @@ contains
     integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer  :: d, id
-    real(dp) :: dz, rho_dz, rho_dz_theta, p_upper
+    real(dp) :: dz, rho_dz, rho_dz_theta, p_upper, owner_result(5)
     
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
+    if(owner_tendency_without_reference()) then
+       call column_result(d,id,zlev,owner_result(1),owner_result(2),owner_result(3),owner_result(4),owner_result(5))
+       return
+    end if
+    if(columns_active.and..not.columns_oracle) then
+       call column_result(d,id,zlev,dom%press_lower%elts(id),dom%geopot%elts(id), &
+            dom%press%elts(id),exner(id),dom%geopot_lower%elts(id))
+       return
+    end if
     rho_dz       = mean_m(id) + mass(id)
     rho_dz_theta = mean_t(id) + temp(id)
     dz           = rho_dz / porous_density (d, id, zlev)
@@ -430,6 +453,8 @@ contains
        dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * dz
     end if
     dom%press_lower%elts(id) = p_upper
+    if(columns_active) call column_result(d,id,zlev,dom%press_lower%elts(id),dom%geopot%elts(id), &
+         dom%press%elts(id),exner(id),dom%geopot_lower%elts(id))
   end subroutine integrate_pressure_up
 
 

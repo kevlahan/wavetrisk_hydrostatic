@@ -1,4 +1,9 @@
 module ops_mod
+  use iso_fortran_env, only: int64
+  use parallel_block_diffusion_mod, only: diffusion_active,diffusion_oracle,owner_scalar_flux
+  use parallel_block_pentagons_mod, only: consume_pentagon
+  use parallel_block_primitives_mod, only: primitives_active,primitives_oracle,consume_regular,consume_southwest
+  use parallel_block_primitive_walk_mod, only: comp_offs3
 
   ! Routines used to compute multiscale trend
 
@@ -59,7 +64,8 @@ contains
 
     real(dp), dimension(0:N_BDRY,scalars(1):scalars(2)) :: rho_dz
     real(dp), dimension(1:EDGE)                         :: physics_flux
-    real(dp) :: temperature_flux(EDGE)
+    real(dp) :: temperature_flux(EDGE),owner_flux(EDGE)
+    real(dp) :: data234(38),rho234(2,0:7)
     real(dp), pointer :: scalar_flux(:)
 
     logical :: S_bdry, W_bdry, skip_temperature
@@ -202,6 +208,35 @@ contains
     end if
     
   contains
+    subroutine scalar_flux_values(nodes,directions,dual,southwest)
+      integer,intent(in)::nodes(4),directions(4)
+      real(dp),intent(in)::dual(3)
+      logical,intent(in)::southwest
+      real(dp)::reference_physics(3),reference_flux(3)
+      integer::t
+      logical::needed(3),defined(3)
+      needed=.true.
+      if(skip_temperature.and.v==S_TEMP) needed=temperature_needed
+      if(.not.diffusion_active.or.diffusion_oracle) then
+         reference_physics=physics_scalar_flux(q(:,1:zlevels),dom,nodes(1),nodes(2),nodes(3),nodes(4), &
+              v,zlev,southwest)
+         reference_flux=0.0_dp
+         do t=1,3
+            if(.not.needed(t)) cycle
+            reference_flux(t)=dual(t)*interp(rho_dz(0,v),rho_dz(directions(t+1),v))+reference_physics(t)
+         end do
+         physics_flux=reference_physics;owner_flux=reference_flux
+      end if
+      if(diffusion_active) then
+         call owner_scalar_flux(dom%id+1,nodes(1),v,zlev,southwest,physics_flux,owner_flux,defined)
+         if(diffusion_oracle) then
+            if(any((transfer(physics_flux,[0_int64],3)/=transfer(reference_physics,[0_int64],3)).and.defined).or. &
+                 any((transfer(owner_flux,[0_int64],3)/=transfer(reference_flux,[0_int64],3)).and.needed.and.defined)) &
+                 error stop 'independent owner scalar flux mismatch'
+         end if
+      end if
+    end subroutine
+
     
     subroutine comput 
       ! Computes physical quantities during upward integration
@@ -320,6 +355,10 @@ contains
          vort(TRIAG*idW+LORT+1) = circ_W_LORT / dom%triarea%elts(TRIAG*idW+LORT+1)
          vort(TRIAG*idS+UPLT+1) = circ_S_UPLT / dom%triarea%elts(TRIAG*idS+UPLT+1)
       elseif (itype == 0) then ! standard
+         if(primitives_active.and..not.primitives_oracle) then
+            temperature_needed=[temperature_closure_needed(d,EDGE*id+RT), &
+                 temperature_closure_needed(d,EDGE*id+DG),temperature_closure_needed(d,EDGE*id+UP)]
+         else
          id_rhodz = [ id, idN, idE, idS, idW, idNE ]
          temperature_needed=[temperature_closure_needed(d,EDGE*id+RT), &
               temperature_closure_needed(d,EDGE*id+DG),temperature_closure_needed(d,EDGE*id+UP)]
@@ -405,13 +444,25 @@ contains
          ! Exner function in incompressible case from geopotential
          if (.not. compressible) exner(id_i) = -Phi_k
 
+         end if
+         if(primitives_active) then
+            call consume_regular(dom,[id,idN,idE,idS,idW,idNE,id,idSW],zlev,data234)
+            rho234=reshape(data234(23:38),[2,8])
+            rho_dz(0:NORTHEAST,S_MASS)=rho234(1,0:NORTHEAST)
+            rho_dz(0:NORTHEAST,S_TEMP)=rho234(2,0:NORTHEAST)
+            pv_W_LORT=data234(10);pv_S_UPLT=data234(11)
+            u_dual_RT=data234(12);u_dual_DG=data234(13);u_dual_UP=data234(14)
+            u_dual_RT_W=data234(15);u_dual_DG_SW=data234(16);u_dual_UP_S=data234(17)
+         end if
+
          do v = scalars(1), scalars(2)
             if (skip_temperature .and. v == S_TEMP) then
                if (id < offs(0) .or. id >= offs(0)+PATCH_SIZE**2) then
                   if (.not. any(temperature_needed)) cycle
                end if
             end if
-            physics_flux = physics_scalar_flux (q(:,1:zlevels), dom, id, idE, idNE, idN, v, zlev)
+            call scalar_flux_values([id,idE,idNE,idN],[0,EAST,NORTHEAST,NORTH], &
+                 [u_dual_RT,u_dual_DG,u_dual_UP],.false.)
             if (present(scalar_physics)) then
                if (id >= offs(0) .and. id < offs(0)+PATCH_SIZE**2) &
                     scalar_physics(:,id-offs(0)+1,v) = physics_flux
@@ -419,24 +470,24 @@ contains
 
             if (v == S_TEMP) then
                if (temperature_needed(RT+1)) then
-                  temperature_flux(RT+1)=u_dual_RT*interp(rho_dz(0,v),rho_dz(EAST,v))+physics_flux(RT+1)
+                  temperature_flux(RT+1)=owner_flux(RT+1)
                   call capture_temperature_closure(d,EDGE*id+RT,zlev,temperature_flux(RT+1))
                end if
                if (temperature_needed(DG+1)) then
-                  temperature_flux(DG+1)=u_dual_DG*interp(rho_dz(0,v),rho_dz(NORTHEAST,v))+physics_flux(DG+1)
+                  temperature_flux(DG+1)=owner_flux(DG+1)
                   call capture_temperature_closure(d,EDGE*id+DG,zlev,temperature_flux(DG+1))
                end if
                if (temperature_needed(UP+1)) then
-                  temperature_flux(UP+1)=u_dual_UP*interp(rho_dz(0,v),rho_dz(NORTH,v))+physics_flux(UP+1)
+                  temperature_flux(UP+1)=owner_flux(UP+1)
                   call capture_temperature_closure(d,EDGE*id+UP,zlev,temperature_flux(UP+1))
                end if
                if (skip_temperature) cycle
             end if
             scalar_flux=>horiz_flux(v)%data(d)%elts
             if (mass_transaction.and.v==S_MASS) scalar_flux=>native_mass(d)%flux
-            scalar_flux(EDGE*id+RT+1) = u_dual_RT * interp (rho_dz(0,v), rho_dz(EAST,     v)) + physics_flux(RT+1)
-            scalar_flux(EDGE*id+DG+1) = u_dual_DG * interp (rho_dz(0,v), rho_dz(NORTHEAST,v)) + physics_flux(DG+1)
-            scalar_flux(EDGE*id+UP+1) = u_dual_UP * interp (rho_dz(0,v), rho_dz(NORTH,    v)) + physics_flux(UP+1)
+            scalar_flux(EDGE*id+RT+1) = owner_flux(RT+1)
+            scalar_flux(EDGE*id+DG+1) = owner_flux(DG+1)
+            scalar_flux(EDGE*id+UP+1) = owner_flux(UP+1)
             if (mass_transaction.and.mass_oracle.and.v==S_MASS) &
                  horiz_flux(v)%data(d)%elts(EDGE*id+1:EDGE*(id+1))=scalar_flux(EDGE*id+1:EDGE*(id+1))
          end do
@@ -551,6 +602,10 @@ contains
          vort(TRIAG*idSW+LORT+1) = circ_SW_LORT / dom%triarea%elts(TRIAG*idSW+LORT+1)
          vort(TRIAG*idSW+UPLT+1) = circ_SW_UPLT / dom%triarea%elts(TRIAG*idSW+UPLT+1)
       elseif (itype == 0) then ! standard
+         if(primitives_active.and..not.primitives_oracle) then
+            temperature_needed=[temperature_closure_needed(d,EDGE*idW+RT), &
+                 temperature_closure_needed(d,EDGE*idSW+DG),temperature_closure_needed(d,EDGE*idS+UP)]
+         else
          id_rhodz = [ id, id, id, idS, idW, id, id, idSW ]
          temperature_needed=[temperature_closure_needed(d,EDGE*idW+RT), &
               temperature_closure_needed(d,EDGE*idSW+DG),temperature_closure_needed(d,EDGE*idS+UP)]
@@ -590,36 +645,42 @@ contains
          vort(TRIAG*idSW+LORT+1) = circ_SW_LORT / dom%triarea%elts(TRIAG*idSW+LORT+1)
          vort(TRIAG*idSW+UPLT+1) = circ_SW_UPLT / dom%triarea%elts(TRIAG*idSW+UPLT+1)
 
+         end if
+         if(primitives_active) then
+            call consume_southwest(dom,[id,id,id,idS,idW,id,id,idSW],zlev,data234)
+            rho234=reshape(data234(23:38),[2,8])
+            rho_dz(0:SOUTHWEST,S_MASS)=rho234(1,0:SOUTHWEST)
+            rho_dz(0:SOUTHWEST,S_TEMP)=rho234(2,0:SOUTHWEST)
+         end if
+
          ! Scalar fluxes
          do v = scalars(1), scalars(2)
             if (skip_temperature .and. v == S_TEMP) then
                if (.not. any(temperature_needed)) cycle
             end if
-            physics_flux = physics_scalar_flux (q(:,1:zlevels), dom, id, idW, idSW, idS, v, zlev, .true.)
+            call scalar_flux_values([id,idW,idSW,idS],[0,WEST,SOUTHWEST,SOUTH], &
+                 [u_dual_RT_W,u_dual_DG_SW,u_dual_UP_S],.true.)
 
             if (v == S_TEMP) then
                if (temperature_needed(RT+1)) &
                     call capture_temperature_closure(d,EDGE*idW+RT,zlev, &
-                    u_dual_RT_W*interp(rho_dz(0,v),rho_dz(WEST,v))+physics_flux(RT+1))
+                    owner_flux(RT+1))
                if (temperature_needed(DG+1)) &
                     call capture_temperature_closure(d,EDGE*idSW+DG,zlev, &
-                    u_dual_DG_SW*interp(rho_dz(0,v),rho_dz(SOUTHWEST,v))+physics_flux(DG+1))
+                    owner_flux(DG+1))
                if (temperature_needed(UP+1)) &
                     call capture_temperature_closure(d,EDGE*idS+UP,zlev, &
-                    u_dual_UP_S*interp(rho_dz(0,v),rho_dz(SOUTH,v))+physics_flux(UP+1))
+                    owner_flux(UP+1))
                if (skip_temperature) cycle
             end if
 
             scalar_flux=>horiz_flux(v)%data(d)%elts
             if (mass_transaction.and.v==S_MASS) scalar_flux=>native_mass(d)%flux
-            scalar_flux(EDGE*idW+RT +1) = u_dual_RT_W  * interp (rho_dz(0,v), rho_dz(WEST,     v)) &
-                 + physics_flux(RT+1)
+            scalar_flux(EDGE*idW+RT +1) = owner_flux(RT+1)
             
-            scalar_flux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (rho_dz(0,v), rho_dz(SOUTHWEST,v)) &
-                 + physics_flux(DG+1)
+            scalar_flux(EDGE*idSW+DG+1) = owner_flux(DG+1)
             
-            scalar_flux(EDGE*idS+UP +1) = u_dual_UP_S  * interp (rho_dz(0,v), rho_dz(SOUTH,    v)) &
-                 + physics_flux(UP+1)
+            scalar_flux(EDGE*idS+UP +1) = owner_flux(UP+1)
             if (mass_transaction.and.mass_oracle.and.v==S_MASS) then
                horiz_flux(v)%data(d)%elts(EDGE*idW+RT+1)=scalar_flux(EDGE*idW+RT+1)
                horiz_flux(v)%data(d)%elts(EDGE*idSW+DG+1)=scalar_flux(EDGE*idSW+DG+1)
@@ -649,6 +710,11 @@ contains
     real(dp) :: u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
     real(dp) :: pv_mass(3)
     real(dp) :: rho_dz(0:N_BDRY) 
+
+    if(primitives_active.and..not.primitives_oracle) then
+       call consume_pentagon(dom,p,c)
+       return
+    end if
 
     ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
     ! Note that pedlen(EDGE*idSW+DG+1) = 0 in this case
@@ -844,6 +910,7 @@ contains
        qe(EDGE*id+RT+1) = interp (pv_LORT, pv_S_UPLT)
        qe(EDGE*id+UP+1) = interp (pv_UPLT, pv_W_LORT)
     end if
+    if(primitives_active) call consume_pentagon(dom,p,c)
   end subroutine post_step1
 
   
@@ -1140,39 +1207,5 @@ contains
   end function get_weights
 
   
-  subroutine comp_offs3 (dom, p, offs, dims)
-    
-    implicit none
-    
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: p
-    integer,      intent(out)   :: offs(0:N_BDRY)
-    integer,      intent(out)   :: dims(2,N_BDRY)
 
-    integer :: i, n
-
-    offs(0) = dom%patch%elts(p+1)%elts_start
-    do i = 1, N_BDRY
-       n = dom%patch%elts(p+1)%neigh(i)
-       if (n > 0) then ! regular patch
-          offs(i)  = dom%patch%elts(n+1)%elts_start
-          dims(:,i) = PATCH_SIZE
-       elseif (n < 0) then
-          offs(i)  = dom%bdry_patch%elts(-n+1)%elts_start
-          dims(:,i) = sides_dims(:,abs(dom%bdry_patch%elts(-n+1)%side)+1)
-       end if
-    end do
-
-    offs(1:N_BDRY)  = offs(1:N_BDRY)  - offs(0) ! make relative
-    offs(SOUTH)     = offs(SOUTH)     + dims(1,SOUTH)*(dims(2,SOUTH)-1)
-    offs(SOUTHEAST) = offs(SOUTHEAST) + dims(1,SOUTHEAST)*(dims(2,SOUTH)-1)
-    offs(WEST)      = offs(WEST)      + (dims(1,WEST)-1)
-    offs(NORTHWEST) = offs(NORTHWEST) + (dims(1,NORTHWEST)-1)
-    offs(SOUTHWEST) = offs(SOUTHWEST) + dims(1,SOUTHWEST)*dims(2,SOUTHWEST) - 1
-    offs(NORTH)     = offs(NORTH)     - PATCH_SIZE*(PATCH_SIZE-1) 
-    offs(NORTHWEST) = offs(NORTHWEST) - PATCH_SIZE*(PATCH_SIZE-1) 
-    offs(EAST)      = offs(EAST)      - (PATCH_SIZE-1)
-    offs(SOUTHEAST) = offs(SOUTHEAST) - (PATCH_SIZE-1)
-    offs(NORTHEAST) = offs(NORTHEAST) - (PATCH_SIZE*PATCH_SIZE-1)
-  end subroutine comp_offs3
 end module ops_mod
