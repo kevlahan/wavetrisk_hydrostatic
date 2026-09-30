@@ -1,0 +1,10 @@
+{
+  "status": "prepared-not-run",
+  "path": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage247-validation/bbserv-candidate2",
+  "archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage247-validation/bbserv-candidate2.tar.gz",
+  "archive_sha256": "dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63",
+  "bytes": 38970614,
+  "local_validation_sha256": "da15c8a69e97ff39d92ca383cd8e1a0e0a3e93d78967411860de89ada96d8354",
+  "commit": "d8d85b0e7cc03cb5fe264dde8669155f4500088f",
+  "unpack_verified": true
+}

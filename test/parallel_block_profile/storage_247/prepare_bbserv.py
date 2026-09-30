@@ -10,7 +10,8 @@ from run_local_220 import SELECTORS
 
 def ignored(directory,names):
     return [n for n in names if n in {'.git','__pycache__','obj','lib','xml','outputs'} or
-            (n=='driver' and (Path(directory)/n).is_file()) or n.startswith(('build-','bin-','._')) or n=='.DS_Store' or n.endswith(('.o','.mod','.so','.dylib','.a','.pyc','.log'))]
+            (n=='driver' and (Path(directory)/n).is_file()) or
+            ((Path(directory)/n).is_symlink() and not (Path(directory)/n).exists()) or n.startswith(('build-','bin-','._')) or n=='.DS_Store' or n.endswith(('.o','.mod','.so','.dylib','.a','.pyc','.log'))]
 
 def prepare(tree,out):
     tree,out=tree.resolve(),out.resolve()
