@@ -61,6 +61,9 @@ module main_mod
   use coord_arithmetic_mod
 
 #ifdef SOIL_NATIVE
+  use parallel_block_inverse_mod, only: prepare_native_transition_mask,native_adaptation_reconstruct, &
+       release_native_transition,publish_native_inverse
+  use parallel_block_mpi_mod, only: native_velocity_plan_generation
   use parallel_block_inverse_mod, only: native_soil_transform,publish_native_soil,compare_native_inverse
   use parallel_block_mod, only: BLOCK_PAYLOAD_WAV_COEFF
 #endif
@@ -854,6 +857,9 @@ contains
          parallel_block_profile_begin(BLOCK_PROFILE_ADAPTATION)
     active_before = int(sum(n_active),int64)
     call update_domain_soil_wavelet_consumer
+#ifdef ADAPT_NATIVE
+    call prepare_native_transition_mask
+#endif
     ! Post-cutover milestone: profile the complete block-native timestep,
     ! including all communication, synchronization and compatibility phases.
     ! The module-owned transaction is authoritative here.  A timestep-local
@@ -867,9 +873,13 @@ contains
     else
        call adapt(set_thresholds)
     end if
+#if !defined(ADAPT_NATIVE) || defined(ADAPT_NATIVE_ORACLE)
     call inverse_wavelet_transform (wav_coeff, sol)
+#endif
+#ifndef ADAPT_NATIVE
     if (block_multistage_candidate) &
          call complete_block_adaptation_lifecycle
+#endif
 
     ! Rebuild the compact state immediately after the topology transition.
     ! Vertical remapping can then execute independently in both compact block
@@ -881,11 +891,33 @@ contains
        detailed_block_diagnostics = &
             block_detailed_diagnostics_enabled()
        call build_source_blocks(verbose=detailed_block_diagnostics, &
-         check_serialization=.not.block_stage191_fast_install_enabled())
+         check_serialization=.not.block_stage191_fast_install_enabled() &
+#ifdef ADAPT_NATIVE
+         ,native_transition=.true. &
+#endif
+         )
        call migrate_blocks( &
             verbose=detailed_block_diagnostics, &
             full_validation=.false.)
+#ifdef ADAPT_NATIVE
+       call native_adaptation_reconstruct(native_velocity_plan_generation())
+#ifdef ADAPT_NATIVE_ORACLE
+       call compare_native_inverse(sol,1,exact=.true.)
+       call compare_native_inverse(sol,2,exact=.true.)
+       call compare_native_inverse(wav_coeff,1,BLOCK_PAYLOAD_WAV_COEFF,exact=.true.)
+       call compare_native_inverse(wav_coeff,2,BLOCK_PAYLOAD_WAV_COEFF,exact=.true.)
+       write(*,'(a,i0)') 'Native adaptation exact rank=',rank
+#endif
+       call publish_native_inverse(sol,all_nodes=.true.)
+       call publish_native_inverse(wav_coeff,payload_family=BLOCK_PAYLOAD_WAV_COEFF,all_nodes=.true.)
+       sol%bdry_uptodate=.false.
+       wav_coeff%bdry_uptodate=.false.
+#endif
        call retain_post_grid_change_block_reconstruction
+#ifdef ADAPT_NATIVE
+       call complete_block_adaptation_lifecycle
+       call release_native_transition
+#endif
        call parallel_block_profile_end( &
             BLOCK_PROFILE_TOPOLOGY,topology_profile_start, &
             int(n_glo_block,int64))

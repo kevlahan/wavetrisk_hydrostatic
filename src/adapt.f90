@@ -1,5 +1,5 @@
 module adapt_mod
-  use parallel_block_inverse_mod, only: block_rk_enabled,compare_retained_rk_aliases
+  use parallel_block_inverse_mod, only: block_rk_enabled,compare_retained_rk_aliases,native_transition_ready
   use parallel_block_profile_mod, only : detail_enter, detail_leave, DP_WT_DRIVER
   use, intrinsic :: iso_fortran_env, only : int64
 
@@ -240,7 +240,11 @@ contains
     call mask_second_neighbours
 
     ! Set insignificant wavelet coefficients to zero
+#ifdef ADAPT_NATIVE_ORACLE
     if (local_type) call compress_wavelets (wav_coeff)
+#else
+    if (local_type.and..not.native_transition_ready()) call compress_wavelets (wav_coeff)
+#endif
     
     ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
     call call_adaptation_domain_consumer(update)

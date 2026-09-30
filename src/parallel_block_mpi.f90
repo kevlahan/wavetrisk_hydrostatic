@@ -1,4 +1,5 @@
 module parallel_block_mpi_mod
+  use parallel_block_inverse_mod, only: native_transition_ready,native_transition_field
   use parallel_block_inverse_mod, only: block_rk_enabled,prepare_retained_rk_aliases, &
        finish_retained_rk_boundary,rk_scaffold_operand,rk_mass_alias_operand,retained_rk_cycle_active
   use parallel_block_diffusion_mod, only: owned_mass_node
@@ -3027,8 +3028,12 @@ contains
                            size(wav_coeff(v,k)%data(d)%elts)) &
                            call fail( &
                            "Domain scalar adaptation oracle is invalid")
+                      if(native_transition_ready().and..not.covered) then
+                         coefficient=native_transition_field(BLOCK_PAYLOAD_WAV_COEFF,v,k,d,field_index)
+                      else
                       coefficient = wav_coeff(v,k)%data(d)%elts( &
                            field_index)
+                      end if
                       if (threshold(v,k) > 0.0_dp) then
                          coefficient_ratio = &
                               abs(coefficient)/threshold(v,k)
@@ -3128,9 +3133,12 @@ contains
                            size(wav_coeff(S_VELO,k)%data(d)%elts)) &
                            call fail( &
                            "Domain vector adaptation oracle is invalid")
-                      if (abs(wav_coeff(S_VELO,k)%data(d)%elts( &
-                           field_index)) >= threshold(S_VELO,k)) &
-                           active = .true.
+                      if(native_transition_ready().and..not.covered) then
+                         coefficient=native_transition_field(BLOCK_PAYLOAD_WAV_COEFF,S_VELO,k,d,field_index)
+                      else
+                         coefficient=wav_coeff(S_VELO,k)%data(d)%elts(field_index)
+                      end if
+                      if(abs(coefficient)>=threshold(S_VELO,k)) active=.true.
                    end do
                    if (active) then
                       decision = BLOCK_ADAPTATION_ACTIVE
@@ -3375,19 +3383,21 @@ contains
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
 
+    if(.not.native_transition_ready()) then
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.true.)
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_WAV_COEFF,.true.)
 
+    end if
     call exchange_block_scalar_ghost_payloads( &
-         BLOCK_PAYLOAD_SOL,.false.,.true.)
+         BLOCK_PAYLOAD_SOL,.false.,.true.,verify_previous=.not.native_transition_ready())
     call exchange_block_vector_ghost_payloads( &
-         BLOCK_PAYLOAD_SOL,.false.,.true.)
+         BLOCK_PAYLOAD_SOL,.false.,.true.,verify_previous=.not.native_transition_ready())
     call exchange_block_scalar_ghost_payloads( &
-         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.,verify_previous=.not.native_transition_ready())
     call exchange_block_vector_ghost_payloads( &
-         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.,verify_previous=.not.native_transition_ready())
 
     if (compressible.and.block_dynamics_validation_enabled()) then
        call ensure_local_block_hydrostatic_state
@@ -32791,7 +32801,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine exchange_block_scalar_ghost_payloads ( &
-       payload_family,print_summary,verify_installation)
+       payload_family,print_summary,verify_installation,verify_previous)
     ! Use the persistent field-independent request plan to return the
     ! complete scalar sol/wav_coeff bundle for every ghost patch. Quiet
     ! production calls reuse request metadata and communication buffers,
@@ -32802,6 +32812,8 @@ end subroutine build_parallel_block_catalog
 
     logical, intent(in) :: print_summary
     logical, intent(in) :: verify_installation
+    logical, optional, intent(in) :: verify_previous
+    logical :: check_previous
     integer, intent(in) :: payload_family
 
     integer :: destination
@@ -32830,6 +32842,8 @@ end subroutine build_parallel_block_catalog
     real(dp), allocatable :: expected(:)
     character(len=9) :: payload_name
 
+    check_previous=.true.
+    if(present(verify_previous)) check_previous=verify_previous
     call detail_enter(DP_GHOST)
     payload_name = ""
 
@@ -32915,7 +32929,7 @@ end subroutine build_parallel_block_catalog
     call detail_leave(DP_GHOST_MPI)
     call check_mpi(ierr,"MPI_Alltoallv scalar ghost payloads")
 
-    if (verify_installation) then
+    if (verify_installation.and.check_previous) then
        do i = 1, n_request
           if (ghost_exchange_plan%source_owner(i) /= rank) cycle
 
@@ -32956,6 +32970,8 @@ end subroutine build_parallel_block_catalog
           end do
        end do
 
+    end if
+    if(verify_installation) then
        call fill_local_block_scalar_ghost_family_values( &
             payload_family,BLOCK_GHOST_POISON)
     end if
@@ -33109,7 +33125,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine exchange_block_vector_ghost_payloads ( &
-       payload_family,print_summary,verify_installation)
+       payload_family,print_summary,verify_installation,verify_previous)
     ! Use the persistent field-independent request plan to return the
     ! complete vector sol/wav_coeff bundle for every ghost patch. Quiet
     ! production calls reuse request metadata and communication buffers,
@@ -33120,6 +33136,8 @@ end subroutine build_parallel_block_catalog
 
     logical, intent(in) :: print_summary
     logical, intent(in) :: verify_installation
+    logical, optional, intent(in) :: verify_previous
+    logical :: check_previous
     integer, intent(in) :: payload_family
 
     integer :: destination
@@ -33148,6 +33166,8 @@ end subroutine build_parallel_block_catalog
     real(dp), allocatable :: expected(:)
     character(len=9) :: payload_name
 
+    check_previous=.true.
+    if(present(verify_previous)) check_previous=verify_previous
     call detail_enter(DP_GHOST)
     payload_name = ""
 
@@ -33231,7 +33251,7 @@ end subroutine build_parallel_block_catalog
     call detail_leave(DP_GHOST_MPI)
     call check_mpi(ierr,"MPI_Alltoallv vector ghost payloads")
 
-    if (verify_installation) then
+    if (verify_installation.and.check_previous) then
        do i = 1, n_request
           if (ghost_exchange_plan%source_owner(i) /= rank) cycle
 
@@ -33272,6 +33292,8 @@ end subroutine build_parallel_block_catalog
           end do
        end do
 
+    end if
+    if(verify_installation) then
        call fill_local_block_vector_ghost_family_values( &
             payload_family,BLOCK_GHOST_POISON)
     end if

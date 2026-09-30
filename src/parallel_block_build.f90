@@ -1,5 +1,6 @@
 module parallel_block_build_mod
   use parallel_block_profile_mod
+  use parallel_block_inverse_mod, only: native_transition_field,native_transition_ready
 
   use, intrinsic :: iso_fortran_env, only : int8, int64
 
@@ -11,7 +12,7 @@ module parallel_block_build_mod
   use ops_mod,   only : comp_offs3
   use patch_mod, only : Patch, PATCH_SIZE
 
-  use parallel_block_mod, only : Block_Data, &
+  use parallel_block_mod, only : Block_Data, BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF, &
        STORE_NONE, STORE_PATCH, STORE_BDRY, STORE_GHOST, &
        NGB_INTERNAL, NGB_BLOCK, NGB_DOMAIN, NGB_ADAPT, NGB_OTHER, &
        block_source, block_source_catalog_index, &
@@ -33,18 +34,19 @@ module parallel_block_build_mod
 
   private
   public :: build_source_blocks
+  logical :: build_from_native=.false.
 
 contains
 
 
-subroutine build_source_blocks (verbose,check_serialization)
+subroutine build_source_blocks (verbose,check_serialization,native_transition)
   ! Build and verify every candidate block whose source Domain is
   ! currently local to this rank. Optional diagnostics describe one
   ! representative block and the rank totals; validation always runs.
 
   implicit none
 
-  logical, optional, intent(in) :: verbose,check_serialization
+  logical, optional, intent(in) :: verbose,check_serialization,native_transition
 
   integer :: b
   integer :: b_verbose
@@ -75,6 +77,12 @@ subroutine build_source_blocks (verbose,check_serialization)
 
   logical :: print_summary,serialize
 
+  build_from_native=.false.
+  if(present(native_transition)) build_from_native=native_transition
+  if(build_from_native.and..not.native_transition_ready()) error stop 'native source transition is not ready'
+#ifdef ADAPT_NATIVE
+  if(native_transition_ready().and..not.build_from_native) error stop 'native transition cannot use Domain source fields'
+#endif
   call detail_enter(DP_SOURCE)
     serialize=.true.
   if(present(check_serialization)) serialize=check_serialization
@@ -338,6 +346,7 @@ subroutine build_source_blocks (verbose,check_serialization)
 
     call detail_leave(DP_SOURCE)
 
+  if(build_from_native) write(*,'(a,i0,a,i0)') 'Native adaptation source blocks rank=',rank,' blocks=',n_block_built
 end subroutine build_source_blocks
 
 
@@ -866,9 +875,9 @@ subroutine build_one_source_block ( &
         scalar_base = (scalar_slot-1) * scalar_variable_size + &
              (level_slot-1) * scalar_storage_size
 
-        call copy_subtree_field_Domain( &
+        call copy_source_subtree( &
              patch_copy, old_elts_start, mult_scalar, &
-             sol(scalar_id,field_level)%data(d)%elts, scalar_one)
+             d,scalar_id,field_level,BLOCK_PAYLOAD_SOL, scalar_one)
 
         if (size(scalar_one) /= scalar_storage_size) then
            error stop &
@@ -879,9 +888,9 @@ subroutine build_one_source_block ( &
              scalar_base+1:scalar_base+scalar_storage_size) = &
              scalar_one
 
-        call copy_subtree_field_Domain( &
+        call copy_source_subtree( &
              patch_copy, old_elts_start, mult_scalar, &
-             wav_coeff(scalar_id,field_level)%data(d)%elts, &
+             d,scalar_id,field_level,BLOCK_PAYLOAD_WAV_COEFF, &
              wavelet_scalar_one)
 
         if (size(wavelet_scalar_one) /= scalar_storage_size) then
@@ -915,8 +924,7 @@ subroutine build_one_source_block ( &
 
            if (maxval(abs( &
                 scalar_copy(new_start+1:new_start+n_patch_field) - &
-                sol(scalar_id,field_level)%data(d)%elts( &
-                old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+                source_field_range(BLOCK_PAYLOAD_SOL,scalar_id,field_level,d,old_start+1, old_start+n_patch_field))) > 0.0_dp) then
 
               error stop &
                    "build_source_blocks: scalar field copy mismatch"
@@ -926,8 +934,8 @@ subroutine build_one_source_block ( &
            if (maxval(abs( &
                 wavelet_scalar_copy( &
                 new_start+1:new_start+n_patch_field) - &
-                wav_coeff(scalar_id,field_level)%data(d)%elts( &
-                old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+                source_field_range(BLOCK_PAYLOAD_WAV_COEFF,scalar_id,field_level,d,old_start+1, &
+         & old_start+n_patch_field))) > 0.0_dp) then
 
               error stop &
                    "build_source_blocks: scalar wavelet copy mismatch"
@@ -972,9 +980,9 @@ subroutine build_one_source_block ( &
      field_level = first_field_level + level_slot - 1
      field_base = (level_slot-1) * vector_storage_size
 
-     call copy_subtree_field_Domain( &
+     call copy_source_subtree( &
           patch_copy, old_elts_start, mult_vector, &
-          sol(v_vector,field_level)%data(d)%elts, vector_one)
+          d,v_vector,field_level,BLOCK_PAYLOAD_SOL, vector_one)
 
      if (size(vector_one) /= vector_storage_size) then
         error stop &
@@ -984,9 +992,9 @@ subroutine build_one_source_block ( &
      vector_copy(field_base+1:field_base+vector_storage_size) = &
           vector_one
 
-     call copy_subtree_field_Domain( &
+     call copy_source_subtree( &
           patch_copy, old_elts_start, mult_vector, &
-          wav_coeff(v_vector,field_level)%data(d)%elts, &
+          d,v_vector,field_level,BLOCK_PAYLOAD_WAV_COEFF, &
           wavelet_vector_one)
 
      if (size(wavelet_vector_one) /= vector_storage_size) then
@@ -1019,8 +1027,7 @@ subroutine build_one_source_block ( &
 
         if (maxval(abs( &
              vector_copy(new_start+1:new_start+n_patch_field) - &
-             sol(v_vector,field_level)%data(d)%elts( &
-             old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+             source_field_range(BLOCK_PAYLOAD_SOL,v_vector,field_level,d,old_start+1, old_start+n_patch_field))) > 0.0_dp) then
 
            error stop &
                 "build_source_blocks: vector field copy mismatch"
@@ -1030,8 +1037,8 @@ subroutine build_one_source_block ( &
         if (maxval(abs( &
              wavelet_vector_copy( &
              new_start+1:new_start+n_patch_field) - &
-             wav_coeff(v_vector,field_level)%data(d)%elts( &
-             old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+             source_field_range(BLOCK_PAYLOAD_WAV_COEFF,v_vector,field_level,d,old_start+1, old_start+n_patch_field))) &
+         & > 0.0_dp) then
 
            error stop &
                 "build_source_blocks: vector wavelet copy mismatch"
@@ -1902,19 +1909,15 @@ subroutine build_one_source_block ( &
                 scalar_base+mult_scalar*new_start+1 : &
                 scalar_base+mult_scalar*(new_start + &
                 block_out%bdry_storage(is)%n_node)) = &
-                sol(scalar_id,field_level)%data(d)%elts( &
-                mult_scalar*old_start+1 : &
-                mult_scalar*(old_start + &
-                block_out%bdry_storage(is)%n_node))
+                source_field_range(BLOCK_PAYLOAD_SOL,scalar_id,field_level,d,mult_scalar*old_start+1, &
+         & mult_scalar*(old_start+block_out%bdry_storage(is)%n_node))
 
            block_out%bdry_wavelet_scalar( &
                 scalar_base+mult_scalar*new_start+1 : &
                 scalar_base+mult_scalar*(new_start + &
                 block_out%bdry_storage(is)%n_node)) = &
-                wav_coeff(scalar_id,field_level)%data(d)%elts( &
-                mult_scalar*old_start+1 : &
-                mult_scalar*(old_start + &
-                block_out%bdry_storage(is)%n_node))
+                source_field_range(BLOCK_PAYLOAD_WAV_COEFF,scalar_id,field_level,d,mult_scalar*old_start+1, &
+         & mult_scalar*(old_start+block_out%bdry_storage(is)%n_node))
 
            block_out%bdry_scalar_mean( &
                 scalar_base+mult_scalar*new_start+1 : &
@@ -1938,19 +1941,15 @@ subroutine build_one_source_block ( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start + &
              block_out%bdry_storage(is)%n_node)) = &
-             sol(v_vector,field_level)%data(d)%elts( &
-             mult_vector*old_start+1 : &
-             mult_vector*(old_start + &
-             block_out%bdry_storage(is)%n_node))
+             source_field_range(BLOCK_PAYLOAD_SOL,v_vector,field_level,d,mult_vector*old_start+1, &
+         & mult_vector*(old_start+block_out%bdry_storage(is)%n_node))
 
         block_out%bdry_wavelet_vector( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start + &
              block_out%bdry_storage(is)%n_node)) = &
-             wav_coeff(v_vector,field_level)%data(d)%elts( &
-             mult_vector*old_start+1 : &
-             mult_vector*(old_start + &
-             block_out%bdry_storage(is)%n_node))
+             source_field_range(BLOCK_PAYLOAD_WAV_COEFF,v_vector,field_level,d,mult_vector*old_start+1, &
+         & mult_vector*(old_start+block_out%bdry_storage(is)%n_node))
 
         block_out%bdry_vector_mean( &
              field_base+mult_vector*new_start+1 : &
@@ -2035,10 +2034,8 @@ subroutine build_one_source_block ( &
                 scalar_base+mult_scalar*new_start+1 : &
                 scalar_base+mult_scalar*(new_start + &
                 block_out%bdry_storage(is)%n_node)) - &
-                sol(scalar_id,field_level)%data(d)%elts( &
-                mult_scalar*old_start+1 : &
-                mult_scalar*(old_start + &
-                block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
+                source_field_range(BLOCK_PAYLOAD_SOL,scalar_id,field_level,d,mult_scalar*old_start+1, &
+         & mult_scalar*(old_start+block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
 
               error stop &
                    "build_source_blocks: boundary scalar mismatch"
@@ -2050,10 +2047,8 @@ subroutine build_one_source_block ( &
                 scalar_base+mult_scalar*new_start+1 : &
                 scalar_base+mult_scalar*(new_start + &
                 block_out%bdry_storage(is)%n_node)) - &
-                wav_coeff(scalar_id,field_level)%data(d)%elts( &
-                mult_scalar*old_start+1 : &
-                mult_scalar*(old_start + &
-                block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
+                source_field_range(BLOCK_PAYLOAD_WAV_COEFF,scalar_id,field_level,d,mult_scalar*old_start+1, &
+         & mult_scalar*(old_start+block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
 
               error stop &
                    "build_source_blocks: boundary scalar wavelet mismatch"
@@ -2089,10 +2084,8 @@ subroutine build_one_source_block ( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start + &
              block_out%bdry_storage(is)%n_node)) - &
-             sol(v_vector,field_level)%data(d)%elts( &
-             mult_vector*old_start+1 : &
-             mult_vector*(old_start + &
-             block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
+             source_field_range(BLOCK_PAYLOAD_SOL,v_vector,field_level,d,mult_vector*old_start+1, &
+         & mult_vector*(old_start+block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
 
            error stop &
                 "build_source_blocks: boundary vector mismatch"
@@ -2104,10 +2097,8 @@ subroutine build_one_source_block ( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start + &
              block_out%bdry_storage(is)%n_node)) - &
-             wav_coeff(v_vector,field_level)%data(d)%elts( &
-             mult_vector*old_start+1 : &
-             mult_vector*(old_start + &
-             block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
+             source_field_range(BLOCK_PAYLOAD_WAV_COEFF,v_vector,field_level,d,mult_vector*old_start+1, &
+         & mult_vector*(old_start+block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
 
            error stop &
                 "build_source_blocks: boundary vector wavelet mismatch"
@@ -2602,16 +2593,14 @@ subroutine build_one_source_block ( &
            block_out%ghost_scalar( &
                 scalar_base+mult_scalar*new_start+1 : &
                 scalar_base+mult_scalar*(new_start+PATCH_SIZE**2)) = &
-                sol(scalar_id,field_level)%data(d)%elts( &
-                mult_scalar*old_start+1 : &
-                mult_scalar*(old_start+PATCH_SIZE**2))
+                source_field_range(BLOCK_PAYLOAD_SOL,scalar_id,field_level,d,mult_scalar*old_start+1, &
+         & mult_scalar*(old_start+PATCH_SIZE**2))
 
            block_out%ghost_wavelet_scalar( &
                 scalar_base+mult_scalar*new_start+1 : &
                 scalar_base+mult_scalar*(new_start+PATCH_SIZE**2)) = &
-                wav_coeff(scalar_id,field_level)%data(d)%elts( &
-                mult_scalar*old_start+1 : &
-                mult_scalar*(old_start+PATCH_SIZE**2))
+                source_field_range(BLOCK_PAYLOAD_WAV_COEFF,scalar_id,field_level,d,mult_scalar*old_start+1, &
+         & mult_scalar*(old_start+PATCH_SIZE**2))
 
            block_out%ghost_scalar_mean( &
                 scalar_base+mult_scalar*new_start+1 : &
@@ -2632,16 +2621,14 @@ subroutine build_one_source_block ( &
         block_out%ghost_vector( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start+PATCH_SIZE**2)) = &
-             sol(v_vector,field_level)%data(d)%elts( &
-             mult_vector*old_start+1 : &
-             mult_vector*(old_start+PATCH_SIZE**2))
+             source_field_range(BLOCK_PAYLOAD_SOL,v_vector,field_level,d,mult_vector*old_start+1, &
+         & mult_vector*(old_start+PATCH_SIZE**2))
 
         block_out%ghost_wavelet_vector( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start+PATCH_SIZE**2)) = &
-             wav_coeff(v_vector,field_level)%data(d)%elts( &
-             mult_vector*old_start+1 : &
-             mult_vector*(old_start+PATCH_SIZE**2))
+             source_field_range(BLOCK_PAYLOAD_WAV_COEFF,v_vector,field_level,d,mult_vector*old_start+1, &
+         & mult_vector*(old_start+PATCH_SIZE**2))
 
         block_out%ghost_vector_mean( &
              field_base+mult_vector*new_start+1 : &
@@ -2717,9 +2704,8 @@ subroutine build_one_source_block ( &
                 block_out%ghost_scalar( &
                 scalar_base+mult_scalar*new_start+1 : &
                 scalar_base+mult_scalar*(new_start+PATCH_SIZE**2)) - &
-                sol(scalar_id,field_level)%data(d)%elts( &
-                mult_scalar*old_start+1 : &
-                mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+                source_field_range(BLOCK_PAYLOAD_SOL,scalar_id,field_level,d,mult_scalar*old_start+1, &
+         & mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
 
               error stop &
                    "build_source_blocks: ghost scalar mismatch"
@@ -2730,9 +2716,8 @@ subroutine build_one_source_block ( &
                 block_out%ghost_wavelet_scalar( &
                 scalar_base+mult_scalar*new_start+1 : &
                 scalar_base+mult_scalar*(new_start+PATCH_SIZE**2)) - &
-                wav_coeff(scalar_id,field_level)%data(d)%elts( &
-                mult_scalar*old_start+1 : &
-                mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+                source_field_range(BLOCK_PAYLOAD_WAV_COEFF,scalar_id,field_level,d,mult_scalar*old_start+1, &
+         & mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
 
               error stop &
                    "build_source_blocks: ghost scalar wavelet mismatch"
@@ -2765,9 +2750,8 @@ subroutine build_one_source_block ( &
              block_out%ghost_vector( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start+PATCH_SIZE**2)) - &
-             sol(v_vector,field_level)%data(d)%elts( &
-             mult_vector*old_start+1 : &
-             mult_vector*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+             source_field_range(BLOCK_PAYLOAD_SOL,v_vector,field_level,d,mult_vector*old_start+1, &
+         & mult_vector*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
 
            error stop &
                 "build_source_blocks: ghost vector mismatch"
@@ -2778,9 +2762,8 @@ subroutine build_one_source_block ( &
              block_out%ghost_wavelet_vector( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start+PATCH_SIZE**2)) - &
-             wav_coeff(v_vector,field_level)%data(d)%elts( &
-             mult_vector*old_start+1 : &
-             mult_vector*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+             source_field_range(BLOCK_PAYLOAD_WAV_COEFF,v_vector,field_level,d,mult_vector*old_start+1, &
+         & mult_vector*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
 
            error stop &
                 "build_source_blocks: ghost vector wavelet mismatch"
@@ -3287,8 +3270,7 @@ subroutine build_one_source_block ( &
            target_offset = block_out%stencil( &
                 c,old_to_new(p_old)+1)%offset
 
-           val_src = sol(v_scalar,first_field_level)%data(d)%elts( &
-                mult_scalar*idx_src + 1)
+           val_src = source_field_value(BLOCK_PAYLOAD_SOL,v_scalar,first_field_level,d,mult_scalar*idx_src+1)
 
            val_blk = block_out%scalar( &
                 mult_scalar * &
@@ -3303,8 +3285,7 @@ subroutine build_one_source_block ( &
            target_offset = block_out%stencil( &
                 c,old_to_new(p_old)+1)%offset
 
-           val_src = sol(v_scalar,first_field_level)%data(d)%elts( &
-                mult_scalar*idx_src + 1)
+           val_src = source_field_value(BLOCK_PAYLOAD_SOL,v_scalar,first_field_level,d,mult_scalar*idx_src+1)
 
            val_blk = block_out%bdry_scalar( &
                 mult_scalar * &
@@ -3332,8 +3313,7 @@ subroutine build_one_source_block ( &
                       ghost_offset >= &
                       block_out%ghost_storage(ghost_id)%n_node) cycle
 
-                 val_src = sol(v_scalar,first_field_level)%data(d)%elts( &
-                      mult_scalar*(idx_src+q) + 1)
+                 val_src = source_field_value(BLOCK_PAYLOAD_SOL,v_scalar,first_field_level,d,mult_scalar*(idx_src+q)+1)
 
                  val_blk = block_out%ghost_scalar( &
                       mult_scalar * &
@@ -3364,8 +3344,7 @@ subroutine build_one_source_block ( &
 
            else
 
-              val_src = sol(v_scalar,first_field_level)%data(d)%elts( &
-                   mult_scalar*idx_src + 1)
+              val_src = source_field_value(BLOCK_PAYLOAD_SOL,v_scalar,first_field_level,d,mult_scalar*idx_src+1)
 
               val_blk = block_out%ghost_scalar( &
                    mult_scalar * &
@@ -3786,5 +3765,50 @@ contains
 
 end subroutine build_one_source_block
 
+
+  ! Every prognostic/coefficient read goes through this selected provider.
+  ! Reference initialization remains separate until its bounded adapter lands.
+  function source_field_range(family,variable,layer,domain,first,last) result(x)
+    integer,intent(in)::family,variable,layer,domain,first,last
+    real(dp)::x(last-first+1)
+    integer::i
+    if(first<1.or.last<first-1) error stop 'source field range'
+    if(build_from_native) then
+       do i=first,last
+          x(i-first+1)=native_transition_field(family,variable,layer,domain,i)
+       end do
+    else
+       select case(family)
+       case(BLOCK_PAYLOAD_SOL)
+          x=sol(variable,layer)%data(domain)%elts(first:last)
+       case(BLOCK_PAYLOAD_WAV_COEFF)
+          x=wav_coeff(variable,layer)%data(domain)%elts(first:last)
+       case default
+          error stop 'source field family'
+       end select
+    end if
+  end function source_field_range
+
+  real(dp) function source_field_value(family,variable,layer,domain,address) result(x)
+    integer,intent(in)::family,variable,layer,domain,address
+    real(dp)::one(1)
+    one=source_field_range(family,variable,layer,domain,address,address)
+    x=one(1)
+  end function source_field_value
+
+  subroutine copy_source_subtree(patches,old_starts,mult,domain,variable,layer,family,field)
+    type(Patch),intent(in)::patches(:)
+    integer,intent(in)::old_starts(:),mult,domain,variable,layer,family
+    real(dp),allocatable,intent(out)::field(:)
+    integer::p,n,old,new
+    if(size(patches)/=size(old_starts).or.mult<1) error stop 'source subtree shape'
+    n=mult*PATCH_SIZE**2
+    allocate(field(n*size(patches)))
+    do p=1,size(patches)
+       old=mult*old_starts(p);new=mult*patches(p)%elts_start
+       if(new<0.or.new+n>size(field)) error stop 'source subtree destination'
+       field(new+1:new+n)=source_field_range(family,variable,layer,domain,old+1,old+n)
+    end do
+  end subroutine copy_source_subtree
 
 end module parallel_block_build_mod

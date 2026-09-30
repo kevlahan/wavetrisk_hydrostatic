@@ -21,6 +21,8 @@ module parallel_block_inverse_mod
        compile_local_block_inverse_routes, transfer_local_block_inverse_routes
   use parallel_block_primitive_walk_mod, only: walk_primitive_patch
   use domain_ops_mod, only: apply_onescale_to_patch,apply_interscale_d,apply_to_penta_d,apply_onescale_d,apply_interscale_d2
+  use shared_mod, only: split_mean_perturbation,a_vert_mass,b_vert_mass,p_0,grav_accel,compressible,mode_split
+  use shared_mod, only: BDRY_THICKNESS
   use domain_mod, only: Domain
   implicit none
   private
@@ -88,6 +90,12 @@ module parallel_block_inverse_mod
   type :: Boundary_Manifest
      integer, allocatable :: item(:,:)
   end type
+  type(Node_Map), allocatable :: transition_nodes(:)
+  real(dp),allocatable :: transition_data(:,:,:,:)
+  integer :: transition_phase=0
+  integer(int64) :: transition_generation=-1_int64
+  public :: native_transition_ready,native_transition_field,release_native_transition
+  public :: prepare_native_transition_mask,refresh_native_transition_mask,native_adaptation_reconstruct
   type(Node_Map), allocatable :: nodes(:)
   type(Transfer_Plan) :: interior_plan,boundary_plan
   type(Transfer_Plan), allocatable :: level_interior(:,:),level_boundary(:,:)
@@ -534,7 +542,7 @@ contains
   end function
 
   subroutine prepare_native_inverse(generation,scaling,wavelet,first_level,profile,consumer_only, &
-       field_first,field_count,entry_alias_address,entry_alias_value)
+       field_first,field_count,entry_alias_address,entry_alias_value,transition_entry)
     integer(int64), intent(in) :: generation
     integer, intent(in) :: first_level
     logical, intent(in) :: profile
@@ -544,6 +552,8 @@ contains
     integer,intent(in),optional::field_first,field_count,entry_alias_address(:,:)
     real(dp),intent(in),optional::entry_alias_value(:,:,:)
     integer::selected_first,selected_count,old_first,old_count
+    logical,optional,intent(in)::transition_entry
+    logical::from_transition
     logical::native_entry
     logical,allocatable::entry_seen(:)
     integer :: d,id,q,k,v,total,b,p,r,pos,n,next_patch
@@ -551,6 +561,8 @@ contains
     type(Boundary_Manifest) :: manifest
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
+    from_transition=.false.
+    if(present(transition_entry)) from_transition=transition_entry
     selected_first=1;selected_count=zlevels
     if(present(field_first)) selected_first=field_first
     if(present(field_count)) selected_count=field_count
@@ -559,7 +571,7 @@ contains
          call die('invalid inverse vertical range')
     native_entry=present(entry_alias_value)
     if(native_entry.neqv.present(entry_alias_address)) call die('incomplete native inverse entry')
-    if(.not.native_entry) then
+    if(.not.native_entry.and..not.from_transition) then
        if(.not.present(scaling).or..not.present(wavelet)) call die('inverse compatibility inputs absent')
        if(selected_first/=1.or.selected_count/=zlevels) call die('non-atmospheric inverse requires native entry')
        if(size(scaling,1)/=N_VARIABLE.or.size(scaling,2)/=selected_count.or. &
@@ -681,6 +693,24 @@ contains
           do p=3,grid(d)%patch%length
              if(grid(d)%patch%elts(p)%deleted) cycle
              call walk_primitive_patch(grid(d),p-1,register_primitive_operand)
+          end do
+       end do
+#endif
+#ifdef ADAPT_NATIVE
+       ! Topology rebuilding copies complete patch and boundary storage units.
+       ! Retain their unused slots too: an old temporary boundary (side=0) can
+       ! later enter a compact offset closure even though no current operator
+       ! visits it. These are explicit native aliases, seeded at the existing
+       ! input adapter, never fabricated when the next topology requests them.
+       do d=1,size(grid)
+          do id=0,size(nodes(d)%slot)-1
+             if(nodes(d)%key(1,id+1)>0) r=node_slot(d,id)
+          end do
+          do b=1,grid(d)%bdry_patch%length
+             do id=grid(d)%bdry_patch%elts(b)%elts_start, &
+                  grid(d)%bdry_patch%elts(b)%elts_start+BDRY_THICKNESS*PATCH_SIZE-1
+                r=node_slot(d,id)
+             end do
           end do
        end do
 #endif
@@ -836,6 +866,31 @@ contains
        call detail_add(DC_INVERSE_REUSE,1_int64)
     end if
     call detail_leave(DP_INVERSE_PLAN)
+    if(from_transition) then
+       if(.not.native_transition_ready()) call die('transition entry is not ready')
+       do p=1,nnode
+          d=node_domain(p);id=node_id(p)
+          do q=1,2
+             do k=1,inverse_levels
+                do v=1,nscalar
+                   value(v,k,p,q)=native_transition_field(q,scalars(1)+v-1, &
+                        inverse_field_first+k-1,d,id+1)
+                end do
+                do v=1,EDGE
+                   value(nscalar+v,k,p,q)=native_transition_field(q,S_VELO, &
+                        inverse_field_first+k-1,d,EDGE*id+v)
+                end do
+             end do
+          end do
+       end do
+       do q=1,size(scaffold_slot)
+          scaffold_value(:,:,q)=value(:,:,scaffold_slot(q),1)
+       end do
+       do q=1,size(consumer_alias_slot)
+          consumer_alias_value(:,:,q)=value(:,:,consumer_alias_slot(q),1)
+       end do
+       return
+    end if
     if(native_entry) then
        if(size(entry_alias_address,1)/=2.or.size(entry_alias_value,1)/=nscalar+EDGE.or. &
             size(entry_alias_value,2)/=inverse_levels.or. &
@@ -2455,6 +2510,9 @@ contains
     integer(int64)::generation
     integer::l,d,k,v,q,c
     if(zmin>0) return
+#ifdef ADAPT_NATIVE
+    call capture_native_atmosphere_transition
+#endif
     call export_native_soil_aliases(address,entry,generation)
     call prepare_native_inverse(generation,first_level=level_start,profile=.false., &
          field_first=zmin,field_count=1-zmin,entry_alias_address=address,entry_alias_value=entry)
@@ -2565,10 +2623,194 @@ contains
     do c=1,2
        call native_inverse_scatter(c,BLOCK_PAYLOAD_SOL,.true.)
     end do
+#ifdef ADAPT_NATIVE
+    call capture_native_soil_transition
+#endif
     write(*,'(a,i0,a,i0)') 'Native soil transform rank=',rank,' layers=',inverse_levels
   end subroutine native_soil_transform
 
 
+
+#ifdef ADAPT_NATIVE
+  subroutine capture_native_atmosphere_transition
+    integer::c,f,p,d,id
+    if(.not.compressible.or.mode_split) call die('native transition requires compressible unsplit mode')
+    if(transition_phase/=0) call die('native transition already open')
+    if(.not.physics_results_ready) call die('native transition requires completed physics')
+    if(inverse_field_first/=1.or.inverse_levels/=zlevels) call die('native transition atmospheric range')
+    transition_nodes=nodes
+    allocate(transition_data(nscalar+EDGE,zmin:zlevels,nnode,2))
+    transition_data=0.0_dp
+    do f=1,2
+       do c=1,2
+          call native_inverse_gather(c,f,.false.)
+       end do
+    end do
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)
+       transition_data(:,1:zlevels,p,2)=value(:,:,p,2)
+       if(nodes(d)%key(1,id+1)>0) then
+          transition_data(:,1:zlevels,p,1)=value(:,:,p,1)
+       else
+          transition_data(:,1:zlevels,p,1)=consumer_alias_value(:,:,consumer_alias_index(p))
+       end if
+    end do
+    transition_generation=plan_generation
+    transition_phase=1
+  end subroutine capture_native_atmosphere_transition
+
+  subroutine capture_native_soil_transition
+    integer::p,d,id,q
+    if(transition_phase/=1.or.transition_generation/=plan_generation) call die('native transition soil sequence')
+    if(inverse_field_first/=zmin.or.inverse_levels/=1-zmin) call die('native transition soil range')
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)
+       if(id>=size(transition_nodes(d)%slot)) call die('geometry changed before soil transition capture')
+       q=transition_nodes(d)%slot(id+1)
+       if(q<1) call die('soil transition operand absent from atmospheric closure')
+       transition_data(:,zmin:0,q,:)=value(:,:,p,:)
+    end do
+    transition_phase=2
+  end subroutine capture_native_soil_transition
+#endif
+
+  logical function native_transition_ready() result(ready)
+    ready=transition_phase==2
+  end function native_transition_ready
+
+  real(dp) function native_transition_field(family,variable,layer,d,address) result(x)
+    integer,intent(in)::family,variable,layer,d,address
+    integer::v,id,q
+    if(transition_phase/=2) call die('native transition field outside epoch')
+    if(family/=BLOCK_PAYLOAD_SOL.and.family/=BLOCK_PAYLOAD_WAV_COEFF) call die('native transition field family')
+    if(d<1.or.d>size(transition_nodes)) call die('native transition Domain')
+    if(layer<zmin.or.layer>zlevels.or.address<1) call die('native transition field address')
+    if(variable==S_VELO) then
+       id=(address-1)/EDGE;v=nscalar+mod(address-1,EDGE)+1
+    else
+       if(variable<scalars(1).or.variable>scalars(2)) call die('native transition scalar variable')
+       id=address-1;v=variable-scalars(1)+1
+    end if
+    if(id>=grid(d)%node%length) call die('native transition current geometry extent')
+    if(id>=size(transition_nodes(d)%slot)) then
+       ! Match extend_Domain's compressible initialization for genuinely new nodes.
+       x=0.0_dp
+       if(family==BLOCK_PAYLOAD_SOL.and.variable/=S_VELO.and.layer>0.and..not.split_mean_perturbation) &
+            x=a_vert_mass(layer)+b_vert_mass(layer)*p_0/grav_accel
+       return
+    end if
+    q=transition_nodes(d)%slot(id+1)
+    if(q<1) then
+       write(error_unit,*) 'Missing native transition operand rank/Domain/id ',rank,d,id
+       call die('native transition old operand is unregistered')
+    end if
+    x=transition_data(v,layer,q,family)
+  end function native_transition_field
+
+  subroutine release_native_transition
+    if(transition_phase/=2) call die('native transition close outside epoch')
+    deallocate(transition_nodes,transition_data)
+    transition_generation=-1_int64
+    transition_phase=0
+  end subroutine release_native_transition
+
+  subroutine prepare_native_transition_mask
+    if(.not.native_transition_ready()) call die('native adaptation mask entry')
+    call prepare_native_inverse(transition_generation,first_level=level_start,profile=.false., &
+         field_first=zmin,field_count=zlevels-zmin+1,transition_entry=.true.)
+  end subroutine prepare_native_transition_mask
+
+  subroutine refresh_native_transition_mask
+    integer::c,p,d,id,q
+    if(.not.native_transition_ready()) call die('native adaptation mask refresh epoch')
+    do c=1,2
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_WAV_COEFF,level_start,level_end)
+    end do
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p);q=transition_nodes(d)%slot(id+1)
+       if(q<1) call die('native mask transition closure')
+       transition_data(:,:,q,2)=value(:,:,p,2)
+    end do
+  end subroutine refresh_native_transition_mask
+
+  subroutine native_adaptation_reconstruct(generation)
+    integer(int64),intent(in)::generation
+    integer::c,k,l,d,v,q
+    if(generation<=transition_generation) call die('native adaptation generation did not advance')
+    call prepare_native_inverse(generation,first_level=level_start,profile=.false., &
+         field_first=zmin,field_count=zlevels-zmin+1,transition_entry=.true.)
+    do c=1,2
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_WAV_COEFF,level_start-1,level_end)
+    end do
+    do k=1,inverse_levels
+       soil_layer=k
+       do l=level_start+1,level_end
+          do d=1,size(grid)
+             soil_domain=d
+             do v=1,nscalar
+                soil_variable=v
+                call apply_onescale_d(soil_compress_scalar,grid(d),l,Z_NULL,0,1)
+             end do
+             call apply_onescale_d(soil_compress_vector,grid(d),l,Z_NULL,0,0)
+          end do
+       end do
+    end do
+    do c=1,2
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_WAV_COEFF,level_start,level_end)
+       call native_inverse_boundary(c,BLOCK_PAYLOAD_SOL,level_start,level_end)
+    end do
+    ! Unlike the canonical atmospheric tape, soil reconstruction also writes
+    ! geometric aliases. Keep the complete legacy walk on native operands.
+    do l=level_start,level_end-1
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             do v=1,nscalar
+                soil_variable=v
+                call apply_interscale_d2(soil_Prolong_scalar,grid(d),l,Z_NULL,0,1)
+             end do
+          end do
+       end do
+       call native_inverse_boundary(1,BLOCK_PAYLOAD_SOL,l+1,l+1)
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             call apply_interscale_d2(soil_Reconstruct_outer_velo,grid(d),l,Z_NULL,0,1)
+             call apply_to_penta_d(soil_Reconstruct_velo_penta,grid(d),l,Z_NULL)
+          end do
+       end do
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             do v=1,nscalar
+                soil_variable=v
+                call apply_interscale_d(soil_Reconstruct_scalar,grid(d),l,Z_NULL,0,0)
+             end do
+          end do
+       end do
+       call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,l+1,l+1)
+       do k=1,inverse_levels
+          soil_layer=k
+          do d=1,size(grid)
+             soil_domain=d
+             call apply_interscale_d(soil_Reconstruct_inner_velo,grid(d),l,Z_NULL,0,0)
+          end do
+       end do
+       if(l<level_end-1) call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,l+1,l+1)
+    end do
+    do q=1,size(consumer_alias_slot)
+       consumer_alias_value(:,:,q)=value(:,:,consumer_alias_slot(q),1)
+    end do
+    do c=1,2
+       call native_inverse_scatter(c,BLOCK_PAYLOAD_SOL,.true.)
+       call native_inverse_scatter(c,BLOCK_PAYLOAD_WAV_COEFF,.true.)
+    end do
+
+    write(*,'(a,i0)') 'Native adaptation reconstruction rank=',rank
+  end subroutine native_adaptation_reconstruct
 
   subroutine publish_native_soil(scaling,wavelet)
     type(Float_Field),intent(inout)::scaling(:,:),wavelet(:,:)

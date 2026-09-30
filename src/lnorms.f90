@@ -1,4 +1,6 @@
 module lnorms_mod
+  use parallel_block_inverse_mod, only: native_transition_ready,native_transition_field
+  use parallel_block_mod, only: BLOCK_PAYLOAD_SOL
 
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, EDGE, N_BDRY, lnorm, S_VELO, &
@@ -16,6 +18,16 @@ module lnorms_mod
   integer :: n_norm
 
 contains
+
+  real(dp) function norm_solution(variable,layer,d,address) result(x)
+    integer,intent(in)::variable,layer,d,address
+    if(native_transition_ready()) then
+       x=native_transition_field(BLOCK_PAYLOAD_SOL,variable,layer,d,address)
+    else
+       x=sol(variable,layer)%data(d)%elts(address)
+    end if
+  end function norm_solution
+
 
   subroutine cal_lnorm (order)
     ! Calculates order = "1", "2", "inf", or "min" norm of all
@@ -117,7 +129,7 @@ contains
        do v = scalars(1), scalars(2)
           lnorm(v,zlev) = lnorm(v,zlev) + abs( &
                sol_mean(v,zlev)%data(d)%elts(id+1) + &
-               sol(v,zlev)%data(d)%elts(id+1))
+               norm_solution(v,zlev,d,id+1))
        end do
     end if
   end subroutine l1_scalar
@@ -141,7 +153,7 @@ contains
           id_e = EDGE*id + e
 
           lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + &
-               abs(sol(S_VELO,zlev)%data(d)%elts(id_e))
+               abs(norm_solution(S_VELO,zlev,d,id_e))
        end do
     end if
   end subroutine l1_velo
@@ -164,7 +176,7 @@ contains
        do v = scalars(1), scalars(2)
           lnorm(v,zlev) = lnorm(v,zlev) + ( &
                sol_mean(v,zlev)%data(d)%elts(id+1) + &
-               sol(v,zlev)%data(d)%elts(id+1))**2
+               norm_solution(v,zlev,d,id+1))**2
        end do
     end if
   end subroutine l2_scalar
@@ -188,7 +200,7 @@ contains
           id_e = EDGE*id + e
 
           lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + &
-               sol(S_VELO,zlev)%data(d)%elts(id_e)**2
+               norm_solution(S_VELO,zlev,d,id_e)**2
        end do
     end if
   end subroutine l2_velo
@@ -213,7 +225,7 @@ contains
                lnorm(v,zlev), &
                abs( &
                     sol_mean(v,zlev)%data(d)%elts(id+1) + &
-                    sol(v,zlev)%data(d)%elts(id+1)))
+                    norm_solution(v,zlev,d,id+1)))
        end do
     end if
   end subroutine linf_scalar
@@ -237,7 +249,7 @@ contains
           lnorm(v,zlev) = min( &
                lnorm(v,zlev), &
                sol_mean(v,zlev)%data(d)%elts(id+1) + &
-               sol(v,zlev)%data(d)%elts(id+1))
+               norm_solution(v,zlev,d,id+1))
        end do
     end if
   end subroutine lmin_scalar
@@ -262,7 +274,7 @@ contains
 
           lnorm(S_VELO,zlev) = max( &
                lnorm(S_VELO,zlev), &
-               abs(sol(S_VELO,zlev)%data(d)%elts(id_e)))
+               abs(norm_solution(S_VELO,zlev,d,id_e)))
        end do
     end if
   end subroutine linf_velo
@@ -287,7 +299,7 @@ contains
 
           lnorm(S_VELO,zlev) = min( &
                lnorm(S_VELO,zlev), &
-               sol(S_VELO,zlev)%data(d)%elts(id_e))
+               norm_solution(S_VELO,zlev,d,id_e))
        end do
     end if
   end subroutine lmin_velo

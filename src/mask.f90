@@ -1,4 +1,6 @@
 module mask_mod
+  use parallel_block_inverse_mod, only: native_transition_ready,native_transition_field,refresh_native_transition_mask
+  use parallel_block_mod, only: BLOCK_PAYLOAD_WAV_COEFF
   ! Module containing routines that define masks on adaptive grid.
   ! (required by adapt_mod and refine_patch_mod)
 
@@ -46,7 +48,11 @@ contains
     if (present(block_seed_installed)) use_block_seed = &
          block_seed_installed
 
-    call update_bdry1 (wav_coeff, level_start, level_end, 910)
+    if(native_transition_ready()) then
+       call refresh_native_transition_mask
+    else
+       call update_bdry1 (wav_coeff, level_start, level_end, 910)
+    end if
 
     ! Set active grid at finest scale.  Compact decisions own patch
     ! interiors; retain the established operator only for boundary aliases.
@@ -185,7 +191,11 @@ contains
     active = .false.
     do k = 1, zlevels
        do v = scalars(1), scalars(2)
+          if(native_transition_ready()) then
+             wc=native_transition_field(BLOCK_PAYLOAD_WAV_COEFF,v,k,d,id_i)
+          else
           wc = wav_coeff(v,k)%data(d)%elts(id_i)
+          end if
           
           if (abs (wc) >= threshold(v,k) .or. l < level_fill) active = .true.
        end do
@@ -203,7 +213,11 @@ contains
 
        active = .false.
        do k = 1, zlevels
+          if(native_transition_ready()) then
+             wc=native_transition_field(BLOCK_PAYLOAD_WAV_COEFF,S_VELO,k,d,id_e)
+          else
           wc = wav_coeff(S_VELO,k)%data(d)%elts(id_e)
+          end if
           
           if (abs (wc) >= threshold(S_VELO,k) .or. l < level_fill) active = .true.
        end do

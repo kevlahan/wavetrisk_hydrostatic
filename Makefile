@@ -700,3 +700,18 @@ endif
 ifeq ($(SOIL_NATIVE),check)
 FFLAGS += -DSOIL_NATIVE_ORACLE
 endif
+
+# Native numerical topology transition; old/off paths remain available.
+ADAPT_NATIVE ?= off
+ifneq ($(filter $(ADAPT_NATIVE),on check),)
+ifeq ($(filter $(SOIL_NATIVE),on check),)
+$(error ADAPT_NATIVE requires SOIL_NATIVE=on/check)
+endif
+FFLAGS += -DADAPT_NATIVE
+endif
+ifeq ($(ADAPT_NATIVE),check)
+FFLAGS += -DADAPT_NATIVE_ORACLE
+endif
+$(BUILD_DIR)/mask.o $(BUILD_DIR)/parallel_block_build.o: $(BUILD_DIR)/parallel_block_inverse.o
+
+$(BUILD_DIR)/lnorms.o: $(BUILD_DIR)/parallel_block_inverse.o

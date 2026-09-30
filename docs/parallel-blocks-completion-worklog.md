@@ -277,3 +277,139 @@ owner-readback4, owner-readback41, then corrected full poison, then final review
 No solver source edits; all fresh candidate hashes remain frozen. Fresh243b normal
 full4/full41, control, exact oracle, epoch/range/alias faults already PASS.
 Do NOT accept/commit until these remaining cases and reviewer actually pass.
+
+
+## Stage244 — active, not accepted
+
+Stage243 commits574fcbed/b636e2f5 passed ten cases; tracked manifest now binds
+immutable detailed files by hash instead of duplicating millions of counters.
+
+Native adaptation implementation added under ADAPT_NATIVE=on/check. Captures
+post-physics canonical values and consumer alias versions before soil; appends
+soil native result; compiles full-range temporary transition workspace. Scaffold
+mask uses pre-refresh coefficients, boundary mask refreshes native coefficients.
+All28 build-source prognostic/WAV reads use selected provider; old-node gaps fail
+closed and new-node defaults match compressible unsplit extend_Domain. Analytic
+reference initialization still uses Domain means/topography. Post-build fullrange
+compression/inverse reuse qualified geometric soil kernels. Native retained
+boundary state replaces Domain boundary imports. Numerical transition storage
+is released after reconstruction/lifecycle close. Compatibility publication still
+serves next-step alias import/output/remap consumers: migration NOT complete.
+
+attempt1 .stage244-validation compiled and ALL4 exact adaptation comparisons
+passed, then failed old ghost pre-install equality (ghosts legitimately stale).
+attempt2 adds optional verify_previous; native retainer skips only pre-exchange
+comparison, preserving poison/install/readback tests. Lifecycle closes after
+native reconstruction. Frozen attempt2 compiled. Active run47205 exact one-step
+oracle writes /tmp/run244b.log and .stage244-validation/oracle-attempt2.
+Source edited AFTER attempt2 freeze: lnorms now selects native solution provider
+while transition open, needed for dynamic thresholds; Make dependency added.
+Thus fresh candidate required before final qualification. Off/default paths remain.
+No stage244 commit or acceptance yet; prior frozen candidates untouched.
+
+Stage244 attempt2 exact one-step PASSED including all4 native/legacy adaptation
+comparisons and post-install ghost validation. /tmp/run244b.log completed.
+First final candidate (.stage244-validation/candidate) native and production
+compiled, but control failed unused private capture routines under -Werror.
+Fixed by #ifdef ADAPT_NATIVE around the two capture routines; no arithmetic change.
+Fresh candidate2 building control/native/production sequentially, session89916,
+/tmp/build244candidate2.log. Control/native binaries built so far; production
+pending. Helpers qualification/reviewer point to candidate2 (verify before launch).
+All Stage244 source now frozen awaiting9 cases: control4, oracle4, fullprod4/41,
+staleepoch, stalegeneration, full Domain poison, ownerreadback4/41. Helpers parse;
+15-kernel audit PASS with new Stage244 artifact. Candidate2 reviewer not yet run.
+
+Next lifecycle audit saved in /tmp/native245-plan.txt. Includes pre-RK boundary,
+remap pre/post imports and polar numerical update, initial alias capture, cpt_dt
+(which is currently entirely Domain numeric), mass diagnostics, output alias
+mutation and checkpoint coarserestriction + immediate restart. Native full-range
+workspace after244 reconstruct can feed these; temporary alias pack bridges next
+atmospheric plan rebuild. Need explicit bootstrap fullrange adapter after restart.
+No stage245 source edits applied. Do not claim implementation complete.
+
+Stage244 candidate2 all THREE builds PASSED (session89916 completed). Qualification
+session71093 ENDED NONZERO: control4/oracle4 pass; fullproduction4 first TWO states
+exact, then fails closed atstep3: missing old transition operand rank1/localDomain6/
+node2061. Failed outputs preserved. No full41/fault/poison cases launched yet.
+Diagnostic injection running session74251 via /tmp/diagnose244.py, outputs
+.stage244-validation/missing-node-diagnostic and /tmp/diagnose244.log. It augments
+missing-node error with native key, family/variable/layer, mask/level/old/newlength,
+and legacy value/defaultmass; frozen/live solver source UNCHANGED. Await diagnosis.
+Likely canonical stored node not registered as an operator dependency: map_patch
+sets nodes%key but does NOT node_slot every interior, whereas sourcebuilder copies
+whole patches. collect_boundaries already registers all old compact boundary nodes.
+If diagnostic keypositive, extend ADAPT_NATIVE metadata closure to all canonical
+old patch nodes before plan construction, and gather exact native owners; NEVER
+fallback to Domain/default for a missing old operand. If keyzero, investigate
+boundary lifetime separately. First2 states verified exact with analyze.py.
+
+Unapplied Stage245 draft /tmp/draft245_inverse.py generates
+/tmp/parallel_block_inverse245.f90 + originSHA; API text /tmp/native245-lifecycle.f90.inc.
+Adds fullrange bootstrap/alias bridge, lifecycle getters, optional vertical range
+in alias transfers. NOT APPLIED/COMPILED; needs main/remap/diagnostics integration
+and extensive review per /tmp/native245-plan.txt. Generator continuation parser was
+corrected, but future source244 edits mean regenerate/check origin before reuse.
+Do not resume245 until244 accepted. No other solver/build jobs active beyond74251.
+
+Diagnostic74251 completed: missingnode key[0,0,0,0], familySOL/scalarmass/layer-10,
+oldlength2573 ->2629, mask0/level6. Followup diagnostic2 failed compile due test
+insertion overlongimport; corrected diagnostic3 session38445 completed: boundary
+index79/start2061/side0/neigh0; ALL12 native slots absent. Thus retired temporary
+boundary storage, NOT canonical. No arbitrary default fallback was introduced.
+
+Added ADAPT_NATIVE integer closure registration of COMPLETE canonical patches and
+all allocated boundary storage units (including retired side0). Native aliases
+retain exact existing values through current input adapter; later sourcebuilder
+can copy full boundary units. Current compact metadata collects only referenced
+boundaries, insufficient for later offset closure; broader explicitaliasstorage
+is necessary. Initial alias adapter removal remains Stage245 work.
+
+Fresh candidate3 production build PASSED; active FULL4 run session53057,
+/tmp/run244candidate3.log, .stage244-validation/production3-4. First3 states exact,
+including formerly failing transition. Wait complete12steps/output/checkpoint gate.
+Then build native/control into SAME candidate3 (sources frozen; helper supports
+adding variants), run remaining qualification. Helpers now pointcandidate3 and
+control3-4/oracle3-4/production3-{4,41}; qualify skips existing production3-4 only
+if completed status/12steps/binaryhash pass. Reviewer requires all9cases. Stage244
+NOT accepted/committed. No additional solver/build jobs currently active.
+
+New audit in /tmp/native245-plan.txt records a remaining RK vector coefficient
+carrier: native vectorflatstage -> DomainWAV -> import_domain_field_family ->native
+compression -> Domainwriteback ->inversealiasseed. Must remove this too before
+mirror cleanup. See precise callsite plan; NOT implemented. Don't claim complete.
+
+
+Candidate3 FULL4 passed12 exactstates,2remaps,checkpoint numerical gate,62exactVTK.
+Added native/control builds to same frozen tree (session76005 completedPASS).
+Active qualifier85522 /tmp/qualify244candidate3.log: control3-4 PASS; oracle3-4
+running, then skipalreadyacceptedproduction3-4, full41 and five injectedchecks.
+Do not run another solver/build concurrently. Reviewer still notrun/accepted.
+
+Stage245 additional UNAPPLIED generator /tmp/draft245_integration.py outputs
+/tmp/main245.f90, /tmp/remap245.f90, /tmp/parallel_block_mpi245.f90 with originSHAs.
+Inverse generator regenerated againstcandidate3 source, now has outputaliasadapter
+API including keyzero plus canonical alias-destination slots. Nonecompiled/applied.
+Known review needed: optional remap oracle does extra boundaryrefresh909 before
+writeback and910 afterward; draft postremap full comparison needs exactphase
+alignment. No Domain numericalmirror removal or RKcoeffcarrier changes in245draft.
+
+Full41 has finished12steps through0.3308day; helper validation pending at latest
+inspection (qualifier85522 still active). Added optional --oracles to Stage244
+run_adaptation helper so we can ALSO test expanded alias coverage with the complete
+independent RK/physics oracles, not only adaptation/soil checks. Reason: registration
+occurs before original_inverse_nodes, which participates in RK low-scaffold update
+and comparison coverage. This is a specific new closure concern, not broad retesting.
+After85522 finishes, add oraclevariant to candidate3 and run rk-oracle3-4 with
+--oracles --checks before acceptance; update reviewer to requirethis tenthcase.
+Don't build concurrently with the running solver. Current saved qualifier still
+has original9cases; extraoracle manualfollowup notyetexecuted.
+
+Candidate3 FULL41 PASS:12exactstates,2remaps,62VTK/checkpoint validation (qualifier
+printedPASS). Epoch/generation faulttests PASS. Full Domainpoison running under
+85522; ownerreadback4/41 follow. Final reviewer updated to require TENcases and
+fourbuilds, including rk-oracle3-4 (independent fullRK+physics oracle;16exact RKalias
+markers). Saved qualifier now includes this extraoracle forfuture reproduction,
+but RUNNING85522 loaded old9-case list: afteritfinishes manually buildvariantoracle
+and run rk-oracle3-4 with --oracles --checks, thenreview. Mustn't accept earlier.
+
+Stage244 accepted: all ten cases and final source-bound reviewer PASS, including full independent RK oracle. See handoff244 and results manifest. Continuing lifecycle and storage cleanup; no bbserv run.
