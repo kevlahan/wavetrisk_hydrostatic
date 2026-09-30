@@ -73,6 +73,12 @@ module physics_simple_mod
   logical :: owner_package_started=.false.
   integer(int64) :: owner_executed=0,owner_remote=0,owner_scaffold=0,owner_checks=0
 #endif
+#ifdef PHYSICS_OWNER_BATCH
+  integer :: batch_phase=0,batch_waves=0
+  integer,allocatable :: batch_header(:,:)
+  real(sp),allocatable :: batch_packet(:,:),batch_return_packet(:,:)
+  real(dp),allocatable :: batch_input(:,:),batch_return(:,:)
+#endif
   real(sp) :: phys_dt
 contains
   subroutine physics_simple_step (h)
@@ -82,7 +88,10 @@ contains
 #ifdef PHYSICS_COLUMN_LOCAL
     integer :: d,p
 #ifdef PHYSICS_OWNER
-    integer :: source,destination,ierr,header(OWNER_HEADER),b
+    integer :: b
+#ifndef PHYSICS_OWNER_BATCH
+    integer :: source,destination,ierr,header(OWNER_HEADER)
+#endif
 #endif
 #endif
     
@@ -141,6 +150,35 @@ contains
 #endif
     ! Compute Simple Physics split step on all columns
 #ifdef PHYSICS_OWNER
+#ifdef PHYSICS_OWNER_BATCH
+    allocate(batch_header(OWNER_HEADER,planned_columns),batch_packet(8*zlevels+Nsoil+8,planned_columns), &
+         batch_input(10*zlevels+15,planned_columns))
+    batch_phase=1
+    call apply_no_bdry2(physics_call,z_null)
+    call execute_physics_batch
+    consumed_columns=0
+    do d=1,size(grid)
+       velocity_plan_by_domain(d)%version=0
+    end do
+#ifdef PHYSICS_OWNER_BATCH_ORACLE
+#ifdef PHYSICS_COLUMN_ORACLE
+    ! Queue packing consumed the legacy hydrostatic scratch. Replay starts
+    ! from the same surface pressure and geopotential as the independent pass.
+    call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
+#endif
+    batch_phase=3
+    column_count=0;layer_checks=0;velocity_checks=0
+    do d=1,size(grid)
+       column_visits(d)%seen=0
+    end do
+#else
+    batch_phase=2
+#endif
+    call apply_no_bdry2(physics_call,z_null)
+    batch_phase=0
+    deallocate(batch_header,batch_packet,batch_input,batch_return,batch_return_packet)
+    write(*,'(a,i0,a,i0)') 'Physics dependency waves rank=',rank,' waves=',batch_waves
+#else
     ! Only one geometry source advances at a time. Every other rank services
     ! requests, including ranks with no Domains. A reply precedes the next
     ! dependent gather; neither entry aliases nor pending wavelets are refreshed.
@@ -159,6 +197,7 @@ contains
        call MPI_Barrier(comm,ierr)
        call check_owner_mpi(ierr)
     end do
+#endif
     write(*,'(a,i0,a,4(1x,i0))') 'Physics owner rank=',rank, &
          ' executed/remote/scaffold/checks=',owner_executed,owner_remote,owner_scaffold,owner_checks
     deallocate(last_owner_column)
@@ -250,6 +289,7 @@ contains
     if(ierr/=MPI_SUCCESS) error stop "physics owner MPI failure"
   end subroutine
 
+#ifndef PHYSICS_OWNER_BATCH
   subroutine receive_owner_header(source,header)
     integer,intent(in)::source
     integer,intent(out)::header(OWNER_HEADER)
@@ -261,6 +301,8 @@ contains
     call check_owner_mpi(ierr)
     if(n/=OWNER_HEADER) error stop "physics owner header extent mismatch"
   end subroutine
+
+#endif
 
   subroutine execute_owner_packet(header,packet)
     integer,intent(in)::header(OWNER_HEADER)
@@ -315,6 +357,7 @@ contains
     last_owner_column(source+1)=header(6)
   end subroutine validate_owner_request
 
+#ifndef PHYSICS_OWNER_BATCH
   subroutine serve_physics_owner(source)
     integer,intent(in)::source
     integer::header(OWNER_HEADER),ierr,n
@@ -337,6 +380,7 @@ contains
        call check_owner_mpi(ierr)
     end do
   end subroutine serve_physics_owner
+#endif
 
   subroutine dispatch_physics_owner(d,p,id,mask,latitude,longitude,day,fraction, &
        play,pint,phi,phisurf,umag,u,v,w,theta,soil)
@@ -344,6 +388,10 @@ contains
     real(sp),intent(in)::latitude,longitude,day,fraction,play(:),pint(0:),phi(:),phisurf(:),umag(:)
     real(sp),intent(inout)::u(:),v(:),w(:),theta(:),soil(:)
     integer::header(OWNER_HEADER),reply(OWNER_HEADER),destination,b,ierr,n,count_received
+#ifdef PHYSICS_OWNER_BATCH
+    integer::k,slot,edges(6)
+    real(dp)::expected(4*zlevels+Nsoil+1)
+#endif
     real(sp)::packet(8*zlevels+Nsoil+8)
 #ifdef PHYSICS_OWNER_ORACLE
     real(sp)::reference(size(packet))
@@ -360,6 +408,40 @@ contains
     packet=[play,pint,phi,umag,u,v,w,theta,phisurf,soil,latitude,longitude,day,fraction,phys_dt]
 #ifdef PHYSICS_OWNER_ORACLE
     reference=packet
+#endif
+#ifdef PHYSICS_OWNER_BATCH
+    slot=consumed_columns
+    if(batch_phase==1) then
+       batch_header(:,slot)=header
+       batch_packet(:,slot)=packet
+       edges=velocity_plan_by_domain(d)%edges(:,id)
+       do k=1,n
+          batch_input(6*(k-1)+1:6*k,slot)=sol(S_VELO,k)%data(d)%elts(edges)
+          batch_input(6*n+k,slot)=sol(S_MASS,k)%data(d)%elts(id)
+          batch_input(7*n+k,slot)=sol_mean(S_MASS,k)%data(d)%elts(id)
+          batch_input(8*n+k,slot)=sol(S_TEMP,k)%data(d)%elts(id)
+          batch_input(9*n+k,slot)=sol_mean(S_TEMP,k)%data(d)%elts(id)
+       end do
+       batch_input(10*n+1:10*n+6,slot)=grid(d)%len%elts(edges)
+       batch_input(10*n+7:10*n+12,slot)=grid(d)%pedlen%elts(edges)
+       batch_input(10*n+13,slot)=grid(d)%areas%elts(id)%hex_inv
+       batch_input(10*n+14,slot)=real(column_visits(d)%surface(id),dp)
+       batch_input(10*n+15,slot)=surf_geopot(d,id)
+       return
+    else if(batch_phase==3) then
+       call execute_owner_packet(header,packet)
+       if(any(transfer(packet,[0],size(packet))/= &
+            transfer(batch_return_packet(:,slot),[0],size(packet)))) error stop "physics batch independent packet mismatch"
+       call physics_batch_result(packet,batch_input(:,slot),expected)
+       if(any(transfer(expected,[0_int64],size(expected))/= &
+            transfer(batch_return(:,slot),[0_int64],size(expected)))) error stop "physics batch independent state mismatch"
+       owner_checks=owner_checks+1
+       u=packet(4*n+2:5*n+1);v=packet(5*n+2:6*n+1);w=packet(6*n+2:7*n+1)
+       theta=packet(7*n+2:8*n+1);soil=packet(8*n+3:8*n+Nsoil+3)
+       return
+    else
+       error stop "physics batch phase invalid"
+    end if
 #endif
     destination=rank
     if(b>0) destination=block_catalog(b)%owner
@@ -396,6 +478,208 @@ contains
     u=packet(4*n+2:5*n+1);v=packet(5*n+2:6*n+1);w=packet(6*n+2:7*n+1)
     theta=packet(7*n+2:8*n+1);soil=packet(8*n+3:8*n+Nsoil+3)
   end subroutine dispatch_physics_owner
+#endif
+
+#ifdef PHYSICS_OWNER_BATCH
+  subroutine batch_displacements(counts,displacements)
+    integer,intent(in)::counts(:)
+    integer,intent(out)::displacements(size(counts))
+    integer::r
+    displacements(1)=0
+    do r=2,size(counts)
+       displacements(r)=displacements(r-1)+counts(r-1)
+    end do
+  end subroutine
+
+  subroutine prepare_physics_batch_packet(q,x)
+    real(sp),intent(inout)::q(:)
+    real(dp),intent(in)::x(:)
+    real(dp)::surface,lower,geopot,pressure,exner_value,geopot_lower,rho,ke
+    integer::n,k,visit
+    n=zlevels;surface=0.0_dp
+    do k=1,n
+       do visit=1,nint(x(10*n+14))
+          surface=surface+(x(7*n+k)+x(6*n+k))
+       end do
+    end do
+    lower=grav_accel*surface+p_top;geopot=x(10*n+15)
+    q(n+1)=real(lower,sp)
+    do k=1,n
+       call pressure_layer(x(6*n+k),x(7*n+k),x(8*n+k),x(9*n+k),grav_accel,c_p,p_0,kappa, &
+            lower,geopot,pressure,exner_value,geopot_lower)
+       q(k)=real(pressure,sp);q(n+1+k)=real(lower,sp)
+       q(2*n+1+k)=real(interp(geopot_lower,geopot),sp)
+       ke=physics_kinetic_energy(x(6*(k-1)+1:6*k),x(10*n+1:10*n+6),x(10*n+7:10*n+12),x(10*n+13))
+       q(3*n+1+k)=real(sqrt(2*ke),sp)
+       q(4*n+1+k)=real(x(6*(k-1)+3),sp)
+       q(5*n+1+k)=real(x(6*(k-1)+2),sp)
+       q(6*n+1+k)=real(x(6*(k-1)+1),sp)
+       rho=x(6*n+k)+x(7*n+k)
+       q(7*n+1+k)=real((x(8*n+k)+x(9*n+k))/rho,sp)
+    end do
+  end subroutine
+
+  subroutine physics_batch_result(q,x,result)
+    real(sp),intent(in)::q(:)
+    real(dp),intent(in)::x(:)
+    real(dp),intent(out)::result(:)
+    integer::n,k
+    n=zlevels
+    do k=1,n
+       result(3*(k-1)+1:3*k)=real([q(4*n+1+k),q(5*n+1+k),q(6*n+1+k)],dp)
+       result(3*n+k)=(x(6*n+k)+x(7*n+k))*real(q(7*n+1+k),dp)-x(9*n+k)
+    end do
+    result(4*n+1:4*n+Nsoil+1)=real(q(8*n+3:8*n+Nsoil+3),dp)
+  end subroutine
+
+  subroutine execute_physics_batch
+    ! Global storage below is integer topology only. Numerical columns live on
+    ! their execution owners. Exchanges carry only referenced predecessor edges.
+    integer::nl,ng,nj,np,nr,no,n,ierr,r,g,l,b,s,parent,e,ne,round,pos,j,t,component,sender
+    integer,allocatable::gc(:),gd(:),sc(:),sd(:),rc(:),rd(:),cursor(:),perm(:),si(:),gi(:)
+    integer,allocatable::h(:,:),source(:),destination(:),depth(:),slot(:),seen(:,:)
+    integer,allocatable::head(:),next(:),target(:),edge_slot(:),producer(:),es(:),er(:)
+    integer,allocatable::ec(:),ed(:),fc(:),fd(:)
+    real(sp),allocatable::qs(:,:),q(:,:),qb(:,:)
+    real(dp),allocatable::xs(:,:),x(:,:),vs(:,:),vr(:,:),result(:,:),back(:,:)
+    logical,allocatable::done(:)
+    n=zlevels;nl=planned_columns;np=8*n+Nsoil+8;nr=10*n+15;no=4*n+Nsoil+1
+    allocate(gc(n_process),gd(n_process),sc(n_process),sd(n_process),rc(n_process),rd(n_process),cursor(n_process))
+    call MPI_Allgather(nl,1,MPI_INTEGER,gc,1,MPI_INTEGER,comm,ierr)
+    call check_owner_mpi(ierr)
+    call batch_displacements(gc,gd);ng=sum(gc)
+    allocate(h(OWNER_HEADER,ng),source(ng),destination(ng),depth(ng),slot(ng),head(ng))
+    allocate(next(6*ng),target(6*ng),edge_slot(6*ng),producer(6*ng))
+    call MPI_Allgatherv(batch_header,OWNER_HEADER*nl,MPI_INTEGER,h,gc*OWNER_HEADER,gd*OWNER_HEADER, &
+         MPI_INTEGER,comm,ierr)
+    call check_owner_mpi(ierr)
+    do r=1,n_process
+       source(gd(r)+1:gd(r)+gc(r))=r-1
+    end do
+    head=0;depth=1;slot=0;ne=0
+    do g=1,ng
+       r=source(g)+1;b=h(2,g)
+       if(h(6,g)/=g-gd(r)) error stop "physics batch ordinal mismatch"
+       if(h(3,g)<0.or.h(3,g)>=size(owner)) error stop "physics batch invalid Domain"
+       if(owner(h(3,g)+1)/=r-1) error stop "physics batch source rank mismatch"
+       if(b<0.or.b>size(block_catalog)) error stop "physics batch invalid block"
+       destination(g)=r-1
+       if(b>0) then
+          if(block_catalog(b)%root_domain/=h(3,g)) error stop "physics batch block Domain mismatch"
+          destination(g)=block_catalog(b)%owner
+       end if
+       do s=1,6
+          if(h(8+s,g)<0.or.h(8+s,g)>=h(6,g)) error stop "physics batch invalid source version"
+          if(h(8+s,g)==0) cycle
+          parent=gd(r)+h(8+s,g)
+          if(h(3,parent)/=h(3,g).or.h(5,parent)/=h(14+s,g).or.h(2,parent)/=h(20+s,g)) &
+               error stop "physics batch predecessor identity mismatch"
+          depth(g)=max(depth(g),depth(parent)+1)
+          ne=ne+1;next(ne)=head(parent);head(parent)=ne
+          target(ne)=g;edge_slot(ne)=s;producer(ne)=parent
+       end do
+    end do
+    batch_waves=0
+    if(ng>0) batch_waves=maxval(depth)
+    sc=0
+    do l=1,nl
+       g=gd(rank+1)+l;r=destination(g)+1;sc(r)=sc(r)+1
+    end do
+    call batch_displacements(sc,sd);cursor=sd
+    allocate(perm(nl),si(nl),qs(np,nl),xs(nr,nl))
+    do l=1,nl
+       g=gd(rank+1)+l;r=destination(g)+1;cursor(r)=cursor(r)+1;pos=cursor(r)
+       perm(pos)=l;si(pos)=g;qs(:,pos)=batch_packet(:,l);xs(:,pos)=batch_input(:,l)
+    end do
+    call MPI_Alltoall(sc,1,MPI_INTEGER,rc,1,MPI_INTEGER,comm,ierr)
+    call check_owner_mpi(ierr)
+    call batch_displacements(rc,rd);nj=sum(rc)
+    allocate(gi(nj),q(np,nj),x(nr,nj),seen(6,nj),done(nj))
+    seen=0;done=.false.
+    call MPI_Alltoallv(si,sc,sd,MPI_INTEGER,gi,rc,rd,MPI_INTEGER,comm,ierr)
+    call check_owner_mpi(ierr)
+    call MPI_Alltoallv(qs,sc*np,sd*np,MPI_REAL,q,rc*np,rd*np,MPI_REAL,comm,ierr)
+    call check_owner_mpi(ierr)
+    call MPI_Alltoallv(xs,sc*nr,sd*nr,MPI_DOUBLE_PRECISION,x,rc*nr,rd*nr,MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_owner_mpi(ierr)
+    do l=1,nj
+       g=gi(l)
+       if(g<1.or.g>ng) error stop "physics batch received invalid column"
+       if(destination(g)/=rank.or.slot(g)/=0) error stop "physics batch destination or duplicate mismatch"
+       slot(g)=l
+    end do
+    deallocate(qs,xs)
+    allocate(ec(n_process),ed(n_process),fc(n_process),fd(n_process))
+    do round=1,batch_waves
+       ec=0
+       do l=1,nj
+          g=gi(l)
+          if(depth(g)/=round) cycle
+          if(done(l).or.any(seen(:,l)/=h(9:14,g))) error stop "physics batch source epoch not ready"
+          call prepare_physics_batch_packet(q(:,l),x(:,l))
+          call execute_owner_packet(h(:,g),q(:,l))
+          done(l)=.true.
+          if(h(2,g)==0) then
+             owner_scaffold=owner_scaffold+1
+          else
+             owner_executed=owner_executed+1
+             if(source(g)/=rank) owner_remote=owner_remote+1
+          end if
+          e=head(g)
+          do while(e>0)
+             r=destination(target(e))+1;ec(r)=ec(r)+1;e=next(e)
+          end do
+       end do
+       call batch_displacements(ec,ed);cursor=ed
+       allocate(es(sum(ec)),vs(n,sum(ec)))
+       do l=1,nj
+          g=gi(l)
+          if(depth(g)/=round) cycle
+          e=head(g)
+          do while(e>0)
+             r=destination(target(e))+1;cursor(r)=cursor(r)+1;pos=cursor(r);es(pos)=e
+             component=4-mod(edge_slot(e)-1,3) ! UP->W, DG->V, RT->U packet offset multiplier
+             vs(:,pos)=real(q((component+2)*n+2:(component+3)*n+1,l),dp)
+             e=next(e)
+          end do
+       end do
+       call MPI_Alltoall(ec,1,MPI_INTEGER,fc,1,MPI_INTEGER,comm,ierr)
+       call check_owner_mpi(ierr)
+       call batch_displacements(fc,fd)
+       allocate(er(sum(fc)),vr(n,sum(fc)))
+       call MPI_Alltoallv(es,ec,ed,MPI_INTEGER,er,fc,fd,MPI_INTEGER,comm,ierr)
+       call check_owner_mpi(ierr)
+       call MPI_Alltoallv(vs,ec*n,ed*n,MPI_DOUBLE_PRECISION,vr,fc*n,fd*n,MPI_DOUBLE_PRECISION,comm,ierr)
+       call check_owner_mpi(ierr)
+       do sender=1,n_process
+          do pos=fd(sender)+1,fd(sender)+fc(sender)
+             e=er(pos)
+             if(e<1.or.e>ne) error stop "physics batch invalid dependency edge"
+             g=target(e);s=edge_slot(e);parent=producer(e);t=slot(g)
+             if(t<1.or.destination(parent)/=sender-1) error stop "physics batch dependency route mismatch"
+             if(done(t).or.seen(s,t)/=0.or.depth(parent)/=round) error stop "physics batch duplicate or stale edge"
+             do j=1,n
+                x(6*(j-1)+s,t)=vr(j,pos)
+             end do
+             seen(s,t)=h(6,parent)
+          end do
+       end do
+       deallocate(es,er,vs,vr)
+    end do
+    if(.not.all(done)) error stop "physics batch incomplete consumption"
+    allocate(result(no,nj),back(no,nl),qb(np,nl))
+    do l=1,nj
+       call physics_batch_result(q(:,l),x(:,l),result(:,l))
+    end do
+    call MPI_Alltoallv(result,rc*no,rd*no,MPI_DOUBLE_PRECISION,back,sc*no,sd*no,MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_owner_mpi(ierr)
+    call MPI_Alltoallv(q,rc*np,rd*np,MPI_REAL,qb,sc*np,sd*np,MPI_REAL,comm,ierr)
+    call check_owner_mpi(ierr)
+    allocate(batch_return(no,nl),batch_return_packet(np,nl))
+    do pos=1,nl
+       batch_return(:,perm(pos))=back(:,pos);batch_return_packet(:,perm(pos))=qb(:,pos)
+    end do
+  end subroutine execute_physics_batch
 #endif
 
   subroutine Rayleigh_friction (dom, i, j, zlev, offs, dims)
@@ -496,9 +780,29 @@ contains
     consumed_columns=consumed_columns+1
     associate(plan=>velocity_plan_by_domain(d))
       if(plan%ordinal(id_i)/=consumed_columns) error stop "physics velocity consumer order mismatch"
+#ifdef PHYSICS_OWNER_BATCH
+      if(batch_phase/=1) then
+#endif
       if(any(plan%version(plan%sources(:,id_i))/=plan%expected(:,id_i))) &
            error stop "physics velocity source version mismatch"
+#ifdef PHYSICS_OWNER_BATCH
+      end if
+#endif
     end associate
+#endif
+#ifdef PHYSICS_OWNER_BATCH
+    if(batch_phase==2) then
+       do k=1,zlevels
+          if(is_pole/=1) sol(S_VELO,k)%data(d)%elts(id_edge(id))= &
+               batch_return(3*(k-1)+1:3*k,consumed_columns)
+          sol(S_TEMP,k)%data(d)%elts(id_i)=batch_return(3*zlevels+k,consumed_columns)
+       end do
+       do k=zmin,0
+          sol(S_TEMP,k)%data(d)%elts(id_i)=batch_return(4*zlevels+abs(k)+1,consumed_columns)
+       end do
+       if(is_pole/=1) velocity_plan_by_domain(d)%version(id_i)=consumed_columns
+       return
+    end if
 #endif
     ! Save prognostic variables in physics data structure
     call pack_physics_vars
@@ -529,6 +833,9 @@ contains
 
 #endif
 
+#ifdef PHYSICS_OWNER_BATCH
+    if(batch_phase==1) return
+#endif
     ! Assign solution at t+h
     do k = 1, zlevels
        if (is_pole /= 1) sol(S_VELO,k)%data(d)%elts(id_edge(id)) = real ((/ phys_U(k), phys_V(k), phys_W(k) /), kind=dp)

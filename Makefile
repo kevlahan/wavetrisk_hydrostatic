@@ -649,3 +649,15 @@ endif
 ifeq ($(PHYSICS_OWNER),check)
 FFLAGS += -DPHYSICS_OWNER_ORACLE
 endif
+
+# Owner-resident physics columns with explicit velocity dependency waves.
+PHYSICS_OWNER_BATCH ?= off
+ifneq ($(filter $(PHYSICS_OWNER_BATCH),on check),)
+ifeq ($(filter $(PHYSICS_OWNER),on check),)
+$(error PHYSICS_OWNER_BATCH requires PHYSICS_OWNER=on/check)
+endif
+FFLAGS += -DPHYSICS_OWNER_BATCH
+endif
+ifeq ($(PHYSICS_OWNER_BATCH),check)
+FFLAGS += -DPHYSICS_OWNER_BATCH_ORACLE
+endif
