@@ -425,6 +425,9 @@ contains
        error stop "native wavelet output requires complete production callbacks"
     end if
 
+#ifdef COEFFICIENT_NATIVE
+    if(.not.native_output.or.block_dynamics_validation_enabled()) &
+#endif
     call zero_float (wavelet)
 
     if (present(l_start0)) then

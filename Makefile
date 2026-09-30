@@ -728,3 +728,11 @@ ifeq ($(LIFECYCLE_NATIVE),check)
 FFLAGS += -DLIFECYCLE_NATIVE_ORACLE
 endif
 $(BUILD_DIR)/remap.o: $(BUILD_DIR)/parallel_block_inverse.o
+
+COEFFICIENT_NATIVE ?= off
+ifneq ($(filter $(COEFFICIENT_NATIVE),on check),)
+ifeq ($(filter $(LIFECYCLE_NATIVE),on check),)
+$(error COEFFICIENT_NATIVE requires LIFECYCLE_NATIVE=on/check)
+endif
+FFLAGS += -DCOEFFICIENT_NATIVE
+endif

@@ -1,5 +1,5 @@
 module parallel_block_mpi_mod
-  use parallel_block_inverse_mod, only: native_lifecycle_field
+  use parallel_block_inverse_mod, only: native_lifecycle_field,install_native_vector_coefficients
   use parallel_block_inverse_mod, only: native_transition_ready,native_transition_field
   use parallel_block_inverse_mod, only: block_rk_enabled,prepare_retained_rk_aliases, &
        finish_retained_rk_boundary,rk_scaffold_operand,rk_mass_alias_operand,retained_rk_cycle_active
@@ -14445,6 +14445,9 @@ end subroutine build_parallel_block_catalog
          domain_wavelet(1:N_VARIABLE,1:zlevels)
 
     integer :: d
+#ifdef COEFFICIENT_NATIVE
+    integer::capacities(size(grid))
+#endif
     integer :: domain_start
     integer :: field_level
     integer :: first_field_level
@@ -14522,6 +14525,14 @@ end subroutine build_parallel_block_catalog
     stage197_coefficients_ready=stage197_resident
     stage197_coefficient_generation=block_writeback_plan_generation
 
+#ifdef COEFFICIENT_NATIVE
+    do d=1,size(grid)
+       capacities(d)=size(sol(v_vector,first_field_level)%data(d)%elts)
+    end do
+    call install_native_vector_coefficients(block_writeback_plan_generation,first_level,first_field_level, &
+         production_vector_transform_displ,capacities,production_vector_wavelet_stage)
+    if(block_dynamics_validation_enabled()) then
+#endif
     do d = 1,size(grid)
        n_edge_value = &
             size(sol(v_vector,first_field_level)%data(d)%elts)
@@ -14544,6 +14555,9 @@ end subroutine build_parallel_block_catalog
           end do
        end do
     end do
+#ifdef COEFFICIENT_NATIVE
+    end if
+#endif
     domain_wavelet%bdry_uptodate = .false.
     production_native_wavelet_output_activated = .true.
 
@@ -14614,9 +14628,11 @@ end subroutine build_parallel_block_catalog
             stage197_coefficient_generation/=block_writeback_plan_generation) &
             call fail("Stage 197 stale resident coefficients")
     end if
+#ifndef COEFFICIENT_NATIVE
     call import_domain_field_family_to_blocks( &
          BLOCK_PAYLOAD_WAV_COEFF, &
          preserve_checkpoint=provisional_transform,vector_only=stage197_resident)
+#endif
     if (validate_oracle) then
        call block_profile_enter(BLOCK_PROFILE_ORACLE)
        call assert_block_domain_field_family_match( &
@@ -14687,6 +14703,10 @@ end subroutine build_parallel_block_catalog
          .not. production_block_wavelet_compression_ready) then
        call fail("native compressed wavelet activation is not ready")
     end if
+    validate_oracle = block_dynamics_validation_enabled()
+#ifdef COEFFICIENT_NATIVE
+    if(validate_oracle) &
+#endif
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
     validate_oracle = block_dynamics_validation_enabled()
@@ -14702,7 +14722,11 @@ end subroutine build_parallel_block_catalog
        call fail("compressed wavelet activation reallocated transport")
     end if
     if (block_domain_production_writeback_count() /= &
+#ifdef COEFFICIENT_NATIVE
+         production_block_compression_writeback_before+merge(1_int64,0_int64,validate_oracle)) then
+#else
          production_block_compression_writeback_before+1_int64) then
+#endif
        call fail("compressed wavelet activation writeback count is invalid")
     end if
 
@@ -15003,7 +15027,11 @@ end subroutine build_parallel_block_catalog
        production_multistage_native_transform_writeback_count = &
             production_multistage_native_transform_writeback_count + &
             block_domain_production_writeback_count()-writeback_before+ &
+#ifdef COEFFICIENT_NATIVE
+            int(merge(0,2,stage197_resident.and..not.validate_oracle),int64)
+#else
             int(merge(1,2,stage197_resident.and..not.validate_oracle),int64)
+#endif
        production_complete_vector_wavelet_validated = .false.
        production_native_wavelet_output_activated = .false.
     end if

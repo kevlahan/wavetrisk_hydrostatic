@@ -123,6 +123,8 @@ module parallel_block_inverse_mod
   integer :: inverse_field_first=1,inverse_levels=0
   logical :: physics_results_ready=.false.
   logical :: lifecycle_ready=.false.
+  logical :: native_coefficients_ready=.false.
+  public :: install_native_vector_coefficients
   type(Node_Map),allocatable :: initial_alias_map(:)
   real(dp),allocatable :: initial_alias_data(:,:,:)
   integer(int64) :: initial_alias_generation=-1_int64
@@ -1052,6 +1054,10 @@ contains
     ! Seed only compatibility/scaffold and pre-existing boundary state once
     ! per transform. Every catalogued interior dependency is replaced below
     ! from the authoritative final owner before any arithmetic or alias copy.
+#ifdef COEFFICIENT_NATIVE
+    if(.not.native_coefficients_ready) call die('native coefficient handoff absent')
+    native_coefficients_ready=.false.
+#else
     do p=1,nnode
        d=node_domain(p)
        id=node_id(p)
@@ -1067,6 +1073,8 @@ contains
           end do
        end do
     end do
+
+#endif
     ! Legacy writeback preserves uncatalogued interior patches from global
     ! sol, NOT from the provisional scaling argument. Keep this fixed input
     ! separate from the pre-boundary seed and apply it at each gather point.
@@ -2887,6 +2895,40 @@ contains
 #endif
     write(*,'(a,i0)') 'Native adaptation reconstruction rank=',rank
   end subroutine native_adaptation_reconstruct
+
+  subroutine install_native_vector_coefficients(generation,first_level,field_first,offsets,capacities,coefficients)
+    integer(int64),intent(in)::generation
+    integer,intent(in)::first_level,field_first,offsets(:),capacities(:)
+    real(dp),intent(in)::coefficients(:)
+    integer::d,patch,id,p,k,e,start,position
+    if(generation/=plan_generation.or.inverse_field_first/=1.or.inverse_levels/=zlevels) &
+         call die('native coefficient handoff generation/range')
+    if(native_coefficients_ready) call die('native coefficient handoff already open')
+    ! The forward driver begins with zero wavelets, including unowned aliases.
+    ! Scalars are already resident on final owners; the inverse gathers them.
+    value(:,:,:,BLOCK_PAYLOAD_WAV_COEFF)=0.0_dp
+    do d=1,size(grid)
+       do patch=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(patch)%deleted) cycle
+          if(grid(d)%patch%elts(patch)%level<=first_level.or. &
+               grid(d)%patch%elts(patch)%level>level_end) cycle
+          start=grid(d)%patch%elts(patch)%elts_start
+          do id=start,start+PATCH_SIZE**2-1
+             p=nodes(d)%slot(id+1)
+             if(p<1) call die('native vector coefficient patch unregistered')
+             do k=1,zlevels
+                do e=1,EDGE
+                   position=offsets(d)+(k-field_first)*capacities(d)+EDGE*id+e
+                   if(position<1.or.position>size(coefficients)) call die('native vector coefficient extent')
+                   value(nscalar+e,k,p,BLOCK_PAYLOAD_WAV_COEFF)=coefficients(position)
+                end do
+             end do
+          end do
+       end do
+    end do
+    call transfer_nodes(interior_plan,2,BLOCK_PAYLOAD_WAV_COEFF,.true.)
+    native_coefficients_ready=.true.
+  end subroutine install_native_vector_coefficients
 
   logical function native_lifecycle_ready() result(ready)
     ready=lifecycle_ready
