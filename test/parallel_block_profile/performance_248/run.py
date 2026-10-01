@@ -123,7 +123,8 @@ def run(kit, out, level, comparison, fixture=None):
     out.mkdir()
     result = dict(status='running', level=level, comparison=comparison, host=socket.gethostname(), slurm_job_id=os.environ['SLURM_JOB_ID'], slurm_submit_dir=os.environ.get('SLURM_SUBMIT_DIR'),
                   source_identity=dict(frozen_candidate=json.loads((kit/'LOCAL_VALIDATION.json').read_text())['frozen_candidate'],
-                                       local_validation_sha256=sha(kit/'LOCAL_VALIDATION.json')),
+                                       local_validation_sha256=sha(kit/'LOCAL_VALIDATION.json'),
+                                       correction_sha256=sha(kit/'CORRECTION.json')),
                   removed_step_restrictions=removed,
                   policy=dict(regression_guard=0.03, near_threshold=0.005, maximum_abba_batches=2,
                               timing='median ordinary steps per independent full run'), runs={}, gates={}, decisions={}, schedule=[])

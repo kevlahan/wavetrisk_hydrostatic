@@ -10934,15 +10934,30 @@ end subroutine build_parallel_block_catalog
              n_vector = n_node * &
                   block_writeback_plan%vector_patch_nvalue / &
                   PATCH_SIZE**2
-             call pack_domain_boundary_prognostic( &
-                  d,source_bdry,n_node,payload_family, &
-                  block_writeback_plan% &
-                  boundary_scalar_domain_send_buffer( &
-                  pos_scalar:pos_scalar+n_scalar-1), &
-                  block_writeback_plan% &
-                  boundary_vector_domain_send_buffer( &
-                  pos_vector:pos_vector+n_vector-1),domain_sol, &
-                  transfer_vector,transfer_scalar)
+             if (present(domain_sol)) then
+                call pack_domain_boundary_prognostic( &
+                     d,source_bdry,n_node,payload_family, &
+                     block_writeback_plan% &
+                     boundary_scalar_domain_send_buffer( &
+                     pos_scalar:pos_scalar+n_scalar-1), &
+                     block_writeback_plan% &
+                     boundary_vector_domain_send_buffer( &
+                     pos_vector:pos_vector+n_vector-1), &
+                     domain_sol=domain_sol, &
+                     include_vector=transfer_vector, &
+                     include_scalar=transfer_scalar)
+             else
+                call pack_domain_boundary_prognostic( &
+                     d,source_bdry,n_node,payload_family, &
+                     block_writeback_plan% &
+                     boundary_scalar_domain_send_buffer( &
+                     pos_scalar:pos_scalar+n_scalar-1), &
+                     block_writeback_plan% &
+                     boundary_vector_domain_send_buffer( &
+                     pos_vector:pos_vector+n_vector-1), &
+                     include_vector=transfer_vector, &
+                     include_scalar=transfer_scalar)
+             end if
              pos_scalar = pos_scalar + n_scalar
              pos_vector = pos_vector + n_vector
           end do
@@ -11100,11 +11115,22 @@ end subroutine build_parallel_block_catalog
                size(ghost_exchange_plan%vector_patch_buffer)) then
              call fail("retained boundary scratch extent is invalid")
           end if
-          call pack_domain_boundary_prognostic( &
-               d,source_bdry,n_node,payload_family, &
-               ghost_exchange_plan%scalar_patch_buffer(1:n_scalar), &
-               ghost_exchange_plan%vector_patch_buffer(1:n_vector), &
-               domain_sol,transfer_vector,transfer_scalar)
+          if (present(domain_sol)) then
+             call pack_domain_boundary_prognostic( &
+                  d,source_bdry,n_node,payload_family, &
+                  ghost_exchange_plan%scalar_patch_buffer(1:n_scalar), &
+                  ghost_exchange_plan%vector_patch_buffer(1:n_vector), &
+                  domain_sol=domain_sol, &
+                  include_vector=transfer_vector, &
+                  include_scalar=transfer_scalar)
+          else
+             call pack_domain_boundary_prognostic( &
+                  d,source_bdry,n_node,payload_family, &
+                  ghost_exchange_plan%scalar_patch_buffer(1:n_scalar), &
+                  ghost_exchange_plan%vector_patch_buffer(1:n_vector), &
+                  include_vector=transfer_vector, &
+                  include_scalar=transfer_scalar)
+          end if
           if (check_current) then
              call compare_retained_boundary( &
                   b,boundary_index,payload_family,n_scalar,n_vector)

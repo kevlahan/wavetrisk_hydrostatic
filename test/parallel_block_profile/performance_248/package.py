@@ -1,4 +1,4 @@
-"""Seal performance scripts separately from the already qualified source archive."""
+"""Seal performance scripts separately from the corrected source archive."""
 import hashlib
 import json
 from pathlib import Path
@@ -16,11 +16,11 @@ def package(source, out, candidate_archive):
     source,out,candidate_archive=(Path(p).resolve() for p in (source,out,candidate_archive))
     if out.exists() or out.with_suffix('.tar.gz').exists():
         raise ValueError('Fresh package destination required')
-    if sha(candidate_archive)!='dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63':
-        raise ValueError('Qualified source archive differs')
+    if sha(candidate_archive)!='7469cea885059eb38ccb075a67b9751fd11de14b8e21003aee07cbfb72729955':
+        raise ValueError('Corrected source archive differs')
     out.mkdir(parents=True)
     for path in sorted(source.iterdir()):
-        if path.is_file() and path.name not in ('files-sha256.json','test_scripts.py'):
+        if path.is_file() and path.name not in ('files-sha256.json','test_scripts.py','package_nullfix.py'):
             shutil.copy2(path,out/path.name)
     files={p.name:sha(p) for p in sorted(out.iterdir()) if p.is_file()}
     (out/'files-sha256.json').write_text(json.dumps(files,indent=2)+'\n')
