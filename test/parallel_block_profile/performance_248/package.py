@@ -16,11 +16,11 @@ def package(source, out, candidate_archive):
     source,out,candidate_archive=(Path(p).resolve() for p in (source,out,candidate_archive))
     if out.exists() or out.with_suffix('.tar.gz').exists():
         raise ValueError('Fresh package destination required')
-    if sha(candidate_archive)!='edc647fb8aff057444d0d4d9e93e2756eba1749c5fdcacff332e0404735b8eb0':
+    if sha(candidate_archive)!='7189c938950f277378c30b8f546d7154f818e5262cc9acebfc79d7260a9cbaac':
         raise ValueError('Corrected source archive differs')
     out.mkdir(parents=True)
     for path in sorted(source.iterdir()):
-        if path.is_file() and path.name not in ('files-sha256.json','test_scripts.py','package_nullfix.py','package_visitor_fix.py'):
+        if path.is_file() and path.name not in ('files-sha256.json','test_scripts.py','package_nullfix.py','package_visitor_fix.py','package_pentagon_fix.py'):
             shutil.copy2(path,out/path.name)
     files={p.name:sha(p) for p in sorted(out.iterdir()) if p.is_file()}
     (out/'files-sha256.json').write_text(json.dumps(files,indent=2)+'\n')

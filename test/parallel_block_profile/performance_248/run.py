@@ -125,7 +125,8 @@ def run(kit, out, level, comparison, fixture=None):
                   source_identity=dict(frozen_candidate=json.loads((kit/'LOCAL_VALIDATION.json').read_text())['frozen_candidate'],
                                        local_validation_sha256=sha(kit/'LOCAL_VALIDATION.json'),
                                        correction_sha256=sha(kit/'CORRECTION.json'),
-                                       visitor_correction_sha256=sha(kit/'VISITOR_CORRECTION.json')),
+                                       visitor_correction_sha256=sha(kit/'VISITOR_CORRECTION.json'),
+                                       pentagon_correction_sha256=sha(kit/'PENTAGON_CORRECTION.json')),
                   removed_step_restrictions=removed,
                   policy=dict(regression_guard=0.03, near_threshold=0.005, maximum_abba_batches=2,
                               timing='median ordinary steps per independent full run'), runs={}, gates={}, decisions={}, schedule=[])

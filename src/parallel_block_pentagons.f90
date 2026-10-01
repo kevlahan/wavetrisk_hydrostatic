@@ -9,7 +9,7 @@ module parallel_block_pentagons_mod
   use arch_mod, only: rank,n_process,comm,abort_run
   use shared_mod, only: N_BDRY,level_start,level_end,IJMINUS,IJPLUS,IPLUSJMINUS,IMINUSJPLUS
   use domain_mod, only: Domain,grid,idx
-  use domain_ops_mod, only: apply_to_penta_d
+  use domain_ops_mod, only: apply_to_penta_d,Penta_Walk
   use patch_mod, only: PATCH_SIZE
   use parallel_block_primitives_mod, only: primitives_active,primitives_oracle, &
        primitive_vorticity_source,primitive_vorticity_value
@@ -65,16 +65,21 @@ contains
     end select
   end subroutine
   subroutine compile_plans
-    integer :: l,d,pass,n,dest,column,r,i,pos,ierr,j,qnode(2),qedge(2),vnode(2),vedge(2),pn(2),pe(2)
+    integer :: l,d,pass,n,dest,column,r,i,pos,ierr,j,v,qnode(2),qedge(2),vnode(2),vedge(2),pn(2),pe(2)
     integer, allocatable :: local_keys(:,:),send_keys(:,:),recv_keys(:,:),count(:),send_corner(:),destinations(:)
     real(dp), allocatable :: local_geo(:,:),send_geo(:,:)
+    type(Penta_Walk) :: penta_visits
     if(allocated(plan)) deallocate(plan)
     allocate(plan(level_start:level_end))
     do l=level_start,level_end
        do pass=1,2
           n=0
           do d=1,size(grid)
-             call apply_to_penta_d(record,grid(d),l,0)
+             call apply_to_penta_d(dom=grid(d),l=l,zlev=0,operations=penta_visits)
+             do v=1,penta_visits%count
+                call record(grid(d),penta_visits%visit(v)%p,penta_visits%visit(v)%c, &
+                     penta_visits%visit(v)%offs,penta_visits%visit(v)%dims,0)
+             end do
           end do
           if(pass==1) then
              allocate(plan(l)%identity(3,n),plan(l)%ids(0:7,n),plan(l)%source(2,2,n), &

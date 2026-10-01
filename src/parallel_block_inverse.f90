@@ -308,23 +308,24 @@ contains
     rk_mass_ready=.false.
     write(*,'(a,i0,a,i0,a,2(1x,i0))') 'Retained RK closure rank=',rank,' stage=',stage, &
          ' aliases/owned operands=',size(consumer_alias_slot),size(interior_plan%key,2)
-  contains
-    subroutine restrict_rk_velocity(dom,ip,jp,ic,jc,k,op,dp_,oc,dc)
-      type(Domain),intent(inout)::dom
-      integer,intent(in)::ip,jp,ic,jc,k,op(N_BDRY+1),dp_(2,N_BDRY+1),oc(N_BDRY+1),dc(2,N_BDRY+1)
-      integer::target,c,e,ne,n,ts,cs,es,nes,ns
-      target=idx(ip,jp,op,dp_);c=idx(ic,jc,oc,dc)
-      e=idx(ic+1,jc,oc,dc);ne=idx(ic+1,jc+1,oc,dc);n=idx(ic,jc+1,oc,dc)
-      ts=nodes(d)%slot(target+1);cs=nodes(d)%slot(c+1);es=nodes(d)%slot(e+1)
-      nes=nodes(d)%slot(ne+1);ns=nodes(d)%slot(n+1)
-      if(min(ts,cs,es,nes,ns)<1) call die('RK coarse restriction operand missing')
-      if(dom%mask_e%elts(EDGE*c+RT+1)>0) value(nscalar+RT+1,k,ts,1)= &
-           0.5_dp*(value(nscalar+RT+1,k,cs,1)+value(nscalar+RT+1,k,es,1))
-      if(dom%mask_e%elts(EDGE*c+DG+1)>0) value(nscalar+DG+1,k,ts,1)= &
-           0.5_dp*(value(nscalar+DG+1,k,nes,1)+value(nscalar+DG+1,k,cs,1))
-      if(dom%mask_e%elts(EDGE*c+UP+1)>0) value(nscalar+UP+1,k,ts,1)= &
-           0.5_dp*(value(nscalar+UP+1,k,cs,1)+value(nscalar+UP+1,k,ns,1))
-    end subroutine
+  end subroutine
+
+  subroutine restrict_rk_velocity(dom,ip,jp,ic,jc,k,op,dp_,oc,dc)
+    type(Domain),intent(inout)::dom
+    integer,intent(in)::ip,jp,ic,jc,k,op(N_BDRY+1),dp_(2,N_BDRY+1),oc(N_BDRY+1),dc(2,N_BDRY+1)
+    integer::d,target,c,e,ne,n,ts,cs,es,nes,ns
+    d=dom%id+1
+    target=idx(ip,jp,op,dp_);c=idx(ic,jc,oc,dc)
+    e=idx(ic+1,jc,oc,dc);ne=idx(ic+1,jc+1,oc,dc);n=idx(ic,jc+1,oc,dc)
+    ts=nodes(d)%slot(target+1);cs=nodes(d)%slot(c+1);es=nodes(d)%slot(e+1)
+    nes=nodes(d)%slot(ne+1);ns=nodes(d)%slot(n+1)
+    if(min(ts,cs,es,nes,ns)<1) call die('RK coarse restriction operand missing')
+    if(dom%mask_e%elts(EDGE*c+RT+1)>0) value(nscalar+RT+1,k,ts,1)= &
+         0.5_dp*(value(nscalar+RT+1,k,cs,1)+value(nscalar+RT+1,k,es,1))
+    if(dom%mask_e%elts(EDGE*c+DG+1)>0) value(nscalar+DG+1,k,ts,1)= &
+         0.5_dp*(value(nscalar+DG+1,k,nes,1)+value(nscalar+DG+1,k,cs,1))
+    if(dom%mask_e%elts(EDGE*c+UP+1)>0) value(nscalar+UP+1,k,ts,1)= &
+         0.5_dp*(value(nscalar+UP+1,k,cs,1)+value(nscalar+UP+1,k,ns,1))
   end subroutine
 
   subroutine compare_retained_rk_aliases(reference)

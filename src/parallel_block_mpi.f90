@@ -25261,26 +25261,27 @@ end subroutine build_parallel_block_catalog
     end associate
     call prepare_retained_rk_aliases(h,stage,stages,alias_rhs,vector_closure)
     call finish_retained_rk_boundary
-  contains
-    function vector_closure(key,k,h) result(x)
-      integer,intent(in)::key(4),k
-      real(dp),intent(in)::h
-      real(dp)::x(EDGE)
-      if(key(2)/=STORE_PATCH) call fail("RK canonical vector storage")
-      x=local_block_rk_base_vector(key(1),key(3),key(4),k)+h*owned_gradient_node(key(1),key(3),key(4),k)
-    end function
-    subroutine alias_rhs(d,id,k,rhs)
-      integer,intent(in)::d,id,k
-      real(dp),intent(out)::rhs(:)
-      integer::t
-      rhs=0.0_dp
-      if(id<grid(d)%patch%elts(3)%elts_start) return
-      rhs(S_MASS-scalars(1)+1)=rk_mass_alias_operand(d,id,k)
-      ! Active gradient destinations are canonical interiors; noncanonical
-      ! velocity slots retain the original explicit zero tendency.
-      t=rk_temperature_node_slot(rk_temperature_domain_offset(d)+id+1)
-      if(t>0) rhs(S_TEMP-scalars(1)+1)=temperature_rk_boundary%recv_value(k,t)
-    end subroutine
+  end subroutine
+
+  function vector_closure(key,k,h) result(x)
+    integer,intent(in)::key(4),k
+    real(dp),intent(in)::h
+    real(dp)::x(EDGE)
+    if(key(2)/=STORE_PATCH) call fail("RK canonical vector storage")
+    x=local_block_rk_base_vector(key(1),key(3),key(4),k)+h*owned_gradient_node(key(1),key(3),key(4),k)
+  end function
+
+  subroutine alias_rhs(d,id,k,rhs)
+    integer,intent(in)::d,id,k
+    real(dp),intent(out)::rhs(:)
+    integer::t
+    rhs=0.0_dp
+    if(id<grid(d)%patch%elts(3)%elts_start) return
+    rhs(S_MASS-scalars(1)+1)=rk_mass_alias_operand(d,id,k)
+    ! Active gradient destinations are canonical interiors; noncanonical
+    ! velocity slots retain the original explicit zero tendency.
+    t=rk_temperature_node_slot(rk_temperature_domain_offset(d)+id+1)
+    if(t>0) rhs(S_TEMP-scalars(1)+1)=temperature_rk_boundary%recv_value(k,t)
   end subroutine
 
   subroutine prepare_temperature_boundary_stage(sols,h)

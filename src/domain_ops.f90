@@ -21,6 +21,15 @@ module domain_ops_mod
   public :: apply_onescale_to_patch5, apply_onescale_to_patch2, apply_interscale, apply_interscale_d, apply_interscale_d2
   public :: apply_interscale_to_patch, apply_interscale_to_patch2, apply_interscale_to_patch22, apply_interscale_to_patch3
   public :: apply_to_pole, apply_to_pole_d, apply_to_pole_patch, apply_to_pole2, apply_to_penta, apply_to_penta_d
+  public :: Penta_Walk
+
+  type :: Penta_Visit
+     integer :: p,c,offs(N_BDRY+1),dims(2,N_BDRY+1)
+  end type
+  type :: Penta_Walk
+     integer :: count=0
+     type(Penta_Visit), allocatable :: visit(:)
+  end type
 
   
   interface
@@ -839,16 +848,25 @@ contains
   end subroutine apply_to_penta
 
   
-  subroutine apply_to_penta_d (routine, dom, l, zlev)
+  subroutine apply_to_penta_d (routine, dom, l, zlev, operations)
     implicit none
 
-    procedure(sub9)             :: routine
+    procedure(sub9), optional   :: routine
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: l, zlev
+    type(Penta_Walk), optional, intent(inout) :: operations
 
     integer :: c, l_cur, p, p_par
     integer :: offs(N_BDRY+1)
     integer :: dims(2,N_BDRY+1)
+    type(Penta_Visit), allocatable :: larger(:)
+
+    if (present(routine).eqv.present(operations)) &
+         error stop 'pentagon walk requires exactly one consumer'
+    if (present(operations)) then
+       operations%count=0
+       if (.not.allocated(operations%visit)) allocate(operations%visit(4))
+    end if
 
     do c = NORTHEAST, NORTHWEST
        if (.not. dom%penta(c)) cycle
@@ -870,7 +888,17 @@ contains
           end if
 
           call get_offs_Domain (dom, p_par, offs, dims)
-          call routine (dom, p_par, c, offs, dims, zlev)
+          if (present(operations)) then
+             if (operations%count==size(operations%visit)) then
+                allocate(larger(2*size(operations%visit)))
+                larger(1:operations%count)=operations%visit
+                call move_alloc(larger,operations%visit)
+             end if
+             operations%count=operations%count+1
+             operations%visit(operations%count)=Penta_Visit(p_par,c,offs,dims)
+          else
+             call routine (dom, p_par, c, offs, dims, zlev)
+          end if
        end do
     end do
   end subroutine apply_to_penta_d
