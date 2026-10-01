@@ -1,12 +1,12 @@
 {
-  "archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v2.tar.gz",
-  "sha256": "318fd11f5f05b0eff070d835a34a9d2f2e6f62a1a6254861334e526f8209919a",
-  "script_files": 8,
+  "archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v3.tar.gz",
+  "sha256": "64b9136b682f293e03960c525235ec404029fa686ff59644361f47eb815ea8a3",
+  "script_files": 10,
   "unpack_verified": true,
   "status": "prepared-not-run",
-  "source_commit": "2b0037b64d301a3e0ba835da69fdc13c1115c656",
+  "source_commit": "f865c485e3977502c0d55e4509c4469c7017a183",
   "candidate_source_kit_sha256": "dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63",
   "campaign": "J4 or J5 on nk/bb13, feature-off or mirrored baseline; no remote jobs submitted",
-  "supersedes_archive_sha256": "9e455c7903a4debf1255245ff52953003645340d0b0c59d054827832b989b202",
-  "launch_fix": "Pass performance kit directory explicitly; Slurm spools the batch script separately from run.py"
+  "supersedes_archive_sha256": "318fd11f5f05b0eff070d835a34a9d2f2e6f62a1a6254861334e526f8209919a",
+  "launch_fix": "Fresh source extraction, sbatch job ID capture, recorded state, and log-only collection on preflight failure"
 }
