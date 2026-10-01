@@ -44,6 +44,7 @@ For the J4 storage-only comparison, extract a **fresh copy** of the source kit u
 ```bash
 [ ! -e "$HOME/bbserv-candidate2-mirrored" ]
 tar -C "$HOME" --transform='s/^bbserv-candidate2/bbserv-candidate2-mirrored/' -xzf "$HOME/bbserv-candidate2.tar.gz"
+perf="$HOME/rk248-performance-kit"
 kit="$HOME/bbserv-candidate2-mirrored"
 out="$HOME/rk248-J4-mirrored"
 [ ! -e "$out" ]
@@ -55,6 +56,7 @@ For J5, use another fresh extraction and the historical fixture:
 ```bash
 [ ! -e "$HOME/bbserv-candidate2-J5" ]
 tar -C "$HOME" --transform='s/^bbserv-candidate2/bbserv-candidate2-J5/' -xzf "$HOME/bbserv-candidate2.tar.gz"
+perf="$HOME/rk248-performance-kit"
 kit="$HOME/bbserv-candidate2-J5"
 out="$HOME/rk248-J5-feature-off"
 fixture="$HOME/stage187-fixture-20260911-145307"
@@ -69,6 +71,8 @@ GNU tar on bbserv supports the name transform. Do not start another campaign ins
 On bbserv, inspect `squeue -j JOBID` and the Slurm log. After the job exits, create and verify a small review archive:
 
 ```bash
+perf="$HOME/rk248-performance-kit"
+out="$HOME/rk248-J4-feature-off"
 python3 "$perf/collect.py" "$out" "$HOME/rk248-J4-feature-off-review.tar.gz"
 python3 "$perf/collect.py" --verify "$HOME/rk248-J4-feature-off-review.tar.gz"
 sha256sum "$HOME/rk248-J4-feature-off-review.tar.gz"

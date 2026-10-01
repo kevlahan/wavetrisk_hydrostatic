@@ -20,7 +20,7 @@ def package(source, out, candidate_archive):
         raise ValueError('Qualified source archive differs')
     out.mkdir(parents=True)
     for path in sorted(source.iterdir()):
-        if path.is_file() and path.name!='files-sha256.json':
+        if path.is_file() and path.name not in ('files-sha256.json','test_scripts.py'):
             shutil.copy2(path,out/path.name)
     files={p.name:sha(p) for p in sorted(out.iterdir()) if p.is_file()}
     (out/'files-sha256.json').write_text(json.dumps(files,indent=2)+'\n')
