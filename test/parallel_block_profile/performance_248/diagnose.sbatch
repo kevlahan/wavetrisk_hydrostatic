@@ -25,6 +25,7 @@ source "$state"
   echo "Missing original result/input/placement files in $out" >&2
   exit 1
 }
+for name in ${!WAVETRISK_@}; do unset "$name"; done
 source "$source_tree/runtime.env"
 export MV2_ENABLE_AFFINITY=0 OMPI_MCA_hwloc_base_binding_policy=none
 unset SLURM_CPUS_PER_TASK SRUN_CPUS_PER_TASK SLURM_EXACT SLURM_EXCLUSIVE SLURM_TRES_PER_TASK SLURM_HINT SLURM_THREADS_PER_CORE
