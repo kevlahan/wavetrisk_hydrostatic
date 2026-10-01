@@ -7,7 +7,7 @@ The source archive SHA-256 is checked by `launch.sh`. The exact source and perfo
 ## 1. Transfer from the local machine
 
 ```bash
-scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/bbserv-candidate5.tar.gz /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v6.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
+scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/bbserv-candidate5.tar.gz /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v7.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
 ```
 
 ## 2. Extract and submit on bbserv
@@ -16,8 +16,8 @@ scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-valida
 (
 set -e
 cd "$HOME"
-tar -xzf rk248-performance-kit-v6.tar.gz
-bash "$HOME/rk248-performance-kit-v6/launch.sh"
+tar -xzf rk248-performance-kit-v7.tar.gz
+bash "$HOME/rk248-performance-kit-v7/launch.sh"
 )
 ```
 
@@ -35,11 +35,11 @@ An empty queue means only that the job is no longer pending or running; inspect 
 ## 3. Collect after the job ends on bbserv
 
 ```bash
-bash "$HOME/rk248-performance-kit-v6/collect.sh"
+bash "$HOME/rk248-performance-kit-v7/collect.sh"
 ```
 
 The collector checks the queue, creates or reuses `$HOME/rk248-review-JOBID.tar.gz`, verifies its file hashes, and copies it to `kevlahan@murier.math.mcmaster.ca:~/Desktop/`. If that transfer fails, the verified archive remains on bbserv; pull it from the local machine with `scp` using the printed archive path. Keep the full results directory on bbserv until review. The review archive omits large checkpoints, VTK files and binaries.
 
-For J4 storage-only or J5 feature-off, use `bash "$HOME/rk248-performance-kit-v6/launch.sh" J4 mirrored` or `bash "$HOME/rk248-performance-kit-v6/launch.sh" J5 feature-off`. J5 requires `$HOME/stage187-fixture-20260911-145307`.
+For J4 storage-only or J5 feature-off, use `bash "$HOME/rk248-performance-kit-v7/launch.sh" J4 mirrored` or `bash "$HOME/rk248-performance-kit-v7/launch.sh" J5 feature-off`. J5 requires `$HOME/stage187-fixture-20260911-145307`. The launcher checks the established J5 input and checkpoint hashes before submitting a job.
 
 The candidate enables the qualified Stage247 migration. `feature-off` compares it to the same source with the new RK, physics, soil, adaptation, lifecycle, coefficient and mirror-free features disabled. `mirrored` retains the native migration in both builds and isolates persistent Domain SOL/WAV storage. Every full run completes 12 steps, two remaps, checkpoint reload, exact VTK and numerical gates before timing. Timing uses the median of nine ordinary steps per independent run, followed by a bounded A-B-B-A confirmation when screening permits. No branch promotion occurs automatically. The local four-core machine is used only for preparation; cluster timing is measured on bb13.

@@ -1,7 +1,7 @@
 {
-  "status": "v6-J4-mirrored-within-guard-feature-off-under-review",
-  "performance_archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v6.tar.gz",
-  "performance_archive_sha256": "3e855385a3951e4b27a3cb48adb5318d113bfc11d916bfaae0cf20b9ca9fd9d9",
+  "status": "v7-J5-rerun-pending-after-fixture-hash-correction",
+  "performance_archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v7.tar.gz",
+  "performance_archive_sha256": "95e800f4e719c91e6dee18d5e1ecca9acdc70dec916678a28722e5f3f3f727d4",
   "performance_script_files": 14,
   "source_archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/bbserv-candidate5.tar.gz",
   "source_archive_sha256": "7189c938950f277378c30b8f546d7154f818e5262cc9acebfc79d7260a9cbaac",
@@ -63,5 +63,9 @@
     "independent_runs_per_version": 2,
     "decision": "within_regression_guard"
   },
-  "next_action": "Run J5 feature-off with the already transferred v6 kit if the pinned Stage187 fixture is present on bbserv. Keep the J4 overall feature-off 41-rank exploratory regression under review; mirrored storage removal itself is within the 3% guard. Do not promote yet."
+  "v6_J5_failed_job": 55236,
+  "v6_J5_failed_review_archive_sha256": "6339d3e9fb960385526d741a662d875dae85cee454a8ec7dc6810b4c89f93c10",
+  "v6_J5_failure": "J5 simple.in expected SHA-256 was mistyped in the v6 runner. The job stopped in input_snapshot before build or solver execution.",
+  "v7_correction": "Pin the J5 simple.in SHA-256 recorded by Stage187/189/190/193 campaigns, and check J5 input and seed hashes in the launcher before sbatch submission.",
+  "next_action": "Transfer the sealed v7 performance kit to bbserv and rerun J5 feature-off with the same qualified source archive. Keep the J4 overall feature-off 41-rank exploratory regression under review; do not promote yet."
 }

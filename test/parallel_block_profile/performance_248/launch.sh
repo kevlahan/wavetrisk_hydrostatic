@@ -24,6 +24,11 @@ PY
 if [[ "$level" == J5 ]]; then
   fixture="$HOME/stage187-fixture-20260911-145307"
   [[ -f "$fixture/simple.in" ]] || { echo "Missing J5 fixture: $fixture/simple.in" >&2; exit 1; }
+  seed="$fixture/test_checkpoint_0003.bin.zst"
+  [[ -f "$seed" ]] || { echo "Missing J5 seed: $seed" >&2; exit 1; }
+  printf '%s  %s\n' \
+    ed173774b8400630657243fa67b4065faff1faf409ba93c1712bb80174d6ae8d "$fixture/simple.in" \
+    8c7b651c2d6bc6f481838163591565771e1f9a95fd54ec9adf0ce9b74a117e2d "$seed" | sha256sum -c -
 fi
 work=$(mktemp -d "$HOME/rk248-${level}-${comparison}-XXXXXXXX")
 tar -xzf "$archive" -C "$work"

@@ -15,7 +15,7 @@ from build import run as build, save, sha, verify_seal
 STEP_RESTRICTIONS = ('SLURM_CPUS_PER_TASK', 'SRUN_CPUS_PER_TASK', 'SLURM_EXACT',
                      'SLURM_EXCLUSIVE', 'SLURM_TRES_PER_TASK', 'SLURM_HINT',
                      'SLURM_THREADS_PER_CORE')
-J5_HASHES = dict(simple='ed173774b8400630657243fa67b4065faff1faf409ba93d78967411860de89ada96d8354',
+J5_HASHES = dict(simple='ed173774b8400630657243fa67b4065faff1faf409ba93c1712bb80174d6ae8d',
                  seed='8c7b651c2d6bc6f481838163591565771e1f9a95fd54ec9adf0ce9b74a117e2d',
                  grid='d4d8393bf53d6275432f6f954ef3178a3ae2e3447a17160f5a3aa029ac39098d')
 
