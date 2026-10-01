@@ -1,5 +1,11 @@
 # Stage249 direct comparison with legacy main
 
+Job 55239 has now completed. The verified [cluster review](parallel-blocks-stage249-review.md)
+reports a 1.136932 s/step current candidate-to-main gap at 83 ranks and
+qualifies the candidate's timed storage-diagnostic output. In the preparation
+protocol below, "uninstrumented" means no phase profiler; the current
+candidate still emits storage assertions during timed steps.
+
 The last fresh direct J5 comparison was Stage229 job 54737. Its separate
 unobserved 83-rank runs averaged 0.758268 s per ordinary step for the then
 Stage203 block candidate and 0.542883 s for legacy: a 215.386 ms gap. The

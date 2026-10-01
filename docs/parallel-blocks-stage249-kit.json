@@ -1,7 +1,7 @@
 {
   "stage": 249,
-  "status": "prepared-for-bbserv-direct-main-comparison",
-  "scope": "J5 restarted compressible climate RK4 with Simple physics; direct current migrated candidate versus read-only main. No cluster timing yet.",
+  "status": "bbserv-direct-main-comparison-reviewed-regression",
+  "scope": "J5 restarted compressible climate RK4 with Simple physics; direct current migrated candidate versus read-only main.",
   "historical_stage229_job": 54737,
   "historical_stage229_candidate_seconds_per_ordinary_step": 0.758268,
   "historical_stage229_legacy_seconds_per_ordinary_step": 0.542883,
@@ -22,6 +22,15 @@
   "local_candidate_binary_sha256": "46e12a4dfa3182e34dad1adfda8dd720ca58307eba851af549bf0d3fbed7b078",
   "local_main_binary_sha256": "fcf46634947878cfdefdc58019c10e090b3a269c09b8786816e6459a50694df5",
   "local_script_checks": "Python and shell syntax passed; packaged scripts match their sealed manifest; fake-Slurm fresh extraction, five argument submission and state capture passed; invalid J5 fixture preflight rejected before Slurm submission.",
-  "remote_status": "not submitted",
-  "next_action": "Transfer only the main and performance archives to bbserv, where the qualified candidate5 archive and pinned Stage187 J5 fixture are already present. Run the kit launcher and collect the verified review archive."
+  "remote_status": "Job 55239 completed on bb13; eight full runs, four cross-version numerical gates and one 83-rank A-B-B-A confirmation reviewed.",
+  "review_archive": "/Users/kevlahan/Desktop/rk249-review-55239.tar.gz",
+  "review_archive_sha256": "2faf3b9e2664c43d8f230754d42909ebddd379e268a2b7ca5348e21cfd0c9295",
+  "review_verified_files": 1091,
+  "main_confirm_seconds_per_ordinary_step": 0.5406824795,
+  "candidate_confirm_seconds_per_ordinary_step": 1.6776144205,
+  "candidate_minus_main_seconds_per_ordinary_step": 1.136931941,
+  "candidate_to_main_elapsed_ratio": 3.1027719301194776,
+  "decision": "review_regression",
+  "qualification": "The current candidate emits a storage-absence diagnostic on every rank of every timed step; main does not. The measured end-to-end gap includes that validation overhead and is not a phase or RK-kernel attribution.",
+  "next_action": "Calibrate candidate storage-assertion logging cost with a quiet-output matched bb13 comparison, then localize the residual post-Stage230 cost. Keep main unchanged and promotion on hold."
 }

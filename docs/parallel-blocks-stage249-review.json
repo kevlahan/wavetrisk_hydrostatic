@@ -1,0 +1,126 @@
+{
+  "status": "verified",
+  "job_id": "55239",
+  "review_archive": "/Users/kevlahan/Desktop/rk249-review-55239.tar.gz",
+  "review_archive_sha256": "2faf3b9e2664c43d8f230754d42909ebddd379e268a2b7ca5348e21cfd0c9295",
+  "verified_files": 1091,
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "host": "bb13.rhpcs.internal",
+  "runs": [
+    {
+      "name": "J5-n16-validation-main-main",
+      "kind": "main",
+      "ranks": 16,
+      "phase": "validation",
+      "median_seconds": 1.478568852,
+      "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+      "max_rank_peak_rss_kib": 372388,
+      "sum_user_cpu_seconds": 414.830398,
+      "storage_diagnostic_lines": 0
+    },
+    {
+      "name": "J5-n16-validation-candidate-candidate",
+      "kind": "candidate",
+      "ranks": 16,
+      "phase": "validation",
+      "median_seconds": 5.740728213,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "max_rank_peak_rss_kib": 1210104,
+      "sum_user_cpu_seconds": 1209.939316,
+      "storage_diagnostic_lines": 288
+    },
+    {
+      "name": "J5-n83-validation-main-main",
+      "kind": "main",
+      "ranks": 83,
+      "phase": "validation",
+      "median_seconds": 0.536984641,
+      "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+      "max_rank_peak_rss_kib": 171676,
+      "sum_user_cpu_seconds": 1226.110055,
+      "storage_diagnostic_lines": 0
+    },
+    {
+      "name": "J5-n83-validation-candidate-candidate",
+      "kind": "candidate",
+      "ranks": 83,
+      "phase": "validation",
+      "median_seconds": 1.691967717,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "max_rank_peak_rss_kib": 418428,
+      "sum_user_cpu_seconds": 2342.860676,
+      "storage_diagnostic_lines": 1494
+    },
+    {
+      "name": "J5-n83-confirm-1-1-main",
+      "kind": "main",
+      "ranks": 83,
+      "phase": "confirm",
+      "median_seconds": 0.542202684,
+      "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+      "max_rank_peak_rss_kib": 170392,
+      "sum_user_cpu_seconds": 1226.451792,
+      "storage_diagnostic_lines": 0
+    },
+    {
+      "name": "J5-n83-confirm-1-2-candidate",
+      "kind": "candidate",
+      "ranks": 83,
+      "phase": "confirm",
+      "median_seconds": 1.686056519,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "max_rank_peak_rss_kib": 411868,
+      "sum_user_cpu_seconds": 2297.022905,
+      "storage_diagnostic_lines": 1494
+    },
+    {
+      "name": "J5-n83-confirm-1-3-candidate",
+      "kind": "candidate",
+      "ranks": 83,
+      "phase": "confirm",
+      "median_seconds": 1.669172322,
+      "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+      "max_rank_peak_rss_kib": 410708,
+      "sum_user_cpu_seconds": 2296.731541,
+      "storage_diagnostic_lines": 1494
+    },
+    {
+      "name": "J5-n83-confirm-1-4-main",
+      "kind": "main",
+      "ranks": 83,
+      "phase": "confirm",
+      "median_seconds": 0.539162275,
+      "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+      "max_rank_peak_rss_kib": 171404,
+      "sum_user_cpu_seconds": 1219.929011,
+      "storage_diagnostic_lines": 0
+    }
+  ],
+  "placements": {
+    "16": [
+      16,
+      0
+    ],
+    "83": [
+      42,
+      41
+    ]
+  },
+  "numerical_gates": 4,
+  "candidate_matches_prior_j5": true,
+  "main_checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+  "candidate_checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+  "confirmation": {
+    "main_mean_seconds": 0.5406824795,
+    "candidate_mean_seconds": 1.6776144205,
+    "candidate_minus_main_seconds": 1.136931941,
+    "candidate_to_main_ratio": 3.1027719301194776,
+    "candidate_regression_fraction": 2.1027719301194776,
+    "paired_regression_fractions": [
+      2.109642517003844,
+      2.0958625990663013
+    ],
+    "independent_runs_per_version": 2,
+    "decision": "review_regression"
+  }
+}
