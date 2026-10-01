@@ -1,5 +1,5 @@
 {
-  "status": "v7-J5-rerun-pending-after-fixture-hash-correction",
+  "status": "v7-J5-feature-off-correctness-passed-performance-inconclusive",
   "performance_archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v7.tar.gz",
   "performance_archive_sha256": "95e800f4e719c91e6dee18d5e1ecca9acdc70dec916678a28722e5f3f3f727d4",
   "performance_script_files": 14,
@@ -67,5 +67,22 @@
   "v6_J5_failed_review_archive_sha256": "6339d3e9fb960385526d741a662d875dae85cee454a8ec7dc6810b4c89f93c10",
   "v6_J5_failure": "J5 simple.in expected SHA-256 was mistyped in the v6 runner. The job stopped in input_snapshot before build or solver execution.",
   "v7_correction": "Pin the J5 simple.in SHA-256 recorded by Stage187/189/190/193 campaigns, and check J5 input and seed hashes in the launcher before sbatch submission.",
-  "next_action": "Transfer the sealed v7 performance kit to bbserv and rerun J5 feature-off with the same qualified source archive. Keep the J4 overall feature-off 41-rank exploratory regression under review; do not promote yet."
+  "v7_J5_feature_off_job": 55237,
+  "v7_J5_feature_off_review_archive_sha256": "2710ac224bd81815a3dba99684e2534dbf0baab481c5ccf6c46c375f48c0f76c",
+  "v7_J5_feature_off_review_verified_files": 2843,
+  "v7_J5_feature_off_correctness": "All 18 full runs exited 0, completed 12 steps and two remaps, produced 62 exact VTK members, shared one state and checkpoint hash, passed 15 numerical gates, and passed candidate storage absence checks. Placement passed at 16, 83 and 167 ranks on bb13.",
+  "v7_J5_feature_off_screens": {
+    "n16_candidate_regression_fraction": 0.022393526049962365,
+    "n83_candidate_regression_fraction": 0.015284622524744496,
+    "scope": "Exploratory single pairs; excluded from confirmation"
+  },
+  "v7_J5_feature_off_confirmation_n83": {
+    "baseline_run_median_mean_seconds": 1.629454858,
+    "candidate_run_median_mean_seconds": 1.680590115,
+    "candidate_regression_fraction": 0.03138181874075596,
+    "paired_regression_fractions": [0.021928358184919006, 0.032348775243136174, 0.037349760463041726, 0.03399765642189334],
+    "independent_runs_per_version": 4,
+    "decision": "inconclusive"
+  },
+  "next_action": "Run the prepared J5 mirrored comparison with the installed v7 kit to isolate persistent Domain SOL/WAV storage removal at J5 scale. The overall feature-off confirmation straddled the 3% guard and cannot support promotion; retain the J4 feature-off exploratory signal under review."
 }
