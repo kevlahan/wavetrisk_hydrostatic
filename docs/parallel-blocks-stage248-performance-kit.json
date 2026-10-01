@@ -1,0 +1,10 @@
+{
+  "archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit.tar.gz",
+  "sha256": "9e455c7903a4debf1255245ff52953003645340d0b0c59d054827832b989b202",
+  "script_files": 8,
+  "unpack_verified": true,
+  "status": "prepared-not-run",
+  "source_commit": "80a9c28ebf7091baa1ab8781bb132e1ed6322e5d",
+  "candidate_source_kit_sha256": "dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63",
+  "campaign": "J4 or J5 on nk/bb13, feature-off or mirrored baseline; no remote jobs submitted"
+}
