@@ -8,8 +8,10 @@
 #SBATCH --time=04:00:00
 #SBATCH --output=rk248-%j.log
 set -euo pipefail
-if (( $# < 4 || $# > 5 )); then
-  echo 'Usage: sbatch performance.sbatch CANDIDATE_KIT FRESH_RESULTS J4|J5 mirrored|feature-off [J5_FIXTURE]' >&2
+if (( $# < 5 || $# > 6 )); then
+  echo 'Usage: sbatch performance.sbatch PERF_KIT CANDIDATE_KIT FRESH_RESULTS J4|J5 mirrored|feature-off [J5_FIXTURE]' >&2
   exit 2
 fi
-python3 "$(dirname "$0")/run.py" "$@"
+perf=$1
+shift
+python3 "$perf/run.py" "$@"

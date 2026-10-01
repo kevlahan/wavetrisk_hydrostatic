@@ -1,5 +1,8 @@
 """Offline checks of campaign selection, physical-core maps and archive integrity."""
 import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -44,6 +47,26 @@ class ScriptChecks(unittest.TestCase):
         result=confirm([batch])
         self.assertEqual(result['decision'],'within_regression_guard')
         self.assertEqual(result['independent_runs_per_version'],2)
+
+    def test_slurm_spooled_launcher(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            spool=root/'slurm-spool'
+            spool.mkdir()
+            wrapper=spool/'slurm_script'
+            shutil.copy2(PERF/'performance.sbatch',wrapper)
+            fake_bin=root/'bin'
+            fake_bin.mkdir()
+            fake_python=fake_bin/'python3'
+            fake_python.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$RK248_CAPTURE"\n')
+            fake_python.chmod(0o755)
+            capture=root/'args.txt'
+            env=os.environ.copy()
+            env['PATH']=str(fake_bin)+os.pathsep+env['PATH']
+            env['RK248_CAPTURE']=str(capture)
+            result=subprocess.run(['bash',str(wrapper),str(PERF),'source-kit','fresh-results','J4','feature-off'],env=env,cwd=root,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(capture.read_text().splitlines(),[str(PERF/'run.py'),'source-kit','fresh-results','J4','feature-off'])
 
     def test_review_archive(self):
         with tempfile.TemporaryDirectory() as temp:

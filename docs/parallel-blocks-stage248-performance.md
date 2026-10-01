@@ -8,23 +8,26 @@ For J4, correctness runs use 16 and 41 ranks; the 41-rank case includes a comput
 
 Every full run must complete 12 steps, two remaps, the checkpoint reload, 62 exact VTK members and the accepted numerical checkpoint gate against a same-rank baseline. Step-state records must agree exactly. Candidate runs also prove legacy SOL/WAV storage is absent between bounded output operations. Scientific failure stops further runs. Timing uses the high-precision median of nine ordinary steps per **independent solver run**, excluding startup, checkpoint/output and first post-reload steps (indices 0, 7 and 8). A 16-rank pair and a larger-rank pair screen for a 3% regression; a clear regression stops the campaign. Otherwise an A-B-B-A confirmation at the larger rank count follows, with at most one repeat batch if the result straddles the guard. The two screening pairs are excluded from confirmation. No branch promotion occurs automatically.
 
-## 1. Transfer the two archives from the local machine
+## 1. Transfer the replacement companion kit
+
+Keep the qualified `bbserv-candidate2` source archive and extraction from the first attempt. Only the small performance kit needs replacing:
 
 ```bash
-scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage247-validation/bbserv-candidate2.tar.gz \
-    /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit.tar.gz \
+scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v2.tar.gz \
     kevlahan@bbserv.math.mcmaster.ca:~/
 ```
 
-The source archive SHA-256 is `dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63`. Find the companion archive SHA-256 in `docs/parallel-blocks-stage248-performance-kit.json`. On bbserv, load the same GNU Fortran, MPI, NetCDF, Python/numpy, `numactl`, `lscpu` and `zstd` environment used by recent campaigns. Check hashes and extract into fresh names:
+On bbserv, load the same GNU Fortran, MPI, NetCDF, Python/numpy, `numactl`, `lscpu` and `zstd` environment used by recent campaigns. The source archive SHA-256 is `dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63`; the replacement kit hash is in `docs/parallel-blocks-stage248-performance-kit.json`. Extract the new kit under its fresh name. If the source kit has not yet been extracted, extract it too:
 
 ```bash
 cd "$HOME"
-sha256sum bbserv-candidate2.tar.gz rk248-performance-kit.tar.gz
-[ ! -e bbserv-candidate2 ] && [ ! -e rk248-performance-kit ]
-tar -xzf bbserv-candidate2.tar.gz
-tar -xzf rk248-performance-kit.tar.gz
+sha256sum bbserv-candidate2.tar.gz rk248-performance-kit-v2.tar.gz
+[ ! -e rk248-performance-kit-v2 ]
+tar -xzf rk248-performance-kit-v2.tar.gz
+if [ ! -d bbserv-candidate2 ]; then tar -xzf bbserv-candidate2.tar.gz; fi
 ```
+
+The batch wrapper is deliberately small, like the successful Stage 229 campaigns. Slurm runs its own spooled copy of a batch script, so the submission passes the performance kit directory explicitly; the wrapper uses that path to start `run.py`.
 
 ## 2. Submit one comparison
 
@@ -33,10 +36,10 @@ Start with the J4 feature-off comparison. Use a new results directory for each c
 ```bash
 cd "$HOME"
 kit="$HOME/bbserv-candidate2"
-perf="$HOME/rk248-performance-kit"
-out="$HOME/rk248-J4-feature-off"
+perf="$HOME/rk248-performance-kit-v2"
+out="$HOME/rk248-J4-feature-off-v2"
 [ ! -e "$out" ]
-sbatch "$perf/performance.sbatch" "$kit" "$out" J4 feature-off
+sbatch "$perf/performance.sbatch" "$perf" "$kit" "$out" J4 feature-off
 ```
 
 For the J4 storage-only comparison, extract a **fresh copy** of the source kit under another name before submission: the first campaign creates build files inside its source tree.
@@ -44,11 +47,11 @@ For the J4 storage-only comparison, extract a **fresh copy** of the source kit u
 ```bash
 [ ! -e "$HOME/bbserv-candidate2-mirrored" ]
 tar -C "$HOME" --transform='s/^bbserv-candidate2/bbserv-candidate2-mirrored/' -xzf "$HOME/bbserv-candidate2.tar.gz"
-perf="$HOME/rk248-performance-kit"
+perf="$HOME/rk248-performance-kit-v2"
 kit="$HOME/bbserv-candidate2-mirrored"
-out="$HOME/rk248-J4-mirrored"
+out="$HOME/rk248-J4-mirrored-v2"
 [ ! -e "$out" ]
-sbatch "$perf/performance.sbatch" "$kit" "$out" J4 mirrored
+sbatch "$perf/performance.sbatch" "$perf" "$kit" "$out" J4 mirrored
 ```
 
 For J5, use another fresh extraction and the historical fixture:
@@ -56,12 +59,12 @@ For J5, use another fresh extraction and the historical fixture:
 ```bash
 [ ! -e "$HOME/bbserv-candidate2-J5" ]
 tar -C "$HOME" --transform='s/^bbserv-candidate2/bbserv-candidate2-J5/' -xzf "$HOME/bbserv-candidate2.tar.gz"
-perf="$HOME/rk248-performance-kit"
+perf="$HOME/rk248-performance-kit-v2"
 kit="$HOME/bbserv-candidate2-J5"
-out="$HOME/rk248-J5-feature-off"
+out="$HOME/rk248-J5-feature-off-v2"
 fixture="$HOME/stage187-fixture-20260911-145307"
 [ ! -e "$out" ]
-sbatch "$perf/performance.sbatch" "$kit" "$out" J5 feature-off "$fixture"
+sbatch "$perf/performance.sbatch" "$perf" "$kit" "$out" J5 feature-off "$fixture"
 ```
 
 GNU tar on bbserv supports the name transform. Do not start another campaign inside an already built kit. Each job's `rk248-JOBID.log` appears in the directory from which `sbatch` was called. `results.json` keeps the active case, source and binary hashes, placement evidence, science gates, run medians and decision; `status=failed` retains evidence when a gate fails. A single run's times are never treated as independent repeated measurements.
@@ -71,19 +74,19 @@ GNU tar on bbserv supports the name transform. Do not start another campaign ins
 On bbserv, inspect `squeue -j JOBID` and the Slurm log. After the job exits, create and verify a small review archive:
 
 ```bash
-perf="$HOME/rk248-performance-kit"
-out="$HOME/rk248-J4-feature-off"
-python3 "$perf/collect.py" "$out" "$HOME/rk248-J4-feature-off-review.tar.gz"
-python3 "$perf/collect.py" --verify "$HOME/rk248-J4-feature-off-review.tar.gz"
-sha256sum "$HOME/rk248-J4-feature-off-review.tar.gz"
+perf="$HOME/rk248-performance-kit-v2"
+out="$HOME/rk248-J4-feature-off-v2"
+python3 "$perf/collect.py" "$out" "$HOME/rk248-J4-feature-off-v2-review.tar.gz"
+python3 "$perf/collect.py" --verify "$HOME/rk248-J4-feature-off-v2-review.tar.gz"
+sha256sum "$HOME/rk248-J4-feature-off-v2-review.tar.gz"
 ```
 
 Change the archive name to match each campaign. The archive includes logs, placement and resource records, hashes, numerical comparisons and the final decision. It also includes the Slurm log when available and can collect an interrupted job after it leaves the queue. It omits the large checkpoints, VTK payloads and binaries; keep the full results directory on bbserv until review. Rank peak RSS is reported per process; their sum is not a simultaneous node-memory measurement. On the local machine, retrieve and verify the review archive:
 
 ```bash
-scp kevlahan@bbserv.math.mcmaster.ca:~/rk248-J4-feature-off-review.tar.gz ~/Desktop/
+scp kevlahan@bbserv.math.mcmaster.ca:~/rk248-J4-feature-off-v2-review.tar.gz ~/Desktop/
 python3 /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/test/parallel_block_profile/performance_248/collect.py \
-    --verify ~/Desktop/rk248-J4-feature-off-review.tar.gz
+    --verify ~/Desktop/rk248-J4-feature-off-v2-review.tar.gz
 ```
 
 A completed scientific gate is a prerequisite for interpreting any timing result. J5 has not yet been validated with the new solver on bbserv; its correctness runs are the first gate of that campaign.
