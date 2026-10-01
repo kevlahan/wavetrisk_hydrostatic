@@ -1,5 +1,6 @@
 """Matched unprofiled/profiled J5 velocity-owner phase attribution on bb13."""
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -65,9 +66,17 @@ def run(perf, prior_kit, candidate, prior_results, out):
             raise ValueError('Missing cluster dependency: '+name)
     removed = {key: os.environ.pop(key) for key in STEP_RESTRICTIONS if key in os.environ}
     sys.path.insert(0, str(prior_kit))
-    from run import runtime_environment, vtk_members, mirror_storage
-    from timing import ordinary
+    # timing.py imports analyze from the candidate source during import.
     sys.path.insert(0, str(candidate/'test/parallel_block_profile'))
+    prior_spec = importlib.util.spec_from_file_location('rk251_runner', prior_kit/'run.py')
+    if prior_spec is None or prior_spec.loader is None:
+        raise ValueError('Cannot import sealed Stage251 runner')
+    prior_module = importlib.util.module_from_spec(prior_spec)
+    prior_spec.loader.exec_module(prior_module)
+    runtime_environment = prior_module.runtime_environment
+    vtk_members = prior_module.vtk_members
+    mirror_storage = prior_module.mirror_storage
+    from timing import ordinary
     from capability_223 import coverage
     from placement_200 import topology, verify
     from placement import plan

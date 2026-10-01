@@ -13,14 +13,14 @@ Keep the Stage251 job's result directory, source tree, kit and
 `$HOME/rk251-job-55256.state` on bbserv. On the local machine:
 
 ```bash
-scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage252-validation/rk252-velocity-profile-kit-v2.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
+scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage252-validation/rk252-velocity-profile-kit-v4.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
 ```
 
 On bbserv, submit without editing files:
 
 ```bash
-tar -xzf "$HOME/rk252-velocity-profile-kit-v2.tar.gz" -C "$HOME"
-bash "$HOME/rk252-velocity-profile-kit-v2/launch.sh"
+tar -xzf "$HOME/rk252-velocity-profile-kit-v4.tar.gz" -C "$HOME"
+bash "$HOME/rk252-velocity-profile-kit-v4/launch.sh"
 ```
 
 To inspect the job:
@@ -35,5 +35,5 @@ After the job ends, verify and transfer its review archive to the local
 Desktop:
 
 ```bash
-bash "$HOME/rk252-velocity-profile-kit-v2/collect.sh"
+bash "$HOME/rk252-velocity-profile-kit-v4/collect.sh"
 ```

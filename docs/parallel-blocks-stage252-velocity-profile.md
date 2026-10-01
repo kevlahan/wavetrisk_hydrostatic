@@ -13,6 +13,14 @@ it where the `source` child was required. The corrected v2 archive now
 passes the child path. A realistic fake submission using the Stage251
 directory layout and a preflight walk through the source manifest passed.
 
+V2 job 55257 passed that preflight but stopped before its first solver
+launch: the runner imported Stage251 `timing.py` before exposing the
+candidate source's `analyze.py` dependency. The corrected v4 kit loads
+the candidate source first and imports the Stage251 runner by an explicit
+module path. The sealed v4 files passed a dry run through topology
+verification, environment preparation and construction of the 83-rank
+launch command. The two failed attempts produced no performance data.
+
 On `nk`/bb13, the kit runs an unprofiled `c4-c5-c5-c4` batch followed by
 the same batch with the existing parallel-block profiler enabled. Each
 full run must again complete twelve steps, two remaps and 62 VTK members,
@@ -26,7 +34,7 @@ profiler's impact. Profile phase times will localize the jump to source
 execution or gradient delivery. They cannot by themselves separate
 useful arithmetic from MPI wait inside a phase.
 
-The sealed v2 kit passed Python and shell syntax checks, archive unpack/hash
+The sealed v4 kit passed Python and shell syntax checks, archive unpack/hash
 verification, profile-report parser checks, fake-Slurm submission and
 wrong-prior-job rejection. Cluster results are pending. The
 [kit README](../test/parallel_block_profile/velocity_profile_252/README.md)
