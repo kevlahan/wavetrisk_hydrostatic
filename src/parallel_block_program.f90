@@ -6,7 +6,9 @@ module parallel_block_program_mod
   use iso_fortran_env, only: int64
   use mpi_f08
   use arch_mod, only: rank,n_process,comm,abort_run
+  use shared_mod, only: zlevels
   use ieee_arithmetic, only: ieee_is_finite
+  use parallel_block_inverse_mod, only: require_tendency_operands
   use parallel_block_resident_operands_mod
   use parallel_block_velocity_mod, only: velocity_qperp,velocity_source
   use parallel_block_primitive_kernels_mod, only: velocity_diffusion_source
@@ -50,6 +52,7 @@ module parallel_block_program_mod
      integer, allocatable :: table(:)
      type(Owner_Read), allocatable :: read(:)
      type(Resident_Operand_Plan) :: resident
+     logical :: uses_resident=.false.
      logical :: compiled=.false.
   end type
 contains
@@ -130,7 +133,7 @@ contains
     type(Owner_Program),intent(inout)::p
     integer,allocatable::sc(:),sd(:),rc(:),rd(:),gc(:),gd(:),hc(:),hd(:),si(:),ri(:),ic(:),jc(:),keys(:,:),refs(:,:)
     real(dp),allocatable::sg(:),rg(:)
-    integer::i,r,a,b,n,h,t,depth,ierr,ni,ng,ns,cursor
+    integer::i,r,a,b,n,h,t,depth,ierr,ni,ng,ns,resident_total,cursor
     if(p%compiled) call die('duplicate compile')
     allocate(sc(n_process),sd(n_process),rc(n_process),rd(n_process),gc(n_process),gd(n_process), &
          hc(n_process),hd(n_process),ic(n_process),jc(n_process))
@@ -190,6 +193,11 @@ contains
        if(p%owned(i)%code/=OP_RESIDENT) cycle
        ns=ns+1;keys(:,ns)=p%owned(i)%key
     end do
+    ! The resident fetch is collective. Decide once at compilation whether
+    ! any rank actually has a resident producer in this program.
+    call MPI_Allreduce(ns,resident_total,1,MPI_INTEGER,MPI_SUM,comm,ierr)
+    if(ierr/=MPI_SUCCESS) call die('resident producer count')
+    p%uses_resident=resident_total>0
     call compile_resident_operands(p%resident,keys)
     call MPI_Allreduce(depth,p%maxdepth,1,MPI_INTEGER,MPI_MAX,comm,ierr)
     if(ierr/=MPI_SUCCESS) call die('program depth')
@@ -298,12 +306,20 @@ contains
     real(dp),allocatable::coeff(:)
     integer::depth,i,a,n
     if(.not.p%compiled) call die('execute before compile')
+    if(k<1.or.k>zlevels) call die('layer')
     coeff=[0.0_dp,0.0_dp]
     if(present(coefficients)) coeff=coefficients
     p%layer=k;p%owned%ready=.false.
-    call fetch_resident_operands(p%resident,k)
+    if(p%uses_resident) then
+       call fetch_resident_operands(p%resident,k)
+    else
+       ! Preserve the consumer-epoch guard normally enforced by that fetch.
+       call require_tendency_operands
+    end if
     do depth=0,p%maxdepth
-       call program_read(p,p%read(depth))
+       ! Depth zero consists solely of input-free producers. Its read plan
+       ! has no values on any rank, so avoid a zero-count Alltoallv.
+       if(depth>0) call program_read(p,p%read(depth))
        do i=1,size(p%owned)
           associate(o=>p%owned(i))
           if(o%depth/=depth) cycle

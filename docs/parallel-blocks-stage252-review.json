@@ -1,0 +1,28 @@
+{
+  "status": "verified",
+  "job_id": "55258",
+  "host": "bb13.rhpcs.internal",
+  "archive_sha256": "6374cc89f09e7788dd53d1754c81b6f82d9853fcd059a90562eb440c0ed2e1a2",
+  "verified_files": 1349,
+  "full_j5_runs": 8,
+  "science_gate": "all runs: 12 steps, two remaps, 62 VTK members, established exact state and checkpoint hashes, 83 physical-core placements",
+  "unprofiled_abba": {
+    "c4_mean_seconds_per_ordinary_step": 1.0608392255,
+    "c5_mean_seconds_per_ordinary_step": 1.4664042525,
+    "difference_seconds": 0.405565027,
+    "paired_differences_seconds": [0.400928895, 0.410201159]
+  },
+  "profiled_abba": {
+    "c4_mean_seconds_per_ordinary_step": 1.080376549,
+    "c5_mean_seconds_per_ordinary_step": 1.4588438635,
+    "difference_seconds": 0.3784673145,
+    "paired_differences_seconds": [0.378575145, 0.378359484]
+  },
+  "profile_phase_difference_seconds_per_all_step": {
+    "complete_timestep": 0.38490833333333335,
+    "native_velocity_source": 0.34337854166666665,
+    "native_velocity_gradient": 0.009433916666666667
+  },
+  "velocity_source_fraction_of_profiled_all_step_gap": 0.8921047219034836,
+  "promotion": false
+}
