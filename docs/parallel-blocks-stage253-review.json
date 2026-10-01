@@ -1,0 +1,26 @@
+{
+  "status": "verified",
+  "job_id": "55259",
+  "archive_sha256": "015bc16482bd420ae2a9260f61e351cd7e400ac9eb8d065f8acf01989415385a",
+  "verified_files": 1350,
+  "full_j5_runs": 8,
+  "generated_physics_files": 23,
+  "unprofiled": {
+    "baseline_mean_seconds_per_ordinary_step": 1.45548081,
+    "optimized_mean_seconds_per_ordinary_step": 1.440592767,
+    "difference_seconds": -0.014888043,
+    "paired_differences_seconds": [-0.027575904, -0.002200182]
+  },
+  "profiled": {
+    "baseline_mean_seconds_per_ordinary_step": 1.456535097,
+    "optimized_mean_seconds_per_ordinary_step": 1.4453185445,
+    "difference_seconds": -0.0112165525,
+    "paired_differences_seconds": [0.003341908, -0.025775013]
+  },
+  "profiled_difference_seconds_per_all_step": {
+    "complete_timestep": -0.0151666667,
+    "native_velocity_source": -0.0058541667,
+    "native_velocity_gradient": 0.0001014583
+  },
+  "decision": "Small benefit; large velocity-owner regression remains. No promotion."
+}
