@@ -1,5 +1,5 @@
 {
-  "status": "v5-prepared-awaiting-bb13-validation",
+  "status": "v5-bb13-startup-sigsegv-awaiting-symbolic-backtrace",
   "performance_archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v5.tar.gz",
   "performance_archive_sha256": "eea1a27921d6b275f031262cdb127ee1b6d6411a665527f01f21e885edb50eab",
   "performance_script_files": 13,
@@ -20,7 +20,7 @@
   "sanitizer_finding": "Null Float_Field load at the two optional domain_sol forwarding calls in src/parallel_block_mpi.f90:10945 and :11107 during the first feature-off boundary refresh on bb13.",
   "correction": "Call boundary packing without domain_sol when that optional argument is absent.",
   "local_validation": "Serial J4 feature-off baseline and candidate builds passed. The four-rank candidate completed 12 exact-reference steps, two remaps, VTK/checkpoint and storage gates. The four-rank feature-off baseline first step exited 0 with all 31 VTK members exactly matching the previous local run. Six offline script checks, syntax/compile checks, and fake-Slurm v5 submission passed.",
-  "cluster_validation": "Pending v5 rerun on bb13. Job 55197 used v4 corrected source, built both binaries serially and passed 16/41-rank placement, but first J4 n16 feature-off baseline validation SIGSEGVed before timing. No correctness gate or performance decision completed.",
+  "cluster_validation": "V5 job 55200 built both binaries serially and passed 16/41-rank placement. The first J4 n16 feature-off baseline validation SIGSEGVed just after all ranks printed Block owner program; the solver ranks returned 139 and the Slurm step returned 143. No correctness gate or performance timing completed.",
   "v4_performance_job": 55197,
   "v4_review_archive_sha256": "cc4a542fd374c9b286f259e64224d0eae16b5c3acb0af0b67937d5534c1d5f6a",
   "v4_sanitizer_job": 55198,
@@ -30,5 +30,8 @@
   "gdb_diagnostic_archive_sha256": "48ffe334861d7a6cfc52f003c1f750bbeecbc01f2bd4ee304cbeffdcf12d4b4a",
   "gdb_finding": "All 16 ranks faulted while calling the primitive walker visitor at src/parallel_block_primitive_walk.f90:153 from prepare_native_inverse. The faulting address equaled the GCC internal-procedure callback trampoline, while the build links with -Wl,-z,noexecstack.",
   "visitor_correction": "Collect primitive walk operations in order and call local handlers directly in inverse and primitive planning; move the pressure callback to a module procedure. Keep the non-executable stack setting.",
-  "next_action": "Transfer the v5 source and performance archives to bbserv, run J4 feature-off with launch.sh on partition nk, and return the verified review archive for correctness and timing assessment."
+  "v5_performance_job": 55200,
+  "v5_review_archive_sha256": "b9d69e84a89dd6b454d17bf71371e916f805d946d85d075c43521c9c5be3b6",
+  "v5_review_verified_files": 34,
+  "next_action": "Run the standalone diagnose_v5_gdb.sbatch on failed job 55200 against its existing optimized -g baseline binary and return the diagnostic archive. The exact next faulting frame is required before another source change."
 }
