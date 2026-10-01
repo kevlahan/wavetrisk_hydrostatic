@@ -1,0 +1,38 @@
+{
+  "status": "verified",
+  "job_id": "55256",
+  "host": "bb13.rhpcs.internal",
+  "archive_sha256": "39592f2288a7c25ebf634009c495a86959bd5739eb047387a5b7be6bfbcba442",
+  "verified_files": 2705,
+  "full_j5_runs": 16,
+  "numerical_gates_passed": 15,
+  "validation_ordinary_median_seconds": {
+    "main": 0.539077507,
+    "c0": 0.771931618,
+    "c1": 0.790623567,
+    "c2": 0.896505836,
+    "c3": 1.039645861,
+    "c4": 1.064096276,
+    "c5": 1.480480177,
+    "c6": 1.645313319
+  },
+  "selected_transition": "c4 to c5: BLOCK_VELOCITY_OWNER",
+  "single_run_screen_difference_seconds": 0.416383901,
+  "confirmation": {
+    "c4_mean_seconds": 1.0624510775,
+    "c5_mean_seconds": 1.44887709475,
+    "difference_seconds": 0.38642601725,
+    "regression_fraction": 0.3637118220626965,
+    "paired_differences_seconds": [0.370922695, 0.396204764, 0.385804058, 0.392772552],
+    "independent_runs_per_variant": 4
+  },
+  "other_single_run_adjacent_differences_seconds": {
+    "main_to_c0": 0.232854111,
+    "c0_to_c1": 0.018691949,
+    "c1_to_c2": 0.105882269,
+    "c2_to_c3": 0.143140025,
+    "c3_to_c4": 0.024450415,
+    "c5_to_c6": 0.164833142
+  },
+  "promotion": false
+}
