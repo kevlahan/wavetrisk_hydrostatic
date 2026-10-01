@@ -197,8 +197,18 @@ contains
   end subroutine materialize_domain_prognostic_view
 
   subroutine assert_domain_prognostic_absent
+    logical, save :: report_initialized=.false., report_enabled=.true.
+    character(len=1) :: quiet
+    integer :: status
+
     if(domain_prognostic_view_present()) error stop 'persistent Domain prognostic storage present'
-    write(*,'(a,i0)') 'Domain prognostic storage absent rank=',rank
+    if(.not.report_initialized) then
+       quiet='0'
+       call get_environment_variable('WAVETRISK_QUIET_STORAGE_ABSENCE',quiet,status=status)
+       if(status==0.and.quiet=='1') report_enabled=.false.
+       report_initialized=.true.
+    end if
+    if(report_enabled) write(*,'(a,i0)') 'Domain prognostic storage absent rank=',rank
   end subroutine assert_domain_prognostic_absent
 
 

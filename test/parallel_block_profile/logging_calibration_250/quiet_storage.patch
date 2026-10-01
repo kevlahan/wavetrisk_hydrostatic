@@ -1,0 +1,18 @@
+diff --git a/src/domain.f90 b/src/domain.f90
+index 3ac652bb..ca749b6c 100644
+--- a/src/domain.f90
++++ b/src/domain.f90
+@@ -199,0 +200,4 @@ contains
++    logical, save :: report_initialized=.false., report_enabled=.true.
++    character(len=1) :: quiet
++    integer :: status
++
+@@ -201 +205,7 @@ contains
+-    write(*,'(a,i0)') 'Domain prognostic storage absent rank=',rank
++    if(.not.report_initialized) then
++       quiet='0'
++       call get_environment_variable('WAVETRISK_QUIET_STORAGE_ABSENCE',quiet,status=status)
++       if(status==0.and.quiet=='1') report_enabled=.false.
++       report_initialized=.true.
++    end if
++    if(report_enabled) write(*,'(a,i0)') 'Domain prognostic storage absent rank=',rank

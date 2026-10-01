@@ -1,0 +1,6 @@
+{
+  "patch_sha256": "450611d9017621f8ea378f978ba4f002498cee9c80eb0f8edabb43ef1bdcfe14",
+  "original_domain_sha256": "ef59f86f45b133e4e205fe95ca6c190acde8d57f9b34861d95356b36576651be",
+  "patched_domain_sha256": "637413d215228154c3c0987b2be4a8b1a6d815653aeaaf4236187fd53015e1f5",
+  "scope": "Only gate the storage-absence diagnostic write with a once-per-process environment selector; keep the storage assertion and all numerical kernels."
+}
