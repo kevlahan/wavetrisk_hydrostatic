@@ -1,0 +1,30 @@
+{
+  "stage": 251,
+  "purpose": "Localize the main-relative J5 regression across the six early block owner features",
+  "kit_archive": ".stage251-validation/rk251-feature-ladder-kit.tar.gz",
+  "kit_archive_sha256": "b56c72864138a6ef8790346c60cc23bed6a52c8039c125af840117bcb2eb0fdd",
+  "kit_files_verified": 11,
+  "candidate_source_archive_sha256": "7189c938950f277378c30b8f546d7154f818e5262cc9acebfc79d7260a9cbaac",
+  "main_source_archive_sha256": "23dbbd8abbcdf3d1fa8d39445de912d09e3806f9a381381a5135240db224f8e5",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "local_build": {
+    "status": "passed",
+    "serial_make_jobs": 1,
+    "variants": ["main", "c0", "c1", "c2", "c3", "c4", "c5", "c6"],
+    "shared_external_physics_objects": 23,
+    "fp_contract_disabled": true,
+    "binary_sha256": {
+      "main": "08290c91cb51e145c95851fc359cab224da2730ade7fad8c5ebdbb0d1540e536",
+      "c0": "139309772e77ca75a63947ca951e52b190d4dcd81544046cfd4ff8ee004b562e",
+      "c1": "dc8bfee120a5bb0335259f929947089b1451659fb0a67fd11cb2de42d04582e4",
+      "c2": "5e2a85bdd7a33ff2eb66b5b5bdf7fe4e5796b0a3bbc41ddedc04a9c79249506d",
+      "c3": "5e5c8ad5fb9aff9e3afc0b0eec70a4ed4f6f173df6d816439cefd28a2f9e8dba",
+      "c4": "a6af43178d4fe6d91780fc787ec7b89eced1f4598e77241266cc1735922b6dbd",
+      "c5": "6664a03cb1bde9d32faa4a4c1209b9c54359218ca9100d77351c22057082d29f",
+      "c6": "818b0c2cc1072750ae4ba235d56eef38d83f21ba40365cb536e2fe4c78e7d119"
+    }
+  },
+  "workflow_checks": ["Python syntax", "shell syntax", "sealed archive unpack", "selector equivalence to Stage248 feature-off baseline", "fake-Slurm submission", "invalid J5 fixture rejected before submission"],
+  "cluster_status": "pending",
+  "promotion": false
+}
