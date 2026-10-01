@@ -17,14 +17,14 @@ Keep the Stage251 job 55256 results and its state file on bbserv. On the
 local machine, copy the sealed kit:
 
 ```bash
-scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage253-validation/rk253-owner-collectives-kit-v2.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
+scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage253-validation/rk253-owner-collectives-kit-v3.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
 ```
 
 On bbserv, submit without editing files:
 
 ```bash
-tar -xzf "$HOME/rk253-owner-collectives-kit-v2.tar.gz" -C "$HOME"
-bash "$HOME/rk253-owner-collectives-kit-v2/launch.sh"
+tar -xzf "$HOME/rk253-owner-collectives-kit-v3.tar.gz" -C "$HOME"
+bash "$HOME/rk253-owner-collectives-kit-v3/launch.sh"
 ```
 
 Check the recorded job if needed:
@@ -39,5 +39,5 @@ After the job ends, verify and transfer its review archive to the local
 Desktop:
 
 ```bash
-bash "$HOME/rk253-owner-collectives-kit-v2/collect.sh"
+bash "$HOME/rk253-owner-collectives-kit-v3/collect.sh"
 ```

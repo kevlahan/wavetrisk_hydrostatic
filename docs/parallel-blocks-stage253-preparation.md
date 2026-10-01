@@ -18,8 +18,8 @@ The common checkpoint SHA-256 was
 `345161aac6fc2a89a0241de04a56ea33847dd3293801e8f05734fbd61059f95c`.
 No local timing is a scaling result.
 
-The sealed Stage253 v2 kit SHA-256 is
-`8f4b453b3baf07042897abccaec54dc59a96361b498a3f443fe05bb782700648`.
+The sealed Stage253 v3 kit SHA-256 is
+`be21496dcb348c25325fc3fc203e7b133eb1612c8d74b8a2159cf36720002499`.
 It pins Stage251 job 55256, verifies all sealed candidate source files,
 replaces only the program source in a private copy, builds c5 with
 `make -j1`, and compares the optimized binary against the exact Stage251
@@ -29,6 +29,14 @@ and shell syntax, source-manifest checks through the local archived
 Stage251 evidence, and tar unpack/hash verification. The local Stage251
 review archive omits binaries, so full preflight can only finish on
 bbserv. No cluster performance result or promotion exists yet.
+
+The first Stage253 submission attempt stopped before `sbatch`: the v2
+launcher sourced the Stage251 state, whose `kit` variable replaced its
+own kit path, then invoked Stage251 preflight with a directory where an
+archive was expected. V3 keeps the Stage253 path in `perf`. A launcher
+test with the real Stage251 state layout verified the preflight path,
+Slurm script path and new state file all point to Stage253. No Stage253
+job or timing resulted from the v2 attempt.
 
 The kit and no-edit bbserv commands are in
 `test/parallel_block_profile/owner_collectives_253/README.md`.
