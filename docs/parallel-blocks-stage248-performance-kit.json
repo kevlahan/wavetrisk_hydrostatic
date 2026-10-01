@@ -3,11 +3,14 @@
   "sha256": "64b9136b682f293e03960c525235ec404029fa686ff59644361f47eb815ea8a3",
   "script_files": 10,
   "unpack_verified": true,
-  "status": "bb13-first-baseline-sigsegv",
+  "status": "bb13-baseline-sigsegv-diagnostic-inconclusive",
   "source_commit": "f865c485e3977502c0d55e4509c4469c7017a183",
   "candidate_source_kit_sha256": "dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63",
   "campaign": "Job 55184 on nk/bb13: builds and placement passed; J4 feature-off n16 baseline SIGSEGV before first timed step; no performance decision",
   "supersedes_archive_sha256": "318fd11f5f05b0eff070d835a34a9d2f2e6f62a1a6254861334e526f8209919a",
   "launch_fix": "Fresh source extraction, sbatch job ID capture, recorded state, and log-only collection on preflight failure",
-  "review_archive_sha256": "3adc834a3a2316fb1aa2ef45401d5f1f0fb297fdda1d23e381b82da7eb05c210"
+  "review_archive_sha256": "3adc834a3a2316fb1aa2ef45401d5f1f0fb297fdda1d23e381b82da7eb05c210",
+  "diagnostic_job": 55185,
+  "diagnostic_archive_sha256": "6d2e4468c1ec820050212dbddaf5c00f0737029838739076e4ee9dc02a3e5853",
+  "diagnostic_result": "Optimized and DEBUG=check n16 feature-off baseline both SIGSEGV at startup with unlimited stack; source location unknown"
 }
