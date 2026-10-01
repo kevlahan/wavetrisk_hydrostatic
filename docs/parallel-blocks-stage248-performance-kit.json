@@ -1,5 +1,5 @@
 {
-  "status": "corrected-kit-prepared-bb13-rerun-pending",
+  "status": "v4-bb13-baseline-startup-sigsegv",
   "performance_archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v4.tar.gz",
   "performance_archive_sha256": "e432058e6464558aae161c0409a1bfbad080b8f8d156b3689e14a277b376aea9",
   "performance_script_files": 12,
@@ -20,5 +20,8 @@
   "sanitizer_finding": "Null Float_Field load at the two optional domain_sol forwarding calls in src/parallel_block_mpi.f90:10945 and :11107 during the first feature-off boundary refresh on bb13.",
   "correction": "Call boundary packing without domain_sol when that optional argument is absent.",
   "local_validation": "Serial J4 feature-off baseline and candidate builds passed. The four-rank feature-off baseline one-step run exited 0; all 31 VTK members exactly matched the previous local run. Six offline performance-script checks and fake-Slurm v4 submission passed.",
-  "cluster_validation": "Pending corrected J4 feature-off run on nk/bb13; no timing or performance decision yet."
+  "cluster_validation": "Job 55197 used corrected source kit, built both binaries serially and passed 16/41-rank placement. The first J4 n16 feature-off baseline validation again SIGSEGVed before timing; no correctness gate or performance decision completed.",
+  "v4_performance_job": 55197,
+  "v4_review_archive_sha256": "cc4a542fd374c9b286f259e64224d0eae16b5c3acb0af0b67937d5534c1d5f6a",
+  "next_diagnostic": "Run the existing v4 diagnose_asan.sbatch against failed job 55197 to locate the remaining fault in the corrected binary."
 }
