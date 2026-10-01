@@ -1,0 +1,150 @@
+{
+  "status": "verified",
+  "job_id": "55240",
+  "review_archive": "/Users/kevlahan/Desktop/rk250-review-55240.tar.gz",
+  "review_archive_sha256": "7779c3bbe599bad44b423efc18e1c68a7c32f6bbdc0eadb22a26192c9888da33",
+  "verified_files": 2531,
+  "host": "bb13.rhpcs.internal",
+  "runs": [
+    {
+      "name": "J5-n83-validation-main-main",
+      "mode": "main",
+      "phase": "validation",
+      "median_seconds": 0.539104741,
+      "diagnostic_lines": 0,
+      "binary_sha256": "de97d51c17986712b22695f25b6b7ec75aae45d9d21bca7bca85eca6c9ed51ad"
+    },
+    {
+      "name": "J5-n83-validation-loud-loud",
+      "mode": "loud",
+      "phase": "validation",
+      "median_seconds": 1.678584712,
+      "diagnostic_lines": 1162,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-validation-quiet-quiet",
+      "mode": "quiet",
+      "phase": "validation",
+      "median_seconds": 1.656766921,
+      "diagnostic_lines": 0,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-logging-1-1-loud",
+      "mode": "loud",
+      "phase": "logging",
+      "median_seconds": 1.654965531,
+      "diagnostic_lines": 1162,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-logging-1-2-quiet",
+      "mode": "quiet",
+      "phase": "logging",
+      "median_seconds": 1.697622406,
+      "diagnostic_lines": 0,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-logging-1-3-quiet",
+      "mode": "quiet",
+      "phase": "logging",
+      "median_seconds": 1.633288643,
+      "diagnostic_lines": 0,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-logging-1-4-loud",
+      "mode": "loud",
+      "phase": "logging",
+      "median_seconds": 1.650298968,
+      "diagnostic_lines": 1162,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-logging-2-1-loud",
+      "mode": "loud",
+      "phase": "logging",
+      "median_seconds": 1.652136748,
+      "diagnostic_lines": 1162,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-logging-2-2-quiet",
+      "mode": "quiet",
+      "phase": "logging",
+      "median_seconds": 1.681984885,
+      "diagnostic_lines": 0,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-logging-2-3-quiet",
+      "mode": "quiet",
+      "phase": "logging",
+      "median_seconds": 1.703633806,
+      "diagnostic_lines": 0,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-logging-2-4-loud",
+      "mode": "loud",
+      "phase": "logging",
+      "median_seconds": 1.690393102,
+      "diagnostic_lines": 1162,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-residual-1-main",
+      "mode": "main",
+      "phase": "residual",
+      "median_seconds": 0.541542621,
+      "diagnostic_lines": 0,
+      "binary_sha256": "de97d51c17986712b22695f25b6b7ec75aae45d9d21bca7bca85eca6c9ed51ad"
+    },
+    {
+      "name": "J5-n83-residual-2-quiet",
+      "mode": "quiet",
+      "phase": "residual",
+      "median_seconds": 1.663839774,
+      "diagnostic_lines": 0,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-residual-3-quiet",
+      "mode": "quiet",
+      "phase": "residual",
+      "median_seconds": 1.664171296,
+      "diagnostic_lines": 0,
+      "binary_sha256": "03cc8aefc28d9f48e18189169b77ec6984d1c89079a128fc94d9f105779e46ac"
+    },
+    {
+      "name": "J5-n83-residual-4-main",
+      "mode": "main",
+      "phase": "residual",
+      "median_seconds": 0.540462036,
+      "diagnostic_lines": 0,
+      "binary_sha256": "de97d51c17986712b22695f25b6b7ec75aae45d9d21bca7bca85eca6c9ed51ad"
+    }
+  ],
+  "numerical_gates": 12,
+  "logging": {
+    "loud_mean_seconds": 1.66194858725,
+    "quiet_mean_seconds": 1.679132435,
+    "loud_minus_quiet_seconds": -0.017183847750000147,
+    "paired_savings_seconds": [
+      -0.04265687500000004,
+      0.017010324999999993,
+      -0.029848137000000108,
+      -0.013240703999999992
+    ],
+    "independent_runs_per_mode": 4
+  },
+  "residual": {
+    "main_mean_seconds": 0.5410023285,
+    "quiet_candidate_mean_seconds": 1.6640055349999998,
+    "candidate_minus_main_seconds": 1.1230032065,
+    "candidate_to_main_ratio": 3.0757825749358116,
+    "independent_runs_per_version": 2
+  }
+}

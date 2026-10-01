@@ -1,5 +1,10 @@
 # Stage250: calibrate candidate storage logging before further Domain removal
 
+Job 55240 has completed. The verified [cluster review](parallel-blocks-stage250-review.md)
+finds no measured savings from suppressing the diagnostic write and a
+1.123003 s/step quiet-candidate gap to `main` at 83 ranks. The following is
+the preparation protocol used for that run.
+
 Stage249 job 55239 measured 1.677614 s/ordinary step for the current
 mirror-free candidate versus 0.540682 s for read-only `main` at 83 ranks on
 bb13, a 1.136932 s end-to-end gap. The candidate's timed `time_step` calls

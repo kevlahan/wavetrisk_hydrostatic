@@ -1,6 +1,6 @@
 {
   "stage": 250,
-  "status": "prepared-for-bbserv-logging-calibration",
+  "status": "bbserv-logging-calibration-reviewed",
   "purpose": "Measure candidate storage-diagnostic write cost with the assertion retained, then measure the quiet candidate's residual J5 gap to read-only main.",
   "preceding_stage249_job": 55239,
   "preceding_stage249_main_seconds": 0.5406824795,
@@ -21,6 +21,15 @@
   "local_candidate_binary_sha256": "ab1679533e99cbbb54c732d1294427a95f2ad4007169e2962e34ce6f440b8087",
   "local_main_binary_sha256": "2ece8e77542014a53851df6b3116c528ac1d88ca293d18a20b06a9bbaeff35ba",
   "local_workflow_checks": "Python/shell syntax, packaged source identity, fake-Slurm fresh extraction/argument/state check and invalid-fixture preflight passed.",
-  "remote_status": "not submitted",
-  "next_action": "Transfer only the small Stage250 kit to bbserv, where candidate5, Stage249 main and Stage187 J5 fixture already exist. Run its launcher and collect the review archive. No further Domain removal before reviewing calibration and residual performance."
+  "remote_status": "Job 55240 completed on bb13; fifteen full J5 runs, twelve cross-version numerical gates and three A-B-B-A batches independently reviewed.",
+  "review_archive": "/Users/kevlahan/Desktop/rk250-review-55240.tar.gz",
+  "review_archive_sha256": "7779c3bbe599bad44b423efc18e1c68a7c32f6bbdc0eadb22a26192c9888da33",
+  "review_verified_files": 2531,
+  "loud_mean_seconds_per_ordinary_step": 1.66194858725,
+  "quiet_mean_seconds_per_ordinary_step": 1.679132435,
+  "loud_minus_quiet_seconds_per_ordinary_step": -0.017183847750000147,
+  "quiet_candidate_residual_to_main_seconds_per_ordinary_step": 1.1230032065,
+  "quiet_candidate_residual_to_main_elapsed_ratio": 3.0757825749358116,
+  "decision": "No measured logging saving; large main-relative regression persists with diagnostic write suppressed.",
+  "next_action": "Build a current-source J5 feature ladder of the six early owner features shared by Stage248 feature-off and migrated variants. Confirm the largest adjacent jump with matched bb13 A-B-B-A runs before changing numerical kernels. Keep Domain removal paused."
 }
