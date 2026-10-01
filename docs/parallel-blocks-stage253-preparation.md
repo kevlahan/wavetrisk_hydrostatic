@@ -18,8 +18,8 @@ The common checkpoint SHA-256 was
 `345161aac6fc2a89a0241de04a56ea33847dd3293801e8f05734fbd61059f95c`.
 No local timing is a scaling result.
 
-The sealed Stage253 v3 kit SHA-256 is
-`be21496dcb348c25325fc3fc203e7b133eb1612c8d74b8a2159cf36720002499`.
+The sealed Stage253 v4 kit SHA-256 is
+`15dd67fcdb4ac949d42e24bfb7a8f4463a9addaf532861ac4da6f9ea594b505a`.
 It pins Stage251 job 55256, verifies all sealed candidate source files,
 replaces only the program source in a private copy, builds c5 with
 `make -j1`, and compares the optimized binary against the exact Stage251
@@ -37,6 +37,17 @@ archive was expected. V3 keeps the Stage253 path in `perf`. A launcher
 test with the real Stage251 state layout verified the preflight path,
 Slurm script path and new state file all point to Stage253. No Stage253
 job or timing resulted from the v2 attempt.
+
+The v3 submission also stopped before `sbatch`: Stage251's built source
+has regenerated `phyparam/tmp/accelerator.f90`, whereas v3 incorrectly
+required every source-archive file to keep its original hash after the
+Stage251 build. V4 permits changes only in generated `phyparam/tmp`
+files and `Makefile.inc`, records their names, verifies all other sealed
+source files, and pins all 23 compiled physics objects to Stage251's
+recorded object hashes before and after the optimized build. A local
+preflight test accepted altered generated files while rejecting altered
+fixed source and physics objects. No Stage253 job or timing resulted
+from v3.
 
 The kit and no-edit bbserv commands are in
 `test/parallel_block_profile/owner_collectives_253/README.md`.

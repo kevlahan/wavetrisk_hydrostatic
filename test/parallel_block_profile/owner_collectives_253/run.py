@@ -61,7 +61,7 @@ def run(kit, prior_kit, candidate, prior_results, out):
     kit, prior_kit, candidate, prior_results = (Path(p).resolve(strict=True)
                                                for p in (kit, prior_kit, candidate, prior_results))
     out = Path(out).resolve()
-    preflight(kit, prior_kit, candidate, prior_results)
+    generated_physics_changes = preflight(kit, prior_kit, candidate, prior_results)
     if out.exists() or any(out.is_relative_to(root) for root in (kit, prior_kit, candidate, prior_results)):
         raise ValueError('Use a fresh external results directory')
     if (not os.environ.get('SLURM_JOB_ID') or int(os.environ.get('SLURM_JOB_NUM_NODES', '0')) != 1
@@ -97,6 +97,7 @@ def run(kit, prior_kit, candidate, prior_results, out):
     save(out/'placement-83.json', placement)
     result = dict(status='running', job_id=os.environ['SLURM_JOB_ID'], stage251_job_id=PRIOR_JOB,
                   host=top['host'], prior_results_sha256=sha(prior_results/'results.json'),
+                  regenerated_physics_files=generated_physics_changes,
                   removed_step_restrictions=removed, runs={}, schedule=[], decisions={})
     save(out/'results.json', result)
     try:
@@ -122,10 +123,13 @@ def run(kit, prior_kit, candidate, prior_results, out):
         optimized = source/'bin-rk253-opt-c5/climate'
         if not optimized.is_file():
             raise ValueError('Optimized binary absent')
+        physics_objects = builder.physics_objects(source)
+        if physics_objects != prior['build']['builds']['main']['physics_objects_sha256']:
+            raise ValueError('Optimized build changed Stage251 compiled physics objects')
         result['build'] = dict(command=command, source_sha256=sha(source/SOURCE),
                                baseline_binary_sha256=BASELINE_SHA,
                                optimized_binary_sha256=sha(optimized),
-                               physics_objects=builder.physics_objects(source))
+                               physics_objects=physics_objects)
         save(out/'results.json', result)
         env_base = prior_module.runtime_environment(candidate.parent)
         rank_launcher = candidate/'test/parallel_block_profile/rank_launch_223.py'
