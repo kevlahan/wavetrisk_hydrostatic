@@ -30,12 +30,15 @@ def verify(archive):
     return dict(archive=str(archive.resolve()),sha256=digest(archive),verified_files=len(manifest))
 
 
-def collect(results, archive):
+def collect(results, archive, slurm_log=None, state=None):
     results, archive=results.resolve(),archive.resolve()
-    if archive.exists() or not (results/'results.json').is_file():
-        raise ValueError('Use a fresh archive and an existing results directory')
-    record=json.loads((results/'results.json').read_text())
-    status=record['status']
+    if archive.exists():
+        raise ValueError('Use a fresh archive: '+str(archive))
+    has_results=(results/'results.json').is_file()
+    if not has_results and (slurm_log is None or not slurm_log.is_file()):
+        raise ValueError('No results.json or Slurm log exists; inspect the recorded job first')
+    record=json.loads((results/'results.json').read_text()) if has_results else {}
+    status=record.get('status','preflight-failed')
     if status=='running':
         if not shutil.which('squeue'):
             raise ValueError('Campaign may still be active; check squeue before collecting')
@@ -43,14 +46,16 @@ def collect(results, archive):
         if active:
             raise ValueError('Campaign is still queued or running')
         status='interrupted'
-    elif status not in ('complete','failed'):
+    elif status not in ('complete','failed','preflight-failed'):
         raise ValueError('Unknown campaign status')
     files={str(p.relative_to(results)):p for p in sorted(results.rglob('*'))
-           if p.is_file() and p.name.endswith(('.json','.log','.resources'))}
+           if p.is_file() and p.name.endswith(('.json','.log','.resources'))} if has_results else {}
     submit=record.get('slurm_submit_dir')
     if submit:
         joblog=Path(submit)/f"rk248-{record['slurm_job_id']}.log"
         if joblog.is_file():files['slurm-job.log']=joblog
+    if slurm_log is not None and slurm_log.is_file():files['slurm-job.log']=slurm_log
+    if state is not None and state.is_file():files['submission.state']=state
     manifest={name:digest(path) for name,path in files.items()}
     with tarfile.open(archive,'w:gz') as tar:
         for name,path in files.items():
@@ -68,10 +73,12 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('paths',nargs='+',type=Path)
     parser.add_argument('--verify',action='store_true')
+    parser.add_argument('--slurm-log',type=Path)
+    parser.add_argument('--state',type=Path)
     args=parser.parse_args()
     if args.verify and len(args.paths)==1:
         print(json.dumps(verify(args.paths[0]),indent=2))
     elif not args.verify and len(args.paths)==2:
-        collect(*args.paths)
+        collect(*args.paths,slurm_log=args.slurm_log,state=args.state)
     else:
         parser.error('Use RESULTS ARCHIVE, or --verify ARCHIVE')

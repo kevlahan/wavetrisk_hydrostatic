@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 import sys
 import tempfile
+import tarfile
 import unittest
 
 PERF=Path(__file__).resolve().parent
@@ -67,6 +68,19 @@ class ScriptChecks(unittest.TestCase):
             result=subprocess.run(['bash',str(wrapper),str(PERF),'source-kit','fresh-results','J4','feature-off'],env=env,cwd=root,capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(capture.read_text().splitlines(),[str(PERF/'run.py'),'source-kit','fresh-results','J4','feature-off'])
+
+    def test_preflight_failure_archive(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            log=root/'rk248-123.log'
+            state=root/'rk248-job-123.state'
+            log.write_text('Python could not start the driver\n')
+            state.write_text('job=123\n')
+            archive=root/'review.tar.gz'
+            collect(root/'missing-results',archive,slurm_log=log,state=state)
+            self.assertEqual(verify(archive)['verified_files'],2)
+            with tarfile.open(archive) as package:
+                self.assertEqual(package.extractfile('missing-results/slurm-job.log').read(),log.read_bytes())
 
     def test_review_archive(self):
         with tempfile.TemporaryDirectory() as temp:

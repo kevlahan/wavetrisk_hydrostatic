@@ -1,92 +1,45 @@
 # RK migration performance campaign on bbserv
 
-This companion kit runs the qualified Stage 247 source in two matched builds. `feature-off` compares the complete opt-in RK migration against the same current source with the new RK, physics, soil, adaptation, lifecycle, coefficient and mirror-free features disabled. `mirrored` keeps the native migration enabled in both builds and isolates removal of the persistent Domain SOL/WAV arrays. The candidate always enables the qualified Stage 247 feature set. These comparisons do not reuse an old binary from another compiler or node.
+This kit runs the qualified Stage247 source on the exclusive `nk` node (bb13, 256 effective CPUs). It builds the candidate and matched baseline there with `make -j1`, then checks correctness and independent timing runs. The kit's launcher follows the successful Stage227/229 pattern: it extracts a fresh source tree, submits with `sbatch --parsable`, records the job ID and prints the log and results paths. The collector verifies a review archive and transfers it from bbserv to murier. If the job fails before `results.json` exists, the collector still preserves the Slurm log and submission record.
 
-The Slurm script requests one exclusive `nk` node, which is bb13 with 256 effective CPUs. It compiles both variants there with `make -j1`, pins one MPI rank to each physical core and checks the placement before solving. `nk` contains only bb13, so no node exclusion is needed. The local machine's four-core limit applies only to local preparation; no local timing is used as cluster performance evidence.
+The source archive SHA-256 is `dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63`. The performance archive SHA-256 is recorded in `docs/parallel-blocks-stage248-performance-kit.json`. The source archive `bbserv-candidate2.tar.gz` must already be in `$HOME` on bbserv; its old extracted directory is not used.
 
-For J4, correctness runs use 16 and 41 ranks; the 41-rank case includes a compute rank without Domain geometry. Timing screens use 16 and 41 ranks. For J5, correctness uses 16 and 167 ranks, while timing screens use 16 and 83 ranks. J5 requires the previously established `stage187-fixture-20260911-145307` directory on bbserv. The script checks that fixture's input, seed checkpoint and grid hashes against the Stage 230 accepted campaign. J4 uses the source kit's sealed fixture.
-
-Every full run must complete 12 steps, two remaps, the checkpoint reload, 62 exact VTK members and the accepted numerical checkpoint gate against a same-rank baseline. Step-state records must agree exactly. Candidate runs also prove legacy SOL/WAV storage is absent between bounded output operations. Scientific failure stops further runs. Timing uses the high-precision median of nine ordinary steps per **independent solver run**, excluding startup, checkpoint/output and first post-reload steps (indices 0, 7 and 8). A 16-rank pair and a larger-rank pair screen for a 3% regression; a clear regression stops the campaign. Otherwise an A-B-B-A confirmation at the larger rank count follows, with at most one repeat batch if the result straddles the guard. The two screening pairs are excluded from confirmation. No branch promotion occurs automatically.
-
-## 1. Transfer the replacement companion kit
-
-Keep the qualified `bbserv-candidate2` source archive and extraction from the first attempt. Only the small performance kit needs replacing:
+## 1. Transfer from the local machine
 
 ```bash
-scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v2.tar.gz \
-    kevlahan@bbserv.math.mcmaster.ca:~/
+scp /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v3.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
 ```
 
-On bbserv, load the same GNU Fortran, MPI, NetCDF, Python/numpy, `numactl`, `lscpu` and `zstd` environment used by recent campaigns. The source archive SHA-256 is `dc6daba22953f5ab54398f6085b9b39aa04a2161b233fade692fedaa9d5d7d63`; the replacement kit hash is in `docs/parallel-blocks-stage248-performance-kit.json`. Extract the new kit under its fresh name. If the source kit has not yet been extracted, extract it too:
+## 2. Extract and submit on bbserv
 
 ```bash
+(
+set -e
 cd "$HOME"
-sha256sum bbserv-candidate2.tar.gz rk248-performance-kit-v2.tar.gz
-[ ! -e rk248-performance-kit-v2 ]
-tar -xzf rk248-performance-kit-v2.tar.gz
-if [ ! -d bbserv-candidate2 ]; then tar -xzf bbserv-candidate2.tar.gz; fi
+if [ ! -d rk248-performance-kit-v3 ]; then tar -xzf rk248-performance-kit-v3.tar.gz; fi
+bash "$HOME/rk248-performance-kit-v3/launch.sh"
+)
 ```
 
-The batch wrapper is deliberately small, like the successful Stage 229 campaigns. Slurm runs its own spooled copy of a batch script, so the submission passes the performance kit directory explicitly; the wrapper uses that path to start `run.py`.
-
-## 2. Submit one comparison
-
-Start with the J4 feature-off comparison. Use a new results directory for each campaign:
+The launcher defaults to J4 feature-off. It prints `Submitted job`, `Results`, and `Slurm log`. It creates a fresh source tree from the qualified archive for every submission; it never silently skips submission because an old results directory exists. To see the latest job's status and log:
 
 ```bash
-cd "$HOME"
-kit="$HOME/bbserv-candidate2"
-perf="$HOME/rk248-performance-kit-v2"
-out="$HOME/rk248-J4-feature-off-v2"
-[ ! -e "$out" ]
-sbatch "$perf/performance.sbatch" "$perf" "$kit" "$out" J4 feature-off
+source "$HOME/rk248-latest.state"
+squeue -j "$job"
+sacct -j "$job" -X -o JobID,JobName%25,State,ExitCode,Elapsed,NodeList
+tail -n 80 "$HOME/rk248-${job}.log"
 ```
 
-For the J4 storage-only comparison, extract a **fresh copy** of the source kit under another name before submission: the first campaign creates build files inside its source tree.
+An empty queue means only that the job is no longer pending or running; inspect `sacct` and the log. A log file may not exist while a job is still pending.
+
+## 3. Collect after the job ends on bbserv
 
 ```bash
-[ ! -e "$HOME/bbserv-candidate2-mirrored" ]
-tar -C "$HOME" --transform='s/^bbserv-candidate2/bbserv-candidate2-mirrored/' -xzf "$HOME/bbserv-candidate2.tar.gz"
-perf="$HOME/rk248-performance-kit-v2"
-kit="$HOME/bbserv-candidate2-mirrored"
-out="$HOME/rk248-J4-mirrored-v2"
-[ ! -e "$out" ]
-sbatch "$perf/performance.sbatch" "$perf" "$kit" "$out" J4 mirrored
+bash "$HOME/rk248-performance-kit-v3/collect.sh"
 ```
 
-For J5, use another fresh extraction and the historical fixture:
+The collector checks the queue, creates or reuses `$HOME/rk248-review-JOBID.tar.gz`, verifies its file hashes, and copies it to `kevlahan@murier.math.mcmaster.ca:~/Desktop/`. If that transfer fails, the verified archive remains on bbserv; pull it from the local machine with `scp` using the printed archive path. Keep the full results directory on bbserv until review. The review archive omits large checkpoints, VTK files and binaries.
 
-```bash
-[ ! -e "$HOME/bbserv-candidate2-J5" ]
-tar -C "$HOME" --transform='s/^bbserv-candidate2/bbserv-candidate2-J5/' -xzf "$HOME/bbserv-candidate2.tar.gz"
-perf="$HOME/rk248-performance-kit-v2"
-kit="$HOME/bbserv-candidate2-J5"
-out="$HOME/rk248-J5-feature-off-v2"
-fixture="$HOME/stage187-fixture-20260911-145307"
-[ ! -e "$out" ]
-sbatch "$perf/performance.sbatch" "$perf" "$kit" "$out" J5 feature-off "$fixture"
-```
+For J4 storage-only or J5 feature-off, use `bash "$HOME/rk248-performance-kit-v3/launch.sh" J4 mirrored` or `bash "$HOME/rk248-performance-kit-v3/launch.sh" J5 feature-off`. J5 requires `$HOME/stage187-fixture-20260911-145307`.
 
-GNU tar on bbserv supports the name transform. Do not start another campaign inside an already built kit. Each job's `rk248-JOBID.log` appears in the directory from which `sbatch` was called. `results.json` keeps the active case, source and binary hashes, placement evidence, science gates, run medians and decision; `status=failed` retains evidence when a gate fails. A single run's times are never treated as independent repeated measurements.
-
-## 3. Collect the result after the job ends
-
-On bbserv, inspect `squeue -j JOBID` and the Slurm log. After the job exits, create and verify a small review archive:
-
-```bash
-perf="$HOME/rk248-performance-kit-v2"
-out="$HOME/rk248-J4-feature-off-v2"
-python3 "$perf/collect.py" "$out" "$HOME/rk248-J4-feature-off-v2-review.tar.gz"
-python3 "$perf/collect.py" --verify "$HOME/rk248-J4-feature-off-v2-review.tar.gz"
-sha256sum "$HOME/rk248-J4-feature-off-v2-review.tar.gz"
-```
-
-Change the archive name to match each campaign. The archive includes logs, placement and resource records, hashes, numerical comparisons and the final decision. It also includes the Slurm log when available and can collect an interrupted job after it leaves the queue. It omits the large checkpoints, VTK payloads and binaries; keep the full results directory on bbserv until review. Rank peak RSS is reported per process; their sum is not a simultaneous node-memory measurement. On the local machine, retrieve and verify the review archive:
-
-```bash
-scp kevlahan@bbserv.math.mcmaster.ca:~/rk248-J4-feature-off-v2-review.tar.gz ~/Desktop/
-python3 /Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/test/parallel_block_profile/performance_248/collect.py \
-    --verify ~/Desktop/rk248-J4-feature-off-v2-review.tar.gz
-```
-
-A completed scientific gate is a prerequisite for interpreting any timing result. J5 has not yet been validated with the new solver on bbserv; its correctness runs are the first gate of that campaign.
+The candidate enables the qualified Stage247 migration. `feature-off` compares it to the same source with the new RK, physics, soil, adaptation, lifecycle, coefficient and mirror-free features disabled. `mirrored` retains the native migration in both builds and isolates persistent Domain SOL/WAV storage. Every full run completes 12 steps, two remaps, checkpoint reload, exact VTK and numerical gates before timing. Timing uses the median of nine ordinary steps per independent run, followed by a bounded A-B-B-A confirmation when screening permits. No branch promotion occurs automatically. The local four-core machine is used only for preparation; cluster timing is measured on bb13.
