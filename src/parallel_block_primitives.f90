@@ -7,7 +7,7 @@ module parallel_block_primitives_mod
   use shared_mod, only: level_start,level_end,S_MASS,S_TEMP,scalars,compressible,N_BDRY
   use domain_mod, only: Domain,grid,idx
   use domain_ops_mod, only: apply_onescale_to_patch
-  use parallel_block_primitive_walk_mod, only: walk_primitive_patch
+  use parallel_block_primitive_walk_mod, only: walk_primitive_patch,Primitive_Walk
   use parallel_block_primitive_kernels_mod, only: primitive_regular,primitive_southwest
   use parallel_block_columns_mod, only: owner_tendency_without_reference
   use parallel_block_columns_mod, only: columns_active,columns_oracle,column_consumer_address,owner_column_result
@@ -33,6 +33,7 @@ module parallel_block_primitives_mod
   type :: Integer_Map
      integer, allocatable :: visit(:),source(:,:)
   end type
+  type(Integer_Map), pointer :: pressure_visits(:) => null()
   type(Integer_Map), allocatable :: bernoulli_ready(:)
   type(Primitive_Plan), allocatable :: plan(:)
   integer(int64) :: generation=-1_int64,executed(2)=0_int64,checked(2)=0_int64
@@ -54,12 +55,14 @@ contains
     end do
   end subroutine
   subroutine compile_plans
-    type(Integer_Map), allocatable :: visits(:)
-    integer :: l,d,j,pass,n,r,i,pos,dest,column,ierr,meta(N_META),key(5)
+    type(Integer_Map), allocatable, target :: visits(:)
+    type(Primitive_Walk) :: primitive_visits
+    integer :: l,d,j,pass,n,r,i,pos,dest,column,ierr,meta(N_META),key(5),visit_index
     integer, allocatable :: local_meta(:,:),send_meta(:,:),count(:),input_keys(:,:)
     real(dp), allocatable :: local_geo(:,:),send_geo(:,:)
     if(allocated(plan)) deallocate(plan,bernoulli_ready)
     allocate(plan(level_start:level_end),visits(size(grid)),bernoulli_ready(size(grid)))
+    pressure_visits => visits
     do d=1,size(grid)
        allocate(visits(d)%visit(grid(d)%node%length),bernoulli_ready(d)%visit(grid(d)%node%length), &
             bernoulli_ready(d)%source(4,grid(d)%node%length))
@@ -74,7 +77,13 @@ contains
           do d=1,size(grid)
              do j=1,grid(d)%lev(l)%length
                 if(pass==2) call apply_onescale_to_patch(record_pressure,grid(d),grid(d)%lev(l)%elts(j),0,0,1)
-                call walk_primitive_patch(grid(d),grid(d)%lev(l)%elts(j),record_operation)
+                call walk_primitive_patch( &
+                     grid(d),grid(d)%lev(l)%elts(j),operations=primitive_visits)
+                do visit_index=1,primitive_visits%count
+                   call record_operation( &
+                        primitive_visits%ids(:,visit_index), &
+                        primitive_visits%southwest(visit_index))
+                end do
              end do
           end do
           if(pass==1) then
@@ -119,14 +128,8 @@ contains
        end associate
     end do
     generation=inverse_operand_generation()
+    nullify(pressure_visits)
   contains
-    subroutine record_pressure(dom,x,y,k,offs,dims)
-      type(Domain), intent(inout) :: dom
-      integer, intent(in) :: x,y,k,offs(N_BDRY+1),dims(2,N_BDRY+1)
-      integer :: id
-      id=idx(x,y,offs,dims)+1
-      visits(dom%id+1)%visit(id)=visits(dom%id+1)%visit(id)+1
-    end subroutine
     subroutine record_operation(ids,southwest)
       integer, intent(in) :: ids(0:7)
       logical, intent(in) :: southwest
@@ -160,6 +163,15 @@ contains
       local_geo(:,n)=[reshape(length,[24]),reshape(pedlen,[24]),reshape(area,[48]), &
            reshape(triarea,[16]),reshape(coriolis,[16]),grid(d)%areas%elts(ids(0)+1)%hex_inv]
     end subroutine
+  end subroutine
+
+  subroutine record_pressure(dom,x,y,k,offs,dims)
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: x,y,k,offs(N_BDRY+1),dims(2,N_BDRY+1)
+    integer :: id
+    if (.not.associated(pressure_visits)) call die('primitive pressure walk outside compilation')
+    id=idx(x,y,offs,dims)+1
+    pressure_visits(dom%id+1)%visit(id)=pressure_visits(dom%id+1)%visit(id)+1
   end subroutine
 
   subroutine initialize_registry(k)

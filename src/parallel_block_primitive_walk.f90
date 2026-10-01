@@ -5,7 +5,13 @@ module parallel_block_primitive_walk_mod
   use patch_mod, only: PATCH_SIZE,LAST
   implicit none
   private
-  public :: walk_primitive_patch,comp_offs3
+  public :: walk_primitive_patch,comp_offs3,Primitive_Walk
+  integer, parameter :: MAX_PRIMITIVE_VISITS = 8*(PATCH_SIZE+2)**2
+  type :: Primitive_Walk
+     integer :: count = 0
+     integer :: ids(0:7,MAX_PRIMITIVE_VISITS)
+     logical :: southwest(MAX_PRIMITIVE_VISITS)
+  end type
   abstract interface
      subroutine Primitive_Visitor(ids,southwest)
        integer, intent(in) :: ids(0:7)
@@ -13,12 +19,16 @@ module parallel_block_primitive_walk_mod
      end subroutine
   end interface
 contains
-  subroutine walk_primitive_patch(dom,p,visit)
+  subroutine walk_primitive_patch(dom,p,visit,operations)
     type(Domain), intent(inout) :: dom
     integer, intent(in) :: p
-    procedure(Primitive_Visitor) :: visit
+    procedure(Primitive_Visitor), optional :: visit
+    type(Primitive_Walk), optional, intent(out) :: operations
     integer :: j,id,n,e,s,w,ne,sw,offs(0:N_BDRY),dims(2,N_BDRY)
     logical :: S_bdry,W_bdry
+    if (present(visit).eqv.present(operations)) &
+         error stop 'primitive walk requires exactly one consumer'
+    if (present(operations)) operations%count = 0
     call comp_offs3 (dom, p, offs, dims)
 
     S_bdry = (dom%patch%elts(p+1)%neigh(SOUTH) < 0)
@@ -150,7 +160,18 @@ contains
   contains
     subroutine emit(southwest)
       logical, intent(in) :: southwest
-      call visit([id,id+n,id+e,id+s,id+w,id+ne,id,id+sw],southwest)
+      integer :: ids(0:7),slot
+      ids = [id,id+n,id+e,id+s,id+w,id+ne,id,id+sw]
+      if (present(operations)) then
+         slot = operations%count + 1
+         if (slot > MAX_PRIMITIVE_VISITS) &
+              error stop 'primitive walk capacity exceeded'
+         operations%count = slot
+         operations%ids(:,slot) = ids
+         operations%southwest(slot) = southwest
+      else
+         call visit(ids,southwest)
+      end if
     end subroutine
   end subroutine
   subroutine comp_offs3 (dom, p, offs, dims)

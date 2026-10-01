@@ -8,10 +8,10 @@ if (( $# > 2 )) || [[ "$level" != J4 && "$level" != J5 ]] || [[ "$comparison" !=
   echo 'Usage: bash launch.sh [J4|J5] [feature-off|mirrored]' >&2
   exit 2
 fi
-archive="$HOME/bbserv-candidate3.tar.gz"
+archive="$HOME/bbserv-candidate4.tar.gz"
 [[ -f "$archive" ]] || { echo "Missing qualified source archive: $archive" >&2; exit 1; }
 command -v sbatch >/dev/null || { echo 'sbatch is unavailable; run this on bbserv.' >&2; exit 1; }
-printf '%s  %s\n' 7469cea885059eb38ccb075a67b9751fd11de14b8e21003aee07cbfb72729955 "$archive" | sha256sum -c -
+printf '%s  %s\n' edc647fb8aff057444d0d4d9e93e2756eba1749c5fdcacff332e0404735b8eb0 "$archive" | sha256sum -c -
 python3 - "$perf" <<'PY'
 import hashlib,json,sys
 from pathlib import Path
@@ -27,7 +27,7 @@ if [[ "$level" == J5 ]]; then
 fi
 work=$(mktemp -d "$HOME/rk248-${level}-${comparison}-XXXXXXXX")
 tar -xzf "$archive" -C "$work"
-source_tree="$work/bbserv-candidate3"
+source_tree="$work/bbserv-candidate4"
 [[ -f "$source_tree/files-sha256.json" ]] || { echo 'Source extraction failed.' >&2; exit 1; }
 results="$work/results"
 cd "$HOME"

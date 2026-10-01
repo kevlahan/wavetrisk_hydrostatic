@@ -19,7 +19,7 @@ module parallel_block_inverse_mod
   use parallel_block_mod, only : Block_Data, STORE_PATCH, STORE_BDRY, BLOCK_PAYLOAD_SOL, &
        BLOCK_PAYLOAD_WAV_COEFF, apply_local_block_field_consumer, &
        compile_local_block_inverse_routes, transfer_local_block_inverse_routes
-  use parallel_block_primitive_walk_mod, only: walk_primitive_patch
+  use parallel_block_primitive_walk_mod, only: walk_primitive_patch,Primitive_Walk
   use domain_ops_mod, only: apply_onescale_to_patch,apply_interscale_d,apply_to_penta_d,apply_onescale_d,apply_interscale_d2
   use shared_mod, only: split_mean_perturbation,a_vert_mass,b_vert_mass,p_0,grav_accel,compressible,mode_split
   use shared_mod, only: BDRY_THICKNESS
@@ -594,6 +594,7 @@ contains
     integer, allocatable :: sc(:),rc(:),sd(:),rd(:),sb(:,:),rb(:,:),request(:,:),slots(:)
     type(Boundary_Manifest) :: manifest
     type(Transfer_Plan) :: outer_patch,outer_bdry
+    type(Primitive_Walk) :: primitive_visits
 
     from_bootstrap=.false.
     if(present(bootstrap_entry)) from_bootstrap=bootstrap_entry
@@ -729,7 +730,11 @@ contains
        do d=1,size(grid)
           do p=3,grid(d)%patch%length
              if(grid(d)%patch%elts(p)%deleted) cycle
-             call walk_primitive_patch(grid(d),p-1,register_primitive_operand)
+             call walk_primitive_patch(grid(d),p-1,operations=primitive_visits)
+             do v=1,primitive_visits%count
+                call register_primitive_operand( &
+                     primitive_visits%ids(:,v),primitive_visits%southwest(v))
+             end do
           end do
        end do
 #endif
