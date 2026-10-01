@@ -1,5 +1,5 @@
 {
-  "status": "v6-J4-feature-off-complete-review-regression",
+  "status": "v6-J4-mirrored-within-guard-feature-off-under-review",
   "performance_archive": "/Users/kevlahan/.codex/worktrees/7173/wavetrisk_hydrostatic/.stage248-validation/rk248-performance-kit-v6.tar.gz",
   "performance_archive_sha256": "3e855385a3951e4b27a3cb48adb5318d113bfc11d916bfaae0cf20b9ca9fd9d9",
   "performance_script_files": 14,
@@ -20,7 +20,7 @@
   "sanitizer_finding": "Null Float_Field load at the two optional domain_sol forwarding calls in src/parallel_block_mpi.f90:10945 and :11107 during the first feature-off boundary refresh on bb13.",
   "correction": "Call boundary packing without domain_sol when that optional argument is absent.",
   "local_validation": "Fresh serial J4 feature-off baseline and candidate builds passed. The four-rank candidate completed 12 exact-reference steps, two remaps, VTK/checkpoint and storage gates. The four-rank feature-off baseline first step exited 0 with all 31 VTK members exactly matching the previous local run. Six offline script checks, syntax/compile checks, and fake-Slurm v6 submission passed.",
-  "cluster_validation": "V6 job 55234 built both variants serially on bb13, passed 16/41-rank placement, and completed eight full J4 feature-off runs. All had 12 steps, two remaps, 62 exact VTK members and the same state/checkpoint hashes; every checkpoint numerical gate passed. Candidate storage absence checks passed. The 41-rank exploratory A/B screen crossed the 3% review guard, so no A-B-B-A confirmation or promotion followed.",
+  "cluster_validation": "V6 J4 feature-off job 55234 and mirrored job 55235 built matched variants serially on bb13 and passed 16/41-rank placement. All 20 full runs had 12 steps, two remaps, 62 exact VTK members and matching state/checkpoint hashes within each campaign; every checkpoint numerical gate passed and candidate storage absence checks passed. Feature-off stopped at a 41-rank exploratory regression screen. Mirrored completed one A-B-B-A batch within the 3% guard. No promotion followed.",
   "v4_performance_job": 55197,
   "v4_review_archive_sha256": "cc4a542fd374c9b286f259e64224d0eae16b5c3acb0af0b67937d5534c1d5f6a",
   "v4_sanitizer_job": 55198,
@@ -52,5 +52,16 @@
     "decision": "review_regression",
     "scope": "Exploratory single pair; no A-B-B-A confirmation"
   },
-  "next_action": "Run J4 mirrored with the already transferred v6 kit to isolate persistent SOL/WAV storage removal from the other RK migration features. Keep the overall feature-off 41-rank regression under review; do not promote on the exploratory screen."
+  "v6_mirrored_job": 55235,
+  "v6_mirrored_review_archive_sha256": "f72b4a9da48747c4d7ac8d0e36d0fe69323a5fa8b0ddc7f2cf48687b365bd87e",
+  "v6_mirrored_review_verified_files": 823,
+  "v6_J4_mirrored_confirmation_n41": {
+    "baseline_run_median_mean_seconds": 1.7195174925,
+    "candidate_run_median_mean_seconds": 1.7099964995,
+    "candidate_regression_fraction": -0.005537014331943535,
+    "paired_regression_fractions": [-0.011614669525983112, 0.000524031937753966],
+    "independent_runs_per_version": 2,
+    "decision": "within_regression_guard"
+  },
+  "next_action": "Run J5 feature-off with the already transferred v6 kit if the pinned Stage187 fixture is present on bbserv. Keep the J4 overall feature-off 41-rank exploratory regression under review; mirrored storage removal itself is within the 3% guard. Do not promote yet."
 }
