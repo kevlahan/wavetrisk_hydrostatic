@@ -3,14 +3,14 @@
   "purpose": "Separate velocity-owner source execution from gradient delivery and calibrate profiling overhead",
   "prior_job": "55256",
   "prior_results_sha256": "138ec179faea1cea0ed4c8afb1f6b126f5982b5d64e49cf39de8c67014565b51",
-  "kit_archive": ".stage252-validation/rk252-velocity-profile-kit.tar.gz",
-  "kit_archive_sha256": "eea290dd7720c4a737562b58b8335d13a89c8332e96524ac3c84c5edde8defe1",
+  "kit_archive": ".stage252-validation/rk252-velocity-profile-kit-v2.tar.gz",
+  "kit_archive_sha256": "aeb1e1b1ba534a68706e1e63d906adadb40d39cd504e34d950d3dbe9674b7f20",
   "kit_files_verified": 7,
   "reused_cluster_binary_sha256": {
     "c4": "02ce866f8c82763eb5b600ea5563e7ce484a2e7f88fb63a1f3b8f161778712ec",
     "c5": "e3feffb3eaddfbf49c2745cac84807f02eceabecba42eb2967133781e258fa91"
   },
-  "workflow_checks": ["Python syntax", "shell syntax", "archive unpack and hashes", "profile parser", "fake-Slurm submission", "wrong prior job rejected"],
+  "workflow_checks": ["Python syntax", "shell syntax", "archive unpack and hashes", "profile parser", "fake-Slurm submission with exact Stage251 candidate/source layout", "source manifest reached in preflight", "wrong prior job rejected"],
   "cluster_status": "pending",
   "promotion": false
 }

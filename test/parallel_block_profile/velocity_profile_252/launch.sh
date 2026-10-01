@@ -12,7 +12,8 @@ state="$HOME/rk251-job-55256.state"
 source "$state"
 [[ "$job" == 55256 ]] || { echo 'Wrong Stage251 job' >&2; exit 1; }
 prior="$out"
-source_tree="$candidate"
+# Stage251 records the extracted candidate kit root, not its source directory.
+source_tree="$candidate/source"
 command -v sbatch >/dev/null || { echo 'sbatch unavailable; run this on bbserv.' >&2; exit 1; }
 python3 "$perf/preflight.py" "$perf" "$stage251" "$source_tree" "$prior"
 work=$(mktemp -d "$HOME/rk252-profile-XXXXXXXX")

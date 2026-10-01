@@ -7,6 +7,12 @@ checks the SHA-256 of the verified Stage251 result, both binaries, the J5
 input and the physical-core map before submitting. There is no rebuild or
 source change.
 
+The first launcher stopped in preflight before submitting a Slurm job:
+Stage251's state records the candidate kit root, and that launcher passed
+it where the `source` child was required. The corrected v2 archive now
+passes the child path. A realistic fake submission using the Stage251
+directory layout and a preflight walk through the source manifest passed.
+
 On `nk`/bb13, the kit runs an unprofiled `c4-c5-c5-c4` batch followed by
 the same batch with the existing parallel-block profiler enabled. Each
 full run must again complete twelve steps, two remaps and 62 VTK members,
@@ -20,7 +26,7 @@ profiler's impact. Profile phase times will localize the jump to source
 execution or gradient delivery. They cannot by themselves separate
 useful arithmetic from MPI wait inside a phase.
 
-The sealed kit passed Python and shell syntax checks, archive unpack/hash
+The sealed v2 kit passed Python and shell syntax checks, archive unpack/hash
 verification, profile-report parser checks, fake-Slurm submission and
 wrong-prior-job rejection. Cluster results are pending. The
 [kit README](../test/parallel_block_profile/velocity_profile_252/README.md)
