@@ -60,7 +60,7 @@ def profile_summary(log, enabled):
             for phase, values in found.items()}
 
 
-def owner_summary(log, enabled, expected_calls=(2880, 1320)):
+def owner_summary(log, enabled, expected_calls=(2160, 990)):
     marker = 'Owner program calls execute/read/delivery = '
     if not enabled:
         if marker in log:
