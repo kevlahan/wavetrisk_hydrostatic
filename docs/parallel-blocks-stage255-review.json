@@ -1,0 +1,48 @@
+{
+  "status": "verified",
+  "job_id": "55261",
+  "archive_sha256": "c21b8f6c9a3ea84781c8d74f46e6b0c74811ebdf7179137fce5e6c1722121d7a",
+  "verified_files": 1350,
+  "full_j5_runs": 8,
+  "generated_physics_files": 23,
+  "decision": {
+    "off": {
+      "baseline_mean_seconds": 1.46308268,
+      "optimized_mean_seconds": 1.3926749090000001,
+      "difference_seconds": -0.07040777099999995,
+      "paired_differences_seconds": [
+        -0.06525437800000011,
+        -0.07556116400000001
+      ]
+    },
+    "profile": {
+      "baseline_mean_seconds": 1.465116961,
+      "optimized_mean_seconds": 1.39378439,
+      "difference_seconds": -0.07133257100000012,
+      "paired_differences_seconds": [
+        -0.07536774300000015,
+        -0.06729739899999987
+      ]
+    }
+  },
+  "phase_deltas": {
+    "complete timestep": {
+      "baseline_total_seconds": 22.6522,
+      "optimized_total_seconds": 21.919700000000002,
+      "difference_seconds": -0.7324999999999982,
+      "difference_per_step_seconds": -0.061041666666666515
+    },
+    "native velocity source": {
+      "baseline_total_seconds": 4.2344,
+      "optimized_total_seconds": 3.89885,
+      "difference_seconds": -0.33555,
+      "difference_per_step_seconds": -0.0279625
+    },
+    "native velocity gradient": {
+      "baseline_total_seconds": 0.3093,
+      "optimized_total_seconds": 0.278545,
+      "difference_seconds": -0.030755000000000032,
+      "difference_per_step_seconds": -0.0025629166666666695
+    }
+  }
+}
