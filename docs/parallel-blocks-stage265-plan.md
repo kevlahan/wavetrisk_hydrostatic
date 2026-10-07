@@ -1,6 +1,7 @@
 # Stage265 proposal: direct inverse-result publication
 
-Status: source change and campaign proposed, not implemented or packaged.
+Status: implemented and locally validated; Stage265 kit prepared. Cluster
+correctness/performance acceptance is pending; no promotion or further removal.
 Baseline: exact Stage230 commit `4ea640128a71a857f9b8c6b9411dc34fc0aeb641`.
 Legacy anchor: main commit `6a245db7f1632b0205c2bebe95e5f0cd535c2582`,
 with the same established checkpoint I/O hardening as Stage264.

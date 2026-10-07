@@ -1,0 +1,115 @@
+{
+  "stage": 265,
+  "status": "implemented_locally_verified_cluster_pending",
+  "baseline_commit": "4ea640128a71a857f9b8c6b9411dc34fc0aeb641",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "changed_source": [
+    "src/parallel_block_inverse.f90",
+    "src/parallel_block_mpi.f90"
+  ],
+  "change": "Replace inverse-exit complete SOL return with canonical direct publication; retain both block installations, boundary refresh and consumer aliases.",
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage265-validation/rk265-direct-publication-kit-v1.tar.gz",
+    "sha256": "859cc70f31ea7b5f4d45289768b9fbfd6b7baae349944987878621333c4836c6",
+    "bytes": 19789689,
+    "files": 41,
+    "source_manifest_sha256": "1904e0c5bd93f1c0346fbbc7dbfee3dcb837af0a02969036ac79b6f6d13b76f2",
+    "local_validation_sha256": "9b7e301e526199065b3c47a9c448a2b8b7bb6eb6f4aa8e5376125ed8860a3e83"
+  },
+  "local_validation": {
+    "ranks": 4,
+    "make_jobs": 1,
+    "library_threads": 1,
+    "physics_objects": 23,
+    "candidate_cases": {
+      "candidate": {
+        "status": "passed",
+        "binary_sha256": "8ffebd4b9cc134726614189fcb03039122ba6036cec96e39ea0143dc68e9faf7",
+        "steps": 12,
+        "checkpoint_exact": true,
+        "vtk_exact_members": 62,
+        "publication": {
+          "mode": "direct",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Removed-return count enforced by the production runtime assertion; oracle proofs are logged."
+        }
+      },
+      "checked": {
+        "status": "passed",
+        "binary_sha256": "ca1d4c45530697309e0c6bbf22e41afd15ea29bc53ba2b1b89d35f737868a31a",
+        "steps": 12,
+        "checkpoint_exact": true,
+        "vtk_exact_members": 62,
+        "publication": {
+          "mode": "direct",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Removed-return count enforced by the production runtime assertion; oracle proofs are logged."
+        }
+      },
+      "candidate-oracle": {
+        "status": "passed",
+        "binary_sha256": "8ffebd4b9cc134726614189fcb03039122ba6036cec96e39ea0143dc68e9faf7",
+        "steps": 12,
+        "checkpoint_exact": true,
+        "vtk_exact_members": 62,
+        "publication": {
+          "mode": "direct",
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Removed-return count enforced by the production runtime assertion; oracle proofs are logged.",
+          "patch_count_range": [
+            2317,
+            2725
+          ],
+          "values_per_transaction_range": [
+            7599760,
+            8938000
+          ]
+        }
+      }
+    }
+  },
+  "packaging": {
+    "extraction_hashes": "passed",
+    "import_graph": "passed",
+    "orchestration_tests": 7,
+    "serial_four_build_mock": "passed",
+    "nineteen_run_mock": "passed",
+    "shell_syntax": "passed",
+    "extended_attributes": "absent"
+  },
+  "cluster_campaign": {
+    "partition": "nk",
+    "node": "bb13",
+    "correctness_runs": 7,
+    "timing_runs": 12,
+    "order": [
+      "main",
+      "stage230",
+      "candidate",
+      "candidate",
+      "stage230",
+      "main",
+      "main",
+      "stage230",
+      "candidate",
+      "candidate",
+      "stage230",
+      "main"
+    ],
+    "acceptance": "No repeatable regression versus immediate Stage230 baseline; main anchor retained; no automatic promotion."
+  },
+  "cluster_status": "not submitted",
+  "automatic_promotion": false,
+  "limitations": [
+    "Local correctness qualifies the established restarted compressible unsplit Simple/RK4 J4 trajectory; J5 and zero-Domain-rank acceptance await bbserv.",
+    "The baseline/main reference builds and replays are reused from sealed Stage264; both candidate builds and three candidate replays are new.",
+    "Exact old-return soil/non-atmospheric no-op equivalence is checked at every oracle transaction for the tested trajectory; this is not a qualification of other soil/free-surface configurations.",
+    "Orchestration mocks verify scripts, not scientific results or speed."
+  ]
+}

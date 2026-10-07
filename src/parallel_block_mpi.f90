@@ -21,7 +21,7 @@ module parallel_block_mpi_mod
        capture_native_inverse_consumer_aliases, &
        native_inverse_calls, native_inverse_messages, native_inverse_bytes
   use parallel_block_inverse_mod, only : stage203_inverse, begin_inverse203, end_inverse203, &
-       scalar_inverse203, inner_inverse203, install_inverse203, work203, ledger203
+       scalar_inverse203, inner_inverse203, install_inverse203, work203, ledger203, publish_canonical_inverse203
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
        AT_EDGE, AT_NODE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, &
@@ -14904,8 +14904,12 @@ end subroutine build_parallel_block_catalog
        call publish_native_inverse(domain_wavelet,BLOCK_PAYLOAD_WAV_COEFF)
        if (level_start<level_end) domain_wavelet%bdry_uptodate=.true.
     end if
-    call write_block_field_family_to_domains( &
-         BLOCK_PAYLOAD_SOL,domain_scaling)
+    if (stage203_inverse) then
+       call publish_canonical_inverse203(block_writeback_plan_generation,domain_scaling)
+       if (validate_oracle) call assert_canonical_inverse_return(domain_scaling,final_transform)
+    else
+       call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL,domain_scaling)
+    end if
     call block_profile_leave(BLOCK_PROFILE_INVERSE_INSTALL)
     if (provisional_transform) then
        ! Complete the all-level boundary contract formerly provided by the
@@ -14942,7 +14946,7 @@ end subroutine build_parallel_block_catalog
        call fail("native inverse reallocated persistent transport")
     end if
     if (block_domain_production_writeback_count() /= writeback_before+ &
-         int(merge(4*(jmax-jmin)+2,1,validate_oracle),int64)) then
+         int(merge(4*(jmax-jmin)+2,1,validate_oracle)-merge(1,0,stage203_inverse),int64)) then
        call fail("native inverse writeback sequence is invalid")
     end if
     if (provisional_transform) then
@@ -32061,6 +32065,55 @@ end subroutine build_parallel_block_catalog
          BLOCK_PROFILE_WRITEBACK,int(n_local_blocks(),int64))
 
   end subroutine write_block_field_family_to_domains
+
+
+  subroutine assert_canonical_inverse_return(domain_scaling,final_transform)
+    ! Independent final-owner reconstruction of exactly the destinations of
+    ! the removed return. Unlike the older mirror check, scaffold is compared
+    ! against the actual scaling argument, and no RK roundoff waiver applies.
+    ! Outside atmospheric levels packing reads global SOL; exact agreement
+    ! proves the old soil/free-surface writes would be no-ops here. Block RK
+    ! and inverse producers update atmospheric lanes only in this contract.
+    type(Float_Field), intent(in) :: domain_scaling(1:N_VARIABLE,1:zlevels)
+    logical, intent(in) :: final_transform
+    integer :: d,p,slot,sp,vp,ss,vs,i,ierr
+    integer(int64) :: count_local(2),count_global(2)
+    real(dp) :: scalar(block_writeback_plan%scalar_patch_nvalue)
+    real(dp) :: vector(block_writeback_plan%vector_patch_nvalue)
+    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+    count_local=0_int64
+    do d=1,size(grid)
+       do p=0,grid(d)%patch%length-1
+          if (grid(d)%patch%elts(p+1)%deleted) cycle
+          slot=block_writeback_plan%domain_patch_displ(d)+p+1
+          ss=(slot-1)*size(scalar)+1;vs=(slot-1)*size(vector)+1
+          sp=1;vp=1
+          call pack_domain_patch_prognostic(d,p,BLOCK_PAYLOAD_SOL,scalar,sp,vector,vp,domain_scaling)
+          do i=1,size(scalar)
+             if (.not.ieee_is_finite(scalar(i))) call fail('nonfinite direct inverse scalar')
+             if (transfer(scalar(i),0_int64)/= &
+                  transfer(block_writeback_plan%scalar_domain_stage(ss+i-1),0_int64)) then
+                write(error_unit,*) 'Stage265 scalar return mismatch rank/domain/patch/value ',rank,d,p,i
+                call fail('direct inverse scalar differs from old return')
+             end if
+          end do
+          do i=1,size(vector)
+             if (.not.ieee_is_finite(vector(i))) call fail('nonfinite direct inverse vector')
+             if (transfer(vector(i),0_int64)/= &
+                  transfer(block_writeback_plan%vector_domain_stage(vs+i-1),0_int64)) then
+                write(error_unit,*) 'Stage265 vector return mismatch rank/domain/patch/value ',rank,d,p,i
+                call fail('direct inverse vector differs from old return')
+             end if
+          end do
+          count_local=count_local+[1_int64,int(size(scalar)+size(vector),int64)]
+       end do
+    end do
+    call MPI_Allreduce(count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,'direct inverse return coverage')
+    if (any(count_global<=0_int64)) call fail('empty direct inverse return coverage')
+    if (rank==0) write(*,'(a,l1,a,2(1x,i0))') &
+         'Stage265 exact inverse return: final=',final_transform,' patches/values=',count_global
+  end subroutine assert_canonical_inverse_return
 
 
   subroutine assert_block_domain_field_family_match ( &

@@ -24,6 +24,7 @@ module parallel_block_inverse_mod
   public :: prepare_native_inverse, native_inverse_gather, native_inverse_boundary, &
        native_inverse_scatter, native_inverse_outer, compare_native_inverse, publish_native_inverse
   public :: capture_native_inverse_consumer_aliases
+  public :: publish_canonical_inverse203
   real(dp), public :: native_inverse_seconds(3)=0.0_dp
   integer(int64), public :: native_inverse_calls(3)=0_int64, native_inverse_messages(3)=0_int64, &
        native_inverse_bytes(3)=0_int64
@@ -90,6 +91,7 @@ module parallel_block_inverse_mod
   logical, parameter, public :: ledger203=.false.
 #endif
   logical :: resident203=.false., oracle203=.false.
+  logical :: publication_reported=.false.
   type :: Scalar203
      integer :: d=0,level=0,phase=0,target=0,base=0,area=0,mask=0,n=0
      integer :: source(11)=0,geometry(11)=0
@@ -342,6 +344,20 @@ contains
           slots(n)=p
        end do
        call build_transfer(interior_plan,request,slots)
+       ! Direct publication must cover every catalogued patch interior,
+       ! including nodes that no inverse arithmetic updates this time.
+       if (stage203_inverse) then
+          do d=1,size(grid)
+             do p=1,grid(d)%patch%length
+                if (grid(d)%patch%elts(p)%deleted) cycle
+                id=grid(d)%patch%elts(p)%elts_start
+                do q=id+1,id+PATCH_SIZE**2
+                   if (nodes(d)%key(1,q)<=0) cycle
+                   if (nodes(d)%slot(q)<=0) call die('canonical publication interior coverage')
+                end do
+             end do
+          end do
+       end if
        ! Every transfer completes before the next one starts. Subplans keep
        ! only integer routing metadata, sharing this one maximum-size pair.
        allocate(transfer_send(max(1,max(nscalar,EDGE)*zlevels*(sum(interior_plan%sc)+sum(boundary_plan%sc)))))
@@ -1378,6 +1394,92 @@ contains
        end do
     end do
   end subroutine
+
+  subroutine publish_canonical_inverse203(generation,scaling)
+    ! The resident producer is on the geometry consumer's rank. Its canonical
+    ! interior view is the same one installed on final block owners above.
+    ! Keep boundary publication separate: it has a different alias epoch.
+    integer(int64), intent(in) :: generation
+    type(Float_Field), intent(inout) :: scaling(1:N_VARIABLE,1:zlevels)
+    integer :: p,d,id,k,v,q,start,last
+    if (.not.resident203.or.generation/=plan_generation) call die('canonical publication generation')
+    if (.not.publication_reported) then
+       if(rank==0) write(*,'(a)') 'Stage265 direct inverse SOL return = on'
+       publication_reported=.true.
+    end if
+    ! Check every destination and canonical source before authoritative writes.
+    do d=1,size(grid)
+       do k=1,zlevels
+          do v=scalars(1),scalars(2)
+             if (size(scaling(v,k)%data)/=size(grid)) call die('canonical scalar Domain extent')
+             if (size(scaling(v,k)%data(d)%elts)<grid(d)%node%length) call die('canonical scalar extent')
+          end do
+          if (size(scaling(S_VELO,k)%data)/=size(grid)) call die('canonical vector Domain extent')
+          if (size(scaling(S_VELO,k)%data(d)%elts)<EDGE*grid(d)%node%length) &
+               call die('canonical vector extent')
+       end do
+    end do
+    do p=1,size(interior_plan%slot)
+       id=interior_plan%slot(p);q=restore203_index(id)
+       if(q>0) then
+          if (.not.all(ieee_is_finite(restore203(:,:,q)))) call die('nonfinite canonical interior')
+       else
+          if (.not.all(ieee_is_finite(value(:,:,id,BLOCK_PAYLOAD_SOL)))) call die('nonfinite canonical interior')
+       end if
+    end do
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(p)%deleted) cycle
+          start=grid(d)%patch%elts(p)%elts_start;last=start+PATCH_SIZE**2
+          if(nodes(d)%key(1,start+1)>0) cycle
+          do k=1,zlevels
+             do v=scalars(1),scalars(2)
+                if (.not.all(ieee_is_finite(sol(v,k)%data(d)%elts(start+1:last)))) &
+                     call die('nonfinite canonical scaffold')
+             end do
+             if (.not.all(ieee_is_finite(sol(S_VELO,k)%data(d)%elts(EDGE*start+1:EDGE*last)))) &
+                  call die('nonfinite canonical scaffold')
+          end do
+       end do
+    end do
+    ! Uncatalogued patches use the timestep-base SOL scaffold, as the old
+    ! complete reconstruction did, even when scaling is provisional q1.
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(p)%deleted) cycle
+          start=grid(d)%patch%elts(p)%elts_start;last=start+PATCH_SIZE**2
+          if(nodes(d)%key(1,start+1)>0) cycle
+          do k=1,zlevels
+             do v=scalars(1),scalars(2)
+                scaling(v,k)%data(d)%elts(start+1:last)=sol(v,k)%data(d)%elts(start+1:last)
+             end do
+             scaling(S_VELO,k)%data(d)%elts(EDGE*start+1:EDGE*last)= &
+                  sol(S_VELO,k)%data(d)%elts(EDGE*start+1:EDGE*last)
+          end do
+       end do
+    end do
+    do p=1,size(interior_plan%slot)
+       id=interior_plan%slot(p);q=restore203_index(id)
+       d=node_domain(id);start=node_id(id)
+       do k=1,zlevels
+          do v=1,nscalar
+             if(q>0) then
+                scaling(scalars(1)+v-1,k)%data(d)%elts(start+1)=restore203(v,k,q)
+             else
+                scaling(scalars(1)+v-1,k)%data(d)%elts(start+1)=value(v,k,id,BLOCK_PAYLOAD_SOL)
+             end if
+          end do
+          do v=1,EDGE
+             if(q>0) then
+                scaling(S_VELO,k)%data(d)%elts(EDGE*start+v)=restore203(nscalar+v,k,q)
+             else
+                scaling(S_VELO,k)%data(d)%elts(EDGE*start+v)=value(nscalar+v,k,id,BLOCK_PAYLOAD_SOL)
+             end if
+          end do
+       end do
+    end do
+    scaling%bdry_uptodate=.false.
+  end subroutine publish_canonical_inverse203
 
   subroutine compile_outer
     integer :: l,d,p,pi,c,child,i,j,ic,jc,ip,jp,e,corner,q,a,b,t,mode
