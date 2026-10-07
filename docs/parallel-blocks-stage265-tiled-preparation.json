@@ -1,0 +1,122 @@
+{
+  "stage": 265,
+  "revision": "tiled",
+  "prepared_date": "2026-10-07",
+  "status": "local-correctness-passed-cluster-performance-pending",
+  "promoted": false,
+  "baseline_commit": "4ea640128a71a857f9b8c6b9411dc34fc0aeb641",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "prior_candidate_commit": "ea3d4b2d5fdaf68f09b8b5daab450686f70a30d6",
+  "source_change_relative_to_prior": [
+    "src/parallel_block_inverse.f90"
+  ],
+  "source_change_relative_to_baseline": [
+    "src/parallel_block_inverse.f90",
+    "src/parallel_block_mpi.f90"
+  ],
+  "source_sha256": {
+    "src/parallel_block_inverse.f90": "b7561e464bd169cee2df1eae9ca947ea57c4f06e71211f26664e01e887d8a9ea",
+    "src/parallel_block_mpi.f90": "02db06fa53eb7a63d84b5c7a5df16f7f2fc7e7516fc324aede4f97c68a11cfe3"
+  },
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage265t-validation/rk265t-tiled-publication-kit-v1.tar.gz",
+    "sha256": "4ce3ad89ec70e58a605663f947a95006ecc40d66d2fdecfe4d3f3c165d0ae355",
+    "bytes": 19793592,
+    "files": 42,
+    "source_manifest_sha256": "dfff4c6e6d37bf2f5c7f7349ca126661ba3dc2e4cd4909f6f81c31d84497cc52",
+    "local_validation_sha256": "cd9a0d6d18d3efb03ced69cc9baf879cc8d675a453b533f12aa5de7c1986698d"
+  },
+  "local_validation": {
+    "cases": {
+      "candidate": {
+        "status": "passed",
+        "ranks": 4,
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "013c3da63fd5dfe849b9122891f8a7b6138f3e3343f717c25a0f2d340a09eff8",
+        "log_sha256": "53463d38f0a8064f9f1f7b27a232f7d09163ebd68f54c0cbf85f129941b341b3",
+        "checkpoint_exact": true,
+        "publication": {
+          "mode": "tiled_direct",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "production_full_SOL_returns_per_inverse": 0
+        }
+      },
+      "checked": {
+        "status": "passed",
+        "ranks": 4,
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "b2c665ffebde8c2ee3e24df05c44a1aa866ff9e00e561e239ae9ff8fcfbd291a",
+        "log_sha256": "22918a2988c1cf92ec684d5048d598e38e3bf892525966525d728d3317023aa7",
+        "checkpoint_exact": true,
+        "publication": {
+          "mode": "tiled_direct",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "production_full_SOL_returns_per_inverse": 0
+        }
+      },
+      "candidate-oracle": {
+        "status": "passed",
+        "ranks": 4,
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "013c3da63fd5dfe849b9122891f8a7b6138f3e3343f717c25a0f2d340a09eff8",
+        "log_sha256": "5b1352aa7148ff028acf986a3f1a67e9dc27346cbd01f3feb608a39be2f4f1f6",
+        "checkpoint_exact": true,
+        "publication": {
+          "mode": "tiled_direct",
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "production_full_SOL_returns_per_inverse": 0
+        }
+      }
+    },
+    "serial_build": true,
+    "maximum_MPI_ranks": 4,
+    "library_threads": 1,
+    "shared_physics_objects": 23,
+    "reference_builds": "Reused source-bound Stage264 Stage230/main correctness references; candidate cases newly built and replayed against original Stage265.",
+    "limitation": "Local replay establishes correctness, not performance."
+  },
+  "delivery_checks": {
+    "extracted_seal": "passed",
+    "source_scope": "passed",
+    "all_python_imports": "passed",
+    "workflow_tests": 8,
+    "workflow_tests_status": "passed",
+    "xattr_headers": 0,
+    "limitation": "Workflow stubs establish orchestration only."
+  },
+  "campaign": {
+    "partition": "nk",
+    "node": "bb13",
+    "exclusive": true,
+    "builds": 4,
+    "build_jobs": 1,
+    "validation_runs": 7,
+    "timing_runs": 6,
+    "timing_order": [
+      "main",
+      "stage230",
+      "candidate",
+      "candidate",
+      "stage230",
+      "main"
+    ],
+    "timing_ranks": 83,
+    "validation_ranks": [
+      16,
+      167
+    ],
+    "optional_repeat_runs": 6,
+    "optional_repeat_maximum": 1,
+    "optional_repeat_rebuilds": 0,
+    "auto_promotion": false
+  }
+}

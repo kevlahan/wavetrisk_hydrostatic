@@ -57,6 +57,14 @@ module parallel_block_inverse_mod
   type :: Boundary_Manifest
      integer, allocatable :: item(:,:)
   end type
+  type :: Publication_Patch_Record
+     integer :: domain=0,start=0
+     ! Positive sources are workspace slots; negative sources are canonical
+     ! restore slots. Cache integer addresses only, never field pointers.
+     integer :: source(PATCH_SIZE**2)=0
+  end type
+  type(Publication_Patch_Record), allocatable :: publication_patch(:)
+  real(dp), allocatable :: publication_tile(:,:,:)
   type(Node_Map), allocatable :: nodes(:)
   type(Transfer_Plan) :: interior_plan,boundary_plan
   type(Transfer_Plan), allocatable :: level_interior(:,:),level_boundary(:,:)
@@ -428,6 +436,7 @@ contains
           do p=1,nnode
              if (restore203_index(p)>0) restore203_slot(restore203_index(p))=p
           end do
+          call compile_publication203
        end if
        plan_generation=generation
     else
@@ -1401,10 +1410,11 @@ contains
     ! Keep boundary publication separate: it has a different alias epoch.
     integer(int64), intent(in) :: generation
     type(Float_Field), intent(inout) :: scaling(1:N_VARIABLE,1:zlevels)
-    integer :: p,d,id,k,v,q,start,last
+    integer :: p,d,id,k,v,q,start,last,i
     if (.not.resident203.or.generation/=plan_generation) call die('canonical publication generation')
     if (.not.publication_reported) then
        if(rank==0) write(*,'(a)') 'Stage265 direct inverse SOL return = on'
+       if(rank==0) write(*,'(a)') 'Stage265 tiled canonical publication = on'
        publication_reported=.true.
     end if
     ! Check every destination and canonical source before authoritative writes.
@@ -1458,28 +1468,78 @@ contains
           end do
        end do
     end do
-    do p=1,size(interior_plan%slot)
-       id=interior_plan%slot(p);q=restore203_index(id)
-       d=node_domain(id);start=node_id(id)
+    ! Reorder copies in one bounded, reusable patch tile. The old point-major
+    ! loop touched every field/vertical plane before visiting the next point.
+    ! Here each destination field receives a complete adjacent patch range.
+    ! All finite/extent preflight above remains ahead of authoritative writes.
+    do p=1,size(publication_patch)
+       d=publication_patch(p)%domain;start=publication_patch(p)%start
+       last=start+PATCH_SIZE**2
+       do i=1,PATCH_SIZE**2
+          id=publication_patch(p)%source(i)
+          if(id<0) then
+             do k=1,zlevels
+                do v=1,nscalar+EDGE
+                   publication_tile(i,v,k)=restore203(v,k,-id)
+                end do
+             end do
+          else
+             do k=1,zlevels
+                do v=1,nscalar+EDGE
+                   publication_tile(i,v,k)=value(v,k,id,BLOCK_PAYLOAD_SOL)
+                end do
+             end do
+          end if
+       end do
        do k=1,zlevels
           do v=1,nscalar
-             if(q>0) then
-                scaling(scalars(1)+v-1,k)%data(d)%elts(start+1)=restore203(v,k,q)
-             else
-                scaling(scalars(1)+v-1,k)%data(d)%elts(start+1)=value(v,k,id,BLOCK_PAYLOAD_SOL)
-             end if
+             scaling(scalars(1)+v-1,k)%data(d)%elts(start+1:last)=publication_tile(:,v,k)
           end do
-          do v=1,EDGE
-             if(q>0) then
-                scaling(S_VELO,k)%data(d)%elts(EDGE*start+v)=restore203(nscalar+v,k,q)
-             else
-                scaling(S_VELO,k)%data(d)%elts(EDGE*start+v)=value(nscalar+v,k,id,BLOCK_PAYLOAD_SOL)
-             end if
+          do i=1,PATCH_SIZE**2
+             do v=1,EDGE
+                scaling(S_VELO,k)%data(d)%elts(EDGE*(start+i-1)+v)=publication_tile(i,nscalar+v,k)
+             end do
           end do
        end do
     end do
     scaling%bdry_uptodate=.false.
   end subroutine publish_canonical_inverse203
+
+  subroutine compile_publication203
+    ! Rebuilt with the existing inverse generation after canonical restore
+    ! indices are known. The only new numerical storage is one physical patch,
+    ! shared by all Domains and reused across every inverse transaction.
+    integer :: d,p,start,i,id,q,n,expected
+    if (allocated(publication_patch)) deallocate(publication_patch)
+    if (allocated(publication_tile)) deallocate(publication_tile)
+    n=0
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(p)%deleted) cycle
+          start=grid(d)%patch%elts(p)%elts_start
+          if(nodes(d)%key(1,start+1)>0) n=n+1
+       end do
+    end do
+    allocate(publication_patch(n),publication_tile(PATCH_SIZE**2,nscalar+EDGE,zlevels))
+    n=0;expected=0
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(p)%deleted) cycle
+          start=grid(d)%patch%elts(p)%elts_start
+          if(nodes(d)%key(1,start+1)<=0) cycle
+          n=n+1
+          publication_patch(n)%domain=d;publication_patch(n)%start=start
+          do i=1,PATCH_SIZE**2
+             id=nodes(d)%slot(start+i)
+             if(id<=0.or.nodes(d)%key(1,start+i)<=0) call die('tiled publication coverage')
+             q=restore203_index(id)
+             publication_patch(n)%source(i)=merge(-q,id,q>0)
+          end do
+          expected=expected+PATCH_SIZE**2
+       end do
+    end do
+    if(expected/=size(interior_plan%slot)) call die('tiled publication patch inventory')
+  end subroutine compile_publication203
 
   subroutine compile_outer
     integer :: l,d,p,pi,c,child,i,j,ic,jc,ip,jp,e,corner,q,a,b,t,mode

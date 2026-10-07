@@ -131,6 +131,12 @@ Four paired differences include both signs, so performance qualification is
 inconclusive. The matched main anchor is 0.540708576 s. Keep Stage265 unqualified
 and investigate its new publication cost before another Domain removal.
 
+The prepared [Stage265 tiled-publication refinement](parallel-blocks-stage265-tiled-plan.md)
+changes only inverse publication relative to Stage265. Optimized, checked and
+oracle four-rank replays passed exactly, including all 48 inverse-return proofs
+and 62 VTK members. Its shorter campaign compares the complete refinement with
+accepted Stage230 and main; performance remains pending bbserv measurement.
+
 ## Following stages
 
 After the first result, consider coalescing duplicate inverse installation only
