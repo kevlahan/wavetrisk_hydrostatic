@@ -135,7 +135,14 @@ The prepared [Stage265 tiled-publication refinement](parallel-blocks-stage265-ti
 changes only inverse publication relative to Stage265. Optimized, checked and
 oracle four-rank replays passed exactly, including all 48 inverse-return proofs
 and 62 VTK members. Its shorter campaign compares the complete refinement with
-accepted Stage230 and main; performance remains pending bbserv measurement.
+accepted Stage230 and main.
+
+Job 55382 verified all thirteen runs and supports accepting the refinement at
+83 ranks: candidate 0.753104779 s versus Stage230 0.767293997 s and main
+0.542783628 s. Both paired gains are positive (15.273 and 13.106 ms); no repeat
+is recommended. The remaining main gap is 210.321 ms (+38.749%), so legacy
+parity remains unachieved. Recommend candidate `fab72486` as the next immediate
+baseline, with main retained. See `parallel-blocks-stage265-tiled-results.json`.
 
 ## Following stages
 

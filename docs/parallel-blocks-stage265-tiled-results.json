@@ -1,0 +1,90 @@
+{
+  "status": "verified",
+  "archive_sha256": "7f0572dd86784b5227e9d63284555a2a89c1dc38afbfa638f3fbd66a87177ee7",
+  "verified_files": 1935,
+  "comparison": {
+    "means_seconds": {
+      "main": 0.5427836275,
+      "stage230": 0.7672939974999999,
+      "candidate": 0.7531047785
+    },
+    "candidate_minus_stage230_seconds": -0.01418921899999992,
+    "candidate_minus_main_seconds": 0.21032115100000004,
+    "stage230_minus_main_seconds": 0.22451036999999996,
+    "candidate_to_main_ratio": 1.3874861737608326,
+    "paired_candidate_gaps_seconds": [
+      -0.01527257500000001,
+      -0.01310586299999994
+    ],
+    "independent_runs_per_version": 2,
+    "batches": 1,
+    "decision": "measurement_only_no_automatic_promotion",
+    "scope": "Mean of independent ordinary-step run medians; validation runs excluded."
+  },
+  "limitation": "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun.",
+  "stage": 265,
+  "revision": "tiled",
+  "job_id": 55382,
+  "archive": "/Users/kevlahan/Desktop/rk265t-review-55382.tar.gz",
+  "candidate_commit": "fab72486",
+  "stage230_commit": "4ea640128a71a857f9b8c6b9411dc34fc0aeb641",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "delivered_kit_manifest_matches": true,
+  "correctness": "All thirteen runs passed; checked 16-rank run and independent 16/167-rank oracles passed; each oracle proved all 48 inverse returns including 12 accepted exits. Restart/remap, storage, physical placement, zero-Domain ranks, checkpoint and 62 VTK members verified.",
+  "performance_decision": "supports_acceptance_at_83_ranks",
+  "automatic_promotion": false,
+  "repeat_recommended": false,
+  "reason": "Both order-balanced candidate/Stage230 pairs improve by 15.273 and 13.106 ms. Every candidate median is lower than every Stage230 median; initial evidence supports improvement without the optional repeat. This qualifies the tested change at 83 ranks, not legacy parity or speed at other rank counts.",
+  "inherited_main_gap": "Candidate remains 210.321151 ms (+38.748617%) slower than main. The gain closes 6.320073% of the matched Stage230/main gap.",
+  "attribution_limit": "Original untiled Stage265 was not run in this allocation; no causal speed gain against it is claimed.",
+  "next_action": "Recommend retaining fab72486 as the next comparison baseline. Next inspect and separately measure omission of the first full block installation on provisional production exits; preserve final exits, oracle installation and boundary epochs.",
+  "timing_runs": [
+    {
+      "name": "J5-n83-timing-1-main",
+      "kind": "main",
+      "median_seconds": 0.542814763
+    },
+    {
+      "name": "J5-n83-timing-2-stage230",
+      "kind": "stage230",
+      "median_seconds": 0.77047553
+    },
+    {
+      "name": "J5-n83-timing-3-candidate",
+      "kind": "candidate",
+      "median_seconds": 0.755202955
+    },
+    {
+      "name": "J5-n83-timing-4-candidate",
+      "kind": "candidate",
+      "median_seconds": 0.751006602
+    },
+    {
+      "name": "J5-n83-timing-5-stage230",
+      "kind": "stage230",
+      "median_seconds": 0.764112465
+    },
+    {
+      "name": "J5-n83-timing-6-main",
+      "kind": "main",
+      "median_seconds": 0.542752492
+    }
+  ],
+  "version_variability": {
+    "main": {
+      "min_seconds": 0.542752492,
+      "max_seconds": 0.542814763,
+      "sample_stdev_seconds": 4.403224637126936e-05
+    },
+    "stage230": {
+      "min_seconds": 0.764112465,
+      "max_seconds": 0.77047553,
+      "sample_stdev_seconds": 0.004499366410630819
+    },
+    "candidate": {
+      "min_seconds": 0.751006602,
+      "max_seconds": 0.755202955,
+      "sample_stdev_seconds": 0.0029672696625525023
+    }
+  }
+}
