@@ -175,6 +175,13 @@ promising bounded omission is lazy provisional cache construction after proving
 the cache has no production numerical reader. These are proposals, not measured
 gains; keep full publication for the consumers identified by Stage267.
 
+The [Stage269 bounded cost campaign](parallel-blocks-stage269-audit.md) is now
+prepared. Exact Stage266/main controls and separate diagnostic observers cover
+all major transaction families in one campaign, with overhead calibration for
+both families. Four real observer replays and workflow checks passed locally;
+current bb13 cost attribution and recoverable savings remain unmeasured. Run and
+review this audit before choosing a single numerical intervention.
+
 Then migrate the remaining shared primitive consumers and reassess adaptation
 and the remaining complete producer/consumer chains. Choose each change from its
 actual removable work and replacement cost. Preserve formulas and operation

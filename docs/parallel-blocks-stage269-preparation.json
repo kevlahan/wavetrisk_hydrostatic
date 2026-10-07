@@ -1,0 +1,409 @@
+{
+  "stage": 269,
+  "revision": "bounded-cost-audit",
+  "prepared_date": "2026-10-07",
+  "status": "local-correctness-passed-cluster-costs-pending",
+  "promoted": false,
+  "production_source_changed": false,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "2f1d301daa3c586b8ed5d80a2d2b4bce3a8d61ee",
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage269-validation/rk269-cost-audit-kit-v1.tar.gz",
+    "sha256": "d9d673b87d6fedac1d7bbe3cb61fced4abb6a73e4af2ce6dc19cbba95427945d",
+    "bytes": 24184898,
+    "files": 46,
+    "source_manifest_sha256": "d28f9275967abbea9f43b534ec1e42334d4076b5a2cf23b37146afa30cfcfd16",
+    "local_validation_sha256": "ed6a6e78ca24ba929fd865b9eb7fbace1b59e6752db53c0d323497284f9bd92c",
+    "test_validation_sha256": "61bbdaa37367229c085b0192fb4c33af5ff7905e4e7c04541411008e200cdc7b"
+  },
+  "observer_overlay": {
+    "observer": [
+      "Makefile",
+      "src/adapt.f90",
+      "src/comm_mpi.f90",
+      "src/cost_observer.f90",
+      "src/diagnostics.f90",
+      "src/main.f90",
+      "src/multi_level.f90",
+      "src/parallel_block.f90",
+      "src/parallel_block_build.f90",
+      "src/parallel_block_inverse.f90",
+      "src/parallel_block_mpi.f90",
+      "src/time_integr.f90",
+      "src/wavelet.f90",
+      "test/climate/climate.f90"
+    ],
+    "main_observer": [
+      "Makefile",
+      "src/adapt.f90",
+      "src/comm_mpi.f90",
+      "src/cost_observer.f90",
+      "src/diagnostics.f90",
+      "src/main.f90",
+      "src/multi_level.f90",
+      "src/time_integr.f90",
+      "src/wavelet.f90",
+      "test/climate/climate.f90"
+    ]
+  },
+  "local_validation": {
+    "ranks": 4,
+    "new_serial_builds": 3,
+    "control_references_reused_source_and_binary_sealed": true,
+    "cases": {
+      "main_observer": {
+        "status": "passed",
+        "checkpoint_exact": true,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "observer_rank_files": 4,
+        "observer_steps": 12,
+        "observer_phases": 27,
+        "binary_sha256": "1c7fad4635c867b3218b09d8bbe9e66243af82845b440745d9470cdd5b20e2dd",
+        "log_sha256": "ae73ab3e664128e97afcd5dd2f35bc8fd2b9d33a883f9c60929bd62daf320ef2",
+        "publication": {
+          "mode": "main_reference"
+        }
+      },
+      "observer": {
+        "status": "passed",
+        "checkpoint_exact": true,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "observer_rank_files": 4,
+        "observer_steps": 12,
+        "observer_phases": 27,
+        "binary_sha256": "557925130c757496ddf014523692d6ddcef3c9573ab127b6d9bffc2b42f745bb",
+        "log_sha256": "b548e874395aa7c2742610170ced42a494631c49a2bd9e73b392f8fcdd487b28",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "coverage": [],
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      },
+      "checked": {
+        "status": "passed",
+        "checkpoint_exact": true,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "observer_rank_files": 4,
+        "observer_steps": 12,
+        "observer_phases": 27,
+        "binary_sha256": "b77836095ca2f2a4238a93002b5bd220b4322146831630c08e32bd9b21461b55",
+        "log_sha256": "2d1c54abdf21c6749dd3f9ffe2a776881e96f45b0a8a420ec31e7cdf05d08488",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "coverage": [],
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      },
+      "observer-oracle": {
+        "status": "passed",
+        "checkpoint_exact": true,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "observer_rank_files": 4,
+        "observer_steps": 12,
+        "observer_phases": 27,
+        "binary_sha256": "557925130c757496ddf014523692d6ddcef3c9573ab127b6d9bffc2b42f745bb",
+        "log_sha256": "0f7c95b97196fbbb8b0818ebd974fe0bdb6a7481b650714398319a2454e82f9d",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "coverage": [
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            }
+          ],
+          "oracle_installations": 84,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      }
+    },
+    "limitation": "No local timing extrapolation; local placement oversubscribed/unbound, at most four MPI ranks, one thread, no concurrent build."
+  },
+  "workflow_tests": {
+    "status": "passed",
+    "workflow_tests": 9,
+    "observer_tests": 1,
+    "workflow_log_sha256": "d89f4af6fcd654e7c1da251257f6fd48a6060678547a368ba046468c5d0b84da",
+    "observer_log_sha256": "045c7c576bf117f953e7b1124d6db6287b00602593a82bf8d9b689ff0c279ce0",
+    "tested_source_sha256": {
+      "build.py": "b1fc58bb0940929bfc3295d9ea1fdda1b1b27b7df54433027c192b1f97af5fa0",
+      "common.py": "8a0574b6d6d276ed957c5b057d19b5fce687daa9d9d4d6d73fafd83e05b1a645",
+      "control.py": "bea5813a6f7ee714bea02ca59bc5f8d8181cd54b9acee06e3bcfd5787b3d2b9d",
+      "cost_analysis.py": "3a97f12a1b28600cd504657f9bb06a3b1e94044424a9cd786e6210c65a9accfe",
+      "cost_observer.f90": "fe9341fc1aa5706a13ee1e511cf306d745c2528b4908034d21a6e7c9bef9a7fb",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "instrument.py": "17c2683ed8668c38b5c4735365dc7d83bb75cd9cab0a7e5bb6764b0b03808eb9",
+      "local_verify.py": "4e59b7ed697c0150ce4e53ec1fbd97bf515bcd67ac5b50c4bb3d863f92906892",
+      "prepare.py": "1feb522b8924c3344663ac904eda789916d46021066716f77ea8aceecf6bf72d",
+      "review.py": "7059ee5d17106c7f571ee2ef3ab7f44a9c39a0b03ff192dd89315eb25c66c13a",
+      "run.py": "d46c9480972faf8bcad725e1d35fb6d85c7fbe91b205c83aabd84365f3927ca3",
+      "seal.py": "5136d700bbd62a87bbcbccde8ee0a0dea0093d494e0945a818e868d7747e1eb2",
+      "test_observer.py": "31fb68531d366129f75ff623ca2813270d67b15aff48f9a8fb6efc0018710c53",
+      "test_workflow.py": "708da5ea5afcbeaacc65a68f265c82a19eec31510f371cc6cb23c2bfa2a7287d"
+    },
+    "scope": "Nine mocked orchestration/evidence tests, including all fifteen runs, five builds, collection and independent review; one real Fortran test at O0/O2 covers conservation, disabled output, bad selector, mismatched scope, stack and step overflow. No cluster speed established."
+  },
+  "delivery_validation": {
+    "status": "passed",
+    "files": 46,
+    "exact_stage266_and_main_source_manifests": true,
+    "committed_stage266_inputs_checked": true,
+    "shell_syntax": true,
+    "import_graph": true,
+    "selector_isolation": true,
+    "mac_extended_headers_absent": true,
+    "extracted_workflow_tests": 9,
+    "extracted_real_fortran_tests": 1
+  },
+  "cluster_campaign": {
+    "partition": "nk",
+    "node": "bb13",
+    "exclusive": true,
+    "serial_builds": 5,
+    "shared_physics_objects": 23,
+    "validation_runs": 7,
+    "timing_runs": 8,
+    "total_solver_runs": 15,
+    "timing_ranks": 83,
+    "validation_ranks": [
+      16,
+      167
+    ],
+    "timing_order": [
+      "main",
+      "main_observer",
+      "main_observer",
+      "main",
+      "stage266",
+      "observer",
+      "observer",
+      "stage266"
+    ],
+    "ordinary_excluded_one_based": [
+      1,
+      8,
+      9
+    ],
+    "automatic_repeat": false,
+    "automatic_promotion": false,
+    "external_fixture": "$HOME/stage187-fixture-20260911-145307",
+    "main_gap_reference_seconds": 0.206695169,
+    "main_gap_reference_job": 55398
+  },
+  "cost_limits": [
+    "Only calibrated current diagnostic locations, not recoverable budgets",
+    "Nested inclusive regions overlap; signed mean self costs preserved",
+    "One longest-local-step rank per step, not independent maxima or global synchronized critical path",
+    "CPU includes MPI spinning; named work/logical payload counters do not cover physical memory traffic or all MPI"
+  ],
+  "next_decision": "Review both overhead calibrations and current costs; choose one demonstrably redundant operation, preserve consumer/epoch contracts, then qualify against uninstrumented Stage266 and main before another removal."
+}
