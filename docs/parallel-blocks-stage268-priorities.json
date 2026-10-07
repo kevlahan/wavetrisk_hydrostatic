@@ -1,0 +1,159 @@
+{
+  "stage": 268,
+  "status": "prioritization_audit_and_proposal_only",
+  "solver_changes": false,
+  "new_measurements": false,
+  "pressure_prototype_status": "unvalidated patch saved in ignored validation workspace; restored solver to Stage266",
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "baseline_evidence": {
+    "path": "docs/parallel-blocks-stage266-results.json",
+    "sha256": "2b4f921fe23740d703e5d21f633c662cd835e625cf94d3cc547346301c407b26",
+    "job": 55398,
+    "rank": 83,
+    "step_seconds": 0.7484487785,
+    "main_seconds": 0.5417536095,
+    "gap_seconds": 0.20669516900000007,
+    "parity_elapsed_reduction_percent": 27.61647489281059
+  },
+  "historical_attribution": {
+    "path": "docs/parallel-blocks-stage229-review.json",
+    "sha256": "47d436315d9527e88edbd4ab9a00343ed631f90de5aeb0fa7002d638fcdcc9dc",
+    "job": "54737",
+    "status": "observer_costs_unqualified",
+    "calibration": {
+      "status": "observer_costs_unqualified",
+      "mean_control": 0.5428825495,
+      "mean_observer": 0.5541056645,
+      "mean_shift_seconds": 0.01122311499999995,
+      "paired_shifts_seconds": [
+        0.014772702999999998,
+        0.007673527000000013
+      ],
+      "limits_seconds": {
+        "mean": 0.005428825495,
+        "pair": 0.01085765099,
+        "spread": 0.01085765099
+      },
+      "control_spread_seconds": 0.0012047229999999631,
+      "observer_spread_seconds": 0.005894453000000022,
+      "scope": "Two runs/version; no timestep-level replication. Compatibility does not prove each small timer unbiased."
+    },
+    "signed_locations_seconds": {
+      "setup": 5.150287787335041e-07,
+      "dynamics_wavelets": 0.1368167745227425,
+      "tendency_context": -0.027881802061551553,
+      "other_dynamics": 0.019764768980578818,
+      "physics": 0.00020697312718089694,
+      "adapt_reconstruct": 0.07766352395648805,
+      "remap": -0.003815432674029307,
+      "ordinary_output": -0.0005528275923690618
+    },
+    "limitation": "Historical observer attribution failed legacy overhead calibration; not a current or recoverable budget. Different legacy anchor/source allocation; do not subtract across campaigns."
+  },
+  "investigation_priority": [
+    "WT/inverse staging and boundary/install work",
+    "adaptation/catalogue/source construction/migration/reconstruction",
+    "eager block hydrostatic cache versus actual product consumers",
+    "velocity thermodynamic recomposition and retained raw-trend arithmetic",
+    "surface-pressure reader"
+  ],
+  "first_bounded_ablation_proposal": "Lazy provisional block hydrostatic cache: retain invalidation, ghosts and all numerical/oracle paths; audit/replace readiness-only demands, ensure on actual cache read, measure production refreshes and full solver speed.",
+  "selection_policy": "Measure the larger transaction families together, identify avoidable work and replacement cost, then implement and qualify one intervention. Rank by net critical-path savings and scientific/ownership feasibility, not ease or total inclusive timer.",
+  "speed_forecast": "No defensible numeric forecast before isolated current costs; table contains conditional arithmetic scenarios only, not expected gains.",
+  "conditional_scenarios": [
+    {
+      "hypothetical_saving_ms": 5,
+      "step_seconds": 0.7434487785,
+      "elapsed_reduction_percent": 0.66804838803007,
+      "remaining_main_gap_ms": 201.69516900000008
+    },
+    {
+      "hypothetical_saving_ms": 25,
+      "step_seconds": 0.7234487785,
+      "elapsed_reduction_percent": 3.3402419401503507,
+      "remaining_main_gap_ms": 181.69516900000008
+    },
+    {
+      "hypothetical_saving_ms": 50,
+      "step_seconds": 0.6984487785,
+      "elapsed_reduction_percent": 6.680483880300701,
+      "remaining_main_gap_ms": 156.69516900000008
+    },
+    {
+      "hypothetical_saving_ms": 100,
+      "step_seconds": 0.6484487785,
+      "elapsed_reduction_percent": 13.360967760601403,
+      "remaining_main_gap_ms": 106.69516900000008
+    }
+  ],
+  "source_evidence": [
+    {
+      "file": "src/main.f90",
+      "symbol": "time_step",
+      "line": 701,
+      "sha256": "aa81070f4531ece9f2c8074acadfeec3a3a7237a916cf0245dae98b8246e1812"
+    },
+    {
+      "file": "src/adapt.f90",
+      "symbol": "WT_after_step",
+      "line": 380,
+      "sha256": "cd90e9486f381436bb7833eac66905969bf4da801a0d937c03171b3cc14535e0"
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "refresh_parallel_block_candidate_boundary_state",
+      "line": 11385,
+      "sha256": "2c5a38a48c6eacb744b8d8039cac04f32b9a93abc1edc3d5a78cd84e71d64521"
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "retain_post_grid_change_block_reconstruction",
+      "line": 3330,
+      "sha256": "2c5a38a48c6eacb744b8d8039cac04f32b9a93abc1edc3d5a78cd84e71d64521"
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "evaluate_candidate_block_exner_shadow",
+      "line": 28627,
+      "sha256": "2c5a38a48c6eacb744b8d8039cac04f32b9a93abc1edc3d5a78cd84e71d64521"
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "compute_block_exner_difference_kernel",
+      "line": 34224,
+      "sha256": "2c5a38a48c6eacb744b8d8039cac04f32b9a93abc1edc3d5a78cd84e71d64521"
+    },
+    {
+      "file": "src/parallel_block.f90",
+      "symbol": "compute_local_block_hydrostatic_patch",
+      "line": 5220,
+      "sha256": "4ce02ad8ab92abf0e1c5dec5e9288f5124d3be3b69edcead478d7f751c13001b"
+    },
+    {
+      "file": "src/parallel_block.f90",
+      "symbol": "ensure_local_block_hydrostatic_state",
+      "line": 5585,
+      "sha256": "4ce02ad8ab92abf0e1c5dec5e9288f5124d3be3b69edcead478d7f751c13001b"
+    },
+    {
+      "file": "src/diagnostics.f90",
+      "symbol": "cal_surf_press",
+      "line": 313,
+      "sha256": "4ce9f6cfc8fdff1f9518733b09f444770525ae8ebfccafc3b385efcadbfbd82f"
+    }
+  ],
+  "external_cache_value_api_calls": [
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "line": 16866,
+      "call": "call apply_local_block_hydrostatic_consumer( &"
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "line": 35737,
+      "call": "call local_block_hydrostatic_statistics( &"
+    }
+  ],
+  "external_cache_value_api_limit": "Static current-source census: numerical API calls are in candidate hydrostatic oracle and full reconstruction validation; lifecycle readiness checks are separate and must be handled before any omission."
+}

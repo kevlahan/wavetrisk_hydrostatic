@@ -165,10 +165,15 @@ The [Stage267 consumer audit](parallel-blocks-stage267-audit.md) found that the
 remaining provisional canonical workspace-to-Domain interior publication is
 still required by shared primitives, diffusion and native velocity gradients.
 Native boundary refresh alone does not establish independence from that image.
-The next proposed change is a separately qualified provisional surface-pressure
-reader using the local canonical inverse mass view, preserving exact legacy
-arithmetic, coverage and boundary epochs. Keep full publication for the other
-consumers. This proposal has not been implemented or timed.
+The provisional surface-pressure reader proposal remains available, preserving
+exact legacy arithmetic, coverage and boundary epochs, but its cost is not
+isolated. The [Stage268 priority audit](parallel-blocks-stage268-priorities.md)
+supersedes choosing that reader as the immediate next optimization. Investigate
+wavelet/inverse and adaptation/reconstruction overhead first, alongside eager
+hydrostatic cache construction and repeated thermodynamic recomposition. A
+promising bounded omission is lazy provisional cache construction after proving
+the cache has no production numerical reader. These are proposals, not measured
+gains; keep full publication for the consumers identified by Stage267.
 
 Then migrate the remaining shared primitive consumers and reassess adaptation
 and the remaining complete producer/consumer chains. Choose each change from its
