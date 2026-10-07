@@ -161,10 +161,17 @@ immediate baseline without a repeat. Main is 0.541753610 s; the remaining gap is
 ## Following stages
 
 The provisional duplicate inverse installation is now independently measured.
-Next audit remaining provisional canonical workspace-to-Domain interior
-publication and all subsequent consumers, retaining necessary boundary epochs
-and accepted physics/output adapters. Then reassess adaptation and the remaining
-complete producer/consumer chains. Choose each change from its
+The [Stage267 consumer audit](parallel-blocks-stage267-audit.md) found that the
+remaining provisional canonical workspace-to-Domain interior publication is
+still required by shared primitives, diffusion and native velocity gradients.
+Native boundary refresh alone does not establish independence from that image.
+The next proposed change is a separately qualified provisional surface-pressure
+reader using the local canonical inverse mass view, preserving exact legacy
+arithmetic, coverage and boundary epochs. Keep full publication for the other
+consumers. This proposal has not been implemented or timed.
+
+Then migrate the remaining shared primitive consumers and reassess adaptation
+and the remaining complete producer/consumer chains. Choose each change from its
 actual removable work and replacement cost. Preserve formulas and operation
 order where exact checks require it; use compact block-owned stencil plans and
 bounded exchanges rather than rebuilding the generic owner graph by default.

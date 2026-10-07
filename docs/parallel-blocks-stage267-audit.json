@@ -1,0 +1,262 @@
+{
+  "stage": 267,
+  "status": "source_audit_only",
+  "solver_changes": false,
+  "new_measurements": false,
+  "source_head": "65d78624da50f433be2d9c42738cead70ae3b29c",
+  "immediate_baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "legacy_main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "sources_equal_immediate_baseline": true,
+  "reviewed_baseline_evidence": {
+    "document": "docs/parallel-blocks-stage266-results.json",
+    "job_id": 55398,
+    "qualified_timing_ranks": 83,
+    "candidate_seconds": 0.7484487785,
+    "main_seconds": 0.5417536095,
+    "candidate_minus_main_seconds": 0.20669516900000007,
+    "measurement_scope": "Previous Stage266 campaign, not a new Stage267 result."
+  },
+  "decision": "retain_complete_provisional_canonical_publication",
+  "field_wide_omission_safe": {
+    "mass": false,
+    "temperature": false,
+    "velocity": false
+  },
+  "reason": "Subsequent production shared primitives/diffusion/native gradient still consume provisional Domain prognostic fields; immediate native boundary refresh independence is insufficient.",
+  "next_proposal": {
+    "status": "not_implemented_not_qualified",
+    "scope": "Only compressible provisional surface-pressure reader after Stage203 inverse; first-stage/accepted/output/fallback/incompressible remain explicit legacy paths.",
+    "source": "Read-only completed local canonical inverse mass view with explicit generation, RK stage and final-boundary epoch, plus required scaffold and fixed mean/geometry adapters.",
+    "retain": [
+      "complete Domain interior publication",
+      "all boundary refreshes",
+      "Stage266 final installation",
+      "oracle original installations and exact-return proofs",
+      "remaining shared primitives/diffusion/gradients",
+      "accepted physics/output/checkpoint adapters"
+    ],
+    "blockers_to_resolve": [
+      "explicit post-end_inverse203 view lifetime/invalidation",
+      "complete legacy iterator source coverage and visit multiplicities",
+      "legacy sum-then-multiply arithmetic",
+      "independent pressure oracle must exercise the new consumer",
+      "repeatable performance gain or parity against immediate baseline"
+    ],
+    "forbidden_shortcuts": [
+      "reuse existing hydrostatic surface-pressure cache without exact arithmetic/coverage proof",
+      "interior-only PATCH_SIZE**2 pressure traversal",
+      "silent Domain interior fallback in eligible native path",
+      "new full numerical Domain image or final-owner round trip"
+    ],
+    "performance_hypothesis": "Compiled pressure traversal/locality may reduce overhead; retained publication copy cost remains and no saving is established.",
+    "local_limits": {
+      "build_jobs": 1,
+      "max_mpi_ranks": 4,
+      "library_threads": 1,
+      "compile_during_mpi": false
+    },
+    "campaign": {
+      "partition": "nk",
+      "node": "bb13",
+      "exclude_bb04": false,
+      "validation_cases": 7,
+      "validation_ranks": [
+        16,
+        167
+      ],
+      "timing_ranks": 83,
+      "timing_order": [
+        "main",
+        "stage266",
+        "candidate",
+        "candidate",
+        "stage266",
+        "main"
+      ],
+      "exclude_steps": [
+        1,
+        8,
+        9
+      ],
+      "automatic_repeat": false,
+      "automatic_promotion": false,
+      "stop_on_repeatable_regression": true
+    }
+  },
+  "source_sha256": {
+    "src/time_integr.f90": "49a7b7f09fb9d452174c3ceba392527697234acb3586ab1f06ac43ee3fd4a9ba",
+    "src/parallel_block_mpi.f90": "2c5a38a48c6eacb744b8d8039cac04f32b9a93abc1edc3d5a78cd84e71d64521",
+    "src/parallel_block_inverse.f90": "40c40693e7d6b932bd3e599c8d2bfad119bf2a16666751883479b22123dc92b2",
+    "src/multi_level.f90": "824727a3404d6de1edc34b53175b6dd62a16b3121fd776e0618aa81df6ffa280",
+    "src/diagnostics.f90": "4ce9f6cfc8fdff1f9518733b09f444770525ae8ebfccafc3b385efcadbfbd82f",
+    "src/domain_ops.f90": "5c0eaa093dfeb45f8d5ce0da5ad77b5a9be2e5a501757bf711308c662c7c6616",
+    "src/ops.f90": "52f63a5635ebc87e60bfde4caacd012a0046d0b40c19c3100e46e4f435962000",
+    "src/parallel_block.f90": "4ce02ad8ab92abf0e1c5dec5e9288f5124d3be3b69edcead478d7f751c13001b",
+    "test/climate/test_case_module.f90": "2833ad6a06de839392762873c991d743f5f036291f904c65681eba966702278a",
+    "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84"
+  },
+  "evidence": [
+    {
+      "file": "src/time_integr.f90",
+      "symbol": "prepare_block_multistage_tendency",
+      "line": 140,
+      "finding": "Production calls the shared compatibility tendency with the current RK stage; the full legacy tendency is oracle-only."
+    },
+    {
+      "file": "src/time_integr.f90",
+      "symbol": "native_provisional_WT",
+      "line": 224,
+      "finding": "Native provisional inverse is followed by the resident block boundary refresh."
+    },
+    {
+      "file": "src/time_integr.f90",
+      "symbol": "RK_sub_step_compatibility",
+      "line": 517,
+      "finding": "RK base/scaffold inputs are timestep-base q, not the preceding provisional q1."
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "activate_block_native_inverse_transform",
+      "line": 14682,
+      "finding": "Canonical interior publication, distinct all-level boundary epoch and retained final installation precede end_inverse203."
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "refresh_parallel_block_candidate_boundary_state",
+      "line": 11385,
+      "finding": "Native production closure refreshes resident ghosts/hydrostatic state; Domain comparison is oracle-only."
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "prepare_block_native_velocity_remainder",
+      "line": 17715,
+      "finding": "Native tendency transport does not establish another production Domain prognostic read merely through its signature."
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "capture_block_scalar_divergence_level",
+      "line": 21286,
+      "finding": "Interior Domain capture is oracle-gated; production still retains boundary/restriction product capture."
+    },
+    {
+      "file": "src/parallel_block_mpi.f90",
+      "symbol": "retain_block_native_multistage_candidate",
+      "line": 29938,
+      "finding": "Native temperature publication supplies the new provisional transform after the old-stage tendency."
+    },
+    {
+      "file": "src/parallel_block_inverse.f90",
+      "symbol": "prepare_native_inverse",
+      "line": 202,
+      "finding": "Reseeds workspace and replaces storage on generation change; scaffold source is timestep-base global sol."
+    },
+    {
+      "file": "src/parallel_block_inverse.f90",
+      "symbol": "native_inverse_gather",
+      "line": 756,
+      "finding": "Resident gather preserves canonical/scaffold sources without the production owner transfer."
+    },
+    {
+      "file": "src/parallel_block_inverse.f90",
+      "symbol": "publish_native_inverse",
+      "line": 1365,
+      "finding": "Boundary/noncatalogue publication uses the workspace, distinct from canonical interior restoration."
+    },
+    {
+      "file": "src/parallel_block_inverse.f90",
+      "symbol": "publish_canonical_inverse203",
+      "line": 1409,
+      "finding": "Canonical interior restoration and timestep-base scaffold preserve complete finite/extent and return checks."
+    },
+    {
+      "file": "src/parallel_block_inverse.f90",
+      "symbol": "end_inverse203",
+      "line": 1731,
+      "finding": "Clears resident203 without freeing storage; persistence alone is not a completed-consumer lifetime contract."
+    },
+    {
+      "file": "src/multi_level.f90",
+      "symbol": "block_tendency_compatibility_ml",
+      "line": 226,
+      "finding": "Production surface pressure, shared primitives, diffusion, native sources and gradients consume the current provisional stage."
+    },
+    {
+      "file": "src/multi_level.f90",
+      "symbol": "compute_native_velocity_source",
+      "line": 964,
+      "finding": "Binds mass/velocity for callback interface; callback-specific reads must be distinguished from pointer association."
+    },
+    {
+      "file": "src/multi_level.f90",
+      "symbol": "compute_native_velocity_gradient",
+      "line": 1011,
+      "finding": "Explicit production Domain mass and temperature reads form rho and rho_theta."
+    },
+    {
+      "file": "src/multi_level.f90",
+      "symbol": "basic_operators",
+      "line": 1032,
+      "finding": "Shared primitives bind and consume current Domain mass, temperature and velocity even without a Domain tendency destination."
+    },
+    {
+      "file": "src/multi_level.f90",
+      "symbol": "cal_Laplacian_scalars",
+      "line": 1592,
+      "finding": "Order-two scalar diffusion consumes current Domain scalar fields."
+    },
+    {
+      "file": "src/multi_level.f90",
+      "symbol": "cal_divu_ml",
+      "line": 2068,
+      "finding": "Velocity divergence consumes current Domain velocity fields."
+    },
+    {
+      "file": "src/diagnostics.f90",
+      "symbol": "cal_surf_press",
+      "line": 313,
+      "finding": "Zero full range, iterate ascending levels and legacy patch coverage, multiply once by gravity, add p_top and copy press_lower."
+    },
+    {
+      "file": "src/diagnostics.f90",
+      "symbol": "column_mass",
+      "line": 344,
+      "finding": "Compressible pressure reads mean_mass plus Domain mass; incompressible fallback also reads temperature."
+    },
+    {
+      "file": "src/diagnostics.f90",
+      "symbol": "integrate_pressure_up",
+      "line": 392,
+      "finding": "Production primitive pressure integration retains Domain scalar input dependencies."
+    },
+    {
+      "file": "src/domain_ops.f90",
+      "symbol": "apply_onescale_to_patch",
+      "line": 352,
+      "finding": "Pressure caller uses st=0,en=1 including plus-side boundaries and inner-boundary suppression."
+    },
+    {
+      "file": "src/ops.f90",
+      "symbol": "step1",
+      "line": 35,
+      "finding": "Shared primitive stencil retains direct Domain prognostic reads with native temperature products."
+    },
+    {
+      "file": "src/parallel_block.f90",
+      "symbol": "compute_local_block_hydrostatic_patch",
+      "line": 5220,
+      "finding": "Existing cache uses p_top plus gravity times each layer, differing from the legacy sum-then-multiply rounding sequence and coverage."
+    },
+    {
+      "file": "src/parallel_block.f90",
+      "symbol": "ensure_local_block_hydrostatic_state",
+      "line": 5585,
+      "finding": "Resident block hydrostatic cache is refreshed after provisional inverse but is not an exact pressure drop-in."
+    },
+    {
+      "file": "test/climate/test_case_module.f90",
+      "symbol": "physics_velo_source_case",
+      "line": 202,
+      "finding": "Current climate callback reads derived divergence/vorticity and geometry, not bound mass/velocity directly."
+    }
+  ]
+}
