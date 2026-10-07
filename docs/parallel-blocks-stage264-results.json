@@ -1,0 +1,36 @@
+{
+  "status": "verified",
+  "archive_sha256": "64e6f2ebbc59cc4a210802cf4ad735582bc8452d0a825441ab733d71bb2489e9",
+  "verified_files": 2239,
+  "comparison": {
+    "means_seconds": {
+      "main": 0.54241209075,
+      "stage230": 0.762952294
+    },
+    "stage230_minus_main_seconds": 0.22054020325,
+    "stage230_to_main_ratio": 1.4065916062915491,
+    "paired_gaps_seconds": [
+      0.22108969,
+      0.223545608,
+      0.219772458,
+      0.21775305700000003
+    ],
+    "independent_runs_per_version": 4,
+    "decision": "baseline_measured_no_promotion",
+    "scope": "Mean of independent ordinary-step run medians; validation runs excluded."
+  },
+  "limitation": "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun.",
+  "stage": 264,
+  "job_id": 55374,
+  "archive": "/Users/kevlahan/Desktop/rk264-review-55374.tar.gz",
+  "stage230_commit": "4ea640128a71a857f9b8c6b9411dc34fc0aeb641",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "science_runs": 14,
+  "validation_runs": 6,
+  "timing_runs": 8,
+  "qualified_baseline": true,
+  "legacy_performance_goal_met": false,
+  "reviewer_fix": "Compare storage census in JSON form; tuples become lists during serialization.",
+  "reviewer_negative_check": "Altered persisted census rejected after resealing archive manifest.",
+  "next_change": "Remove inverse-exit SOL return transport using canonical direct publication; retain both current block installations."
+}

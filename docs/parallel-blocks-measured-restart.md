@@ -33,6 +33,35 @@ established campaigns. No bb04 exclusion is needed on nk. Local correctness
 uses four MPI ranks, serial builds, and one thread per library. Local timings
 cannot establish performance.
 
+### Reviewed baseline: job 55374
+
+The transferred `rk264-review-55374.tar.gz` passed independent review of 2,239
+hashed files and all fourteen runs. Optimized, checked and oracle J5 validation
+passed at the scheduled 16/167-rank configurations, including ranks without
+Domains. Exact block checkpoint comparisons, main-relative numerical policy,
+same-count VTK hashes, two reloads/remaps and production Domain-trend absence
+passed. Binary/checkpoint/VTK payloads are omitted from the review archive;
+their cluster-computed hashes and comparison reports were verified, not rerun.
+
+The mean of four independent 83-rank ordinary-step run medians was 0.542412091 s
+for legacy main and 0.762952294 s for Stage230. The gap is 0.220540203 s, or
+40.659% above main. All four paired gaps are positive (217.753–223.546 ms).
+Stage230 run medians span 0.759168296–0.768837219 s; main spans
+0.540949456–0.545291611 s. This is consistent with the historical fast baseline
+and confirms a substantial existing legacy gap. The historical 0.754893 s was
+measured in another allocation and is not a matched candidate comparison.
+
+This qualifies the reset baseline, not legacy performance parity. The first
+change below remains the target; timings alone do not establish how much of
+the 220.54 ms it can remove. Subsequent candidates must compare to this exact
+source in the same allocation and retain the main anchor.
+
+Independent review initially exposed a Python tuple/list serialization mismatch
+in its storage-census comparison. Comparing JSON forms fixes the false failure
+without changing solver code or relaxing storage checks. Review now passes;
+a resealed archive with an altered census is still rejected. Machine-readable
+evidence is in `parallel-blocks-stage264-results.json`.
+
 ## First substantial change: remove the inverse-exit SOL return transport
 
 The target is the repeated complete SOL block-to-Domain return transaction in

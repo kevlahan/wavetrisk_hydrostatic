@@ -88,7 +88,8 @@ def review(archive):
                 raise ValueError('Same-count VTK hashes differ')
             anchors[key] = vtk
             storage = storage_evidence(log, row['ranks'], 'baseline' if row['family'] == 'main' else 'candidate', row['oracle'])
-            if storage != row['storage']:
+            # JSON serializes census tuples as lists; compare the persisted form.
+            if json.loads(json.dumps(storage)) != row['storage']:
                 raise ValueError('Storage policy differs')
             if row['family'] == 'stage230':
                 for marker in ('Stage203 inverse workspace = on', 'Stage203 scalar fields = on'):
