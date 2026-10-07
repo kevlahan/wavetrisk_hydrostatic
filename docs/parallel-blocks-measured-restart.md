@@ -241,6 +241,18 @@ supported. This is an intermediate screen toward at least 640 ranks, not final
 qualification. Do not use the 167-rank oracle as production scaling evidence or
 repeat the unchanged broad audit solely to obtain a passing main calibration.
 
+The [Stage271 candidate and scaling campaign](parallel-blocks-stage271-plan.md)
+are prepared and locally validated. One payload proof reduction of three integer
+sums replaces three scalar collectives, preserving checksum scans, equality
+checks, byte totals and numerical work. This bounded experiment is separate
+from the larger Domain-bound producer replacement. Four builds and twenty runs
+compare uninstrumented Stage266/candidate at 83/160/256 ranks, with main anchors
+at 83/160 and an oracle at 256. Three exact local replays, twelve actual-routine
+MPI proof cases and nine workflow tests passed; the sealed delivery was checked
+from a fresh extraction. Accounting capture is included. Stage266 remains the
+accepted performance baseline until the cluster results qualify or reject this
+candidate; no speedup or fourfold-scaling success is claimed by preparation.
+
 Then migrate the remaining shared primitive consumers and reassess adaptation
 and the remaining complete producer/consumer chains. Choose each change from its
 actual removable work and replacement cost. Preserve formulas and operation

@@ -1,0 +1,995 @@
+{
+  "stage": 271,
+  "revision": "fused-proof-scaling",
+  "prepared_date": "2026-10-07",
+  "status": "locally-validated-cluster-performance-pending",
+  "promoted": false,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "9e3db2b01a75aaa214e299c69a6f9a82584269f7",
+  "changed_source": [
+    "src/parallel_block_mpi.f90"
+  ],
+  "change": "Fuse three consecutive integer payload proof sums into one three-element MPI_Allreduce; retain both byte scans, all three results, equality check, payload exchange, zero-traffic participation and installation lifecycle.",
+  "basis": {
+    "stage270_job": 55467,
+    "proof_reductions_mean_rank_seconds": 0.013136946508621017,
+    "migration_inclusive_mean_rank_seconds": 0.06434139739809286,
+    "interpretation": "Measured scopes contain waiting; neither is a promised speedup. Largest architectural priority remains the shared Domain producer/capture/restriction chain."
+  },
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage271-validation/rk271-proof-scaling-kit-v1.tar.gz",
+    "sha256": "d390aa4d3c36e949c1c47d897cb4b2f6d3b50d85167e77bec3925e840b4fa8f2",
+    "bytes": 19803305,
+    "files": 45,
+    "source_manifest_sha256": "5e0cbe3a332e8866373d7e3cf782955fa592fb485e56513d0b3a5c342b64ba7c",
+    "local_validation_sha256": "48649a6c0553594dfb743fa85af31176f496a3046ebf4a515df45ee3ce42edb4",
+    "test_validation_sha256": "44d3a243a159e0dba72ab1cddeeb1547c14e9bc9dcf498cc2555b56a22c7236f"
+  },
+  "local_validation": {
+    "ranks": 4,
+    "new_serial_builds": 2,
+    "reference_controls": "Source/binary/physics-sealed Stage266 and main reused",
+    "cases": {
+      "candidate": {
+        "status": "passed",
+        "ranks": 4,
+        "oracles": false,
+        "coverage": {
+          "domains": 40,
+          "reloads": [
+            2,
+            3
+          ],
+          "remaps": 2,
+          "new_checkpoint": "localJ4J6_checkpoint_0003.bin.zst"
+        },
+        "reference_directory": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/local-J4/opt",
+        "reference_ranks": 4,
+        "reference_binary_sha256": "0baeb416b0874820d52ffcb7272fce9238b6f236dc3d637d4a228b992d688a23",
+        "steps": 12,
+        "step_states_exact": true,
+        "numerical": {
+          "passed": true,
+          "exact_required": true,
+          "exact_observed": true,
+          "failures": [],
+          "policy": {
+            "id": "stage180-local-v1",
+            "atmosphere_absolute": {
+              "velocity": 1e-10,
+              "mass": 1e-10,
+              "temperature": 1e-07
+            },
+            "soil_absolute": 0.0
+          },
+          "report": {
+            "left": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/local-J4/opt/localJ4J6_checkpoint_0003.bin.zst",
+            "right": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage271-validation/local-J4/candidate/localJ4J6_checkpoint_0003.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          }
+        },
+        "vtk_exact_members": 62,
+        "storage_headers": {
+          "absent": 2,
+          "retained": 0
+        },
+        "storage_ranks": [
+          [
+            0,
+            4
+          ],
+          [
+            0,
+            4
+          ]
+        ],
+        "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+        "seed_sha256": "285df4e715661c2a74836f5781f9cb099c777f9fff4e456a0b3593061dddf34c",
+        "environment": {
+          "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+          "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+          "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+          "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+          "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+          "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+          "WAVETRISK_STAGE191_INSTALL": "1",
+          "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+          "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+          "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+          "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+          "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+          "WAVETRISK_SAMPLE_RANKS201": "[]",
+          "WAVETRISK_COST_AUDIT": "0"
+        },
+        "command": [
+          "mpirun",
+          "--oversubscribe",
+          "--bind-to",
+          "none",
+          "-n",
+          "4",
+          "./climate",
+          "simple.in"
+        ],
+        "binary_sha256": "435ad04e50bcc46ceefe4096157220e2e47b7aef873c5b37ff7835e9d5f48731",
+        "log_sha256": "5c231b423a349e7493285d94d350f5267e1e783deec7b21f2a065072a5bec380",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "coverage": [],
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      },
+      "checked": {
+        "status": "passed",
+        "ranks": 4,
+        "oracles": false,
+        "coverage": {
+          "domains": 40,
+          "reloads": [
+            2,
+            3
+          ],
+          "remaps": 2,
+          "new_checkpoint": "localJ4J6_checkpoint_0003.bin.zst"
+        },
+        "reference_directory": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/local-J4/opt",
+        "reference_ranks": 4,
+        "reference_binary_sha256": "0baeb416b0874820d52ffcb7272fce9238b6f236dc3d637d4a228b992d688a23",
+        "steps": 12,
+        "step_states_exact": true,
+        "numerical": {
+          "passed": true,
+          "exact_required": true,
+          "exact_observed": true,
+          "failures": [],
+          "policy": {
+            "id": "stage180-local-v1",
+            "atmosphere_absolute": {
+              "velocity": 1e-10,
+              "mass": 1e-10,
+              "temperature": 1e-07
+            },
+            "soil_absolute": 0.0
+          },
+          "report": {
+            "left": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/local-J4/opt/localJ4J6_checkpoint_0003.bin.zst",
+            "right": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage271-validation/local-J4/checked/localJ4J6_checkpoint_0003.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          }
+        },
+        "vtk_exact_members": 62,
+        "storage_headers": {
+          "absent": 2,
+          "retained": 0
+        },
+        "storage_ranks": [
+          [
+            0,
+            4
+          ],
+          [
+            0,
+            4
+          ]
+        ],
+        "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+        "seed_sha256": "285df4e715661c2a74836f5781f9cb099c777f9fff4e456a0b3593061dddf34c",
+        "environment": {
+          "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+          "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+          "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+          "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+          "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+          "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+          "WAVETRISK_STAGE191_INSTALL": "1",
+          "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+          "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+          "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+          "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+          "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+          "WAVETRISK_SAMPLE_RANKS201": "[]",
+          "WAVETRISK_COST_AUDIT": "0"
+        },
+        "command": [
+          "mpirun",
+          "--oversubscribe",
+          "--bind-to",
+          "none",
+          "-n",
+          "4",
+          "./climate",
+          "simple.in"
+        ],
+        "binary_sha256": "fe4fba53b64f6085b56e4c35e529c526bdba2b1f4843b1f10c609818bf7a41e9",
+        "log_sha256": "96f8d3114737d947b3aab4a83a8f22ddd0c83d6b77e8f04e5b55612d2d0cb2ad",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "coverage": [],
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      },
+      "candidate-oracle": {
+        "status": "passed",
+        "ranks": 4,
+        "oracles": true,
+        "coverage": {
+          "domains": 40,
+          "reloads": [
+            2,
+            3
+          ],
+          "remaps": 2,
+          "new_checkpoint": "localJ4J6_checkpoint_0003.bin.zst"
+        },
+        "reference_directory": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/local-J4/opt",
+        "reference_ranks": 4,
+        "reference_binary_sha256": "0baeb416b0874820d52ffcb7272fce9238b6f236dc3d637d4a228b992d688a23",
+        "steps": 12,
+        "step_states_exact": true,
+        "numerical": {
+          "passed": true,
+          "exact_required": true,
+          "exact_observed": true,
+          "failures": [],
+          "policy": {
+            "id": "stage180-local-v1",
+            "atmosphere_absolute": {
+              "velocity": 1e-10,
+              "mass": 1e-10,
+              "temperature": 1e-07
+            },
+            "soil_absolute": 0.0
+          },
+          "report": {
+            "left": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/local-J4/opt/localJ4J6_checkpoint_0003.bin.zst",
+            "right": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage271-validation/local-J4/candidate-oracle/localJ4J6_checkpoint_0003.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          }
+        },
+        "vtk_exact_members": 62,
+        "storage_headers": {
+          "absent": 0,
+          "retained": 2
+        },
+        "storage_ranks": [
+          [
+            4,
+            4
+          ],
+          [
+            4,
+            4
+          ]
+        ],
+        "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+        "seed_sha256": "285df4e715661c2a74836f5781f9cb099c777f9fff4e456a0b3593061dddf34c",
+        "environment": {
+          "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "1",
+          "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "1",
+          "WAVETRISK_VALIDATE_BLOCK_REMAP": "1",
+          "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+          "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+          "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+          "WAVETRISK_STAGE191_INSTALL": "1",
+          "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+          "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+          "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+          "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+          "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+          "WAVETRISK_SAMPLE_RANKS201": "[]",
+          "WAVETRISK_COST_AUDIT": "0"
+        },
+        "command": [
+          "mpirun",
+          "--oversubscribe",
+          "--bind-to",
+          "none",
+          "-n",
+          "4",
+          "./climate",
+          "simple.in"
+        ],
+        "binary_sha256": "435ad04e50bcc46ceefe4096157220e2e47b7aef873c5b37ff7835e9d5f48731",
+        "log_sha256": "d98439e7e5348802a3d99263f0c3de234d72153a72f916707c4d00c5385c3863",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "coverage": [
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            }
+          ],
+          "oracle_installations": 84,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      }
+    },
+    "source_manifest_sha256": "5e0cbe3a332e8866373d7e3cf782955fa592fb485e56513d0b3a5c342b64ba7c",
+    "build_manifest_sha256": "1f2c7bd98f35e04b6c478dd84768da10d24a990feaf07be966d16427a26778c0"
+  },
+  "actual_mpi_proof_tests": {
+    "status": "passed",
+    "cases": [
+      {
+        "family": "stage266",
+        "optimization": "-O0",
+        "mode": "normal",
+        "expected_collectives": 3,
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "family": "stage266",
+        "optimization": "-O0",
+        "mode": "empty",
+        "expected_collectives": 3,
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "family": "stage266",
+        "optimization": "-O0",
+        "mode": "corrupt",
+        "expected_collectives": 3,
+        "passed": true,
+        "returncode": 17
+      },
+      {
+        "family": "stage266",
+        "optimization": "-O2",
+        "mode": "normal",
+        "expected_collectives": 3,
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "family": "stage266",
+        "optimization": "-O2",
+        "mode": "empty",
+        "expected_collectives": 3,
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "family": "stage266",
+        "optimization": "-O2",
+        "mode": "corrupt",
+        "expected_collectives": 3,
+        "passed": true,
+        "returncode": 17
+      },
+      {
+        "family": "candidate",
+        "optimization": "-O0",
+        "mode": "normal",
+        "expected_collectives": 1,
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "family": "candidate",
+        "optimization": "-O0",
+        "mode": "empty",
+        "expected_collectives": 1,
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "family": "candidate",
+        "optimization": "-O0",
+        "mode": "corrupt",
+        "expected_collectives": 1,
+        "passed": true,
+        "returncode": 17
+      },
+      {
+        "family": "candidate",
+        "optimization": "-O2",
+        "mode": "normal",
+        "expected_collectives": 1,
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "family": "candidate",
+        "optimization": "-O2",
+        "mode": "empty",
+        "expected_collectives": 1,
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "family": "candidate",
+        "optimization": "-O2",
+        "mode": "corrupt",
+        "expected_collectives": 1,
+        "passed": true,
+        "returncode": 17
+      }
+    ],
+    "source_manifest_sha256": "5e0cbe3a332e8866373d7e3cf782955fa592fb485e56513d0b3a5c342b64ba7c",
+    "scope": "Twelve actual-routine four-rank MPI cases; exact three integer sums/payloads and retained corruption rejection, with three old or one new proof collective."
+  },
+  "workflow_tests": {
+    "status": "passed",
+    "workflow_tests": 9,
+    "workflow_log_sha256": "500b40a0933f60b2f3317ef702b9e5cae02c83aa796d0488f706863091e0154c",
+    "tested_source_sha256": {
+      "accounting.py": "a5d964e72a491ea5f7c360d2b0e100e22b6983649ecd9d95fb699dadd8911318",
+      "build.py": "19e616a3d2ab8f855755b877aa62476f02372cfdda4c2912cbaa4159843a65fb",
+      "common.py": "dfc59d46956ae92187d2dd91f0603bdc7991365c94cf13e130bb89136c943a17",
+      "control.py": "72b0ec76c96f2b016cab0654854830078a367042fead27d0042aa21e9a54dc61",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "local_verify.py": "4b91f77f657089d3bec92b63c33f11127984225fe052970065d5ce2d490292fa",
+      "placement_271.py": "3bcb11f81fbb124ea0083db1bc07e47d98623f15747c50e484f25a1a93c557dd",
+      "prepare.py": "227df7d89983581aa30d8ae92a93a901cb14c69a547c2ff6d392aed681f6a470",
+      "review.py": "cb0d826cacf2298463f520c0c94ea8b36c0372e5fad508c3bf9a6410df89d37f",
+      "run.py": "2358471e00224e5fef13f2f570016681d8c9e2e8badf1a739bfd0331ca6c0300",
+      "seal.py": "49fed0c50b8cd79abe1e56927d75c18223d78f5939f27718f490e34969ebf754",
+      "test_proof.py": "e92a9ab76ab1783e05f5727da1b9fdf4de858b3478e714bdc1c54f6b9fc6b02e",
+      "test_workflow.py": "1667e64ac5f33f44ccf8967a80f8674bf2e8da6ed72d8c7099b3521fc9752726"
+    },
+    "scope": "Nine orchestration/source/placement/accounting tests including the complete twenty-run mock campaign, collection and independent review; actual MPI and solver exactness are recorded separately."
+  },
+  "delivery_validation": {
+    "status": "passed",
+    "exact_control_manifests": true,
+    "candidate_matches_checkout": true,
+    "all_source_members_hashed": true,
+    "mac_extended_headers_absent": true,
+    "shell_syntax": true,
+    "disabled_profiler": true,
+    "import_graph": true,
+    "extracted_workflow_tests": 9
+  },
+  "cluster_campaign": {
+    "partition": "nk",
+    "node": "bb13",
+    "exclusive": true,
+    "serial_builds": 4,
+    "shared_physics_objects": 23,
+    "validation_runs": 6,
+    "timing_runs": 14,
+    "total_solver_runs": 20,
+    "validation_ranks": [
+      16,
+      256
+    ],
+    "timing_ranks": [
+      83,
+      160,
+      256
+    ],
+    "main_timing_ranks": [
+      83,
+      160
+    ],
+    "independent_block_runs_per_count": 2,
+    "independent_main_runs_per_count": 1,
+    "automatic_repeat": false,
+    "automatic_promotion": false,
+    "external_fixture": "$HOME/stage187-fixture-20260911-145307"
+  },
+  "accounting": "Collector preserves raw sacct Start/End/ElapsedRaw/Elapsed and explicit unavailability. Runner stores UTC start/end and monotonic elapsed including build and validation.",
+  "runtime_estimate": {
+    "planning_minutes": [
+      20,
+      25
+    ],
+    "queue_excluded": true,
+    "basis_stage270_elapsed_seconds": 938,
+    "slurm_limit_hours": 3
+  },
+  "strategic_goal": "Efficient P >= 4*D; J5 D=160 requires >=640 MPI ranks and multi-node qualification with adequate block subdivision. This 256-rank single-node comparison is intermediate only.",
+  "acceptance": "Exact science/oracles plus complete-solver benefit without repeatable regression at another rank count; mixed or noise-sized pair changes stay inconclusive. No stage stacking or automatic promotion.",
+  "speedup_estimate_seconds": null
+}
