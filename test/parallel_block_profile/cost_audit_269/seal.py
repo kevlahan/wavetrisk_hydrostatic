@@ -13,7 +13,7 @@ def seal(kit,validation,tests):
     result=json.loads(validation.read_text());checks=json.loads(tests.read_text())
     cases={'main_observer','observer','checked','observer-oracle'}
     if result['status']!='passed' or result['ranks']!=4 or set(result['cases'])!=cases:raise ValueError('Require four real observer replays')
-    if checks['status']!='passed' or checks['workflow_tests']!=9 or checks['observer_tests']!=1:raise ValueError('Require complete test evidence')
+    if checks['status']!='passed' or checks['workflow_tests']!=10 or checks['observer_tests']!=1:raise ValueError('Require complete test evidence')
     if sha(kit/'source-files.json')!=result['source_manifest_sha256']:raise ValueError('Validated sources differ')
     builds_path=validation.parent/'builds.json';builds=json.loads(builds_path.read_text())
     if sha(builds_path)!=result['build_manifest_sha256'] or builds['status']!='passed' or len(builds['physics_objects'])!=23:raise ValueError('Build evidence differs')

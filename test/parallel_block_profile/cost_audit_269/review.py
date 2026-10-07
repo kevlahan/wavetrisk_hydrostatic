@@ -1,10 +1,12 @@
 """Independently reproduce Stage269 timings and science evidence after transfer."""
 import json
+import math
 from pathlib import Path
 import re
 import sys
 import tarfile
 import tempfile
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent))
 from analyze import analyze
 from common import CHECKPOINTS, J5_HASHES, MAIN, BASELINE, ORDER, VALIDATIONS, sha, summarize
 from control import verify_archive
@@ -14,6 +16,22 @@ from validation_230 import storage_evidence
 from evidence import publication_evidence
 from checkpoint_gate import accept
 from cost_analysis import read_costs
+
+
+def same_derived_report(left, right):
+    """Permit only float rounding in derived reports, never raw evidence.
+
+    Python 3.12 changed built-in float summation. Cluster 3.11 and local
+    Python can therefore differ by a few ulps even with identical raw rows.
+    Hashes, keys, ordering, integer counts and all other values remain exact.
+    """
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(same_derived_report(left[k], right[k]) for k in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(same_derived_report(a, b) for a, b in zip(left, right))
+    if isinstance(left, float) and isinstance(right, float):
+        return math.isfinite(left) and math.isfinite(right) and abs(left-right) <= 8*max(math.ulp(left),math.ulp(right))
+    return type(left) is type(right) and left == right
 
 
 def review(archive):
@@ -116,7 +134,7 @@ def review(archive):
             if row['observer']!=observed:raise ValueError('Observer selector identity differs')
             if observed:
                 costs=read_costs(directory,row['ranks'],block=row['family']=='stage266',oracle=row['oracle'])
-                if costs!=row['costs'] or {p.name:sha(p) for p in sorted(directory.glob('cost-rank-*.txt'))}!=row['observer_file_sha256']:
+                if not same_derived_report(costs,row['costs']) or {p.name:sha(p) for p in sorted(directory.glob('cost-rank-*.txt'))}!=row['observer_file_sha256']:
                     raise ValueError('Raw observer records differ')
             elif list(directory.glob('cost-rank-*.txt')):raise ValueError('Observer file in exact control')
             values = ordinary(log, analysis, (directory / 'test_log').read_text())
@@ -127,10 +145,11 @@ def review(archive):
                     raise ValueError('Invalid timing sample')
                 timing.append(dict(row, ordinary=values))
         comparison = summarize(timing)
-        if comparison != result['comparison']:
+        if not same_derived_report(comparison, result['comparison']):
             raise ValueError('Timing comparison differs')
         return dict(status='verified', archive_sha256=sha(archive), verified_files=count,
                     identity=identity, comparison=comparison,
+                    derived_report_float_tolerance='Eight ulps only; raw member hashes and all scientific gates remain exact.',
                     limitation='Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun.')
 
 

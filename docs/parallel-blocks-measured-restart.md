@@ -179,8 +179,13 @@ The [Stage269 bounded cost campaign](parallel-blocks-stage269-audit.md) is now
 prepared. Exact Stage266/main controls and separate diagnostic observers cover
 all major transaction families in one campaign, with overhead calibration for
 both families. Four real observer replays and workflow checks passed locally;
-current bb13 cost attribution and recoverable savings remain unmeasured. Run and
-review this audit before choosing a single numerical intervention.
+Job 55466 completed and passed all scientific gates. Its [review](parallel-blocks-stage269-results.md)
+measures a bare-control gap of 212.308 ms. Main observer calibration failed;
+Stage266 observer calibration passed and identifies large broad tendency,
+recomposition, migration and inverse-wait costs. Cache rebuilds and surface
+pressure are small. Reduce observer frequency and decompose the large producer/
+transport regions before choosing one numerical intervention; retain the failed
+cross-version attribution as unqualified.
 
 Then migrate the remaining shared primitive consumers and reassess adaptation
 and the remaining complete producer/consumer chains. Choose each change from its

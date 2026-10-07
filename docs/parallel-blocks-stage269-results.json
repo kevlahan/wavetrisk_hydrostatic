@@ -1,0 +1,883 @@
+{
+  "status": "verified",
+  "stage": 269,
+  "revision": "bounded-cost-audit",
+  "job_id": 55466,
+  "archive": "/Users/kevlahan/Desktop/rk269-review-55466.tar.gz",
+  "archive_sha256": "18ce9b9256c3118fbd1c5cca83da047856b5115bcf3159ec8e869a1e17d479aa",
+  "verified_files": 2540,
+  "candidate_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "delivered_kit_manifest_matches": true,
+  "correctness": "All fifteen runs passed; five serial same-node builds share 23 physics objects. Exact same-family checkpoint/62 VTK, scientific, restart/remap, placement/storage and checked/oracle gates verified. Independent block oracles at 16/167 ranks each retain 48 exact inverse proofs and 84 installations; all raw observer files and per-step phase counts/conservation verified.",
+  "comparison": {
+    "means_seconds": {
+      "main": 0.5389087665,
+      "stage266": 0.751216972
+    },
+    "candidate_minus_main_seconds": 0.21230820550000007,
+    "calibration": {
+      "main": {
+        "status": "observer_costs_unqualified",
+        "control_seconds": 0.5389087665,
+        "observer_seconds": 0.560056039,
+        "shift_seconds": 0.021147272500000036,
+        "paired_shifts_seconds": [
+          0.02049811400000001,
+          0.02179643100000006
+        ],
+        "limits_seconds": {
+          "mean": 0.005389087664999999,
+          "pair": 0.010778175329999999,
+          "spread": 0.010778175329999999
+        },
+        "control_spread_seconds": 0.0007226430000000228,
+        "observer_spread_seconds": 0.000575674000000026,
+        "scope": "Two independent runs per binary; compatibility does not prove each small scope unbiased."
+      },
+      "stage266": {
+        "status": "compatible_at_prespecified_resolution",
+        "control_seconds": 0.751216972,
+        "observer_seconds": 0.758145925,
+        "shift_seconds": 0.00692895299999996,
+        "paired_shifts_seconds": [
+          0.012164037000000016,
+          0.0016938689999999035
+        ],
+        "limits_seconds": {
+          "mean": 0.0075121697200000006,
+          "pair": 0.015024339440000001,
+          "spread": 0.015024339440000001
+        },
+        "control_spread_seconds": 0.00429855400000001,
+        "observer_spread_seconds": 0.006171614000000103,
+        "scope": "Two independent runs per binary; compatibility does not prove each small scope unbiased."
+      }
+    },
+    "attribution": {
+      "status": "observer_costs_unqualified",
+      "mean_regions": {
+        "main": {
+          "step": {
+            "self_wall": 0.022147982774945688,
+            "self_cpu": 0.022032247657295792,
+            "inclusive_wall": 0.5529946406889916,
+            "inclusive_cpu": 0.5499404698795181,
+            "calls": 1
+          },
+          "RK": {
+            "self_wall": 0.0020511585288996515,
+            "self_cpu": 0.0020406345381525923,
+            "inclusive_wall": 0.46616087376403126,
+            "inclusive_cpu": 0.46359296987951804,
+            "calls": 1
+          },
+          "tendency context": {
+            "self_wall": 0.09600241431452763,
+            "self_cpu": 0.09523164257028091,
+            "inclusive_wall": 0.3913229748000761,
+            "inclusive_cpu": 0.38916477510040165,
+            "calls": 4
+          },
+          "wavelet transaction": {
+            "self_wall": 0.00601877723078691,
+            "self_cpu": 0.005980501338688127,
+            "inclusive_wall": 0.10264854271580756,
+            "inclusive_cpu": 0.10209820749665324,
+            "calls": 5
+          },
+          "adapt algorithm": {
+            "self_wall": 0.012558248158048096,
+            "self_cpu": 0.012486390896921024,
+            "inclusive_wall": 0.015885143730929058,
+            "inclusive_cpu": 0.015783882864792508,
+            "calls": 1
+          },
+          "Domain inverse": {
+            "self_wall": 0.05083898700171535,
+            "self_cpu": 0.050555811914323935,
+            "inclusive_wall": 0.07321180013249037,
+            "inclusive_cpu": 0.07280346519410977,
+            "calls": 6
+          },
+          "native inverse": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "inverse setup": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "canonical publication": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "block installation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "provisional refresh": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "block hydrostatic cache": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native recomposition": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "catalogue": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "source blocks": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "post-grid refresh": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native compression": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native scalar forward": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native vector forward": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "block ghosts": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native velocity source": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native velocity gradient": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "Domain surface pressure": {
+            "self_wall": 0.000981698992725716,
+            "self_cpu": 0.0009762744310576291,
+            "inclusive_wall": 0.000981698992725716,
+            "inclusive_cpu": 0.0009762744310576291,
+            "calls": 5
+          },
+          "Domain boundary": {
+            "self_wall": 0.3623953736873426,
+            "self_cpu": 0.36063696653279803,
+            "inclusive_wall": 0.3623953736873426,
+            "inclusive_cpu": 0.36063696653279803,
+            "calls": 3150.222222222222
+          },
+          "accepted state refresh": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "inverse MPI wait/traffic": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          }
+        },
+        "stage266": {
+          "step": {
+            "self_wall": 0.023425124853991543,
+            "self_cpu": 0.023254140562249004,
+            "inclusive_wall": 0.7522524023338792,
+            "inclusive_cpu": 0.7439667054886212,
+            "calls": 1
+          },
+          "RK": {
+            "self_wall": 0.008180114820255453,
+            "self_cpu": 0.008109702141900982,
+            "inclusive_wall": 0.5798303931789446,
+            "inclusive_cpu": 0.5750009611780456,
+            "calls": 1
+          },
+          "tendency context": {
+            "self_wall": 0.16373017787063118,
+            "self_cpu": 0.1623418955823282,
+            "inclusive_wall": 0.36290710722096264,
+            "inclusive_cpu": 0.3600829611780455,
+            "calls": 4
+          },
+          "wavelet transaction": {
+            "self_wall": 0.0032325994439667445,
+            "self_cpu": 0.0032012851405623707,
+            "inclusive_wall": 0.2258023867957728,
+            "inclusive_cpu": 0.22379014859437749,
+            "calls": 5
+          },
+          "adapt algorithm": {
+            "self_wall": 0.014948719259665674,
+            "self_cpu": 0.014694598393574315,
+            "inclusive_wall": 0.017024139938826163,
+            "inclusive_cpu": 0.01674265060240962,
+            "calls": 1
+          },
+          "Domain inverse": {
+            "self_wall": 0.011786625628924394,
+            "self_cpu": 0.011420265060241047,
+            "inclusive_wall": 0.019633519619084903,
+            "inclusive_cpu": 0.019216431057563585,
+            "calls": 2
+          },
+          "native inverse": {
+            "self_wall": 0.0189910644167907,
+            "self_cpu": 0.018856233601070835,
+            "inclusive_wall": 0.05133652012892456,
+            "inclusive_cpu": 0.0509787724230254,
+            "calls": 4
+          },
+          "inverse setup": {
+            "self_wall": 0.026700137677406727,
+            "self_cpu": 0.026372335341365533,
+            "inclusive_wall": 0.052986655262432285,
+            "inclusive_cpu": 0.05246747925033463,
+            "calls": 4
+          },
+          "canonical publication": {
+            "self_wall": 0.0010228812472627981,
+            "self_cpu": 0.0010160957161980766,
+            "inclusive_wall": 0.0010228812472627981,
+            "inclusive_cpu": 0.0010160957161980766,
+            "calls": 4
+          },
+          "block installation": {
+            "self_wall": 0.004826745697530298,
+            "self_cpu": 0.0047942978580988,
+            "inclusive_wall": 0.01288971613495395,
+            "inclusive_cpu": 0.012803489959839398,
+            "calls": 4
+          },
+          "provisional refresh": {
+            "self_wall": 2.3190311431745128e-05,
+            "self_cpu": 2.1273092369416516e-05,
+            "inclusive_wall": 0.004268114840290153,
+            "inclusive_cpu": 0.004236929049531435,
+            "calls": 3
+          },
+          "block hydrostatic cache": {
+            "self_wall": 0.0021158173998850217,
+            "self_cpu": 0.0021005575635876716,
+            "inclusive_wall": 0.0021158173998850217,
+            "inclusive_cpu": 0.0021005575635876716,
+            "calls": 10.222222222222221
+          },
+          "native recomposition": {
+            "self_wall": 0.10886924260406888,
+            "self_cpu": 0.1079751619812584,
+            "inclusive_wall": 0.10886924260406888,
+            "inclusive_cpu": 0.1079751619812584,
+            "calls": 4
+          },
+          "catalogue": {
+            "self_wall": 0.009365826075300673,
+            "self_cpu": 0.008680619812583702,
+            "inclusive_wall": 0.009365826075300673,
+            "inclusive_cpu": 0.008680619812583702,
+            "calls": 1
+          },
+          "source blocks": {
+            "self_wall": 0.006993627802180836,
+            "self_cpu": 0.006213253012048179,
+            "inclusive_wall": 0.006993627802180836,
+            "inclusive_cpu": 0.006213253012048179,
+            "calls": 1
+          },
+          "migration": {
+            "self_wall": 0.06435305937324243,
+            "self_cpu": 0.06357808232931728,
+            "inclusive_wall": 0.0647866488393855,
+            "inclusive_cpu": 0.06400808768406963,
+            "calls": 1
+          },
+          "post-grid refresh": {
+            "self_wall": 0.011611314396931225,
+            "self_cpu": 0.011383859437751019,
+            "inclusive_wall": 0.011614796226791829,
+            "inclusive_cpu": 0.011386415662650605,
+            "calls": 1
+          },
+          "native compression": {
+            "self_wall": 0.0206086794802747,
+            "self_cpu": 0.02047713587684068,
+            "inclusive_wall": 0.0206086794802747,
+            "inclusive_cpu": 0.02047713587684068,
+            "calls": 8
+          },
+          "native scalar forward": {
+            "self_wall": 0.05159860556892841,
+            "self_cpu": 0.051176204149933076,
+            "inclusive_wall": 0.055821991508447605,
+            "inclusive_cpu": 0.05536991030789819,
+            "calls": 4
+          },
+          "native vector forward": {
+            "self_wall": 0.01245460608055244,
+            "self_cpu": 0.01209384136546178,
+            "inclusive_wall": 0.01245460608055244,
+            "inclusive_cpu": 0.01209384136546178,
+            "calls": 9
+          },
+          "block ghosts": {
+            "self_wall": 0.010517794775079631,
+            "self_cpu": 0.010443742302543425,
+            "inclusive_wall": 0.011699817381509974,
+            "inclusive_cpu": 0.01161942436412304,
+            "calls": 10.222222222222221
+          },
+          "native velocity source": {
+            "self_wall": 0.006416181706757331,
+            "self_cpu": 0.0063667148594381395,
+            "inclusive_wall": 0.006416181706757331,
+            "inclusive_cpu": 0.0063667148594381395,
+            "calls": 360
+          },
+          "native velocity gradient": {
+            "self_wall": 0.0036722573787073692,
+            "self_cpu": 0.0036553514056226334,
+            "inclusive_wall": 0.0036722573787073692,
+            "inclusive_cpu": 0.0036553514056226334,
+            "calls": 120
+          },
+          "Domain surface pressure": {
+            "self_wall": 0.0015489637223352868,
+            "self_cpu": 0.0015385622489959912,
+            "inclusive_wall": 0.0015489637223352868,
+            "inclusive_cpu": 0.0015385622489959912,
+            "calls": 5
+          },
+          "Domain boundary": {
+            "self_wall": 0.11247049446761298,
+            "self_cpu": 0.11178850200803263,
+            "inclusive_wall": 0.11247049446761298,
+            "inclusive_cpu": 0.11178850200803263,
+            "calls": 2419.4444444444443
+          },
+          "accepted state refresh": {
+            "self_wall": 6.203921798521894e-06,
+            "self_cpu": 5.705488621198518e-06,
+            "inclusive_wall": 0.0024545987425284733,
+            "inclusive_cpu": 0.0024408547523427095,
+            "calls": 1
+          },
+          "inverse MPI wait/traffic": {
+            "self_wall": 0.052782346352366324,
+            "self_cpu": 0.05240728915662679,
+            "inclusive_wall": 0.052782346352366324,
+            "inclusive_cpu": 0.05240728915662679,
+            "calls": 114
+          }
+        }
+      },
+      "signed_self_wall_seconds": {
+        "step": 0.0012771420790458551,
+        "RK": 0.006128956291355801,
+        "tendency context": 0.06772776355610355,
+        "wavelet transaction": -0.0027861777868201654,
+        "adapt algorithm": 0.002390471101617577,
+        "Domain inverse": -0.03905236137279096,
+        "native inverse": 0.0189910644167907,
+        "inverse setup": 0.026700137677406727,
+        "canonical publication": 0.0010228812472627981,
+        "block installation": 0.004826745697530298,
+        "provisional refresh": 2.3190311431745128e-05,
+        "block hydrostatic cache": 0.0021158173998850217,
+        "native recomposition": 0.10886924260406888,
+        "catalogue": 0.009365826075300673,
+        "source blocks": 0.006993627802180836,
+        "migration": 0.06435305937324243,
+        "post-grid refresh": 0.011611314396931225,
+        "native compression": 0.0206086794802747,
+        "native scalar forward": 0.05159860556892841,
+        "native vector forward": 0.01245460608055244,
+        "block ghosts": 0.010517794775079631,
+        "native velocity source": 0.006416181706757331,
+        "native velocity gradient": 0.0036722573787073692,
+        "Domain surface pressure": 0.0005672647296095709,
+        "Domain boundary": -0.2499248792197296,
+        "accepted state refresh": 6.203921798521894e-06,
+        "inverse MPI wait/traffic": 0.052782346352366324
+      },
+      "additive_mean_rank_difference_seconds": 0.19925776164488768,
+      "ranking": [
+        "native recomposition",
+        "tendency context",
+        "migration",
+        "inverse MPI wait/traffic",
+        "native scalar forward",
+        "inverse setup",
+        "native compression",
+        "native inverse",
+        "native vector forward",
+        "post-grid refresh",
+        "block ghosts",
+        "catalogue",
+        "source blocks",
+        "native velocity source",
+        "RK",
+        "block installation",
+        "native velocity gradient",
+        "adapt algorithm",
+        "block hydrostatic cache",
+        "step",
+        "canonical publication",
+        "Domain surface pressure",
+        "provisional refresh",
+        "accepted state refresh",
+        "wavelet transaction",
+        "Domain inverse",
+        "Domain boundary"
+      ],
+      "recoverable_budget_seconds": null,
+      "limitation": "Current measured locations only if both calibrations pass; no omission or full replacement has been tested. Retain negative offsets, inclusive nesting and calibration failures."
+    },
+    "automatic_promotion": false,
+    "limitation": "Diagnostic attribution only; no intervention tested and no recoverable speedup established."
+  },
+  "candidate_main_penalty_percent": 39.39594578853452,
+  "calibration_shift_percent": {
+    "main": 3.9240913888529287,
+    "stage266": 0.9223637455304936
+  },
+  "cost_attribution_decision": "Cross-version phase differences unqualified because main observer calibration failed. Candidate-only broad costs usable as investigation leads at prespecified calibration resolution; no recoverable gain demonstrated.",
+  "candidate_only_scopes": {
+    "step": {
+      "mean_self_wall_seconds": 0.023425124853991543,
+      "mean_inclusive_wall_seconds": 0.7522524023338792,
+      "self_by_run_seconds": [
+        0.023108431315760177,
+        0.023741818392222905
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.02331379883819156,
+        0.02655088094373544
+      ],
+      "calls_per_step": 1
+    },
+    "RK": {
+      "mean_self_wall_seconds": 0.008180114820255453,
+      "mean_inclusive_wall_seconds": 0.5798303931789446,
+      "self_by_run_seconds": [
+        0.008192190162992103,
+        0.008168039477518802
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.008510310720238421,
+        0.006486640415257878
+      ],
+      "calls_per_step": 1
+    },
+    "tendency context": {
+      "mean_self_wall_seconds": 0.16373017787063118,
+      "mean_inclusive_wall_seconds": 0.36290710722096264,
+      "self_by_run_seconds": [
+        0.16435196110916386,
+        0.1631083946320985
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.16884798758352795,
+        0.17361126312365135
+      ],
+      "calls_per_step": 4
+    },
+    "wavelet transaction": {
+      "mean_self_wall_seconds": 0.0032325994439667445,
+      "mean_inclusive_wall_seconds": 0.2258023867957728,
+      "self_by_run_seconds": [
+        0.003225178350576036,
+        0.0032400205373574534
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.003200405949933661,
+        0.003595655939231316
+      ],
+      "calls_per_step": 5
+    },
+    "adapt algorithm": {
+      "mean_self_wall_seconds": 0.014948719259665674,
+      "mean_inclusive_wall_seconds": 0.017024139938826163,
+      "self_by_run_seconds": [
+        0.01492241877685968,
+        0.014975019742471667
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.014758316334336996,
+        0.014757668340785636
+      ],
+      "calls_per_step": 1
+    },
+    "Domain inverse": {
+      "mean_self_wall_seconds": 0.011786625628924394,
+      "mean_inclusive_wall_seconds": 0.019633519619084903,
+      "self_by_run_seconds": [
+        0.012236855617428878,
+        0.011336395640419909
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.014565787743777037,
+        0.011630566790699959
+      ],
+      "calls_per_step": 2
+    },
+    "native inverse": {
+      "mean_self_wall_seconds": 0.0189910644167907,
+      "mean_inclusive_wall_seconds": 0.05133652012892456,
+      "self_by_run_seconds": [
+        0.01903016811082142,
+        0.018951960722759984
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.019927647947851155,
+        0.02176572423842218
+      ],
+      "calls_per_step": 4
+    },
+    "inverse setup": {
+      "mean_self_wall_seconds": 0.026700137677406727,
+      "mean_inclusive_wall_seconds": 0.052986655262432285,
+      "self_by_run_seconds": [
+        0.02688411584029216,
+        0.026516159514521298
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.02673101482085056,
+        0.02862789114523265
+      ],
+      "calls_per_step": 4
+    },
+    "canonical publication": {
+      "mean_self_wall_seconds": 0.0010228812472627981,
+      "mean_inclusive_wall_seconds": 0.0010228812472627981,
+      "self_by_run_seconds": [
+        0.0010213093524187842,
+        0.0010244531421068123
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.0010653336325453387,
+        0.0012273621331486437
+      ],
+      "calls_per_step": 4
+    },
+    "block installation": {
+      "mean_self_wall_seconds": 0.004826745697530298,
+      "mean_inclusive_wall_seconds": 0.01288971613495395,
+      "self_by_run_seconds": [
+        0.004819329226466826,
+        0.00483416216859377
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.004849692961821954,
+        0.005414025909784768
+      ],
+      "calls_per_step": 4
+    },
+    "provisional refresh": {
+      "mean_self_wall_seconds": 2.3190311431745128e-05,
+      "mean_inclusive_wall_seconds": 0.004268114840290153,
+      "self_by_run_seconds": [
+        2.308614387449969e-05,
+        2.3294478988990565e-05
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        2.26836030681928e-05,
+        2.2014706499046748e-05
+      ],
+      "calls_per_step": 3
+    },
+    "block hydrostatic cache": {
+      "mean_self_wall_seconds": 0.0021158173998850217,
+      "mean_inclusive_wall_seconds": 0.0021158173998850217,
+      "self_by_run_seconds": [
+        0.002116746484854295,
+        0.0021148883149157485
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.0020628563231892055,
+        0.0021862717241876656
+      ],
+      "calls_per_step": 10.222222222222221
+    },
+    "native recomposition": {
+      "mean_self_wall_seconds": 0.10886924260406888,
+      "mean_inclusive_wall_seconds": 0.10886924260406888,
+      "self_by_run_seconds": [
+        0.10960459894247583,
+        0.10813388626566194
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.10894218009586136,
+        0.11112295903472437
+      ],
+      "calls_per_step": 4
+    },
+    "catalogue": {
+      "mean_self_wall_seconds": 0.009365826075300673,
+      "mean_inclusive_wall_seconds": 0.009365826075300673,
+      "self_by_run_seconds": [
+        0.008624797448181763,
+        0.010106854702419584
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.007211817945871089,
+        0.008931469637900591
+      ],
+      "calls_per_step": 1
+    },
+    "source blocks": {
+      "mean_self_wall_seconds": 0.006993627802180836,
+      "mean_inclusive_wall_seconds": 0.006993627802180836,
+      "self_by_run_seconds": [
+        0.007133482490981638,
+        0.006853773113380035
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.007176637546055847,
+        0.008232062423808707
+      ],
+      "calls_per_step": 1
+    },
+    "migration": {
+      "mean_self_wall_seconds": 0.06435305937324243,
+      "mean_inclusive_wall_seconds": 0.0647866488393855,
+      "self_by_run_seconds": [
+        0.06546718160368732,
+        0.06323893714279755
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.06541467835712764,
+        0.06185702053416106
+      ],
+      "calls_per_step": 1
+    },
+    "post-grid refresh": {
+      "mean_self_wall_seconds": 0.011611314396931225,
+      "mean_inclusive_wall_seconds": 0.011614796226791829,
+      "self_by_run_seconds": [
+        0.011810755087224794,
+        0.011411873706637656
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.01246261043060157,
+        0.011197258821792073
+      ],
+      "calls_per_step": 1
+    },
+    "native compression": {
+      "mean_self_wall_seconds": 0.0206086794802747,
+      "mean_inclusive_wall_seconds": 0.0206086794802747,
+      "self_by_run_seconds": [
+        0.02053680174848142,
+        0.020680557212067976
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.020837547826684184,
+        0.020930485592948064
+      ],
+      "calls_per_step": 8
+    },
+    "native scalar forward": {
+      "mean_self_wall_seconds": 0.05159860556892841,
+      "mean_inclusive_wall_seconds": 0.055821991508447605,
+      "self_by_run_seconds": [
+        0.0516645260294837,
+        0.051532685108373125
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.05214286233401961,
+        0.05243037889401118
+      ],
+      "calls_per_step": 4
+    },
+    "native vector forward": {
+      "mean_self_wall_seconds": 0.01245460608055244,
+      "mean_inclusive_wall_seconds": 0.01245460608055244,
+      "self_by_run_seconds": [
+        0.012983753142686414,
+        0.011925459018418468
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.012678238925420575,
+        0.011973759728587337
+      ],
+      "calls_per_step": 9
+    },
+    "block ghosts": {
+      "mean_self_wall_seconds": 0.010517794775079631,
+      "mean_inclusive_wall_seconds": 0.011699817381509974,
+      "self_by_run_seconds": [
+        0.01054627500683907,
+        0.010489314543320192
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.01048905909475353,
+        0.00999739072802994
+      ],
+      "calls_per_step": 10.222222222222221
+    },
+    "native velocity source": {
+      "mean_self_wall_seconds": 0.006416181706757331,
+      "mean_inclusive_wall_seconds": 0.006416181706757331,
+      "self_by_run_seconds": [
+        0.006444670441978108,
+        0.006387692971536553
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.007196311528484027,
+        0.007844781140900321
+      ],
+      "calls_per_step": 360
+    },
+    "native velocity gradient": {
+      "mean_self_wall_seconds": 0.0036722573787073692,
+      "mean_inclusive_wall_seconds": 0.0036722573787073692,
+      "self_by_run_seconds": [
+        0.0036665761171325224,
+        0.0036779386402822165
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.004147561060057746,
+        0.004567344672977924
+      ],
+      "calls_per_step": 120
+    },
+    "Domain surface pressure": {
+      "mean_self_wall_seconds": 0.0015489637223352868,
+      "mean_inclusive_wall_seconds": 0.0015489637223352868,
+      "self_by_run_seconds": [
+        0.0015430294115649887,
+        0.001554898033105585
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.001458244863897562,
+        0.0018558534793555737
+      ],
+      "calls_per_step": 5
+    },
+    "Domain boundary": {
+      "mean_self_wall_seconds": 0.11247049446761298,
+      "mean_inclusive_wall_seconds": 0.11247049446761298,
+      "self_by_run_seconds": [
+        0.11303141142006021,
+        0.11190957751516577
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.10580726578417751,
+        0.09537434831468596
+      ],
+      "calls_per_step": 2419.4444444444443
+    },
+    "accepted state refresh": {
+      "mean_self_wall_seconds": 6.203921798521894e-06,
+      "mean_inclusive_wall_seconds": 0.0024545987425284733,
+      "self_by_run_seconds": [
+        6.243228099472232e-06,
+        6.164615497571557e-06
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        6.161216232511732e-06,
+        6.08567562368181e-06
+      ],
+      "calls_per_step": 1
+    },
+    "inverse MPI wait/traffic": {
+      "mean_self_wall_seconds": 0.052782346352366324,
+      "mean_inclusive_wall_seconds": 0.052782346352366324,
+      "self_by_run_seconds": [
+        0.052911820456166186,
+        0.052652872248566455
+      ],
+      "longest_local_step_composition_by_run_seconds": [
+        0.05208487958750791,
+        0.04640364031203919
+      ],
+      "calls_per_step": 114
+    }
+  },
+  "reviewer_compatibility": {
+    "fix": "Eight-ulp tolerance for derived report floats only; no raw/hash/count/scientific gate relaxation.",
+    "observed_mismatch": "Only mean_longest_local_step_seconds differed in four observer runs, by 1.1e-16 to 1.8e-15 seconds; Python built-in float sum differs across runtime versions.",
+    "workflow_tests_passed": 10
+  },
+  "source_inspection": {
+    "native_recomposition": "evaluate_candidate_block_velocity_recomposition includes scalar direct flux/restriction/divergence/ghost transport, then final Exner/scalar/velocity kernel and accumulator retention. Its 108.869 ms is not isolated Exner arithmetic.",
+    "migration": "migrate_blocks includes manifest/packing/exchange/unpacking/installation and ghost/writeback plan plus production workspace preparation. Its 64.353 ms is not isolated network transfer.",
+    "main_observer": "Domain boundary scopes execute about 3150 times per step in main (2419 in candidate); clock/CPU-time call overhead is a plausible cause of calibration failure, not separately established.",
+    "kernel_lead": "difference_moment is accumulated per vector sample in compute_block_exner_difference_kernel, but rg finds no later numerical consumer. Possible minor diagnostic overhead, not a demonstrated dominant cost."
+  },
+  "next_action": "Prepare a reduced-frequency audit: omit per-boundary and per-patch clocks, retain whole-transaction scopes, split broad tendency/recomposition and migration costs into local kernels versus exchange/plan/packing/retention. Recalibrate both controls. Then choose one measured redundant operation and qualify it unprofiled against Stage266/main.",
+  "repeat_existing_campaign_recommended": false,
+  "automatic_promotion": false,
+  "recoverable_speedup_estimate_seconds": null,
+  "limits": "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun. Candidate observer mean shift 6.929 ms is close to its 7.512 ms limit; tiny scope differences are not precise omission budgets. Do not interpret CPU as compute-only time, sum inclusive regions, or equate mean-rank self differences with run-median gap."
+}

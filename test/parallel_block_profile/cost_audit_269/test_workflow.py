@@ -306,6 +306,16 @@ class Workflow(unittest.TestCase):
             path.write_text(path.read_text().replace('1 3 4 2.0 2.0','1 3 4 1.9 1.9',1))
             with self.assertRaisesRegex(ValueError,'conservation'):read_costs(directory,2,False)
 
+    def test_report_rounding_tolerance_never_weakens_raw_or_counts(self):
+        from review import same_derived_report
+        import math
+        original={'time':1.,'calls':4,'hash':'sealed','rows':[0.,.5]}
+        rounded=dict(original,time=math.nextafter(1.,2.))
+        self.assertTrue(same_derived_report(original,rounded))
+        for key,value in (('time',1.000001),('time',float('nan')),('calls',4.),('calls',5),('hash','changed'),('rows',[0.,.500001])):
+            self.assertFalse(same_derived_report(original,dict(original,**{key:value})))
+        self.assertFalse(same_derived_report(original,dict(original,extra=0)))
+
     def test_wrapper_balances_early_return_and_nested_routine(self):
         from instrument import wrap, inject
         source='subroutine outer\n integer :: i\n i=1\n if(i==1) return\n contains\n subroutine child\n return\n end subroutine\nend subroutine outer\n'
