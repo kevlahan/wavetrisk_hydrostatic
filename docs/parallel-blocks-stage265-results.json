@@ -1,0 +1,117 @@
+{
+  "status": "verified",
+  "archive_sha256": "d74c2449bc0eb0ed6307696c31f159e88ba8f0fbb9683957c7b0c818aac2c1ac",
+  "verified_files": 2971,
+  "comparison": {
+    "means_seconds": {
+      "main": 0.54070857575,
+      "stage230": 0.760609614,
+      "candidate": 0.76442749075
+    },
+    "candidate_minus_stage230_seconds": 0.0038178767500000044,
+    "candidate_minus_main_seconds": 0.22371891500000007,
+    "stage230_minus_main_seconds": 0.21990103825000007,
+    "candidate_to_main_ratio": 1.413751371872892,
+    "paired_candidate_gaps_seconds": [
+      0.0026285149999999424,
+      0.008214496000000016,
+      0.011130873000000041,
+      -0.006702376999999982
+    ],
+    "independent_runs_per_version": 4,
+    "decision": "measurement_only_no_automatic_promotion",
+    "scope": "Mean of independent ordinary-step run medians; validation runs excluded."
+  },
+  "limitation": "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun.",
+  "stage": 265,
+  "job_id": 55381,
+  "archive": "/Users/kevlahan/Desktop/rk265-review-55381.tar.gz",
+  "candidate_commit": "ea3d4b2d",
+  "stage230_commit": "4ea640128a71a857f9b8c6b9411dc34fc0aeb641",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "correctness": "All nineteen runs passed scientific gates; 16/167-rank oracles each verified 48 exact inverse returns, including 12 accepted exits.",
+  "performance_decision": "inconclusive_not_qualified",
+  "automatic_promotion": false,
+  "reason": "Mean candidate penalty 3.818 ms with mixed-sign paired differences; neither gain nor safe neutrality established. All samples retained.",
+  "timing_runs": [
+    {
+      "name": "J5-n83-timing-1-main",
+      "kind": "main",
+      "median_seconds": 0.538717367
+    },
+    {
+      "name": "J5-n83-timing-2-stage230",
+      "kind": "stage230",
+      "median_seconds": 0.756275447
+    },
+    {
+      "name": "J5-n83-timing-3-candidate",
+      "kind": "candidate",
+      "median_seconds": 0.758903962
+    },
+    {
+      "name": "J5-n83-timing-4-candidate",
+      "kind": "candidate",
+      "median_seconds": 0.765095386
+    },
+    {
+      "name": "J5-n83-timing-5-stage230",
+      "kind": "stage230",
+      "median_seconds": 0.75688089
+    },
+    {
+      "name": "J5-n83-timing-6-main",
+      "kind": "main",
+      "median_seconds": 0.540063215
+    },
+    {
+      "name": "J5-n83-timing-7-main",
+      "kind": "main",
+      "median_seconds": 0.539563241
+    },
+    {
+      "name": "J5-n83-timing-8-stage230",
+      "kind": "stage230",
+      "median_seconds": 0.757692595
+    },
+    {
+      "name": "J5-n83-timing-9-candidate",
+      "kind": "candidate",
+      "median_seconds": 0.768823468
+    },
+    {
+      "name": "J5-n83-timing-10-candidate",
+      "kind": "candidate",
+      "median_seconds": 0.764887147
+    },
+    {
+      "name": "J5-n83-timing-11-stage230",
+      "kind": "stage230",
+      "median_seconds": 0.771589524
+    },
+    {
+      "name": "J5-n83-timing-12-main",
+      "kind": "main",
+      "median_seconds": 0.54449048
+    }
+  ],
+  "version_variability": {
+    "main": {
+      "min_seconds": 0.538717367,
+      "max_seconds": 0.54449048,
+      "sample_stdev_seconds": 0.002581730313145497
+    },
+    "stage230": {
+      "min_seconds": 0.756275447,
+      "max_seconds": 0.771589524,
+      "sample_stdev_seconds": 0.007342928791395755
+    },
+    "candidate": {
+      "min_seconds": 0.758903962,
+      "max_seconds": 0.768823468,
+      "sample_stdev_seconds": 0.004102493297485123
+    }
+  },
+  "next_action": "Inspect direct-publication copying and preflight cost within Stage265; do not introduce another Domain removal yet.",
+  "future_campaign_policy": "One six-run main/baseline/candidate/candidate/baseline/main batch initially; repeat once only for small/noisy/mixed evidence; preserve correctness/oracle gates and immutable historical kits."
+}

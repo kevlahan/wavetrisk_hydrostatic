@@ -1,10 +1,35 @@
 # Stage265 proposal: direct inverse-result publication
 
-Status: implemented and locally validated; Stage265 kit prepared. Cluster
-correctness/performance acceptance is pending; no promotion or further removal.
+Status: implemented; local and cluster correctness verified. Job 55381 timing
+is inconclusive, so Stage265 is not performance-qualified. No further removal.
 Baseline: exact Stage230 commit `4ea640128a71a857f9b8c6b9411dc34fc0aeb641`.
 Legacy anchor: main commit `6a245db7f1632b0205c2bebe95e5f0cd535c2582`,
 with the same established checkpoint I/O hardening as Stage264.
+
+## Reviewed result: job 55381
+
+Independent review verified 2,971 archive files and all nineteen runs. Both
+16/167-rank oracle runs passed 48 bitwise inverse-return comparisons (36
+provisional, 12 accepted), including scaffold and non-atmospheric state.
+Checked execution, fixed checkpoint hashes, numerical policy, VTK, reloads,
+remaps, placement, zero-Domain ranks and storage policy passed.
+
+Mean ordinary-step run medians were main 0.540708576 s, Stage230 0.760609614 s,
+and candidate 0.764427491 s. The candidate is 3.817877 ms slower than Stage230
+on average; paired gaps are +2.629, +8.214, +11.131 and -6.702 ms. The main
+gap is 223.718915 ms (+41.375%). Retain every sample: mixed-sign evidence
+does not establish a speed gain or safe neutrality. Do not advance to a new
+Domain removal. Inspect the new publication's copy order and preflight cost
+within Stage265; their contribution is a source hypothesis, not an attribution
+established by these timings. Full evidence is in
+`parallel-blocks-stage265-results.json`.
+
+The user accepted shorter future campaigns on 2026-10-07: start with one
+six-run `main, baseline, candidate, candidate, baseline, main` batch. Repeat
+once only for small/noisy/mixed evidence, and otherwise retain the correctness
+gates. The nineteen-run schedule below describes the already-delivered Stage265
+v1 kit and job 55381. Preserve that kit and reviewer unchanged as historical
+evidence; new kits use the shorter initial schedule.
 
 Stage264 job 55374 independently verified the baseline. At 83 ranks on bb13,
 Stage230 averaged 0.762952294 s/ordinary step versus main's 0.542412091 s:

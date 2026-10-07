@@ -118,6 +118,19 @@ accepted automatically under a 3% allowance. Acceptance requires evidence of a
 gain or neutrality within the measured run variability, with no accumulated
 increase in the main-relative gap. No automatic promotion occurs.
 
+On 2026-10-07 the user accepted a shorter default for future campaigns: one
+six-run `main, immediate baseline, candidate, candidate, immediate baseline,
+main` batch initially. This gives two order-balanced candidate/baseline pairs
+and two main anchors. Repeat that batch once only when the change is small,
+mixed-sign or near measured variability. Preserve correctness/oracle gates.
+Do not edit already-delivered kits or reinterpret their historical schedules.
+
+Stage265 job 55381 passed all scientific checks but averaged 0.764427491 s
+versus its matched Stage230 baseline's 0.760609614 s, a 3.817877 ms penalty.
+Four paired differences include both signs, so performance qualification is
+inconclusive. The matched main anchor is 0.540708576 s. Keep Stage265 unqualified
+and investigate its new publication cost before another Domain removal.
+
 ## Following stages
 
 After the first result, consider coalescing duplicate inverse installation only
