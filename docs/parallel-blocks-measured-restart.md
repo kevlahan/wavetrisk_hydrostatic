@@ -144,6 +144,14 @@ is recommended. The remaining main gap is 210.321 ms (+38.749%), so legacy
 parity remains unachieved. Recommend candidate `fab72486` as the next immediate
 baseline, with main retained. See `parallel-blocks-stage265-tiled-results.json`.
 
+The [Stage266 audit and separate campaign](parallel-blocks-stage266-audit.md)
+omit the first full block installation only on provisional Stage203 production
+exits. Boundary refresh/final installation and the oracle's original two-call
+sequence remain. Optimized, checked and independent oracle four-rank replays
+passed exactly. The campaign compares this single omission with accepted
+Stage265t and main using seven validation runs and six timing runs. Cluster
+performance is pending; no next removal is bundled.
+
 ## Following stages
 
 After the first result, consider coalescing duplicate inverse installation only

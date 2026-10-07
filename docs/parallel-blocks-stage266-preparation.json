@@ -1,0 +1,131 @@
+{
+  "stage": 266,
+  "revision": "deferred-installation",
+  "prepared_date": "2026-10-07",
+  "status": "local-correctness-passed-cluster-performance-pending",
+  "promoted": false,
+  "baseline_commit": "fab724868dd8fe3acaca2eace8f50b06422b7ef2",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "fe55e53e1fe5d29679e0e31aa65ebd0961a1e614",
+  "source_change_relative_to_baseline": [
+    "src/parallel_block_inverse.f90",
+    "src/parallel_block_mpi.f90"
+  ],
+  "source_sha256": {
+    "src/parallel_block_inverse.f90": "40c40693e7d6b932bd3e599c8d2bfad119bf2a16666751883479b22123dc92b2",
+    "src/parallel_block_mpi.f90": "2c5a38a48c6eacb744b8d8039cac04f32b9a93abc1edc3d5a78cd84e71d64521"
+  },
+  "source_scope": "Guard only the first provisional Stage203 production installation; counter/accessor/assertions verify actual installation calls. Canonical tile, publication, finite/extent checks, boundary refresh, scatter and final installation unchanged. Accepted/oracle/fallback first installation retained.",
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/rk266-deferred-installation-kit-v1.tar.gz",
+    "sha256": "5f53e548ecbeb536f7654d882aa1d1fd925424e02b6fa4281ec77ff616cd4f03",
+    "bytes": 19799744,
+    "files": 42,
+    "source_manifest_sha256": "7ecaa3ede94cf5a753683e28f0b31fc9076b8bf3b0dd4a2c08c3cbe792fb2b54",
+    "local_validation_sha256": "f2c95cd1cfa153a7c35dedb20b308585fdf232851cc4ec70db8ed4e2487a035c"
+  },
+  "local_validation": {
+    "cases": {
+      "candidate": {
+        "status": "passed",
+        "ranks": 4,
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "0baeb416b0874820d52ffcb7272fce9238b6f236dc3d637d4a228b992d688a23",
+        "log_sha256": "355dd47effa1ecb39ba19a978049c76f1e6a8918c260f01f74bfb715a5799dd5",
+        "checkpoint_exact": true,
+        "installation_and_publication": {
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0
+        }
+      },
+      "checked": {
+        "status": "passed",
+        "ranks": 4,
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "34f94934ba2766164d4669007413e5217058a50ead81e4cd69532ce16c208467",
+        "log_sha256": "23ec064d0580815020ab4b3505a24327f4ee2bbaf1787c84062cf98f8db5302e",
+        "checkpoint_exact": true,
+        "installation_and_publication": {
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0
+        }
+      },
+      "candidate-oracle": {
+        "status": "passed",
+        "ranks": 4,
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "0baeb416b0874820d52ffcb7272fce9238b6f236dc3d637d4a228b992d688a23",
+        "log_sha256": "c8bd2ae98ba2627ea28f0a3cba6ed948b5a939d85f95852fde72aace9a968354",
+        "checkpoint_exact": true,
+        "installation_and_publication": {
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "oracle_installations": 84,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0
+        }
+      }
+    },
+    "serial_build": true,
+    "maximum_MPI_ranks": 4,
+    "library_threads": 1,
+    "shared_physics_objects": 23,
+    "reference_builds": "Reused source-bound accepted Stage265t and main references; both new candidate builds and all three new replays validated against the accepted tiled output.",
+    "canonical_epoch_helper_test": "passed at -O0 and -O2; actual canonical cache helpers with overlapping alias slots and signed zero",
+    "canonical_epoch_test_log_sha256": "9940267c5273e33631fd47f9805d07e52726b9c220fcb7c80d050c64c4422c2f",
+    "limitation": "Local replay establishes correctness, not performance."
+  },
+  "delivery_checks": {
+    "extracted_seal": "passed",
+    "source_scope": "passed",
+    "all_python_imports": "passed",
+    "workflow_tests": 8,
+    "workflow_tests_status": "passed",
+    "workflow_test_log_sha256": "663b0095a202a2bf9403ac246cd006ea277b5d2c6d9a33dabb8a739bf01930ff",
+    "shell_syntax": "passed",
+    "xattr_headers": 0,
+    "committed_baseline_inputs": "all exact",
+    "limitation": "Workflow stubs establish orchestration only."
+  },
+  "campaign": {
+    "partition": "nk",
+    "node": "bb13",
+    "exclusive": true,
+    "builds": 4,
+    "build_jobs": 1,
+    "validation_runs": 7,
+    "timing_runs": 6,
+    "timing_order": [
+      "main",
+      "stage265t",
+      "candidate",
+      "candidate",
+      "stage265t",
+      "main"
+    ],
+    "timing_ranks": 83,
+    "validation_ranks": [
+      16,
+      167
+    ],
+    "optional_repeat_runs": 6,
+    "optional_repeat_maximum": 1,
+    "optional_repeat_rebuilds": 0,
+    "auto_promotion": false
+  }
+}

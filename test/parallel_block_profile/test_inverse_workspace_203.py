@@ -22,7 +22,7 @@ def source():
  real(dp) :: value(5,2,4,2),restore203(5,2,1),saved203(5,2,1)
  real(dp) :: installed(5,2,2),boundary(5,2,2)
  integer :: restore203_slot(1)=[1],restore203_index(4)=[1,0,0,0],calls=0
- integer(int64) :: work203(6)=0
+ integer(int64) :: work203(6)=0,installation203_count=0
  contains
  subroutine die(message)
  character(*),intent(in)::message

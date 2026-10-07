@@ -21,7 +21,8 @@ module parallel_block_mpi_mod
        capture_native_inverse_consumer_aliases, &
        native_inverse_calls, native_inverse_messages, native_inverse_bytes
   use parallel_block_inverse_mod, only : stage203_inverse, begin_inverse203, end_inverse203, &
-       scalar_inverse203, inner_inverse203, install_inverse203, work203, ledger203, publish_canonical_inverse203
+       scalar_inverse203, inner_inverse203, install_inverse203, work203, ledger203, publish_canonical_inverse203, &
+       inverse203_installation_count
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
        AT_EDGE, AT_NODE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, &
@@ -14708,12 +14709,15 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: vector_count_local(6)
     integer(int64) :: allocation_before
     integer(int64) :: writeback_before
+    integer(int64) :: installation_before,installation_delta
 
     logical :: checkpoint_ready
     logical :: final_transform
     logical :: provisional_transform
     logical :: state_ready
     logical :: validate_oracle
+    logical :: defer_first_installation
+    logical, save :: deferred_installation_reported=.false.
 
     type(Block_Scalar_Inverse_Context) :: scalar_statistics
     type(Block_Vector_Inverse_Context) :: vector_statistics
@@ -14894,7 +14898,16 @@ end subroutine build_parallel_block_catalog
     end if
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_INSTALL)
-    call install_inverse203
+    installation_before=inverse203_installation_count()
+    defer_first_installation=provisional_transform.and.stage203_inverse.and..not.validate_oracle
+    if(stage203_inverse.and..not.deferred_installation_reported) then
+       if(rank==0) write(*,'(a)') 'Stage266 provisional first installation = deferred; oracle = retained'
+       deferred_installation_reported=.true.
+    end if
+    ! Provisional resident production has no final-owner block consumer before
+    ! the all-level boundary refresh. Publication/gather use value/restore203.
+    ! Keep the earlier image for the independent oracle and accepted exits.
+    if(.not.defer_first_installation) call install_inverse203
     ! Provisional production consumers read the all-level boundary version
     ! published below. No intervening operation reads this earlier q1 image.
     ! Final SOL and oracle boundary refresh still require the earlier image.
@@ -14934,6 +14947,13 @@ end subroutine build_parallel_block_catalog
        call install_inverse203
        domain_scaling%bdry_uptodate=.true.
        call block_profile_leave(BLOCK_PROFILE_INVERSE_BOUNDARY)
+    end if
+    if(stage203_inverse) then
+       installation_delta=inverse203_installation_count()-installation_before
+       if(installation_delta/=int(merge(2,1,provisional_transform.and.validate_oracle),int64)) &
+            call fail('Stage266 inverse installation sequence is invalid')
+       if(validate_oracle.and.rank==0) write(*,'(a,l1,a,i0)') &
+            'Stage266 inverse installations: final=',final_transform,' count=',installation_delta
     end if
     if (validate_oracle) then
        call block_profile_enter(BLOCK_PROFILE_ORACLE)

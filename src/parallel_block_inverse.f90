@@ -93,6 +93,8 @@ module parallel_block_inverse_mod
   logical, parameter, public :: stage203_inverse=.false.
 #endif
   public :: begin_inverse203, end_inverse203, scalar_inverse203, inner_inverse203, install_inverse203
+  public :: inverse203_installation_count
+  integer(int64) :: installation203_count=0_int64
 #ifdef STAGE203_LEDGER
   logical, parameter, public :: ledger203=.true.
 #else
@@ -1773,12 +1775,17 @@ contains
     if(q>0) restore203(component,k,q)=x
   end subroutine
 
+  integer(int64) function inverse203_installation_count() result(count)
+    count=installation203_count
+  end function inverse203_installation_count
+
   subroutine install_inverse203
     ! Install canonical interiors without exporting alias-overwritten values.
     ! Boundary views keep the latest dependency epoch; physics aliases have
     ! their independent consumer snapshot just as in Stage202.
     integer :: q,c
     if (.not.resident203) return
+    installation203_count=installation203_count+1_int64
     do q=1,size(restore203_slot)
        saved203(:,:,q)=value(:,:,restore203_slot(q),1)
        value(:,:,restore203_slot(q),1)=restore203(:,:,q)
