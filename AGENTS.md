@@ -11,3 +11,5 @@ User guidance reaffirmed on 2026-10-07:
 See `docs/parallel-blocks-measured-restart.md` for campaign history and the current strategy. No numerical efficiency threshold has yet been agreed; report measured speedup and efficiency rather than inventing an acceptance percentage.
 
 Operational constraints: the local machine has four usable cores; use serial builds and at most four MPI ranks locally, without concurrent build/replay work. Partition `nk` contains only bb13 and needs no bb04 exclusion; exclude bb04 on `bb` or `all`. Provide user shell commands in fenced code blocks without `#` comment lines.
+
+Record Slurm start/end/elapsed and the build/run schedule for each reviewed cluster campaign in `docs/parallel-blocks-campaign-runtimes.json`. Use measured comparable campaigns for runtime estimates; distinguish execution from queue and collection time. Stage270 job 55467 took 00:15:38 for five serial builds and fifteen runs. Future kits should preserve accounting evidence automatically; do not infer exact total runtime from archive timestamps.

@@ -222,12 +222,24 @@ pressure are small. Reduce observer frequency and decompose the large producer/
 transport regions before choosing one numerical intervention; retain the failed
 cross-version attribution as unqualified.
 
-The [Stage270 reduced-frequency audit](parallel-blocks-stage270-audit.md) is now
-prepared and locally validated. It omits boundary/per-patch timers and splits
-tendency, scalar restriction, final physical kernels, migration, plan preparation
-and payload checksum/proof costs. Four exact four-rank replays passed. Run this
-self-contained kit and review both calibrations before selecting the next single
-optimization; production source and the bare controls remain unchanged.
+The [Stage270 review](parallel-blocks-stage270-results.md), job 55467, verifies all
+2,540 archive members and all fifteen runs. Total Slurm elapsed time was
+**00:15:38**, including five serial builds; this is recorded in the
+[runtime ledger](parallel-blocks-campaign-runtimes.json) for future estimates.
+Bare controls retain a 209.311 ms gap (+38.737%). Candidate calibration passes
+at +2.758 ms; main still fails at +8.715 ms, so cross-version phase attribution
+remains unqualified. Candidate-only decomposition identifies 193.987 ms of
+shared compatibility producer self time, 87.574 ms of scalar restriction
+inclusive time, and 64.341 ms of migration inclusive time. Migration includes
+20.540 ms of checksum scans/proof reductions; this is not a promised saving.
+
+Prioritize the Domain-bound producer/capture/restriction chain for the scaling
+goal and audit migration proof/preparation work as an independent bounded
+optimization. Include an uninstrumented 83/160/256-rank J5 baseline and matched
+candidate comparisons in the next performance campaign, with legacy main where
+supported. This is an intermediate screen toward at least 640 ranks, not final
+qualification. Do not use the 167-rank oracle as production scaling evidence or
+repeat the unchanged broad audit solely to obtain a passing main calibration.
 
 Then migrate the remaining shared primitive consumers and reassess adaptation
 and the remaining complete producer/consumer chains. Choose each change from its
@@ -236,7 +248,8 @@ order where exact checks require it; use compact block-owned stencil plans and
 bounded exchanges rather than rebuilding the generic owner graph by default.
 
 Completion requires no non-essential Domain numerical dependency in the
-qualified production step and full-candidate speed comparable to or better
-than legacy main across the accepted rank configurations. Retain necessary
+qualified production step, full-candidate speed comparable to or better
+than legacy main where supported, and measured efficient execution at four or
+more MPI ranks per geometric Domain. Retain necessary
 geometry and explicit output/checkpoint adapters until their own replacements
 are validated and measured.

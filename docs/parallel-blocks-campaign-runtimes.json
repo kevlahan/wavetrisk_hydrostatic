@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "campaigns": [
+    {
+      "stage": 270,
+      "job_id": 55467,
+      "state": "COMPLETED",
+      "start": "2026-10-07T17:40:43",
+      "end": "2026-10-07T17:56:21",
+      "elapsed": "00:15:38",
+      "elapsed_seconds": 938,
+      "timestamp_basis": "As printed by sacct; no timezone offset supplied.",
+      "source": "User-provided sacct -j 55467 -X -o JobID,State,Start,End,Elapsed output in this conversation; not independently queried from the cluster.",
+      "scope": "Slurm job elapsed: includes five serial builds and fifteen solver runs with validation; excludes queue wait and subsequent review collection/transfer.",
+      "partition": "nk",
+      "node": "bb13",
+      "serial_builds": 5,
+      "validation_runs": 7,
+      "timing_runs": 8,
+      "total_solver_runs": 15,
+      "future_comparable_campaign_planning_minutes": [
+        20,
+        25
+      ],
+      "estimate_limit": "Planning allowance for comparable source/fixture/schedule, not a guarantee or estimate for multi-node scaling campaigns."
+    }
+  ]
+}

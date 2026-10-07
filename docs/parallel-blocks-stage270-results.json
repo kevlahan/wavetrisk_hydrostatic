@@ -1,0 +1,2817 @@
+{
+  "stage": 270,
+  "job_id": 55467,
+  "status": "verified-science-candidate-calibration-passed-main-calibration-failed",
+  "archive": "/Users/kevlahan/Desktop/rk270-review-55467.tar.gz",
+  "archive_sha256": "953f1e57e2137e9baa678245618e6ba0c03e6bcb5248c6ac7662099099e268cb",
+  "verified_files": 2540,
+  "delivered_kit_seals_exact": true,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "production_source_changed": false,
+  "promoted": false,
+  "runtime": {
+    "stage": 270,
+    "job_id": 55467,
+    "state": "COMPLETED",
+    "start": "2026-10-07T17:40:43",
+    "end": "2026-10-07T17:56:21",
+    "elapsed": "00:15:38",
+    "elapsed_seconds": 938,
+    "timestamp_basis": "As printed by sacct; no timezone offset supplied.",
+    "source": "User-provided sacct -j 55467 -X -o JobID,State,Start,End,Elapsed output in this conversation; not independently queried from the cluster.",
+    "scope": "Slurm job elapsed: includes five serial builds and fifteen solver runs with validation; excludes queue wait and subsequent review collection/transfer.",
+    "partition": "nk",
+    "node": "bb13",
+    "serial_builds": 5,
+    "validation_runs": 7,
+    "timing_runs": 8,
+    "total_solver_runs": 15,
+    "future_comparable_campaign_planning_minutes": [
+      20,
+      25
+    ],
+    "estimate_limit": "Planning allowance for comparable source/fixture/schedule, not a guarantee or estimate for multi-node scaling campaigns."
+  },
+  "correctness": "All fifteen runs passed independent science, placement, storage, raw timing/observer, reload/remap, checkpoint and 62-member VTK checks. Five builds share 23 physics objects. Both 16/167-rank oracles retain 48 inverse-return proofs and 84 installations.",
+  "comparison": {
+    "means_seconds": {
+      "main": 0.5403422760000001,
+      "stage266": 0.749653039
+    },
+    "candidate_minus_main_seconds": 0.20931076299999996,
+    "calibration": {
+      "main": {
+        "status": "observer_costs_unqualified",
+        "control_seconds": 0.5403422760000001,
+        "observer_seconds": 0.5490576549999999,
+        "shift_seconds": 0.008715378999999857,
+        "paired_shifts_seconds": [
+          0.005082928999999958,
+          0.012347828999999977
+        ],
+        "limits_seconds": {
+          "mean": 0.005403422760000001,
+          "pair": 0.010806845520000002,
+          "spread": 0.010806845520000002
+        },
+        "control_spread_seconds": 0.004367654000000054,
+        "observer_spread_seconds": 0.0028972459999999645,
+        "scope": "Two independent runs per binary; compatibility does not prove each small scope unbiased."
+      },
+      "stage266": {
+        "status": "compatible_at_prespecified_resolution",
+        "control_seconds": 0.749653039,
+        "observer_seconds": 0.7524114095000001,
+        "shift_seconds": 0.0027583705000000514,
+        "paired_shifts_seconds": [
+          0.0014259879999999336,
+          0.004090753000000058
+        ],
+        "limits_seconds": {
+          "mean": 0.0074965303900000006,
+          "pair": 0.014993060780000001,
+          "spread": 0.014993060780000001
+        },
+        "control_spread_seconds": 0.0047502660000000585,
+        "observer_spread_seconds": 0.002085500999999934,
+        "scope": "Two independent runs per binary; compatibility does not prove each small scope unbiased."
+      }
+    },
+    "attribution": {
+      "status": "observer_costs_unqualified",
+      "mean_regions": {
+        "main": {
+          "step": {
+            "self_wall": 0.022783617772052248,
+            "self_cpu": 0.02266558969210178,
+            "inclusive_wall": 0.5440586792723396,
+            "inclusive_cpu": 0.5410302289156625,
+            "calls": 1
+          },
+          "RK": {
+            "self_wall": 0.002142802438133931,
+            "self_cpu": 0.0021272436412315223,
+            "inclusive_wall": 0.45719467600965885,
+            "inclusive_cpu": 0.4546440615796519,
+            "calls": 1
+          },
+          "tendency context": {
+            "self_wall": 0.3815620531816749,
+            "self_cpu": 0.3794313674698796,
+            "inclusive_wall": 0.3823487483584628,
+            "inclusive_cpu": 0.3802125348058903,
+            "calls": 4
+          },
+          "wavelet transaction": {
+            "self_wall": 0.04719336317924451,
+            "self_cpu": 0.04694054685408294,
+            "inclusive_wall": 0.10265476846882957,
+            "inclusive_cpu": 0.10210771686746986,
+            "calls": 5
+          },
+          "adapt algorithm": {
+            "self_wall": 0.015865306876764358,
+            "self_cpu": 0.015766139223560894,
+            "inclusive_wall": 0.015865306876764358,
+            "inclusive_cpu": 0.015766139223560894,
+            "calls": 1
+          },
+          "Domain inverse": {
+            "self_wall": 0.0735426036045055,
+            "self_cpu": 0.07313670348058907,
+            "inclusive_wall": 0.0735426036045055,
+            "inclusive_cpu": 0.07313670348058907,
+            "calls": 6
+          },
+          "native inverse": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "inverse setup": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "canonical publication": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "block installation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "provisional refresh": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "block hydrostatic cache": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native recomposition": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "catalogue": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "source blocks": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "post-grid refresh": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native compression": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native scalar forward": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native vector forward": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "block ghosts": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "retired velocity source": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "retired velocity gradient": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "Domain surface pressure": {
+            "self_wall": 0.0009689322199642539,
+            "self_cpu": 0.000962638554216819,
+            "inclusive_wall": 0.0009689322199642539,
+            "inclusive_cpu": 0.000962638554216819,
+            "calls": 5
+          },
+          "retired Domain boundary": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "accepted state refresh": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "inverse MPI wait/traffic": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "shared compatibility producer": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "scalar capture preparation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "scalar capture publication": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "velocity remainder preparation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "RK state assembly": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "scalar restriction transaction": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "restriction local kernels": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "restriction ghost transaction": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "restriction packing/local copies": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "restriction MPI post/wait": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "restriction received installation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "temperature edge transaction": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "temperature edge MPI wait": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "final physical transaction": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "final physical kernel batch": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "tendency accumulator retention": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "edge metric preparation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "Domain to block payload": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration manifest/check": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration packing batch": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration unpacking batch": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration payload exchange": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration size exchange": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "complete store installation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "ghost plan preparation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "writeback plan preparation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "production workspace preparation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "scalar capture MPI": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native velocity plan preparation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "native mass plan preparation": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration payload MPI": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration byte checksum scans": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "migration proof reductions": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          }
+        },
+        "stage266": {
+          "step": {
+            "self_wall": 0.024158879461569818,
+            "self_cpu": 0.023988831325301375,
+            "inclusive_wall": 0.7414430182887219,
+            "inclusive_cpu": 0.733071248995984,
+            "calls": 1
+          },
+          "RK": {
+            "self_wall": 0.0083078343335195,
+            "self_cpu": 0.008234459839357361,
+            "inclusive_wall": 0.5705855978157874,
+            "inclusive_cpu": 0.5657831599732261,
+            "calls": 1
+          },
+          "tendency context": {
+            "self_wall": 0.0005498746677440213,
+            "self_cpu": 0.0005343246318607903,
+            "inclusive_wall": 0.3560035198570355,
+            "inclusive_cpu": 0.3531392041499331,
+            "calls": 4
+          },
+          "wavelet transaction": {
+            "self_wall": 0.02502574256797093,
+            "self_cpu": 0.024880118473895527,
+            "inclusive_wall": 0.22330521784163015,
+            "inclusive_cpu": 0.22136560374832664,
+            "calls": 5
+          },
+          "adapt algorithm": {
+            "self_wall": 0.016828451753834607,
+            "self_cpu": 0.016565277108433737,
+            "inclusive_wall": 0.016828451753834607,
+            "inclusive_cpu": 0.016565277108433737,
+            "calls": 1
+          },
+          "Domain inverse": {
+            "self_wall": 0.018807552888281294,
+            "self_cpu": 0.01854343172690757,
+            "inclusive_wall": 0.018807552888281294,
+            "inclusive_cpu": 0.01854343172690757,
+            "calls": 2
+          },
+          "native inverse": {
+            "self_wall": 0.018919437267808828,
+            "self_cpu": 0.018787642570280986,
+            "inclusive_wall": 0.05091410085161178,
+            "inclusive_cpu": 0.05056365930388214,
+            "calls": 4
+          },
+          "inverse setup": {
+            "self_wall": 0.0263469170250991,
+            "self_cpu": 0.02601348795180693,
+            "inclusive_wall": 0.052006968564180585,
+            "inclusive_cpu": 0.051481173360107144,
+            "calls": 4
+          },
+          "canonical publication": {
+            "self_wall": 0.0010918791392142354,
+            "self_cpu": 0.001084470548862138,
+            "inclusive_wall": 0.0010918791392142354,
+            "inclusive_cpu": 0.001084470548862138,
+            "calls": 4
+          },
+          "block installation": {
+            "self_wall": 0.004816424768602593,
+            "self_cpu": 0.004785271084337378,
+            "inclusive_wall": 0.01286607523544765,
+            "inclusive_cpu": 0.01278374230254345,
+            "calls": 4
+          },
+          "provisional refresh": {
+            "self_wall": 2.2772938970581116e-05,
+            "self_cpu": 2.0959170013580634e-05,
+            "inclusive_wall": 0.0042604333390712425,
+            "inclusive_cpu": 0.004230801874163342,
+            "calls": 3
+          },
+          "block hydrostatic cache": {
+            "self_wall": 0.0021093064969607504,
+            "self_cpu": 0.0020938661311913393,
+            "inclusive_wall": 0.0021093064969607504,
+            "inclusive_cpu": 0.0020938661311913393,
+            "calls": 10.222222222222221
+          },
+          "native recomposition": {
+            "self_wall": 1.21984690043781e-05,
+            "self_cpu": 1.1889558232938545e-05,
+            "inclusive_wall": 0.10925960242735792,
+            "inclusive_cpu": 0.10835598862115131,
+            "calls": 4
+          },
+          "catalogue": {
+            "self_wall": 0.011123074975719991,
+            "self_cpu": 0.009986264390896886,
+            "inclusive_wall": 0.011123074975719991,
+            "inclusive_cpu": 0.009986264390896886,
+            "calls": 1
+          },
+          "source blocks": {
+            "self_wall": 0.006837430637619063,
+            "self_cpu": 0.0062457248995984455,
+            "inclusive_wall": 0.006837430637619063,
+            "inclusive_cpu": 0.0062457248995984455,
+            "calls": 1
+          },
+          "migration": {
+            "self_wall": 0.00010805438151720218,
+            "self_cpu": 0.00010172021419012489,
+            "inclusive_wall": 0.06434139739809286,
+            "inclusive_cpu": 0.06352079451137885,
+            "calls": 1
+          },
+          "post-grid refresh": {
+            "self_wall": 0.010960945643863605,
+            "self_cpu": 0.010732888219544837,
+            "inclusive_wall": 0.010964375281322453,
+            "inclusive_cpu": 0.010735444444444419,
+            "calls": 1
+          },
+          "native compression": {
+            "self_wall": 0.016082446153526265,
+            "self_cpu": 0.015979601070950533,
+            "inclusive_wall": 0.020483162920794874,
+            "inclusive_cpu": 0.020349219544846166,
+            "calls": 8
+          },
+          "native scalar forward": {
+            "self_wall": 0.05126711230200168,
+            "self_cpu": 0.050857634538152466,
+            "inclusive_wall": 0.05548608803702705,
+            "inclusive_cpu": 0.055047282463186034,
+            "calls": 4
+          },
+          "native vector forward": {
+            "self_wall": 0.01192345841534665,
+            "self_cpu": 0.011616554886211567,
+            "inclusive_wall": 0.01192345841534665,
+            "inclusive_cpu": 0.011616554886211567,
+            "calls": 9
+          },
+          "block ghosts": {
+            "self_wall": 0.010537240093815797,
+            "self_cpu": 0.010465663319946406,
+            "inclusive_wall": 0.01172470650978516,
+            "inclusive_cpu": 0.011646726238286408,
+            "calls": 10.222222222222221
+          },
+          "retired velocity source": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "retired velocity gradient": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "Domain surface pressure": {
+            "self_wall": 0.0015466325645805044,
+            "self_cpu": 0.0015358500669343262,
+            "inclusive_wall": 0.0015466325645805044,
+            "inclusive_cpu": 0.0015358500669343262,
+            "calls": 5
+          },
+          "retired Domain boundary": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0
+          },
+          "accepted state refresh": {
+            "self_wall": 6.179171308895032e-06,
+            "self_cpu": 5.722891566229726e-06,
+            "inclusive_wall": 0.002459961408250523,
+            "inclusive_cpu": 0.0024459076305220636,
+            "calls": 1
+          },
+          "inverse MPI wait/traffic": {
+            "self_wall": 0.05174641121506761,
+            "self_cpu": 0.051373960508701855,
+            "inclusive_wall": 0.05174641121506761,
+            "inclusive_cpu": 0.051373960508701855,
+            "calls": 114
+          },
+          "shared compatibility producer": {
+            "self_wall": 0.19398700809754543,
+            "self_cpu": 0.19276085408299864,
+            "inclusive_wall": 0.19582053830808493,
+            "inclusive_cpu": 0.19458169076305215,
+            "calls": 4
+          },
+          "scalar capture preparation": {
+            "self_wall": 0.020129880518184966,
+            "self_cpu": 0.0197290107095047,
+            "inclusive_wall": 0.020129880518184966,
+            "inclusive_cpu": 0.0197290107095047,
+            "calls": 4
+          },
+          "scalar capture publication": {
+            "self_wall": 0.021532138083952976,
+            "self_cpu": 0.021329409638554276,
+            "inclusive_wall": 0.023776273887699227,
+            "inclusive_cpu": 0.02353510240963865,
+            "calls": 4
+          },
+          "velocity remainder preparation": {
+            "self_wall": 0.00028281320893820347,
+            "self_cpu": 0.00028004618473896495,
+            "inclusive_wall": 0.005289477784588055,
+            "inclusive_cpu": 0.005233299196787115,
+            "calls": 4
+          },
+          "RK state assembly": {
+            "self_wall": 0.001177872263376353,
+            "self_cpu": 0.0011697878179383861,
+            "inclusive_wall": 0.001177872263376353,
+            "inclusive_cpu": 0.0011697878179383861,
+            "calls": 4
+          },
+          "scalar restriction transaction": {
+            "self_wall": 7.181394585923178e-05,
+            "self_cpu": 6.645448460540254e-05,
+            "inclusive_wall": 0.08757399246090378,
+            "inclusive_cpu": 0.08683309170013387,
+            "calls": 4
+          },
+          "restriction local kernels": {
+            "self_wall": 0.03601704116248672,
+            "self_cpu": 0.035773599062918035,
+            "inclusive_wall": 0.038188326120167135,
+            "inclusive_cpu": 0.0379218828647923,
+            "calls": 28
+          },
+          "restriction ghost transaction": {
+            "self_wall": 0.00024484063703142893,
+            "self_cpu": 0.00023102476572971073,
+            "inclusive_wall": 0.03231478548157397,
+            "inclusive_cpu": 0.03206006224899588,
+            "calls": 20
+          },
+          "restriction packing/local copies": {
+            "self_wall": 0.01078742830247345,
+            "self_cpu": 0.01071168540829973,
+            "inclusive_wall": 0.01078742830247345,
+            "inclusive_cpu": 0.01071168540829973,
+            "calls": 40
+          },
+          "restriction MPI post/wait": {
+            "self_wall": 0.016101275390223505,
+            "self_cpu": 0.01596984069611778,
+            "inclusive_wall": 0.016101275390223505,
+            "inclusive_cpu": 0.01596984069611778,
+            "calls": 60
+          },
+          "restriction received installation": {
+            "self_wall": 0.005181241151845579,
+            "self_cpu": 0.0051475113788486595,
+            "inclusive_wall": 0.005181241151845579,
+            "inclusive_cpu": 0.0051475113788486595,
+            "calls": 20
+          },
+          "temperature edge transaction": {
+            "self_wall": 0.005896345913906393,
+            "self_cpu": 0.005786127175368205,
+            "inclusive_wall": 0.019170351870983857,
+            "inclusive_cpu": 0.018932975903614556,
+            "calls": 12
+          },
+          "temperature edge MPI wait": {
+            "self_wall": 0.013274005957077464,
+            "self_cpu": 0.013146848728246355,
+            "inclusive_wall": 0.013274005957077464,
+            "inclusive_cpu": 0.013146848728246355,
+            "calls": 9.349397590361447
+          },
+          "final physical transaction": {
+            "self_wall": 3.1660869156560266e-05,
+            "self_cpu": 2.9103078982555267e-05,
+            "inclusive_wall": 0.02167341149744978,
+            "inclusive_cpu": 0.02151100736278449,
+            "calls": 4
+          },
+          "final physical kernel batch": {
+            "self_wall": 0.01962264712246626,
+            "self_cpu": 0.019498539491298532,
+            "inclusive_wall": 0.01962264712246626,
+            "inclusive_cpu": 0.019498539491298532,
+            "calls": 4
+          },
+          "tendency accumulator retention": {
+            "self_wall": 0.00033608618020323144,
+            "self_cpu": 0.0003345555555555173,
+            "inclusive_wall": 0.00033608618020323144,
+            "inclusive_cpu": 0.0003345555555555173,
+            "calls": 4
+          },
+          "edge metric preparation": {
+            "self_wall": 8.602178446110712e-05,
+            "self_cpu": 8.526840696127511e-05,
+            "inclusive_wall": 0.0016830173256237265,
+            "inclusive_cpu": 0.0016488092369478847,
+            "calls": 4
+          },
+          "Domain to block payload": {
+            "self_wall": 0.011004376884081079,
+            "self_cpu": 0.010886412315930391,
+            "inclusive_wall": 0.011004376884081079,
+            "inclusive_cpu": 0.010886412315930391,
+            "calls": 9
+          },
+          "migration manifest/check": {
+            "self_wall": 0.009949281672389811,
+            "self_cpu": 0.009824087014725568,
+            "inclusive_wall": 0.009949281672389811,
+            "inclusive_cpu": 0.009824087014725568,
+            "calls": 2
+          },
+          "migration packing batch": {
+            "self_wall": 0.006472518010852905,
+            "self_cpu": 0.006429326639892866,
+            "inclusive_wall": 0.006472518010852905,
+            "inclusive_cpu": 0.006429326639892866,
+            "calls": 1
+          },
+          "migration unpacking batch": {
+            "self_wall": 0.0033511955230565394,
+            "self_cpu": 0.003274920348058945,
+            "inclusive_wall": 0.0033511955230565394,
+            "inclusive_cpu": 0.003274920348058945,
+            "calls": 1
+          },
+          "migration payload exchange": {
+            "self_wall": 0.0007395296067079227,
+            "self_cpu": 0.0007332489959838384,
+            "inclusive_wall": 0.029441723893639672,
+            "inclusive_cpu": 0.029005702141900895,
+            "calls": 1
+          },
+          "migration size exchange": {
+            "self_wall": 4.8327726004034316e-05,
+            "self_cpu": 4.814792503348357e-05,
+            "inclusive_wall": 4.8327726004034316e-05,
+            "inclusive_cpu": 4.814792503348357e-05,
+            "calls": 1
+          },
+          "complete store installation": {
+            "self_wall": 1.0921416923882492e-05,
+            "self_cpu": 1.0805220883543958e-05,
+            "inclusive_wall": 1.0921416923882492e-05,
+            "inclusive_cpu": 1.0805220883543958e-05,
+            "calls": 1
+          },
+          "ghost plan preparation": {
+            "self_wall": 0.0049647165218011605,
+            "self_cpu": 0.004901662650602419,
+            "inclusive_wall": 0.0049647165218011605,
+            "inclusive_cpu": 0.004901662650602419,
+            "calls": 2
+          },
+          "writeback plan preparation": {
+            "self_wall": 0.009135130363039003,
+            "self_cpu": 0.009070802543507313,
+            "inclusive_wall": 0.009135130363039003,
+            "inclusive_cpu": 0.009070802543507313,
+            "calls": 2
+          },
+          "production workspace preparation": {
+            "self_wall": 0.0004305693226176971,
+            "self_cpu": 0.0004278273092369589,
+            "inclusive_wall": 0.0008619385001584987,
+            "inclusive_cpu": 0.0008558313253011916,
+            "calls": 1
+          },
+          "scalar capture MPI": {
+            "self_wall": 0.0022441358037462514,
+            "self_cpu": 0.002205692771084374,
+            "inclusive_wall": 0.0022441358037462514,
+            "inclusive_cpu": 0.002205692771084374,
+            "calls": 4
+          },
+          "native velocity plan preparation": {
+            "self_wall": 0.00021220674773196938,
+            "self_cpu": 0.00021079919678719977,
+            "inclusive_wall": 0.00021220674773196938,
+            "inclusive_cpu": 0.00021079919678719977,
+            "calls": 4
+          },
+          "native mass plan preparation": {
+            "self_wall": 0.0002815364807011333,
+            "self_cpu": 0.0002797811244979813,
+            "inclusive_wall": 0.0002815364807011333,
+            "inclusive_cpu": 0.0002797811244979813,
+            "calls": 4
+          },
+          "migration payload MPI": {
+            "self_wall": 0.00816267525741065,
+            "self_cpu": 0.007994344712182098,
+            "inclusive_wall": 0.00816267525741065,
+            "inclusive_cpu": 0.007994344712182098,
+            "calls": 1
+          },
+          "migration byte checksum scans": {
+            "self_wall": 0.007402572520900084,
+            "self_cpu": 0.0073518460508701965,
+            "inclusive_wall": 0.007402572520900084,
+            "inclusive_cpu": 0.0073518460508701965,
+            "calls": 1
+          },
+          "migration proof reductions": {
+            "self_wall": 0.013136946508621017,
+            "self_cpu": 0.012926262382864762,
+            "inclusive_wall": 0.013136946508621017,
+            "inclusive_cpu": 0.012926262382864762,
+            "calls": 1
+          }
+        }
+      },
+      "signed_self_wall_seconds": {
+        "step": 0.0013752616895175707,
+        "RK": 0.006165031895385569,
+        "tendency context": -0.3810121785139309,
+        "wavelet transaction": -0.02216762061127358,
+        "adapt algorithm": 0.0009631448770702489,
+        "Domain inverse": -0.054735050716224205,
+        "native inverse": 0.018919437267808828,
+        "inverse setup": 0.0263469170250991,
+        "canonical publication": 0.0010918791392142354,
+        "block installation": 0.004816424768602593,
+        "provisional refresh": 2.2772938970581116e-05,
+        "block hydrostatic cache": 0.0021093064969607504,
+        "native recomposition": 1.21984690043781e-05,
+        "catalogue": 0.011123074975719991,
+        "source blocks": 0.006837430637619063,
+        "migration": 0.00010805438151720218,
+        "post-grid refresh": 0.010960945643863605,
+        "native compression": 0.016082446153526265,
+        "native scalar forward": 0.05126711230200168,
+        "native vector forward": 0.01192345841534665,
+        "block ghosts": 0.010537240093815797,
+        "retired velocity source": 0.0,
+        "retired velocity gradient": 0.0,
+        "Domain surface pressure": 0.0005777003446162505,
+        "retired Domain boundary": 0.0,
+        "accepted state refresh": 6.179171308895032e-06,
+        "inverse MPI wait/traffic": 0.05174641121506761,
+        "shared compatibility producer": 0.19398700809754543,
+        "scalar capture preparation": 0.020129880518184966,
+        "scalar capture publication": 0.021532138083952976,
+        "velocity remainder preparation": 0.00028281320893820347,
+        "RK state assembly": 0.001177872263376353,
+        "scalar restriction transaction": 7.181394585923178e-05,
+        "restriction local kernels": 0.03601704116248672,
+        "restriction ghost transaction": 0.00024484063703142893,
+        "restriction packing/local copies": 0.01078742830247345,
+        "restriction MPI post/wait": 0.016101275390223505,
+        "restriction received installation": 0.005181241151845579,
+        "temperature edge transaction": 0.005896345913906393,
+        "temperature edge MPI wait": 0.013274005957077464,
+        "final physical transaction": 3.1660869156560266e-05,
+        "final physical kernel batch": 0.01962264712246626,
+        "tendency accumulator retention": 0.00033608618020323144,
+        "edge metric preparation": 8.602178446110712e-05,
+        "Domain to block payload": 0.011004376884081079,
+        "migration manifest/check": 0.009949281672389811,
+        "migration packing batch": 0.006472518010852905,
+        "migration unpacking batch": 0.0033511955230565394,
+        "migration payload exchange": 0.0007395296067079227,
+        "migration size exchange": 4.8327726004034316e-05,
+        "complete store installation": 1.0921416923882492e-05,
+        "ghost plan preparation": 0.0049647165218011605,
+        "writeback plan preparation": 0.009135130363039003,
+        "production workspace preparation": 0.0004305693226176971,
+        "scalar capture MPI": 0.0022441358037462514,
+        "native velocity plan preparation": 0.00021220674773196938,
+        "native mass plan preparation": 0.0002815364807011333,
+        "migration payload MPI": 0.00816267525741065,
+        "migration byte checksum scans": 0.007402572520900084,
+        "migration proof reductions": 0.013136946508621017
+      },
+      "additive_mean_rank_difference_seconds": 0.1973843390163822,
+      "ranking": [
+        "shared compatibility producer",
+        "inverse MPI wait/traffic",
+        "native scalar forward",
+        "restriction local kernels",
+        "inverse setup",
+        "scalar capture publication",
+        "scalar capture preparation",
+        "final physical kernel batch",
+        "native inverse",
+        "restriction MPI post/wait",
+        "native compression",
+        "temperature edge MPI wait",
+        "migration proof reductions",
+        "native vector forward",
+        "catalogue",
+        "Domain to block payload",
+        "post-grid refresh",
+        "restriction packing/local copies",
+        "block ghosts",
+        "migration manifest/check",
+        "writeback plan preparation",
+        "migration payload MPI",
+        "migration byte checksum scans",
+        "source blocks",
+        "migration packing batch",
+        "RK",
+        "temperature edge transaction",
+        "restriction received installation",
+        "ghost plan preparation",
+        "block installation",
+        "migration unpacking batch",
+        "scalar capture MPI",
+        "block hydrostatic cache",
+        "step",
+        "RK state assembly",
+        "canonical publication",
+        "adapt algorithm",
+        "migration payload exchange",
+        "Domain surface pressure",
+        "production workspace preparation",
+        "tendency accumulator retention",
+        "velocity remainder preparation",
+        "native mass plan preparation",
+        "restriction ghost transaction",
+        "native velocity plan preparation",
+        "migration",
+        "edge metric preparation",
+        "scalar restriction transaction",
+        "migration size exchange",
+        "final physical transaction",
+        "provisional refresh",
+        "native recomposition",
+        "complete store installation",
+        "accepted state refresh",
+        "retired velocity source",
+        "retired velocity gradient",
+        "retired Domain boundary",
+        "wavelet transaction",
+        "Domain inverse",
+        "tendency context"
+      ],
+      "recoverable_budget_seconds": null,
+      "limitation": "Current measured locations only if both calibrations pass; no omission or full replacement has been tested. Retain negative offsets, inclusive nesting and calibration failures."
+    },
+    "automatic_promotion": false,
+    "limitation": "Diagnostic attribution only; no intervention tested and no recoverable speedup established."
+  },
+  "candidate_gap_percent": 38.736699365718316,
+  "candidate_only": {
+    "interpretation": "Candidate calibration passes; broad component costs locate work but do not quantify avoidable time. Cross-version attribution remains unqualified.",
+    "per_run": {
+      "J5-n83-timing-6-observer": {
+        "rank_files": 83,
+        "steps": 12,
+        "ordinary_steps": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "phases": {
+          "step": {
+            "self_wall": 0.023942058480817232,
+            "self_cpu": 0.02377366800535496,
+            "inclusive_wall": 0.740091987674834,
+            "inclusive_cpu": 0.7317674390896921,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "RK": {
+            "self_wall": 0.008380860669994689,
+            "self_cpu": 0.008306536813922303,
+            "inclusive_wall": 0.5700212304799542,
+            "inclusive_cpu": 0.565207266398929,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "tendency context": {
+            "self_wall": 0.0005490643619353991,
+            "self_cpu": 0.0005333547523426377,
+            "inclusive_wall": 0.3555870645391534,
+            "inclusive_cpu": 0.35269799196787155,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "wavelet transaction": {
+            "self_wall": 0.02512166132512122,
+            "self_cpu": 0.024975621151271554,
+            "inclusive_wall": 0.22313163466464822,
+            "inclusive_cpu": 0.22120536412315925,
+            "calls": 5,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "adapt algorithm": {
+            "self_wall": 0.016829659025293278,
+            "self_cpu": 0.016568610441767034,
+            "inclusive_wall": 0.016829659025293278,
+            "inclusive_cpu": 0.016568610441767034,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "Domain inverse": {
+            "self_wall": 0.01857604662958817,
+            "self_cpu": 0.018328880856760293,
+            "inclusive_wall": 0.01857604662958817,
+            "inclusive_cpu": 0.018328880856760293,
+            "calls": 2,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native inverse": {
+            "self_wall": 0.018921539770287165,
+            "self_cpu": 0.018787614457830778,
+            "inclusive_wall": 0.05076299240149388,
+            "inclusive_cpu": 0.05041149665327972,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "inverse setup": {
+            "self_wall": 0.02633701316972414,
+            "self_cpu": 0.025999099062917787,
+            "inclusive_wall": 0.051759413359973486,
+            "inclusive_cpu": 0.05123210040160645,
+            "calls": 4,
+            "mean_work": [
+              1,
+              0,
+              0
+            ],
+            "work_labels": [
+              "plan rebuilds",
+              "unused",
+              "unused"
+            ]
+          },
+          "canonical publication": {
+            "self_wall": 0.0010925612482211118,
+            "self_cpu": 0.0010858621151271822,
+            "inclusive_wall": 0.0010925612482211118,
+            "inclusive_cpu": 0.0010858621151271822,
+            "calls": 4,
+            "mean_work": [
+              2047.0575635876842,
+              307058.6345381526,
+              4
+            ],
+            "work_labels": [
+              "published interior nodes",
+              "published interior values",
+              "publication calls"
+            ]
+          },
+          "block installation": {
+            "self_wall": 0.004823302698647042,
+            "self_cpu": 0.004792825970549048,
+            "inclusive_wall": 0.012865149251458395,
+            "inclusive_cpu": 0.012784706827309245,
+            "calls": 4,
+            "mean_work": [
+              2047.0575635876842,
+              4917.5261044176705,
+              4
+            ],
+            "work_labels": [
+              "installed interior slots",
+              "installed boundary slots",
+              "actual installations"
+            ]
+          },
+          "provisional refresh": {
+            "self_wall": 2.278356128428356e-05,
+            "self_cpu": 2.0930388219877257e-05,
+            "inclusive_wall": 0.004259235972421396,
+            "inclusive_cpu": 0.004229950468540878,
+            "calls": 3,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "block hydrostatic cache": {
+            "self_wall": 0.002107543540417829,
+            "self_cpu": 0.002093204819276892,
+            "inclusive_wall": 0.002107543540417829,
+            "inclusive_cpu": 0.002093204819276892,
+            "calls": 10.222222222222221,
+            "mean_work": [
+              2682.945113788487,
+              80488.35341365462,
+              40.26773761713521
+            ],
+            "work_labels": [
+              "rebuilt columns",
+              "rebuilt physical layers",
+              "rebuilt blocks"
+            ]
+          },
+          "native recomposition": {
+            "self_wall": 1.2262023042842566e-05,
+            "self_cpu": 1.205087014733856e-05,
+            "inclusive_wall": 0.1093317556214909,
+            "inclusive_cpu": 0.1084182918340027,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "catalogue": {
+            "self_wall": 0.010330244323420756,
+            "self_cpu": 0.009279844712182003,
+            "inclusive_wall": 0.010330244323420756,
+            "inclusive_cpu": 0.009279844712182003,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "source blocks": {
+            "self_wall": 0.006864695172692079,
+            "self_cpu": 0.0062667282463186764,
+            "inclusive_wall": 0.006864695172692079,
+            "inclusive_cpu": 0.0062667282463186764,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration": {
+            "self_wall": 0.00010805311918238719,
+            "self_cpu": 0.00010140963855432234,
+            "inclusive_wall": 0.0647408337808567,
+            "inclusive_cpu": 0.06388279651941103,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "post-grid refresh": {
+            "self_wall": 0.010966076112291221,
+            "self_cpu": 0.010733250334672057,
+            "inclusive_wall": 0.010969577334731459,
+            "inclusive_cpu": 0.010735854082998625,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native compression": {
+            "self_wall": 0.01608265663460994,
+            "self_cpu": 0.01598247523427044,
+            "inclusive_wall": 0.020487469179029646,
+            "inclusive_cpu": 0.020357455153949242,
+            "calls": 8,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native scalar forward": {
+            "self_wall": 0.051667599931952746,
+            "self_cpu": 0.051250380187416227,
+            "inclusive_wall": 0.05584523127722234,
+            "inclusive_cpu": 0.055399099062918324,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native vector forward": {
+            "self_wall": 0.011687769260322313,
+            "self_cpu": 0.011400297188755185,
+            "inclusive_wall": 0.011687769260322313,
+            "inclusive_cpu": 0.011400297188755185,
+            "calls": 9,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "block ghosts": {
+            "self_wall": 0.010472335128320588,
+            "self_cpu": 0.010401840696117647,
+            "inclusive_wall": 0.011664197762114017,
+            "inclusive_cpu": 0.01158721017402926,
+            "calls": 10.222222222222221,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "retired velocity source": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "retired velocity gradient": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "Domain surface pressure": {
+            "self_wall": 0.0015390858551614496,
+            "self_cpu": 0.0015290468540828555,
+            "inclusive_wall": 0.0015390858551614496,
+            "inclusive_cpu": 0.0015290468540828555,
+            "calls": 5,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "retired Domain boundary": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "accepted state refresh": {
+            "self_wall": 6.154639000594217e-06,
+            "self_cpu": 5.694779116452163e-06,
+            "inclusive_wall": 0.0024661002256764148,
+            "inclusive_cpu": 0.00245205087014722,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "inverse MPI wait/traffic": {
+            "self_wall": 0.051347988874587906,
+            "self_cpu": 0.050978195448461376,
+            "inclusive_wall": 0.051347988874587906,
+            "inclusive_cpu": 0.050978195448461376,
+            "calls": 114,
+            "mean_work": [
+              880.6961178045516,
+              3900793.493975904,
+              3900793.493975904
+            ],
+            "work_labels": [
+              "posted remote requests",
+              "sent remote doubles",
+              "received remote doubles"
+            ]
+          },
+          "shared compatibility producer": {
+            "self_wall": 0.19385538784939163,
+            "self_cpu": 0.19261850870147254,
+            "inclusive_wall": 0.19567982122922936,
+            "inclusive_cpu": 0.19443101338688082,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scalar capture preparation": {
+            "self_wall": 0.02002909522655718,
+            "self_cpu": 0.01962979250334667,
+            "inclusive_wall": 0.02002909522655718,
+            "inclusive_cpu": 0.01962979250334667,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scalar capture publication": {
+            "self_wall": 0.02141084159516207,
+            "self_cpu": 0.021203107095046806,
+            "inclusive_wall": 0.023592209370515073,
+            "inclusive_cpu": 0.02334404953145928,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "velocity remainder preparation": {
+            "self_wall": 0.00028253072147149157,
+            "self_cpu": 0.0002799170013388474,
+            "inclusive_wall": 0.005230001696925286,
+            "inclusive_cpu": 0.005174297188755056,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "RK state assembly": {
+            "self_wall": 0.001175117032500196,
+            "self_cpu": 0.001167192771084373,
+            "inclusive_wall": 0.001175117032500196,
+            "inclusive_cpu": 0.001167192771084373,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scalar restriction transaction": {
+            "self_wall": 7.181420518332217e-05,
+            "self_cpu": 6.638821954503699e-05,
+            "inclusive_wall": 0.08766819087918125,
+            "inclusive_cpu": 0.08691795582329316,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "restriction local kernels": {
+            "self_wall": 0.036196654526594096,
+            "self_cpu": 0.03595244846050836,
+            "inclusive_wall": 0.038343035335461774,
+            "inclusive_cpu": 0.03807676572958478,
+            "calls": 28,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "restriction ghost transaction": {
+            "self_wall": 0.000244897869421815,
+            "self_cpu": 0.00023085542168681874,
+            "inclusive_wall": 0.03234036853337483,
+            "inclusive_cpu": 0.03208037215528773,
+            "calls": 20,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "restriction packing/local copies": {
+            "self_wall": 0.010822884631224744,
+            "self_cpu": 0.010743291834002707,
+            "inclusive_wall": 0.010822884631224744,
+            "inclusive_cpu": 0.010743291834002707,
+            "calls": 40,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "restriction MPI post/wait": {
+            "self_wall": 0.01608890736440678,
+            "self_cpu": 0.01595776974564914,
+            "inclusive_wall": 0.01608890736440678,
+            "inclusive_cpu": 0.01595776974564914,
+            "calls": 60,
+            "mean_work": [
+              100.62115127175367,
+              441180.00535475236,
+              441180.00535475236
+            ],
+            "work_labels": [
+              "posted remote requests",
+              "sent remote doubles",
+              "received remote doubles"
+            ]
+          },
+          "restriction received installation": {
+            "self_wall": 0.005183678668321496,
+            "self_cpu": 0.0051484551539490685,
+            "inclusive_wall": 0.005183678668321496,
+            "inclusive_cpu": 0.0051484551539490685,
+            "calls": 20,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "temperature edge transaction": {
+            "self_wall": 0.005863570296511034,
+            "self_cpu": 0.005749540829986817,
+            "inclusive_wall": 0.019059353614028995,
+            "inclusive_cpu": 0.01881874698795203,
+            "calls": 12,
+            "mean_work": [
+              146.43105756358767,
+              190091.40562248995,
+              190091.40562248995
+            ],
+            "work_labels": [
+              "posted remote requests",
+              "sent remote doubles",
+              "received remote doubles"
+            ]
+          },
+          "temperature edge MPI wait": {
+            "self_wall": 0.013195783317517962,
+            "self_cpu": 0.013069206157965214,
+            "inclusive_wall": 0.013195783317517962,
+            "inclusive_cpu": 0.013069206157965214,
+            "calls": 9.349397590361447,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "final physical transaction": {
+            "self_wall": 3.1545515754415965e-05,
+            "self_cpu": 2.888487282436993e-05,
+            "inclusive_wall": 0.021651302719266817,
+            "inclusive_cpu": 0.021488285140562204,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "final physical kernel batch": {
+            "self_wall": 0.01961147695732424,
+            "self_cpu": 0.019485282463186166,
+            "inclusive_wall": 0.01961147695732424,
+            "inclusive_cpu": 0.019485282463186166,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "tendency accumulator retention": {
+            "self_wall": 0.0003357466934884648,
+            "self_cpu": 0.00033429317269076955,
+            "inclusive_wall": 0.0003357466934884648,
+            "inclusive_cpu": 0.00033429317269076955,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "edge metric preparation": {
+            "self_wall": 8.561669685535004e-05,
+            "self_cpu": 8.497188755032005e-05,
+            "inclusive_wall": 0.0016725335526996986,
+            "inclusive_cpu": 0.0016398246318608972,
+            "calls": 4,
+            "mean_work": [
+              1,
+              3,
+              0
+            ],
+            "work_labels": [
+              "rebuilds",
+              "reuses",
+              "unused"
+            ]
+          },
+          "Domain to block payload": {
+            "self_wall": 0.010939200375717847,
+            "self_cpu": 0.01082421285140559,
+            "inclusive_wall": 0.010939200375717847,
+            "inclusive_cpu": 0.01082421285140559,
+            "calls": 9,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration manifest/check": {
+            "self_wall": 0.010406996443907579,
+            "self_cpu": 0.010249317269076378,
+            "inclusive_wall": 0.010406996443907579,
+            "inclusive_cpu": 0.010249317269076378,
+            "calls": 2,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration packing batch": {
+            "self_wall": 0.00647278394365566,
+            "self_cpu": 0.006429576974564897,
+            "inclusive_wall": 0.00647278394365566,
+            "inclusive_cpu": 0.006429576974564897,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration unpacking batch": {
+            "self_wall": 0.003368612459251081,
+            "self_cpu": 0.0032983908969210383,
+            "inclusive_wall": 0.003368612459251081,
+            "inclusive_cpu": 0.0032983908969210383,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration payload exchange": {
+            "self_wall": 0.0007438034497430845,
+            "self_cpu": 0.0007374993306558422,
+            "inclusive_wall": 0.02935690129577236,
+            "inclusive_cpu": 0.028919552878179287,
+            "calls": 1,
+            "mean_work": [
+              10735176.95850067,
+              10735176.95850067,
+              1
+            ],
+            "work_labels": [
+              "sent logical bytes",
+              "received logical bytes",
+              "exchanges"
+            ]
+          },
+          "migration size exchange": {
+            "self_wall": 4.7894219657184287e-05,
+            "self_cpu": 4.741231593038678e-05,
+            "inclusive_wall": 4.7894219657184287e-05,
+            "inclusive_cpu": 4.741231593038678e-05,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "complete store installation": {
+            "self_wall": 1.0971145746778133e-05,
+            "self_cpu": 1.0828647925042996e-05,
+            "inclusive_wall": 1.0971145746778133e-05,
+            "inclusive_cpu": 1.0828647925042996e-05,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "ghost plan preparation": {
+            "self_wall": 0.0049821174201098,
+            "self_cpu": 0.004915334672021413,
+            "inclusive_wall": 0.0049821174201098,
+            "inclusive_cpu": 0.004915334672021413,
+            "calls": 2,
+            "mean_work": [
+              1,
+              1,
+              0
+            ],
+            "work_labels": [
+              "rebuilds",
+              "reuses",
+              "unused"
+            ]
+          },
+          "writeback plan preparation": {
+            "self_wall": 0.009129058531643836,
+            "self_cpu": 0.0090589839357429,
+            "inclusive_wall": 0.009129058531643836,
+            "inclusive_cpu": 0.0090589839357429,
+            "calls": 2,
+            "mean_work": [
+              1,
+              1,
+              0
+            ],
+            "work_labels": [
+              "rebuilds",
+              "reuses",
+              "unused"
+            ]
+          },
+          "production workspace preparation": {
+            "self_wall": 0.00042932610360374413,
+            "self_cpu": 0.0004265046854083306,
+            "inclusive_wall": 0.0008598239431619006,
+            "inclusive_cpu": 0.0008541900937081416,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scalar capture MPI": {
+            "self_wall": 0.002181367775353003,
+            "self_cpu": 0.0021409424364124763,
+            "inclusive_wall": 0.002181367775353003,
+            "inclusive_cpu": 0.0021409424364124763,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native velocity plan preparation": {
+            "self_wall": 0.0002109559528390008,
+            "self_cpu": 0.00020963855421700074,
+            "inclusive_wall": 0.0002109559528390008,
+            "inclusive_cpu": 0.00020963855421700074,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native mass plan preparation": {
+            "self_wall": 0.0002812372839734098,
+            "self_cpu": 0.00027941365461845705,
+            "inclusive_wall": 0.0002812372839734098,
+            "inclusive_cpu": 0.00027941365461845705,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration payload MPI": {
+            "self_wall": 0.0082283126903446,
+            "self_cpu": 0.008056982597054922,
+            "inclusive_wall": 0.0082283126903446,
+            "inclusive_cpu": 0.008056982597054922,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration byte checksum scans": {
+            "self_wall": 0.007418196028724333,
+            "self_cpu": 0.007366832663989321,
+            "inclusive_wall": 0.007418196028724333,
+            "inclusive_cpu": 0.007366832663989321,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration proof reductions": {
+            "self_wall": 0.01296658912696034,
+            "self_cpu": 0.012758238286479203,
+            "inclusive_wall": 0.01296658912696034,
+            "inclusive_cpu": 0.012758238286479203,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "longest_local_step_rank_phases": {
+          "step": 0.023561552839560643,
+          "RK": 0.008176410260299841,
+          "tendency context": 0.0005973966067863835,
+          "wavelet transaction": 0.025139089052875836,
+          "adapt algorithm": 0.01784679614421394,
+          "Domain inverse": 0.016845266955594223,
+          "native inverse": 0.01670358366229468,
+          "inverse setup": 0.024011061061173677,
+          "canonical publication": 0.0009679535610808267,
+          "block installation": 0.0049405512399971485,
+          "provisional refresh": 2.0849932399060992e-05,
+          "block hydrostatic cache": 0.0022128469621141753,
+          "native recomposition": 1.1844870944817861e-05,
+          "catalogue": 0.010695389989349578,
+          "source blocks": 0.006469508891718255,
+          "migration": 0.00011150450963113044,
+          "post-grid refresh": 0.010593536154677471,
+          "native compression": 0.014935263173861636,
+          "native scalar forward": 0.054262942272341914,
+          "native vector forward": 0.011458509239471622,
+          "block ghosts": 0.008917835334108936,
+          "retired velocity source": 0.0,
+          "retired velocity gradient": 0.0,
+          "Domain surface pressure": 0.0014104389895995457,
+          "retired Domain boundary": 0.0,
+          "accepted state refresh": 5.995389074087143e-06,
+          "inverse MPI wait/traffic": 0.05450314712814159,
+          "shared compatibility producer": 0.19292962504550815,
+          "scalar capture preparation": 0.019645894567171734,
+          "scalar capture publication": 0.02549670383127199,
+          "velocity remainder preparation": 0.00021683999026815096,
+          "RK state assembly": 0.0012401433454619513,
+          "scalar restriction transaction": 7.430846906370587e-05,
+          "restriction local kernels": 0.03868618504040771,
+          "restriction ghost transaction": 0.00023857535173495611,
+          "restriction packing/local copies": 0.010127930177582635,
+          "restriction MPI post/wait": 0.016080265968210168,
+          "restriction received installation": 0.004794117787645923,
+          "temperature edge transaction": 0.006075685740345054,
+          "temperature edge MPI wait": 0.009744310130675634,
+          "final physical transaction": 3.181760095887714e-05,
+          "final physical kernel batch": 0.02043910210745202,
+          "tendency accumulator retention": 0.000370739855700069,
+          "edge metric preparation": 7.586781349447038e-05,
+          "Domain to block payload": 0.011711455519414611,
+          "migration manifest/check": 0.01080107099066178,
+          "migration packing batch": 0.006869826362364822,
+          "migration unpacking batch": 0.004178347893887096,
+          "migration payload exchange": 0.0011921516205701563,
+          "migration size exchange": 4.751587079630958e-05,
+          "complete store installation": 9.11671668291092e-06,
+          "ghost plan preparation": 0.004146065045562055,
+          "writeback plan preparation": 0.009109916268951364,
+          "production workspace preparation": 0.00047316583287384774,
+          "scalar capture MPI": 0.0026575148933463627,
+          "native velocity plan preparation": 0.00021256087347865105,
+          "native mass plan preparation": 0.00025455933064222336,
+          "migration payload MPI": 0.010528229280478425,
+          "migration byte checksum scans": 0.00814825456796421,
+          "migration proof reductions": 0.009088274350182878
+        },
+        "mean_rank_step_seconds": 0.740091987674834,
+        "mean_longest_local_step_seconds": 0.740095412462122,
+        "limitations": "Self times add within a rank/step. Inclusive times overlap. Longest-local-step composition selects one rank per step, not independent region maxima; unsynchronized local durations do not prove the global critical path. CPU includes MPI spinning. Work counters cover named inverse/cache products, not all solver traffic; doubles are logical payload counts, not physical memory traffic.",
+        "mean_scope_entries_per_step": 467.7938420348059
+      },
+      "J5-n83-timing-7-observer": {
+        "rank_files": 83,
+        "steps": 12,
+        "ordinary_steps": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "phases": {
+          "step": {
+            "self_wall": 0.024375700442322408,
+            "self_cpu": 0.02420399464524779,
+            "inclusive_wall": 0.7427940489026098,
+            "inclusive_cpu": 0.7343750589022758,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "RK": {
+            "self_wall": 0.00823480799704431,
+            "self_cpu": 0.00816238286479242,
+            "inclusive_wall": 0.5711499651516208,
+            "inclusive_cpu": 0.5663590535475234,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "tendency context": {
+            "self_wall": 0.0005506849735526435,
+            "self_cpu": 0.0005352945113789428,
+            "inclusive_wall": 0.3564199751749176,
+            "inclusive_cpu": 0.35358041633199466,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "wavelet transaction": {
+            "self_wall": 0.02492982381082064,
+            "self_cpu": 0.0247846157965195,
+            "inclusive_wall": 0.22347880101861206,
+            "inclusive_cpu": 0.22152584337349407,
+            "calls": 5,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "adapt algorithm": {
+            "self_wall": 0.016827244482375932,
+            "self_cpu": 0.016561943775100438,
+            "inclusive_wall": 0.016827244482375932,
+            "inclusive_cpu": 0.016561943775100438,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "Domain inverse": {
+            "self_wall": 0.01903905914697442,
+            "self_cpu": 0.01875798259705485,
+            "inclusive_wall": 0.01903905914697442,
+            "inclusive_cpu": 0.01875798259705485,
+            "calls": 2,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native inverse": {
+            "self_wall": 0.018917334765330494,
+            "self_cpu": 0.018787670682731194,
+            "inclusive_wall": 0.051065209301729676,
+            "inclusive_cpu": 0.05071582195448456,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "inverse setup": {
+            "self_wall": 0.026356820880474058,
+            "self_cpu": 0.026027876840696074,
+            "inclusive_wall": 0.052254523768387684,
+            "inclusive_cpu": 0.05173024631860783,
+            "calls": 4,
+            "mean_work": [
+              1,
+              0,
+              0
+            ],
+            "work_labels": [
+              "plan rebuilds",
+              "unused",
+              "unused"
+            ]
+          },
+          "canonical publication": {
+            "self_wall": 0.001091197030207359,
+            "self_cpu": 0.0010830789825970937,
+            "inclusive_wall": 0.001091197030207359,
+            "inclusive_cpu": 0.0010830789825970937,
+            "calls": 4,
+            "mean_work": [
+              2047.0575635876842,
+              307058.6345381526,
+              4
+            ],
+            "work_labels": [
+              "published interior nodes",
+              "published interior values",
+              "publication calls"
+            ]
+          },
+          "block installation": {
+            "self_wall": 0.004809546838558143,
+            "self_cpu": 0.004777716198125708,
+            "inclusive_wall": 0.012867001219436906,
+            "inclusive_cpu": 0.012782777777777653,
+            "calls": 4,
+            "mean_work": [
+              2047.0575635876842,
+              4917.5261044176705,
+              4
+            ],
+            "work_labels": [
+              "installed interior slots",
+              "installed boundary slots",
+              "actual installations"
+            ]
+          },
+          "provisional refresh": {
+            "self_wall": 2.2762316656878673e-05,
+            "self_cpu": 2.0987951807284014e-05,
+            "inclusive_wall": 0.004261630705721088,
+            "inclusive_cpu": 0.004231653279785806,
+            "calls": 3,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "block hydrostatic cache": {
+            "self_wall": 0.0021110694535036723,
+            "self_cpu": 0.0020945274431057865,
+            "inclusive_wall": 0.0021110694535036723,
+            "inclusive_cpu": 0.0020945274431057865,
+            "calls": 10.222222222222221,
+            "mean_work": [
+              2682.945113788487,
+              80488.35341365462,
+              40.26773761713521
+            ],
+            "work_labels": [
+              "rebuilt columns",
+              "rebuilt physical layers",
+              "rebuilt blocks"
+            ]
+          },
+          "native recomposition": {
+            "self_wall": 1.2134914965913636e-05,
+            "self_cpu": 1.172824631853853e-05,
+            "inclusive_wall": 0.10918744923322495,
+            "inclusive_cpu": 0.10829368540829991,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "catalogue": {
+            "self_wall": 0.011915905628019228,
+            "self_cpu": 0.010692684069611769,
+            "inclusive_wall": 0.011915905628019228,
+            "inclusive_cpu": 0.010692684069611769,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "source blocks": {
+            "self_wall": 0.006810166102546047,
+            "self_cpu": 0.006224721552878215,
+            "inclusive_wall": 0.006810166102546047,
+            "inclusive_cpu": 0.006224721552878215,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration": {
+            "self_wall": 0.00010805564385201717,
+            "self_cpu": 0.00010203078982592742,
+            "inclusive_wall": 0.06394196101532902,
+            "inclusive_cpu": 0.06315879250334666,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "post-grid refresh": {
+            "self_wall": 0.010955815175435988,
+            "self_cpu": 0.010732526104417616,
+            "inclusive_wall": 0.010959173227913448,
+            "inclusive_cpu": 0.010735034805890213,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native compression": {
+            "self_wall": 0.016082235672442588,
+            "self_cpu": 0.01597672690763063,
+            "inclusive_wall": 0.0204788566625601,
+            "inclusive_cpu": 0.02034098393574309,
+            "calls": 8,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native scalar forward": {
+            "self_wall": 0.050866624672050616,
+            "self_cpu": 0.050464888888888705,
+            "inclusive_wall": 0.05512694479683177,
+            "inclusive_cpu": 0.05469546586345374,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native vector forward": {
+            "self_wall": 0.012159147570370989,
+            "self_cpu": 0.011832812583667947,
+            "inclusive_wall": 0.012159147570370989,
+            "inclusive_cpu": 0.011832812583667947,
+            "calls": 9,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "block ghosts": {
+            "self_wall": 0.010602145059311006,
+            "self_cpu": 0.010529485943775164,
+            "inclusive_wall": 0.011785215257456304,
+            "inclusive_cpu": 0.011706242302543555,
+            "calls": 10.222222222222221,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "retired velocity source": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "retired velocity gradient": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "Domain surface pressure": {
+            "self_wall": 0.001554179273999559,
+            "self_cpu": 0.001542653279785797,
+            "inclusive_wall": 0.001554179273999559,
+            "inclusive_cpu": 0.001542653279785797,
+            "calls": 5,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "retired Domain boundary": {
+            "self_wall": 0.0,
+            "self_cpu": 0.0,
+            "inclusive_wall": 0.0,
+            "inclusive_cpu": 0.0,
+            "calls": 0,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "accepted state refresh": {
+            "self_wall": 6.203703617195847e-06,
+            "self_cpu": 5.751004016007289e-06,
+            "inclusive_wall": 0.0024538225908246306,
+            "inclusive_cpu": 0.0024397643908969074,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "inverse MPI wait/traffic": {
+            "self_wall": 0.05214483355554731,
+            "self_cpu": 0.051769725568942326,
+            "inclusive_wall": 0.05214483355554731,
+            "inclusive_cpu": 0.051769725568942326,
+            "calls": 114,
+            "mean_work": [
+              880.6961178045516,
+              3900793.493975904,
+              3900793.493975904
+            ],
+            "work_labels": [
+              "posted remote requests",
+              "sent remote doubles",
+              "received remote doubles"
+            ]
+          },
+          "shared compatibility producer": {
+            "self_wall": 0.1941186283456992,
+            "self_cpu": 0.19290319946452472,
+            "inclusive_wall": 0.19596125538694054,
+            "inclusive_cpu": 0.19473236813922348,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scalar capture preparation": {
+            "self_wall": 0.020230665809812753,
+            "self_cpu": 0.01982822891566273,
+            "inclusive_wall": 0.020230665809812753,
+            "inclusive_cpu": 0.01982822891566273,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scalar capture publication": {
+            "self_wall": 0.021653434572743883,
+            "self_cpu": 0.021455712182061746,
+            "inclusive_wall": 0.02396033840488338,
+            "inclusive_cpu": 0.023726155287818018,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "velocity remainder preparation": {
+            "self_wall": 0.0002830956964049154,
+            "self_cpu": 0.0002801753681390825,
+            "inclusive_wall": 0.0053489538722508246,
+            "inclusive_cpu": 0.005292301204819174,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "RK state assembly": {
+            "self_wall": 0.00118062749425251,
+            "self_cpu": 0.001172382864792399,
+            "inclusive_wall": 0.00118062749425251,
+            "inclusive_cpu": 0.001172382864792399,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scalar restriction transaction": {
+            "self_wall": 7.18136865351414e-05,
+            "self_cpu": 6.652074966576811e-05,
+            "inclusive_wall": 0.0874797940426263,
+            "inclusive_cpu": 0.08674822757697459,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "restriction local kernels": {
+            "self_wall": 0.03583742779837934,
+            "self_cpu": 0.03559474966532771,
+            "inclusive_wall": 0.03803361690487249,
+            "inclusive_cpu": 0.03776699999999981,
+            "calls": 28,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "restriction ghost transaction": {
+            "self_wall": 0.0002447834046410429,
+            "self_cpu": 0.00023119410977260273,
+            "inclusive_wall": 0.0322892024297731,
+            "inclusive_cpu": 0.03203975234270402,
+            "calls": 20,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "restriction packing/local copies": {
+            "self_wall": 0.01075197197372216,
+            "self_cpu": 0.01068007898259675,
+            "inclusive_wall": 0.01075197197372216,
+            "inclusive_cpu": 0.01068007898259675,
+            "calls": 40,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "restriction MPI post/wait": {
+            "self_wall": 0.016113643416040234,
+            "self_cpu": 0.01598191164658642,
+            "inclusive_wall": 0.016113643416040234,
+            "inclusive_cpu": 0.01598191164658642,
+            "calls": 60,
+            "mean_work": [
+              100.62115127175367,
+              441180.00535475236,
+              441180.00535475236
+            ],
+            "work_labels": [
+              "posted remote requests",
+              "sent remote doubles",
+              "received remote doubles"
+            ]
+          },
+          "restriction received installation": {
+            "self_wall": 0.005178803635369662,
+            "self_cpu": 0.005146567603748251,
+            "inclusive_wall": 0.005178803635369662,
+            "inclusive_cpu": 0.005146567603748251,
+            "calls": 20,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "temperature edge transaction": {
+            "self_wall": 0.0059291215313017525,
+            "self_cpu": 0.005822713520749591,
+            "inclusive_wall": 0.01928135012793872,
+            "inclusive_cpu": 0.019047204819277085,
+            "calls": 12,
+            "mean_work": [
+              146.43105756358767,
+              190091.40562248995,
+              190091.40562248995
+            ],
+            "work_labels": [
+              "posted remote requests",
+              "sent remote doubles",
+              "received remote doubles"
+            ]
+          },
+          "temperature edge MPI wait": {
+            "self_wall": 0.013352228596636968,
+            "self_cpu": 0.013224491298527494,
+            "inclusive_wall": 0.013352228596636968,
+            "inclusive_cpu": 0.013224491298527494,
+            "calls": 9.349397590361447,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "final physical transaction": {
+            "self_wall": 3.177622255870457e-05,
+            "self_cpu": 2.9321285140740605e-05,
+            "inclusive_wall": 0.021695520275632738,
+            "inclusive_cpu": 0.021533729585006774,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "final physical kernel batch": {
+            "self_wall": 0.019633817287608282,
+            "self_cpu": 0.019511796519410898,
+            "inclusive_wall": 0.019633817287608282,
+            "inclusive_cpu": 0.019511796519410898,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "tendency accumulator retention": {
+            "self_wall": 0.00033642566691799815,
+            "self_cpu": 0.000334817938420265,
+            "inclusive_wall": 0.00033642566691799815,
+            "inclusive_cpu": 0.000334817938420265,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "edge metric preparation": {
+            "self_wall": 8.642687206686421e-05,
+            "self_cpu": 8.55649263722302e-05,
+            "inclusive_wall": 0.0016935010985477542,
+            "inclusive_cpu": 0.0016577938420348725,
+            "calls": 4,
+            "mean_work": [
+              1,
+              3,
+              0
+            ],
+            "work_labels": [
+              "rebuilds",
+              "reuses",
+              "unused"
+            ]
+          },
+          "Domain to block payload": {
+            "self_wall": 0.011069553392444309,
+            "self_cpu": 0.01094861178045519,
+            "inclusive_wall": 0.011069553392444309,
+            "inclusive_cpu": 0.01094861178045519,
+            "calls": 9,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration manifest/check": {
+            "self_wall": 0.009491566900872044,
+            "self_cpu": 0.009398856760374759,
+            "inclusive_wall": 0.009491566900872044,
+            "inclusive_cpu": 0.009398856760374759,
+            "calls": 2,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration packing batch": {
+            "self_wall": 0.006472252078050152,
+            "self_cpu": 0.006429076305220835,
+            "inclusive_wall": 0.006472252078050152,
+            "inclusive_cpu": 0.006429076305220835,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration unpacking batch": {
+            "self_wall": 0.0033337785868619977,
+            "self_cpu": 0.0032514497991968524,
+            "inclusive_wall": 0.0033337785868619977,
+            "inclusive_cpu": 0.0032514497991968524,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration payload exchange": {
+            "self_wall": 0.000735255763672761,
+            "self_cpu": 0.0007289986613118346,
+            "inclusive_wall": 0.02952654649150699,
+            "inclusive_cpu": 0.0290918514056225,
+            "calls": 1,
+            "mean_work": [
+              10735176.95850067,
+              10735176.95850067,
+              1
+            ],
+            "work_labels": [
+              "sent logical bytes",
+              "received logical bytes",
+              "exchanges"
+            ]
+          },
+          "migration size exchange": {
+            "self_wall": 4.876123235088435e-05,
+            "self_cpu": 4.8883534136580356e-05,
+            "inclusive_wall": 4.876123235088435e-05,
+            "inclusive_cpu": 4.8883534136580356e-05,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "complete store installation": {
+            "self_wall": 1.0871688100986851e-05,
+            "self_cpu": 1.078179384204492e-05,
+            "inclusive_wall": 1.0871688100986851e-05,
+            "inclusive_cpu": 1.078179384204492e-05,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "ghost plan preparation": {
+            "self_wall": 0.004947315623492521,
+            "self_cpu": 0.004887990629183426,
+            "inclusive_wall": 0.004947315623492521,
+            "inclusive_cpu": 0.004887990629183426,
+            "calls": 2,
+            "mean_work": [
+              1,
+              1,
+              0
+            ],
+            "work_labels": [
+              "rebuilds",
+              "reuses",
+              "unused"
+            ]
+          },
+          "writeback plan preparation": {
+            "self_wall": 0.009141202194434173,
+            "self_cpu": 0.009082621151271727,
+            "inclusive_wall": 0.009141202194434173,
+            "inclusive_cpu": 0.009082621151271727,
+            "calls": 2,
+            "mean_work": [
+              1,
+              1,
+              0
+            ],
+            "work_labels": [
+              "rebuilds",
+              "reuses",
+              "unused"
+            ]
+          },
+          "production workspace preparation": {
+            "self_wall": 0.00043181254163165007,
+            "self_cpu": 0.0004291499330655872,
+            "inclusive_wall": 0.0008640530571550969,
+            "inclusive_cpu": 0.0008574725568942417,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scalar capture MPI": {
+            "self_wall": 0.0023069038321394996,
+            "self_cpu": 0.002270443105756271,
+            "inclusive_wall": 0.0023069038321394996,
+            "inclusive_cpu": 0.002270443105756271,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native velocity plan preparation": {
+            "self_wall": 0.00021345754262493797,
+            "self_cpu": 0.00021195983935739878,
+            "inclusive_wall": 0.00021345754262493797,
+            "inclusive_cpu": 0.00021195983935739878,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "native mass plan preparation": {
+            "self_wall": 0.00028183567742885674,
+            "self_cpu": 0.0002801485943775056,
+            "inclusive_wall": 0.00028183567742885674,
+            "inclusive_cpu": 0.0002801485943775056,
+            "calls": 4,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration payload MPI": {
+            "self_wall": 0.008097037824476698,
+            "self_cpu": 0.007931706827309275,
+            "inclusive_wall": 0.008097037824476698,
+            "inclusive_cpu": 0.007931706827309275,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration byte checksum scans": {
+            "self_wall": 0.007386949013075835,
+            "self_cpu": 0.007336859437751072,
+            "inclusive_wall": 0.007386949013075835,
+            "inclusive_cpu": 0.007336859437751072,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          },
+          "migration proof reductions": {
+            "self_wall": 0.013307303890281692,
+            "self_cpu": 0.013094286479250318,
+            "inclusive_wall": 0.013307303890281692,
+            "inclusive_cpu": 0.013094286479250318,
+            "calls": 1,
+            "mean_work": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "longest_local_step_rank_phases": {
+          "step": 0.022309627642648086,
+          "RK": 0.006057822507702642,
+          "tendency context": 0.0005469299956328339,
+          "wavelet transaction": 0.026534259112344846,
+          "adapt algorithm": 0.01685222052037716,
+          "Domain inverse": 0.0190154646212856,
+          "native inverse": 0.017262339281539123,
+          "inverse setup": 0.02637018584128883,
+          "canonical publication": 0.0010008498405416806,
+          "block installation": 0.004222584577898185,
+          "provisional refresh": 2.2514464540614023e-05,
+          "block hydrostatic cache": 0.002121073090367847,
+          "native recomposition": 1.1739165832599005e-05,
+          "catalogue": 0.013045975731478797,
+          "source blocks": 0.006532300108422835,
+          "migration": 0.0001056525959736771,
+          "post-grid refresh": 0.011158124181545444,
+          "native compression": 0.014706150369925631,
+          "native scalar forward": 0.048350579312278166,
+          "native vector forward": 0.012702962797549035,
+          "block ghosts": 0.010616205787907044,
+          "retired velocity source": 0.0,
+          "retired velocity gradient": 0.0,
+          "Domain surface pressure": 0.0013244423704842727,
+          "retired Domain boundary": 0.0,
+          "accepted state refresh": 6.051113208134969e-06,
+          "inverse MPI wait/traffic": 0.05769878843178352,
+          "shared compatibility producer": 0.19506790266475743,
+          "scalar capture preparation": 0.020333234169003036,
+          "scalar capture publication": 0.020466252074887354,
+          "velocity remainder preparation": 0.000308311078697443,
+          "RK state assembly": 0.0011890454528232415,
+          "scalar restriction transaction": 7.171013082067172e-05,
+          "restriction local kernels": 0.03638941344494621,
+          "restriction ghost transaction": 0.00024505585639013187,
+          "restriction packing/local copies": 0.011219761593060361,
+          "restriction MPI post/wait": 0.0147707120825847,
+          "restriction received installation": 0.004606158576077885,
+          "temperature edge transaction": 0.006179381575849321,
+          "temperature edge MPI wait": 0.017120604765497975,
+          "final physical transaction": 3.157312878304058e-05,
+          "final physical kernel batch": 0.019487623901416857,
+          "tendency accumulator retention": 0.0003375769592821598,
+          "edge metric preparation": 8.854963299300935e-05,
+          "Domain to block payload": 0.009945042172653807,
+          "migration manifest/check": 0.009769439231604338,
+          "migration packing batch": 0.006235861736867163,
+          "migration unpacking batch": 0.0036313595871130624,
+          "migration payload exchange": 0.0007493994198739529,
+          "migration size exchange": 5.0681643187999725e-05,
+          "complete store installation": 1.0362981508175531e-05,
+          "ghost plan preparation": 0.004579767119139433,
+          "writeback plan preparation": 0.009168675945450863,
+          "production workspace preparation": 0.00045827569233046635,
+          "scalar capture MPI": 0.002269343731717931,
+          "native velocity plan preparation": 0.00018297415226697922,
+          "native mass plan preparation": 0.00024808989837765694,
+          "migration payload MPI": 0.007193910630626811,
+          "migration byte checksum scans": 0.007224585343566205,
+          "migration proof reductions": 0.014593192065755526
+        },
+        "mean_rank_step_seconds": 0.7427940489026098,
+        "mean_longest_local_step_seconds": 0.7427986719024678,
+        "limitations": "Self times add within a rank/step. Inclusive times overlap. Longest-local-step composition selects one rank per step, not independent region maxima; unsynchronized local durations do not prove the global critical path. CPU includes MPI spinning. Work counters cover named inverse/cache products, not all solver traffic; doubles are logical payload counts, not physical memory traffic.",
+        "mean_scope_entries_per_step": 467.7938420348059
+      }
+    },
+    "rank_mean_self_ranges_seconds": {
+      "shared compatibility producer": {
+        "minimum_rank_mean_seconds": 0.18946775568959615,
+        "median_rank_mean_seconds": 0.19312172654705742,
+        "maximum_rank_mean_seconds": 0.20238570224804184
+      },
+      "restriction local kernels": {
+        "minimum_rank_mean_seconds": 0.007493322120151586,
+        "median_rank_mean_seconds": 0.03710977497717573,
+        "maximum_rank_mean_seconds": 0.04146423294312424
+      },
+      "inverse MPI wait/traffic": {
+        "minimum_rank_mean_seconds": 0.018461807449865673,
+        "median_rank_mean_seconds": 0.05241693773617347,
+        "maximum_rank_mean_seconds": 0.0760779260761208
+      },
+      "migration proof reductions": {
+        "minimum_rank_mean_seconds": 0.0019342158403661516,
+        "median_rank_mean_seconds": 0.011754931571582953,
+        "maximum_rank_mean_seconds": 0.03114332015522652
+      },
+      "migration byte checksum scans": {
+        "minimum_rank_mean_seconds": 0.0012374431567473544,
+        "median_rank_mean_seconds": 0.007892003981396556,
+        "maximum_rank_mean_seconds": 0.012792609709625443
+      }
+    },
+    "rank_range_limit": "Each rank mean averages nine ordinary steps in each of two runs. Values are not synchronized critical-path contributions; waits can reflect work on other ranks.",
+    "migration_checksum_and_proof_self_seconds": 0.0205395190295211,
+    "scalar_capture_preparation_plus_publication_inclusive_seconds": 0.04390615440588419
+  },
+  "calibration_interpretation": "Main mean shift and second pair exceed fixed limits; lower scope frequency does not prove residual shift is direct clock cost. Do not relax thresholds, subtract a flat correction, or present signed phase differences as a qualified decomposition of the legacy gap.",
+  "strategic_goal": "Efficient execution at P >= 4*D; J5 D=160 requires >=640 ranks, multi-node. Current 83-rank cost audit and 167-rank oracle cannot establish that goal.",
+  "next_recommendation": "Use candidate costs to prioritize the Domain-bound shared producer/capture/restriction chain, and a bounded migration-proof/plan audit. Next performance campaign should include an uninstrumented 83/160/256-rank Stage266 baseline and matched main where supported; any focused change must be compared at the same counts before acceptance. This is an intermediate screen, followed by >=640-rank multi-node qualification and adequate block subdivision.",
+  "review_limit": "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun.",
+  "derived_report_float_tolerance": "Eight ulps only; raw member hashes and all scientific gates remain exact."
+}
