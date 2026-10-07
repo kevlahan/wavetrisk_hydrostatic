@@ -5,6 +5,41 @@ last fast qualified Stage230 source, remove Domain pathways progressively,
 and resolve any repeatable performance penalty within the stage that introduces
 it. Performance optimization cannot be deferred to later migration stages.
 
+## Primary strategic goal: efficient execution at four or more ranks per Domain
+
+On 2026-10-07 the user explicitly reaffirmed that the block data structure is
+intended to support efficient execution on **four or more MPI ranks per geometric
+Domain**, `P >= 4*D`. The limit to break is the number of geometric Domains, not
+the number of blocks. Correct execution on ranks without Domains establishes
+capability, not performance success. Legacy parity below the Domain count is a
+necessary regression check, but cannot by itself qualify the refactoring's goal.
+
+Prioritize measured work still confined to Domain owners, duplicated Domain and
+block computation, representation transfers, global synchronization, and block
+granularity/load imbalance. Each substantial implementation change must retain
+correctness and numerical/oracle checks, compare against its accepted baseline
+and legacy main where supported, and include performance beyond the Domain
+count. Resolve a regression before stacking another migration change.
+
+The proposed J5 83/160/256-rank comparison is an intermediate diagnostic only:
+with 160 geometric Domains, the fourfold target is **640 ranks or more**. That
+requires multiple nodes on this cluster, a placement policy appropriate to those
+nodes, and matched comparisons within the same hardware/allocation conditions.
+Use partition bb or all with bb04 excluded for such campaigns; nk/bb13 alone has
+256 usable cores. Report total ordinary-step time, speedup and relative parallel
+efficiency alongside per-rank work/imbalance evidence. No minimum efficiency
+percentage has been agreed yet, and no fourfold scaling success is claimed.
+
+Current root-child splitting yields at most four blocks per Domain. At `P=4*D`
+that permits only one block per rank when every Domain is split, with little
+freedom to balance unequal subtree work; beyond that count the present block
+capacity is insufficient. Finer subdivision is therefore a strategic design
+requirement to investigate alongside removing Domain-bound work, with each
+change measured separately. Stage270 provides cost evidence at 83 ranks and
+correctness above the Domain count; it does not qualify the fourfold goal.
+
+## Restart baseline
+
 The branch `codex/domain-migration-measured` starts at `4ea64012`, which removed
 production Domain tendency storage and measured 0.754893 s/ordinary J5 step at
 83 ranks on bb13. The existing `codex/performance-investigation` implementation
