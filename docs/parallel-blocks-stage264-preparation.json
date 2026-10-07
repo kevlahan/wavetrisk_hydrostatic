@@ -1,0 +1,82 @@
+{
+  "stage": 264,
+  "status": "prepared_and_locally_verified",
+  "branch": "codex/domain-migration-measured",
+  "baseline_commit": "4ea640128a71a857f9b8c6b9411dc34fc0aeb641",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage264-validation/rk264-stage230-reset-kit-v1.tar.gz",
+    "sha256": "25904df69c02374616287354467d3ac7eac1c9ca849aca6466a9eff6855e4eba",
+    "bytes": 16080574,
+    "files": 40,
+    "source_manifest_sha256": "83733713b1b8f0cb0acbd0fa68917c3e25cf20fd7bcf7d5cb7f03a7ead7ce630",
+    "local_validation_sha256": "ee1def4ee4cc13c54a517a399948a3b93f3ea1a1df96862d8874bf31ae9e97a2"
+  },
+  "local_validation": {
+    "ranks": 4,
+    "cases": {
+      "stage230": {
+        "status": "passed",
+        "ranks": 4,
+        "oracles": false,
+        "binary_sha256": "65f51a216cb639c437e3803483812b3c99a56b2ab1c941afe3999a348c2e7166",
+        "passed": true
+      },
+      "checked": {
+        "status": "passed",
+        "ranks": 4,
+        "oracles": false,
+        "binary_sha256": "b0861483c9312effeaf4d3d4549afba57d76018aa3784867e8cd93e39e746950",
+        "passed": true
+      },
+      "stage230-oracle": {
+        "status": "passed",
+        "ranks": 4,
+        "oracles": true,
+        "binary_sha256": "65f51a216cb639c437e3803483812b3c99a56b2ab1c941afe3999a348c2e7166",
+        "passed": true
+      },
+      "main": {
+        "binary_sha256": "4c1388bf78ce7735bc5a2c35fd09f12d979a65939d704558f82ee8fe3311e5ef",
+        "checkpoint_sha256": "579bf4efd6e4d2430b44efdb4264ba24125f1e5742529c715311760acd89e707",
+        "vtk_members": 62,
+        "remaps": 2,
+        "passed": true
+      }
+    },
+    "physics_objects": 23,
+    "make_jobs": 1,
+    "library_threads": 1,
+    "exact_block_replays": 3,
+    "main_numerical_gate": true,
+    "limitation": "Local correctness only; bbserv timing pending."
+  },
+  "packaging": {
+    "extraction_hashes": "passed",
+    "import_graph": "passed",
+    "workflow_tests": 4,
+    "shell_syntax": "passed",
+    "runner_schedule": "14-run mock integration passed; no cluster speed claim",
+    "extended_attributes": "absent"
+  },
+  "first_change_source_audit": {
+    "activate_block_native_inverse_transform": {
+      "file": "src/parallel_block_mpi.f90",
+      "line": 14681,
+      "sha256": "32162629d0a442887de55a04bf27670440cbf6f9e4895a19bb0c9a82e148ef53"
+    },
+    "publish_native_inverse": {
+      "file": "src/parallel_block_inverse.f90",
+      "line": 1338,
+      "sha256": "178feb4c554aed0483a351f54641c8b17a0810eebe5c5bdab998f169086b51f4"
+    },
+    "install_inverse203": {
+      "file": "src/parallel_block_inverse.f90",
+      "line": 1614,
+      "sha256": "851a10ea9796617b1f6ce319f80c7651fcbe97aeb41cb91a71929ffbc0a60255"
+    }
+  },
+  "first_change": "Replace inverse-exit SOL block-to-Domain return transport with direct canonical publication; retain both existing block installs.",
+  "cluster_status": "not submitted",
+  "automatic_promotion": false
+}
