@@ -187,6 +187,13 @@ pressure are small. Reduce observer frequency and decompose the large producer/
 transport regions before choosing one numerical intervention; retain the failed
 cross-version attribution as unqualified.
 
+The [Stage270 reduced-frequency audit](parallel-blocks-stage270-audit.md) is now
+prepared and locally validated. It omits boundary/per-patch timers and splits
+tendency, scalar restriction, final physical kernels, migration, plan preparation
+and payload checksum/proof costs. Four exact four-rank replays passed. Run this
+self-contained kit and review both calibrations before selecting the next single
+optimization; production source and the bare controls remain unchanged.
+
 Then migrate the remaining shared primitive consumers and reassess adaptation
 and the remaining complete producer/consumer chains. Choose each change from its
 actual removable work and replacement cost. Preserve formulas and operation
