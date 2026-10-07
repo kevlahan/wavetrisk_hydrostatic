@@ -149,14 +149,22 @@ omit the first full block installation only on provisional Stage203 production
 exits. Boundary refresh/final installation and the oracle's original two-call
 sequence remain. Optimized, checked and independent oracle four-rank replays
 passed exactly. The campaign compares this single omission with accepted
-Stage265t and main using seven validation runs and six timing runs. Cluster
-performance is pending; no next removal is bundled.
+Stage265t and main using seven validation runs and six timing runs.
+
+Job 55398 verified all thirteen runs. Both 16/167-rank oracles retained all
+48 exact-return proofs and 84 installations. At 83 ranks, candidate
+0.748448779 s beats the matched Stage265t baseline 0.758481670 s by 10.033 ms
+(1.323%), with both pairs improving. Recommend accepting `ff740744` as the next
+immediate baseline without a repeat. Main is 0.541753610 s; the remaining gap is
+206.695 ms (+38.153%). See `parallel-blocks-stage266-results.json`.
 
 ## Following stages
 
-After the first result, consider coalescing duplicate inverse installation only
-if no intervening consumer needs the first view. Then reassess adaptation and
-the remaining complete producer/consumer chains. Choose each change from its
+The provisional duplicate inverse installation is now independently measured.
+Next audit remaining provisional canonical workspace-to-Domain interior
+publication and all subsequent consumers, retaining necessary boundary epochs
+and accepted physics/output adapters. Then reassess adaptation and the remaining
+complete producer/consumer chains. Choose each change from its
 actual removable work and replacement cost. Preserve formulas and operation
 order where exact checks require it; use compact block-owned stencil plans and
 bounded exchanges rather than rebuilding the generic owner graph by default.

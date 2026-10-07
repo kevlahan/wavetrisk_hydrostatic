@@ -1,0 +1,92 @@
+{
+  "status": "verified",
+  "archive_sha256": "3b657f28e8d9d329b3dca41f22d1ba314651d86836f23e12a0b55664874d1f36",
+  "verified_files": 1935,
+  "comparison": {
+    "means_seconds": {
+      "main": 0.5417536095,
+      "stage265t": 0.7584816695000001,
+      "candidate": 0.7484487785
+    },
+    "candidate_minus_stage265t_seconds": -0.010032891000000044,
+    "candidate_minus_main_seconds": 0.20669516900000007,
+    "stage265t_minus_main_seconds": 0.2167280600000001,
+    "candidate_to_main_ratio": 1.3815298419345374,
+    "paired_candidate_gaps_seconds": [
+      -0.01103177200000005,
+      -0.009034010000000037
+    ],
+    "independent_runs_per_version": 2,
+    "batches": 1,
+    "decision": "measurement_only_no_automatic_promotion",
+    "scope": "Mean of independent ordinary-step run medians; validation runs excluded."
+  },
+  "limitation": "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun.",
+  "stage": 266,
+  "revision": "deferred-installation",
+  "job_id": 55398,
+  "archive": "/Users/kevlahan/Desktop/rk266-review-55398.tar.gz",
+  "candidate_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "baseline_commit": "fab724868dd8fe3acaca2eace8f50b06422b7ef2",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "delivered_kit_manifest_matches": true,
+  "correctness": "All thirteen runs passed scientific/placement/storage gates. Checked 16-rank execution and independent 16/167-rank oracles passed; each oracle proved 48 exact returns, 12 accepted exits and the retained 84-installation sequence. Exact block checkpoints and 62 VTK members verified, including ranks without geometric Domains.",
+  "performance_decision": "supports_acceptance_at_83_ranks",
+  "automatic_promotion": false,
+  "repeat_recommended": false,
+  "reason": "Both order-balanced candidate/baseline pairs improved by 11.032 and 9.034 ms. Every candidate median is below every baseline median; this initial batch supports acceptance at the measured 83-rank configuration without a repeat.",
+  "candidate_gain_percent": 1.3227598508232694,
+  "matched_baseline_main_gap_closed_percent": 4.629253360178668,
+  "candidate_main_penalty_percent": 38.15298419345374,
+  "measurement_limit": "Two independent timing runs per version at 83 ranks. Validation runs are excluded from timing qualification. Stage230 was not run in this allocation, so no direct cumulative speed gain against it is claimed.",
+  "next_action": "Recommend retaining ff740744 as the immediate comparison baseline, with legacy main retained. Next audit the remaining provisional workspace-to-Domain interior publication and all consumers before proposing one separately measured removal; keep required boundary and accepted physics/output adapters.",
+  "timing_runs": [
+    {
+      "name": "J5-n83-timing-1-main",
+      "kind": "main",
+      "median_seconds": 0.542373373
+    },
+    {
+      "name": "J5-n83-timing-2-stage265t",
+      "kind": "stage265t",
+      "median_seconds": 0.759918658
+    },
+    {
+      "name": "J5-n83-timing-3-candidate",
+      "kind": "candidate",
+      "median_seconds": 0.748886886
+    },
+    {
+      "name": "J5-n83-timing-4-candidate",
+      "kind": "candidate",
+      "median_seconds": 0.748010671
+    },
+    {
+      "name": "J5-n83-timing-5-stage265t",
+      "kind": "stage265t",
+      "median_seconds": 0.757044681
+    },
+    {
+      "name": "J5-n83-timing-6-main",
+      "kind": "main",
+      "median_seconds": 0.541133846
+    }
+  ],
+  "version_variability": {
+    "main": {
+      "min_seconds": 0.541133846,
+      "max_seconds": 0.542373373,
+      "sample_stdev_seconds": 0.0008764779471637912
+    },
+    "stage265t": {
+      "min_seconds": 0.757044681,
+      "max_seconds": 0.759918658,
+      "sample_stdev_seconds": 0.0020322086256741897
+    },
+    "candidate": {
+      "min_seconds": 0.748010671,
+      "max_seconds": 0.748886886,
+      "sample_stdev_seconds": 0.0006195775682773803
+    }
+  }
+}
