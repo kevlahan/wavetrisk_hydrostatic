@@ -394,5 +394,27 @@ epochs. It does not change solver/exporter source. The prepared recovery reuses
 four verified builds and the first three solver outputs, revalidates their science
 and contracts, then runs only the five remaining cases in a fresh directory.
 Original evidence and both attempts' accounting are retained. Twenty tests and
-reprocessing of 360 real local plans pass; actual cluster recovery is pending.
+reprocessing of 360 real local plans passed before cluster recovery.
 See `parallel-blocks-stage274-recovery.json` and the v2 recovery commands.
+
+Recovery job 55484 is now independently verified: all eight cases pass, with
+1,790 sealed files and 3,228 raw sampled plans checked. No sampled restriction
+operand or source-to-gradient value crosses the proposed block ownership, and
+no uninitialized source reads are detected. This supports direct local execution
+without dependency-depth exchanges for these operations. Boundary/scaffold
+inputs still need explicit canonical and epoch contracts.
+
+At 256 ranks, conservative Domain-fed input packing is 3.40–3.68 times current
+tendency export; hypothetical upstream block placement is still 0.92–0.95 times
+export before upstream costs. These are matched-observation per-layer budgets,
+not measured traffic or speedup. The next compact numerical prototype must first
+prove block input reuse/reconstruction at the correct restriction and refresh
+epochs, preserve producer fusion, and measure all new preparation/transfer costs.
+Do not relocate velocity alone with bulk Domain input staging. Retain Stage266
+until a complete replacement retires displaced work and passes full-step timing.
+Stage273 remains separate and unpromoted.
+
+Recovery elapsed 8:21 with four builds/three outputs reused and five new runs.
+Combined runner time with original attempt 55483 is about 14:10; exact original
+Slurm elapsed is unavailable because its accounting query failed. See
+[Stage274 review](parallel-blocks-stage274-results.md) and the runtime ledger.

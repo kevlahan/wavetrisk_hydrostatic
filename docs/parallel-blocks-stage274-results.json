@@ -1,0 +1,526 @@
+{
+  "stage": 274,
+  "status": "independently_verified",
+  "archive": "rk274-review-55484.tar.gz",
+  "archive_sha256": "8c96d310ebeed2eea9944fbd1fe50aa12dad9fb2d29b4b55da348443d17e5b9c",
+  "verified_files": 1790,
+  "accepted_baseline": "ff740744608731a05d53771c32a3055309f3a586",
+  "runtime": {
+    "slurm": {
+      "job_id": "55484",
+      "state": "COMPLETED",
+      "start": "2026-10-08T17:20:28",
+      "end": "2026-10-08T17:28:49",
+      "elapsed_seconds": 501,
+      "elapsed": "00:08:21"
+    },
+    "campaign_started_utc": "2026-10-08T21:20:29.218533+00:00",
+    "campaign_ended_utc": "2026-10-08T21:28:49.367002+00:00",
+    "campaign_elapsed_seconds": 500.14850546000525,
+    "previous_attempt": {
+      "job_id": "55483",
+      "slurm": null,
+      "runner_elapsed_seconds": 349.662002986297,
+      "reused_builds": 4,
+      "reused_solver_runs": 3
+    },
+    "limitation": "Slurm elapsed includes batch setup; runner elapsed begins before preflight. Queue and collection/transfer excluded. Accounting can be unavailable; no timestamp inference."
+  },
+  "science": {
+    "runs": 8,
+    "steps_per_run": 12,
+    "remaps_per_run": 2,
+    "vtk_files_per_run": 62,
+    "all_required_gates_passed": true,
+    "exact_stage266_family_checks_passed": true,
+    "legacy_comparison": "Established tolerance gate; do not describe all rank configurations as bitwise equal to main.",
+    "oracle_ranks": [
+      16,
+      256
+    ],
+    "exact_inverse_transactions_per_oracle_run": 48,
+    "oracle_installations_per_oracle_run": 84
+  },
+  "sampled_plans": 3228,
+  "contracts": {
+    "J5-n16-validation-3-candidate": {
+      "ranks": 16,
+      "sampled_plans": 492,
+      "domains_observed_on_multiple_ranks": 4,
+      "samples": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 44863,
+            "active_direct": 26642,
+            "restriction_actions": 8632,
+            "restricted_edges": 5767,
+            "gradient": 45024,
+            "active_gradient": 26901
+          },
+          "export_bytes_per_layer": 619392,
+          "retained_input_bytes_per_layer": 2082104,
+          "hypothetical_upstream_input_bytes_per_layer": 383616,
+          "retained_to_export_ratio": 3.3615287249431702,
+          "hypothetical_to_export_ratio": 0.6193428394296342,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 77716
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 44964,
+            "active_direct": 24640,
+            "restriction_actions": 8632,
+            "restricted_edges": 5228,
+            "gradient": 45024,
+            "active_gradient": 24872
+          },
+          "export_bytes_per_layer": 619392,
+          "retained_input_bytes_per_layer": 1927360,
+          "hypothetical_upstream_input_bytes_per_layer": 372752,
+          "retained_to_export_ratio": 3.111696631535441,
+          "hypothetical_to_export_ratio": 0.6018030584831576,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 75938
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 45130,
+            "active_direct": 24799,
+            "restriction_actions": 8688,
+            "restricted_edges": 5372,
+            "gradient": 45248,
+            "active_gradient": 25089
+          },
+          "export_bytes_per_layer": 616704,
+          "retained_input_bytes_per_layer": 1925544,
+          "hypothetical_upstream_input_bytes_per_layer": 368832,
+          "retained_to_export_ratio": 3.1223147571606478,
+          "hypothetical_to_export_ratio": 0.5980697384806973,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 76210
+        }
+      ]
+    },
+    "J5-n16-validation-4-checked": {
+      "ranks": 16,
+      "sampled_plans": 492,
+      "domains_observed_on_multiple_ranks": 4,
+      "samples": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 44863,
+            "active_direct": 26642,
+            "restriction_actions": 8632,
+            "restricted_edges": 5767,
+            "gradient": 45024,
+            "active_gradient": 26901
+          },
+          "export_bytes_per_layer": 619392,
+          "retained_input_bytes_per_layer": 2082104,
+          "hypothetical_upstream_input_bytes_per_layer": 383616,
+          "retained_to_export_ratio": 3.3615287249431702,
+          "hypothetical_to_export_ratio": 0.6193428394296342,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 77716
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 44964,
+            "active_direct": 24640,
+            "restriction_actions": 8632,
+            "restricted_edges": 5228,
+            "gradient": 45024,
+            "active_gradient": 24872
+          },
+          "export_bytes_per_layer": 619392,
+          "retained_input_bytes_per_layer": 1927360,
+          "hypothetical_upstream_input_bytes_per_layer": 372752,
+          "retained_to_export_ratio": 3.111696631535441,
+          "hypothetical_to_export_ratio": 0.6018030584831576,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 75938
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 45130,
+            "active_direct": 24799,
+            "restriction_actions": 8688,
+            "restricted_edges": 5372,
+            "gradient": 45248,
+            "active_gradient": 25089
+          },
+          "export_bytes_per_layer": 616704,
+          "retained_input_bytes_per_layer": 1925544,
+          "hypothetical_upstream_input_bytes_per_layer": 368832,
+          "retained_to_export_ratio": 3.1223147571606478,
+          "hypothetical_to_export_ratio": 0.5980697384806973,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 76210
+        }
+      ]
+    },
+    "J5-n16-validation-5-candidate": {
+      "ranks": 16,
+      "sampled_plans": 492,
+      "domains_observed_on_multiple_ranks": 4,
+      "samples": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 44863,
+            "active_direct": 26642,
+            "restriction_actions": 8632,
+            "restricted_edges": 5767,
+            "gradient": 45024,
+            "active_gradient": 26901
+          },
+          "export_bytes_per_layer": 619392,
+          "retained_input_bytes_per_layer": 2082104,
+          "hypothetical_upstream_input_bytes_per_layer": 383616,
+          "retained_to_export_ratio": 3.3615287249431702,
+          "hypothetical_to_export_ratio": 0.6193428394296342,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 77716
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 44964,
+            "active_direct": 24640,
+            "restriction_actions": 8632,
+            "restricted_edges": 5228,
+            "gradient": 45024,
+            "active_gradient": 24872
+          },
+          "export_bytes_per_layer": 619392,
+          "retained_input_bytes_per_layer": 1927360,
+          "hypothetical_upstream_input_bytes_per_layer": 372752,
+          "retained_to_export_ratio": 3.111696631535441,
+          "hypothetical_to_export_ratio": 0.6018030584831576,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 75938
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 164,
+          "counts": {
+            "direct": 45130,
+            "active_direct": 24799,
+            "restriction_actions": 8688,
+            "restricted_edges": 5372,
+            "gradient": 45248,
+            "active_gradient": 25089
+          },
+          "export_bytes_per_layer": 616704,
+          "retained_input_bytes_per_layer": 1925544,
+          "hypothetical_upstream_input_bytes_per_layer": 368832,
+          "retained_to_export_ratio": 3.1223147571606478,
+          "hypothetical_to_export_ratio": 0.5980697384806973,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 76210
+        }
+      ]
+    },
+    "J5-n83-validation-6-candidate": {
+      "ranks": 83,
+      "sampled_plans": 792,
+      "domains_observed_on_multiple_ranks": 104,
+      "samples": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 264,
+          "counts": {
+            "direct": 67562,
+            "active_direct": 42443,
+            "restriction_actions": 12900,
+            "restricted_edges": 9880,
+            "gradient": 68496,
+            "active_gradient": 43475
+          },
+          "export_bytes_per_layer": 1363200,
+          "retained_input_bytes_per_layer": 4945552,
+          "hypothetical_upstream_input_bytes_per_layer": 1060336,
+          "retained_to_export_ratio": 3.627899061032864,
+          "hypothetical_to_export_ratio": 0.7778286384976526,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 127994
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 264,
+          "counts": {
+            "direct": 68027,
+            "active_direct": 40495,
+            "restriction_actions": 12988,
+            "restricted_edges": 9326,
+            "gradient": 68848,
+            "active_gradient": 41488
+          },
+          "export_bytes_per_layer": 1362816,
+          "retained_input_bytes_per_layer": 4702688,
+          "hypothetical_upstream_input_bytes_per_layer": 1053344,
+          "retained_to_export_ratio": 3.4507138160984314,
+          "hypothetical_to_export_ratio": 0.7729172536864845,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 126720
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 264,
+          "counts": {
+            "direct": 68618,
+            "active_direct": 40613,
+            "restriction_actions": 13152,
+            "restricted_edges": 9427,
+            "gradient": 69504,
+            "active_gradient": 41671
+          },
+          "export_bytes_per_layer": 1391232,
+          "retained_input_bytes_per_layer": 4768816,
+          "hypothetical_upstream_input_bytes_per_layer": 1059840,
+          "retained_to_export_ratio": 3.427764743766676,
+          "hypothetical_to_export_ratio": 0.7617996135799061,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 126816
+        }
+      ]
+    },
+    "J5-n160-validation-7-candidate": {
+      "ranks": 160,
+      "sampled_plans": 480,
+      "domains_observed_on_multiple_ranks": 0,
+      "samples": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 160,
+          "counts": {
+            "direct": 43635,
+            "active_direct": 25839,
+            "restriction_actions": 8376,
+            "restricted_edges": 5549,
+            "gradient": 43744,
+            "active_gradient": 26046
+          },
+          "export_bytes_per_layer": 1023360,
+          "retained_input_bytes_per_layer": 3644168,
+          "hypothetical_upstream_input_bytes_per_layer": 854288,
+          "retained_to_export_ratio": 3.560983427141964,
+          "hypothetical_to_export_ratio": 0.8347873671044402,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 79042
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 160,
+          "counts": {
+            "direct": 43733,
+            "active_direct": 23829,
+            "restriction_actions": 8376,
+            "restricted_edges": 5010,
+            "gradient": 43744,
+            "active_gradient": 24012
+          },
+          "export_bytes_per_layer": 1023360,
+          "retained_input_bytes_per_layer": 3356312,
+          "hypothetical_upstream_input_bytes_per_layer": 820848,
+          "retained_to_export_ratio": 3.279698248905566,
+          "hypothetical_to_export_ratio": 0.8021106941838649,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 77226
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 160,
+          "counts": {
+            "direct": 43823,
+            "active_direct": 23965,
+            "restriction_actions": 8416,
+            "restricted_edges": 5142,
+            "gradient": 43904,
+            "active_gradient": 24218
+          },
+          "export_bytes_per_layer": 1027200,
+          "retained_input_bytes_per_layer": 3376984,
+          "hypothetical_upstream_input_bytes_per_layer": 821680,
+          "retained_to_export_ratio": 3.28756230529595,
+          "hypothetical_to_export_ratio": 0.7999221183800623,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 77408
+        }
+      ]
+    },
+    "J5-n256-validation-8-candidate": {
+      "ranks": 256,
+      "sampled_plans": 480,
+      "domains_observed_on_multiple_ranks": 0,
+      "samples": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 160,
+          "counts": {
+            "direct": 43635,
+            "active_direct": 25839,
+            "restriction_actions": 8376,
+            "restricted_edges": 5549,
+            "gradient": 43744,
+            "active_gradient": 26046
+          },
+          "export_bytes_per_layer": 1031808,
+          "retained_input_bytes_per_layer": 3794248,
+          "hypothetical_upstream_input_bytes_per_layer": 980448,
+          "retained_to_export_ratio": 3.6772810445354174,
+          "hypothetical_to_export_ratio": 0.950223297357648,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 80888
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 160,
+          "counts": {
+            "direct": 43733,
+            "active_direct": 23829,
+            "restriction_actions": 8376,
+            "restricted_edges": 5010,
+            "gradient": 43744,
+            "active_gradient": 24012
+          },
+          "export_bytes_per_layer": 1031808,
+          "retained_input_bytes_per_layer": 3503128,
+          "hypothetical_upstream_input_bytes_per_layer": 945472,
+          "retained_to_export_ratio": 3.3951355290906835,
+          "hypothetical_to_export_ratio": 0.9163255179258156,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 79048
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 160,
+          "counts": {
+            "direct": 43823,
+            "active_direct": 23965,
+            "restriction_actions": 8416,
+            "restricted_edges": 5142,
+            "gradient": 43904,
+            "active_gradient": 24218
+          },
+          "export_bytes_per_layer": 1035648,
+          "retained_input_bytes_per_layer": 3525824,
+          "hypothetical_upstream_input_bytes_per_layer": 949168,
+          "retained_to_export_ratio": 3.404461747620813,
+          "hypothetical_to_export_ratio": 0.9164967247559016,
+          "restriction_remote_versioned_values": 0,
+          "gradient_remote_source_values": 0,
+          "same_level_cross_owner_dependencies": 0,
+          "unresolved_source_reads": 0,
+          "unmapped_target_adapter_work": {},
+          "unmapped_input_values": 79270
+        }
+      ]
+    }
+  },
+  "performance_qualified": false,
+  "production_ready": false,
+  "scope": "Budgets are sums of sampled rank-local observations per layer, not simultaneous global epochs, measured traffic, or RK-weighted totals. Input packing is conservative, not a lower bound. Hypothetical upstream field ownership is unimplemented and excludes upstream production/communication costs.",
+  "verification_limit": "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun.",
+  "decision": "Retain Stage266. Next: compact block-local source/restriction/gradient prototype gated first by field residency/epoch proof and real transfer/preparation costs; preserve producer fusion and retire displaced work before production timing acceptance."
+}
