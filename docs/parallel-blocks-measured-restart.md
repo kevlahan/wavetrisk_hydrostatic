@@ -384,3 +384,15 @@ fused block producers, bounded halo/restriction communication, retirement of the
 displaced Domain computation/transfers, and efficient execution at >=640 ranks.
 See [Stage274 plan](parallel-blocks-stage274-plan.md) and
 [commands](../test/parallel_block_profile/ownership_274/README.md).
+
+Stage274 v1 stopped in postprocessing after three completed J5 solver runs:
+`Duplicate Domain snapshot`. The reader incorrectly treated the exporter's
+rank-local `(Domain, sample ordinal)` counters as globally unique. Version 2
+preserves observing-rank identity, separates unique Domain counts from observation
+counts, and retains all cross-rank observations without assuming synchronized
+epochs. It does not change solver/exporter source. The prepared recovery reuses
+four verified builds and the first three solver outputs, revalidates their science
+and contracts, then runs only the five remaining cases in a fresh directory.
+Original evidence and both attempts' accounting are retained. Twenty tests and
+reprocessing of 360 real local plans pass; actual cluster recovery is pending.
+See `parallel-blocks-stage274-recovery.json` and the v2 recovery commands.

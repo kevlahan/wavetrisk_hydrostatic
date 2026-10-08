@@ -167,3 +167,36 @@ The freshly extracted final kit verifies 48 sealed files, all source families,
 exact reproduction of the diagnostic overlay, exclusion of Stage273, imports,
 shell syntax and all fifteen delivered tests. It contains no macOS xattr headers.
 See [the preparation record](parallel-blocks-stage274-preparation.json).
+
+## Version 2: rank-local snapshot identity and recovery
+
+The reported J5 v1 job built all four binaries and completed the first three
+solver runs, then the contract reader raised `Duplicate Domain snapshot`.
+The exporter numbers snapshots per Domain **on each observing rank**. The reader
+incorrectly treated `(Domain, ordinal)` as globally unique; its corresponding
+cross-rank rejection test encoded the same mistaken assumption. The local J4
+trajectory did not expose it. This is a postprocessing defect, not evidence of a
+numerical solver failure.
+
+Version 2 retains `(observing rank, Domain, ordinal)` and the reported generation.
+Repeated Domain observations on different ranks are preserved, even when ordinal
+and generation match. Unique Domain coverage is checked independently. The report
+distinguishes unique Domains from observation counts, and labels summed budgets
+as totals over observations, not a simultaneous global mesh census. Rank-local
+sequence duplicates, missing Domains/ranks and malformed records still fail.
+
+No solver/exporter source or numerical binary changes. A separate recovery job
+verifies the original v1 kit identity, source manifests, four binary hashes,
+build logs, fixture and three successful solver exits. It copies the completed
+outputs into a fresh directory and reruns all their science and diagnostic gates,
+then executes the remaining five cases. It leaves the failed attempt intact and
+collects both attempts' accounting and build/run provenance. Duplicate recovery
+submission is refused. The v1 archive remains unchanged.
+
+The regression suite now covers valid cross-rank repeated observations, invalid
+rank-local duplication, strict reuse guards, and a complete mocked recovery that
+performs zero builds and exactly five solver launches plus four placement probes.
+The recovered archive is independently reviewed in that test. All original local
+optimized/checked/oracle raw plans are reparsed with v2; no solver rerun is needed
+for this Python-only correction. Fresh delivery checks are recorded in
+`parallel-blocks-stage274-recovery.json`.

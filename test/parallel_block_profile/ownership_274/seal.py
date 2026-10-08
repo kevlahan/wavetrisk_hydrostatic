@@ -13,7 +13,7 @@ def seal(kit,validation,tests):
     result=json.loads(validation.read_text());checks=json.loads(tests.read_text())
     if result['status']!='passed' or result['ranks']!=4 or set(result['cases'])!={'candidate','checked','candidate-oracle'}:
         raise ValueError('Require three real source-bound diagnostic replays')
-    if checks['status']!='passed' or checks['workflow_tests']!=9 or checks['contract_tests']!=6:
+    if checks['status']!='passed' or checks['workflow_tests']!=10 or checks['contract_tests']!=6 or checks['recovery_tests']!=4:
         raise ValueError('Require workflow and contract test evidence')
     if result['source_manifest_sha256']!=sha(kit/'source-files.json'):raise ValueError('Tested source differs')
     bp=validation.parent/'builds.json';builds=json.loads(bp.read_text())
@@ -32,7 +32,7 @@ def seal(kit,validation,tests):
         row['contract_file_sha256']={p.name:sha(p) for p in sorted(directory.glob('ownership274-rank-*.txt'))}
     here=Path(__file__).resolve().parent
     for p in here.iterdir():
-        if p.is_file() and p.suffix in ('.py','.sh','.sbatch','.md','.f90'):shutil.copy2(p,kit/p.name)
+        if p.is_file() and p.suffix in ('.py','.sh','.sbatch','.md','.f90','.json'):shutil.copy2(p,kit/p.name)
     if (kit/'repeat.sh').exists():raise ValueError('No repeat launcher allowed')
     for name,expected in checks['tested_source_sha256'].items():
         if sha(kit/name)!=expected:raise ValueError('Tested helper changed: '+name)

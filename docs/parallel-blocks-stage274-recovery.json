@@ -1,0 +1,101 @@
+{
+  "stage": 274,
+  "revision": 2,
+  "status": "locally-validated-recovery-ready-cluster-pending",
+  "preparation_parent_commit": "42b644853f1c837e63b1891fc941520e710cae5e",
+  "reported_failure": "ValueError('Duplicate Domain snapshot')",
+  "cause": "Exporter sample counters are local to each observing rank; reader incorrectly required globally unique (Domain, ordinal).",
+  "fix": "Use (observing rank, Domain, ordinal); retain generation and all cross-rank observations; distinguish unique Domain coverage from observation counts.",
+  "solver_source_changed": false,
+  "original_v1_preserved": true,
+  "recovery": {
+    "original_results_preserved": true,
+    "builds_reused": 4,
+    "completed_solver_runs_revalidated": 3,
+    "remaining_solver_runs": 5,
+    "science_gates_unchanged": true,
+    "prior_and_recovery_accounting_recorded": true,
+    "estimated_minutes_after_allocation": [
+      6,
+      12
+    ],
+    "estimate_not_measured": true
+  },
+  "source_reference": {
+    "v1_manifest_sha256": "ef9083d1723017e4dc66fcc68a9d7dd03f4f4590944a8bce19c991c2182d7ddc",
+    "source_manifest_sha256": "ad22f245ff2a34fa0b5c8391286e53114ab25a949252fbb52d625e122e5ea43d",
+    "v1_archive_sha256": "fe5408e61b9ffa8e6c5d8d0179d2e882e9ea21911c48916ab8059ef9fbeb6c8f",
+    "supported_failure": "ValueError('Duplicate Domain snapshot')",
+    "solver_source_changed": false
+  },
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage274-validation/rk274-ownership-contract-kit-v2.tar.gz",
+    "sha256": "8498e39330052bd3cbc7e6456c56e88282aa2fcbba990d3244fc14b204d34c74",
+    "bytes": 19842940,
+    "files": 53,
+    "source_manifest_sha256": "ad22f245ff2a34fa0b5c8391286e53114ab25a949252fbb52d625e122e5ea43d",
+    "local_validation_sha256": "55b7d68a86cc1113922d0368fd18579774ef32b5e63cc6e2f78ee20b2a7d117d",
+    "test_validation_sha256": "48de62d89c7bc81b45f3e1401321d6250d1e3a51b25cbc7af45462a20dfad8ff"
+  },
+  "tests": {
+    "status": "passed",
+    "workflow_tests": 10,
+    "contract_tests": 6,
+    "recovery_tests": 4,
+    "test_log_sha256": "f161b03811845b51e7bf41b5941110a06cc65f5db8a6f7328631ed2caf0155b5",
+    "tested_source_sha256": {
+      "README.md": "12e735b7e6551b6fc3c44114d40ddcba56d1f0699f3eea1dd07d763db4091adb",
+      "RECOVERY_SOURCE.json": "0a1be83bc309bcc40b9422f436b26811373a1d8354c83f31ac950e159e0102b7",
+      "accounting.py": "a5d964e72a491ea5f7c360d2b0e100e22b6983649ecd9d95fb699dadd8911318",
+      "build.py": "f8d60b949ca0b42f3a9f739caca2a12bcebbf422ac67700fa979d397b12664f2",
+      "collect.sh": "4f47bd66bccba77e7b4540afafdb3bc42708cd9928cb1c08e891e38ff14df97b",
+      "common.py": "22c755728f10972867746d526551637e4618ac49853447608cdc66052823ccbc",
+      "contract.py": "7a4c588cd5fcf3587dd304e7896c1aef2c96c47f9aa278b5c9f8563c76cc02da",
+      "control.py": "83fde8231f5d42d71b21eee780979fdd28f4ec007518ed573e38b1c93491138e",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "export.f90": "ed94fdae735ee9e42723855445a9d7899ae809da541c53c9a2defbc42e71c228",
+      "instrument.py": "409fb51696982a8a6170ff7a2fe9e9d80325c187e359609e16f7fe1a65fc14d5",
+      "launch.sh": "b3ab9adfb54c2b590468e2df8ece0d87e512be5676463b02267ec37184699a27",
+      "local_verify.py": "10fcd15e24730ac5af3802f143ac474bd1a9e67adb125181323c8eb4d18b2b39",
+      "placement_274.py": "3bcb11f81fbb124ea0083db1bc07e47d98623f15747c50e484f25a1a93c557dd",
+      "prepare.py": "a2b6e9a1cd918639be3526e6f90d68a8884aa4d8c6211b0cce0e384c7a3efcf3",
+      "recover.sh": "f2df8f497a0a9c8b470b2f1f140242060a0a0b418d704f6fd321b62b891f5194",
+      "recovery.py": "0c40b4f553e1b2c6f5ba63a34e4fe1336145c9a757c3f0fabfc906d42f6cb6d6",
+      "recovery.sbatch": "e83a6aa7ed6897aff15ebb5b36a59247099483a4838897d4ff8cefe663abfa09",
+      "review.py": "57d15ceb4b8445792c1ede63a0a6d860bad5a34146481ebbf8e9a408ac3ad1fc",
+      "run.py": "fcb7439b9b44e51c1a046cd3172222e767e8a449b8540e5a938b0fb9f5f5916b",
+      "seal.py": "c40a06f58f920f9fc390e5aa88d792f613073acf973eefb90cee881109132d72",
+      "status.sh": "b8d09f89016519672e1afd960e06f34e00644fd56cc89f038ebb22710cd8cb33",
+      "test_contract.py": "7bd6583619f5c99192c8f1b950cd4aa12d05a9472ba773b7740bc713838e773e",
+      "test_recovery.py": "ff519ba7e39c2cf9585ffd6cd68c1fc4ee84d847fb6da0cfb6f2722fa18faea6",
+      "test_workflow.py": "47f5c02fef5902f83e4266331216846beb2ba8b49a2df6801d240cdd76e0a1d7",
+      "timing.sbatch": "fc0f0a1b36018cccdf76db96466601864289e14f521840136e31dd1dea229380"
+    },
+    "local_raw_plan_reprocessing": {
+      "cases": 3,
+      "plans": 360,
+      "original_scientific_evidence_preserved": true,
+      "original_validation_sha256": "4f8036be0cded7470e74d698d9ec2e448fc79a03d91ed301a74066b74c180e84",
+      "budgets_unchanged_on_nonmigrating_local_fixture": true
+    }
+  },
+  "fresh_delivery": {
+    "status": "passed",
+    "sealed_files": 53,
+    "source_members_verified": true,
+    "overlay_reproduced_exactly": true,
+    "stage273_excluded": true,
+    "helper_imports_and_shell_syntax": true,
+    "macos_xattr_headers": false,
+    "delivered_workflow_tests": 10,
+    "delivered_contract_tests": 6,
+    "delivered_recovery_tests": 4,
+    "source_manifest_sha256": "ad22f245ff2a34fa0b5c8391286e53114ab25a949252fbb52d625e122e5ea43d"
+  },
+  "limitations": [
+    "Original failed J5 raw plans have not been transferred locally; the reported traceback and exporter/reader source establish the invalid uniqueness assumption.",
+    "Recovery preflight verifies the actual cluster files before reuse; local recovery execution is tested with mocked Slurm/solver calls.",
+    "No new Fortran or numerical execution changes; existing optimized/checked/oracle evidence retained and real raw plans reparsed.",
+    "Rank-local observation totals are not synchronized global mesh/work censuses or performance measurements."
+  ]
+}

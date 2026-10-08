@@ -133,7 +133,13 @@ class Workflow(unittest.TestCase):
                 control.collect(state)
                 self.assertEqual(sum(c[0] == 'scp' for c in calls), 2)
 
-    def test_runner_reaches_all_twenty_runs(self):
+    def test_runner_reaches_all_eight_runs(self):
+        self._runner_case(False)
+
+    def test_recovery_revalidates_three_runs_and_executes_only_five(self):
+        self._runner_case(True)
+
+    def _runner_case(self,recover):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             kit, fixture, out = root / 'kit', root / 'fixture', root / 'results'
@@ -200,7 +206,7 @@ class Workflow(unittest.TestCase):
                  patch.object(runner.shutil, 'which', return_value='/stub'), \
                  patch.object(runner, 'build', side_effect=fake_build) as builds, \
                  patch.object(runner, 'topology', return_value=top), \
-                 patch.object(runner.subprocess, 'run', side_effect=invoke), \
+                 patch.object(runner.subprocess, 'run', side_effect=invoke) as launched, \
                  patch.object(runner, 'sha', side_effect=fake_sha), \
                  patch.object(runner, 'J5_HASHES', {'simple.in':common.sha(fixture/'simple.in'),
                      'test_checkpoint_0003.bin.zst':common.sha(fixture/'test_checkpoint_0003.bin.zst'),
@@ -219,16 +225,39 @@ class Workflow(unittest.TestCase):
                 self.assertFalse(initial['comparison']['automatic_promotion'])
                 with self.assertRaises(ValueError):runner.run(kit, fixture, out, repeat=True)
                 self.assertEqual(builds.call_count,1)
+                if recover:
+                    import recovery,accounting,copy
+                    failed=copy.deepcopy(initial)
+                    failed.update(status='failed',error=recovery.EXPECTED_ERROR)
+                    failed['schedule']=failed['schedule'][:3]
+                    failed['runs']={k:failed['runs'][k] for k in failed['schedule']}
+                    common.save(out/'results.json',failed)
+                    record=dict(previous=str(out),notes=failed['builds'],result=failed,labels=failed['schedule'],
+                        results_sha256=common.sha(out/'results.json'),builds_sha256=common.sha(out/'builds.json'))
+                    common.save(kit/'RECOVERY_SOURCE.json',dict(v1_manifest_sha256=failed['kit_manifest_sha256']))
+                    calls_before=launched.call_count
+                    restored=root/'restored'
+                    unavailable=dict(returncode=1,stdout='',job=None)
+                    with patch.object(recovery,'load_recovery',return_value=record), \
+                         patch.object(accounting,'capture',return_value=unavailable), \
+                         patch.dict(os.environ,{'SLURM_JOB_ID':'12346'}):
+                        runner.run(kit,fixture,restored,recovery=out)
+                    self.assertEqual(builds.call_count,1)
+                    self.assertEqual(launched.call_count-calls_before,9)
+                    self.assertEqual(common.sha(out/'results.json'),record['results_sha256'])
+                    out=restored
+                    recovered=json.loads((out/'results.json').read_text())
+                    self.assertEqual(sum('reused_from_job' in r for r in recovered['runs'].values()),3)
             result = json.loads((out / 'results.json').read_text())
             self.assertEqual(result['status'],'complete')
             self.assertEqual([(r['ranks'],r['kind']) for r in result['runs'].values() if r['phase']=='timing'],list(common.ORDER))
             self.assertEqual([(r['ranks'],r['kind'],r['oracle']) for r in result['runs'].values() if r['phase']=='validation'],list(common.VALIDATIONS))
             self.assertGreater(result['elapsed_seconds'],0)
             import review as reviewer
-            state=dict(job=12345,kit=str(kit),out=str(out),log=str(root/'slurm.log'))
+            state=dict(job=int(result['job_id']),kit=str(kit),out=str(out),log=str(root/'slurm.log'))
             with patch.object(Path,'home',return_value=root),patch.object(control,'queued',return_value=False),patch.object(control.subprocess,'run',return_value=subprocess.CompletedProcess([],0,'','')):
                 control.collect(state)
-            archive=root/'rk274-review-12345.tar.gz'
+            archive=root/f'rk274-review-{result["job_id"]}.tar.gz'
             with patch.object(reviewer,'J5_HASHES',result['input_hashes']), \
                  patch.object(reviewer,'analyze',return_value=dict(completed=True,step_records=[dict(state=str(i)) for i in range(12)])), \
                  patch.object(reviewer,'accept',return_value=[]), \

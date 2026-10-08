@@ -106,7 +106,7 @@ def collect(state):
                 shutil.copy2(log, review / 'slurm.log')
             kit = Path(state['kit'])
             (review / 'kit').mkdir()
-            for name in ('IDENTITY.json', 'source-files.json', 'files-sha256.json', 'LOCAL_VALIDATION.json'):
+            for name in ('IDENTITY.json', 'source-files.json', 'files-sha256.json', 'LOCAL_VALIDATION.json', 'RECOVERY_SOURCE.json'):
                 if (kit / name).exists():
                     shutil.copy2(kit / name, review / 'kit' / name)
             out = Path(state['out'])

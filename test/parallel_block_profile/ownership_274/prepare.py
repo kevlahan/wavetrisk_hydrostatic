@@ -45,9 +45,9 @@ def prepare(repo,anchor,destination):
     for p in anchor.iterdir():
         if p.is_file() and p.suffix in ('.py','.sh') and p.name!='repeat.sh':shutil.copy2(p,destination/p.name)
     for p in HERE.iterdir():
-        if p.is_file() and p.suffix in ('.py','.sh','.sbatch','.md','.f90'):shutil.copy2(p,destination/p.name)
+        if p.is_file() and p.suffix in ('.py','.sh','.sbatch','.md','.f90','.json'):shutil.copy2(p,destination/p.name)
     for name in ('grids','fixture-J4'):shutil.copytree(anchor/name,destination/name)
-    identity.update(stage=274,revision='ownership-contract',stage266_commit=BASELINE,changed_source=changed,
+    identity.update(stage=274,revision='ownership-contract',analysis_schema_version=2,stage266_commit=BASELINE,changed_source=changed,
                     anchor_manifest_sha256=sha(anchor/'files-sha256.json'),
                     scope='Diagnostic-only sampled native velocity plans on accepted Stage266; source/restriction/gradient dependency and ownership budget. No production numerical replacement or speedup claim.')
     identity.pop('stage265t_commit',None)

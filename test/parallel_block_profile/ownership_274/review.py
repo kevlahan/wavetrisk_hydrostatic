@@ -41,8 +41,35 @@ def read_runtime(root, result):
     if parsed != account['job']:raise ValueError('Accounting report differs from raw output')
     if result.get('elapsed_seconds',0)<=0 or not result.get('started_utc') or not result.get('ended_utc'):
         raise ValueError('Missing campaign elapsed time')
+    previous=None
+    if 'recovery' in result:
+        recovery=result['recovery'];out=root/'results'
+        original=json.loads((out/'recovery-source-results.json').read_text())
+        builds=json.loads((out/'recovery-source-builds.json').read_text())
+        source=json.loads((root/'kit/RECOVERY_SOURCE.json').read_text())
+        if (sha(out/'recovery-source-results.json')!=recovery['previous_results_sha256'] or
+                sha(out/'recovery-source-builds.json')!=recovery['previous_builds_sha256'] or
+                original.get('status')!='failed' or original.get('error')!="ValueError('Duplicate Domain snapshot')" or
+                original['kit_manifest_sha256']!=source['v1_manifest_sha256'] or
+                str(original['job_id'])!=str(recovery['previous_job']) or original['builds']!=builds):
+            raise ValueError('Recovery provenance differs')
+        reused=[name for name,row in result['runs'].items() if 'reused_from_job' in row]
+        if reused!=recovery['reused_solver_runs'] or reused!=original['schedule']:
+            raise ValueError('Recovered solver schedule differs')
+        for name in reused:
+            if str(result['runs'][name]['reused_from_job'])!=str(original['job_id']):
+                raise ValueError('Reused solver job differs')
+        for kind,row in result['builds']['builds'].items():
+            if row['binary_sha256']!=builds['builds'][kind]['binary_sha256']:
+                raise ValueError('Recovered build identity differs')
+        old=recovery['previous_accounting']
+        old_parsed=parse_accounting(old['stdout'],str(original['job_id'])) if old['returncode']==0 else None
+        if old_parsed!=old['job']:raise ValueError('Previous accounting differs from raw output')
+        previous=dict(job_id=original['job_id'],slurm=old_parsed,
+                      runner_elapsed_seconds=original.get('elapsed_seconds'),
+                      reused_builds=4,reused_solver_runs=len(reused))
     return dict(slurm=parsed,campaign_started_utc=result['started_utc'],campaign_ended_utc=result['ended_utc'],
-                campaign_elapsed_seconds=result['elapsed_seconds'],
+                campaign_elapsed_seconds=result['elapsed_seconds'],previous_attempt=previous,
                 limitation='Slurm elapsed includes batch setup; runner elapsed begins before preflight. Queue and collection/transfer excluded. Accounting can be unavailable; no timestamp inference.')
 
 

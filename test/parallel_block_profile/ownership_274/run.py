@@ -20,7 +20,7 @@ from evidence import publication_evidence
 from contract import evidence as contract_evidence
 
 
-def run(kit, fixture, out, repeat=False):
+def run(kit, fixture, out, repeat=False, recovery=None):
     if repeat: raise ValueError('No scripted repeat for diagnostic campaign')
     kit, fixture, out = map(Path, (kit, fixture, out))
     kit, fixture, out = kit.resolve(strict=True), fixture.resolve(strict=True), out.resolve()
@@ -37,16 +37,30 @@ def run(kit, fixture, out, repeat=False):
         if not shutil.which(command):
             raise ValueError('Missing dependency: ' + command)
     removed = {key: os.environ.pop(key) for key in STEP_RESTRICTIONS if key in os.environ}
+    prior=None
+    if recovery is not None:
+        from recovery import load_recovery
+        prior=load_recovery(kit,recovery)
     out.mkdir()
     result = dict(status='running', stage=274, revision='ownership-contract', identity=identity, job_id=os.environ['SLURM_JOB_ID'],
                   kit_manifest_sha256=sha(kit / 'files-sha256.json'), removed_step_restrictions=removed,
                   repeat_used=False, schedule=[], runs={}, gates={}, started_utc=started_utc)
+    if prior is not None:
+        from accounting import capture
+        result['recovery']=dict(previous_job=prior['result']['job_id'],previous_results_sha256=prior['results_sha256'],
+            previous_builds_sha256=prior['builds_sha256'],reused_solver_runs=prior['labels'],
+            previous_accounting=capture(prior['result']['job_id']),
+            previous_runner_elapsed_seconds=prior['result'].get('elapsed_seconds'))
     def persist():
         result['elapsed_seconds'] = time.monotonic() - started
         save(out / 'results.json', result)
     persist()
     try:
-        notes = build(kit,out)
+        if prior is None:
+            notes = build(kit,out)
+        else:
+            from recovery import reuse_builds
+            notes = reuse_builds(kit,out,prior)
         result['builds'] = notes
         top = topology()
         cases = plan(top)
@@ -82,26 +96,37 @@ def run(kit, fixture, out, repeat=False):
             catalogue = phase=='validation' and kind in ('candidate','checked')
             label = f'J5-n{n}-{phase}-{suffix}-{kind}'
             directory = out / label
-            directory.mkdir()
-            for name in ('simple.in', 'test_checkpoint_0003.bin.zst'):
-                shutil.copy2(inputs / name, directory / name)
-            shutil.copytree(inputs / 'grids', directory / 'grids')
+            reuse = prior is not None and label in prior['labels']
             record = notes['builds'][kind]
             binary = out / record['binary']
             if sha(binary) != record['binary_sha256']:
                 raise ValueError('Binary changed: ' + kind)
-            shutil.copy2(binary, directory / 'climate')
+            if reuse:
+                shutil.copytree(Path(prior['previous'])/label,directory)
+                if sha(directory/'climate')!=record['binary_sha256']:
+                    raise ValueError('Reused solver binary differs')
+            else:
+                directory.mkdir()
+                for name in ('simple.in', 'test_checkpoint_0003.bin.zst'):
+                    shutil.copy2(inputs / name, directory / name)
+                shutil.copytree(inputs / 'grids', directory / 'grids')
+                shutil.copy2(binary, directory / 'climate')
             result['active'] = label
             result['schedule'].append(label)
             persist()
-            print('Starting ' + label, flush=True)
-            command = launch(kit, out, n, directory, './climate', 'simple.in')
-            with (directory / 'run.log').open('x') as log:
-                code = subprocess.run(command, cwd=directory, env=runtime(oracle,catalogue=catalogue),
-                                      stdout=log, stderr=subprocess.STDOUT).returncode
+            if reuse:
+                print('Revalidating completed solver output: '+label,flush=True)
+                code=0
+            else:
+                print('Starting ' + label, flush=True)
+                command = launch(kit, out, n, directory, './climate', 'simple.in')
+                with (directory / 'run.log').open('x') as log:
+                    code = subprocess.run(command, cwd=directory, env=runtime(oracle,catalogue=catalogue),
+                                          stdout=log, stderr=subprocess.STDOUT).returncode
             row = dict(kind=kind, family=family, ranks=n, phase=phase, oracle=oracle, catalogue=catalogue,
                        returncode=code, binary_sha256=sha(directory / 'climate'),
                        input_sha256=sha(directory / 'simple.in'))
+            if reuse:row['reused_from_job']=prior['result']['job_id']
             result['runs'][label] = row
             persist()
             if code or row['binary_sha256'] != record['binary_sha256']:
@@ -189,5 +214,5 @@ def launch(kit, out, n, *args):
 
 
 if __name__ == '__main__':
-    if len(sys.argv)!=4:raise SystemExit('Usage: run.py KIT J5_FIXTURE RESULTS')
-    run(*sys.argv[1:])
+    if len(sys.argv) not in (4,5):raise SystemExit('Usage: run.py KIT J5_FIXTURE RESULTS [PREVIOUS_RESULTS]')
+    run(*sys.argv[1:4],recovery=sys.argv[4] if len(sys.argv)==5 else None)

@@ -142,6 +142,7 @@ def compile_snapshot(snapshot,domain_owner,ranks):
                     hypothetical_upstream_block_producer_remote_bytes=8*remote_fused,
                     unresolved_adapter_input_values=adapter_values,upstream_block_peer_pairs=len(peers))
     return dict(domain=snapshot['domain'],sample=snapshot['sample'],generation=snapshot['generation'],
+        observing_rank=domain_owner,
         counts=dict(counts),target_work=[dict(rank=r,kind=k,count=n) for (r,k),n in sorted(target_work.items())],
         unmapped_target_adapter_work=dict(adapters),source_input_budget=volume(inputs),gradient_input_budget=volume(gradient_inputs),
         restriction_source_reads=source_reads,restriction_remote_versioned_values=len(restriction_routes),
@@ -159,24 +160,28 @@ def evidence(directory,ranks,enabled,domains=160):
         return dict(enabled=False)
     if len(files)!=ranks:raise ValueError('Missing rank plan evidence')
     plans=[read_plan(p) for p in files]
+    if any(p.name!=f'ownership274-rank-{plan["rank"]}.txt' for p,plan in zip(files,plans)):
+        raise ValueError('Rank filename/header differs')
+    if len({p['layers'] for p in plans})!=1:raise ValueError('Layer count differs across ranks')
     if {p['rank'] for p in plans}!=set(range(ranks)) or any(p['ranks']!=ranks or p['domains']!=domains for p in plans):
         raise ValueError('Rank/domain identity differs')
-    seen=set();compiled=[];samples=Counter()
+    seen=set();compiled=[];samples=Counter();observed_domains=set();domain_ranks=defaultdict(set)
     for plan in plans:
         for s in plan['snapshots']:
-            key=(s['domain'],s['sample'])
-            if key in seen:raise ValueError('Duplicate Domain snapshot')
+            key=(plan['rank'],s['domain'],s['sample'])
+            if key in seen:raise ValueError('Duplicate rank-local Domain snapshot')
             seen.add(key);samples[s['sample']]+=1
+            observed_domains.add(s['domain']);domain_ranks[s['domain']].add(plan['rank'])
             compiled.append(compile_snapshot(s,plan['rank'],ranks))
-    if samples[1]!=domains:raise ValueError('Incomplete initial Domain coverage')
-    compiled.sort(key=lambda x:(x['sample'],x['domain']))
+    if observed_domains!=set(range(domains)):raise ValueError('Incomplete Domain coverage')
+    compiled.sort(key=lambda x:(x['sample'],x['domain'],x['observing_rank']))
     aggregate={}
     for sample in sorted(samples):
         rows=[c for c in compiled if c['sample']==sample];counts=Counter();work=Counter()
         for c in rows:
             counts.update(c['counts'])
             for x in c['target_work']:work[(x['rank'],x['kind'])]+=x['count']
-        aggregate[str(sample)]=dict(domains=len(rows),counts=dict(counts),
+        aggregate[str(sample)]=dict(domains=len({c['domain'] for c in rows}),observations=len(rows),counts=dict(counts),
             work_by_rank=[dict(rank=r,direct=work[(r,'direct')],restriction=work[(r,'restriction')],gradient=work[(r,'gradient')]) for r in range(ranks)],
             same_level_cross_owner_dependencies=sum(c['same_level_cross_owner_dependencies'] for c in rows),
             unresolved_source_reads=sum(c['unresolved_source_reads'] for c in rows),
@@ -185,5 +190,7 @@ def evidence(directory,ranks,enabled,domains=160):
             gradient_input_budget={k:sum(c['gradient_input_budget'][k] for c in rows) for k in rows[0]['gradient_input_budget']},
             unmapped_target_adapter_work=dict(sum((Counter(c['unmapped_target_adapter_work']) for c in rows),Counter())))
     return dict(enabled=True,rank_files=ranks,domains=domains,sampled_plans=len(compiled),by_sample=aggregate,plans=compiled,
+        schema_version=2,domains_observed_on_multiple_ranks={str(d):sorted(rs) for d,rs in sorted(domain_ranks.items()) if len(rs)>1},
+        aggregation='Sums of rank-local observations, including repeated Domain observations after ownership changes; not a global mesh census.',
         performance_qualified=False,production_ready=False,
-        scope='First three actual plan builds per Domain; per-layer structural counts, not RK call-weighted totals. Sample ordinals across Domains need not be simultaneous. Full kernel argument packing is conservative. Boundary aliases remain Domain-local identities; hypothetical upstream ownership is conditional, not an implemented producer. No timing or speedup inference.')
+        scope='First three actual plan builds per Domain per observing rank; per-layer structural counts, not RK call-weighted totals. Rank-local sample ordinals and generations do not establish simultaneous global epochs. Repeated Domain observations on different ranks are retained, not deduplicated. Full kernel argument packing is conservative. Boundary aliases remain Domain-local identities; hypothetical upstream ownership is conditional, not an implemented producer. No timing or speedup inference.')

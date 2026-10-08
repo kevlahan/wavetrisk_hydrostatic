@@ -72,11 +72,20 @@ class Contract(unittest.TestCase):
             TEXT.removesuffix('END\n'),TEXT.replace(' 1 0 0\nGRADIENTS',' 2 0 0\nGRADIENTS')]
         for value in variants:
             with self.subTest(value=value[-80:]),self.assertRaises((ValueError,StopIteration)):self.parse(value)
-    def test_duplicate_domain_snapshot_is_rejected(self):
+    def test_rank_local_samples_survive_domain_migration(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);(root/'ownership274-rank-0.txt').write_text(TEXT)
             (root/'ownership274-rank-1.txt').write_text(TEXT.replace('RANK 0','RANK 1'))
             for r in (2,3):(root/f'ownership274-rank-{r}.txt').write_text(f'RANK {r} 4 1 2\n')
+            result=evidence(root,4,True,domains=1)
+            self.assertEqual(result['domains_observed_on_multiple_ranks'],{'0':[0,1]})
+            self.assertEqual(result['sampled_plans'],2)
+            self.assertEqual(result['by_sample']['1']['domains'],1)
+            self.assertEqual(result['by_sample']['1']['observations'],2)
+            self.assertEqual([p['observing_rank'] for p in result['plans']],[0,1])
+            self.assertNotEqual(result['plans'][0]['gradient_input_budget'],result['plans'][1]['gradient_input_budget'])
+            # Duplicate local ordinals remain corruption, even at the same generation.
+            (root/'ownership274-rank-1.txt').write_text(TEXT.replace('RANK 0','RANK 1')+'SNAP'+TEXT.split('SNAP',1)[1])
             with self.assertRaises(ValueError):evidence(root,4,True,domains=1)
 
 if __name__=='__main__':unittest.main()

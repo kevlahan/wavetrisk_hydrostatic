@@ -1,0 +1,7 @@
+{
+  "v1_manifest_sha256": "ef9083d1723017e4dc66fcc68a9d7dd03f4f4590944a8bce19c991c2182d7ddc",
+  "source_manifest_sha256": "ad22f245ff2a34fa0b5c8391286e53114ab25a949252fbb52d625e122e5ea43d",
+  "v1_archive_sha256": "fe5408e61b9ffa8e6c5d8d0179d2e882e9ea21911c48916ab8059ef9fbeb6c8f",
+  "supported_failure": "ValueError('Duplicate Domain snapshot')",
+  "solver_source_changed": false
+}
