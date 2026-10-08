@@ -1,0 +1,485 @@
+{
+  "stage": 272,
+  "job_id": 55471,
+  "status": "reviewed-correctness-passed-timing-attribution-unqualified",
+  "archive_sha256": "7c103ed35cce3e39b9387d1dda53bd741e8b8b5c3ee397628c7f6661d3d2ece8",
+  "verified_files": 5257,
+  "delivered_manifests_match": true,
+  "runtime": {
+    "slurm": {
+      "job_id": "55471",
+      "state": "COMPLETED",
+      "start": "2026-10-08T12:29:35",
+      "end": "2026-10-08T12:48:27",
+      "elapsed_seconds": 1132,
+      "elapsed": "00:18:52"
+    },
+    "campaign_started_utc": "2026-10-08T16:29:35.556240+00:00",
+    "campaign_ended_utc": "2026-10-08T16:48:27.231065+00:00",
+    "campaign_elapsed_seconds": 1131.67485022638,
+    "limitation": "Slurm elapsed includes batch setup; runner elapsed begins before preflight. Queue and collection/transfer excluded. Accounting can be unavailable; no timestamp inference."
+  },
+  "science": {
+    "solver_runs": 14,
+    "serial_builds": 4,
+    "physics_objects": 23,
+    "all_science_storage_placement_gates_passed": true,
+    "oracle_ranks": [
+      16,
+      256
+    ],
+    "inverse_proofs_per_oracle": 48,
+    "installations_per_oracle": 84
+  },
+  "timing_runs": [
+    {
+      "label": "J5-n160-timing-1-stage266",
+      "ranks": 160,
+      "observer": false,
+      "ordinary_median_seconds": 0.547281545
+    },
+    {
+      "label": "J5-n160-timing-2-candidate",
+      "ranks": 160,
+      "observer": true,
+      "ordinary_median_seconds": 0.556262846
+    },
+    {
+      "label": "J5-n256-timing-3-stage266",
+      "ranks": 256,
+      "observer": false,
+      "ordinary_median_seconds": 0.588490243
+    },
+    {
+      "label": "J5-n256-timing-4-candidate",
+      "ranks": 256,
+      "observer": true,
+      "ordinary_median_seconds": 0.591784271
+    },
+    {
+      "label": "J5-n256-timing-5-candidate",
+      "ranks": 256,
+      "observer": true,
+      "ordinary_median_seconds": 0.596319846
+    },
+    {
+      "label": "J5-n256-timing-6-stage266",
+      "ranks": 256,
+      "observer": false,
+      "ordinary_median_seconds": 0.600595019
+    },
+    {
+      "label": "J5-n160-timing-7-candidate",
+      "ranks": 160,
+      "observer": true,
+      "ordinary_median_seconds": 0.557783833
+    },
+    {
+      "label": "J5-n160-timing-8-stage266",
+      "ranks": 160,
+      "observer": false,
+      "ordinary_median_seconds": 0.547732978
+    }
+  ],
+  "calibration": {
+    "160": {
+      "status": "observer_costs_unqualified",
+      "control_seconds": 0.5475072615000001,
+      "observer_seconds": 0.5570233394999999,
+      "shift_seconds": 0.009516077999999872,
+      "paired_shifts_seconds": [
+        0.008981300999999942,
+        0.010050855000000025
+      ],
+      "limits_seconds": {
+        "mean": 0.005475072615000001,
+        "pair": 0.010950145230000001,
+        "spread": 0.010950145230000001
+      },
+      "control_spread_seconds": 0.00045143299999994557,
+      "observer_spread_seconds": 0.0015209870000000292,
+      "scope": "Two independent runs per binary; compatibility does not prove each small scope unbiased."
+    },
+    "256": {
+      "status": "observer_costs_unqualified",
+      "control_seconds": 0.5945426309999999,
+      "observer_seconds": 0.5940520585,
+      "shift_seconds": -0.0004905724999999528,
+      "paired_shifts_seconds": [
+        0.0032940280000000044,
+        -0.004275173000000021
+      ],
+      "limits_seconds": {
+        "mean": 0.00594542631,
+        "pair": 0.01189085262,
+        "spread": 0.01189085262
+      },
+      "control_spread_seconds": 0.01210477600000004,
+      "observer_spread_seconds": 0.004535575000000014,
+      "scope": "Two independent runs per binary; compatibility does not prove each small scope unbiased."
+    }
+  },
+  "control_seconds": {
+    "160": 0.5475072615000001,
+    "256": 0.5945426309999999
+  },
+  "scaling": {
+    "slowdown_seconds": 0.04703536949999987,
+    "slowdown_percent": 8.590821128314818,
+    "speedup": 0.9208881465389823,
+    "relative_efficiency": 0.5755550915868639
+  },
+  "ownership": {
+    "160": [
+      {
+        "label": "J5-n160-timing-2-candidate",
+        "groups": {
+          "Domain_owners": {
+            "rank_step_samples": 1440,
+            "ranks_per_ordinary_step": 160,
+            "mean_blocks_per_stage": 4.0,
+            "mean_block_patches_per_stage": 16.59236111111111,
+            "share_of_blocks": 1.0,
+            "share_of_block_patches": 1.0,
+            "share_of_divergence_replay": 1.0,
+            "share_of_producer_patch_visits": 1.0,
+            "integer_totals": {
+              "rank_steps": 1440,
+              "domain_samples": 5760,
+              "block_samples": 23040,
+              "domain_patch_samples": 95572,
+              "block_patch_samples": 95572,
+              "producer_patch_layer_visits": 2867160,
+              "restriction_parents": 20432,
+              "restriction_edges": 5651160,
+              "divergence_values": 45874560
+            }
+          },
+          "without_Domains": {
+            "rank_step_samples": 0,
+            "ranks_per_ordinary_step": 0,
+            "mean_blocks_per_stage": null,
+            "mean_block_patches_per_stage": null,
+            "share_of_blocks": 0.0,
+            "share_of_block_patches": 0.0,
+            "share_of_divergence_replay": 0.0,
+            "share_of_producer_patch_visits": 0.0,
+            "integer_totals": {}
+          }
+        },
+        "mean_scope_entries_per_rank_step": 3156.8347222222224,
+        "unqualified_capture_mpi_mean_seconds": {
+          "Domain_owners": {
+            "mean": 0.0020920033382329467,
+            "minimum": 4.6199653297662735e-05,
+            "median": 0.0019063004292547703,
+            "p90": 0.0032552676275372505,
+            "maximum": 0.008626275695860386
+          },
+          "without_Domains": null
+        }
+      },
+      {
+        "label": "J5-n160-timing-7-candidate",
+        "groups": {
+          "Domain_owners": {
+            "rank_step_samples": 1440,
+            "ranks_per_ordinary_step": 160,
+            "mean_blocks_per_stage": 4.0,
+            "mean_block_patches_per_stage": 16.59236111111111,
+            "share_of_blocks": 1.0,
+            "share_of_block_patches": 1.0,
+            "share_of_divergence_replay": 1.0,
+            "share_of_producer_patch_visits": 1.0,
+            "integer_totals": {
+              "rank_steps": 1440,
+              "domain_samples": 5760,
+              "block_samples": 23040,
+              "domain_patch_samples": 95572,
+              "block_patch_samples": 95572,
+              "producer_patch_layer_visits": 2867160,
+              "restriction_parents": 20432,
+              "restriction_edges": 5651160,
+              "divergence_values": 45874560
+            }
+          },
+          "without_Domains": {
+            "rank_step_samples": 0,
+            "ranks_per_ordinary_step": 0,
+            "mean_blocks_per_stage": null,
+            "mean_block_patches_per_stage": null,
+            "share_of_blocks": 0.0,
+            "share_of_block_patches": 0.0,
+            "share_of_divergence_replay": 0.0,
+            "share_of_producer_patch_visits": 0.0,
+            "integer_totals": {}
+          }
+        },
+        "mean_scope_entries_per_rank_step": 3156.8347222222224,
+        "unqualified_capture_mpi_mean_seconds": {
+          "Domain_owners": {
+            "mean": 0.002087928079870633,
+            "minimum": 4.7460198402404785e-05,
+            "median": 0.001961505739018321,
+            "p90": 0.0032444181852042675,
+            "maximum": 0.005670689977705479
+          },
+          "without_Domains": null
+        }
+      }
+    ],
+    "256": [
+      {
+        "label": "J5-n256-timing-4-candidate",
+        "groups": {
+          "Domain_owners": {
+            "rank_step_samples": 1440,
+            "ranks_per_ordinary_step": 160,
+            "mean_blocks_per_stage": 3.3270833333333334,
+            "mean_block_patches_per_stage": 12.810416666666667,
+            "share_of_blocks": 0.8317708333333333,
+            "share_of_block_patches": 0.7720671326329888,
+            "share_of_divergence_replay": 0.7720671326329888,
+            "share_of_producer_patch_visits": 1.0,
+            "integer_totals": {
+              "rank_steps": 1440,
+              "domain_samples": 5760,
+              "block_samples": 19164,
+              "domain_patch_samples": 95572,
+              "block_patch_samples": 73788,
+              "producer_patch_layer_visits": 2867160,
+              "restriction_parents": 15472,
+              "restriction_edges": 4148040,
+              "divergence_values": 35418240
+            }
+          },
+          "without_Domains": {
+            "rank_step_samples": 864,
+            "ranks_per_ordinary_step": 96,
+            "mean_blocks_per_stage": 1.1215277777777777,
+            "mean_block_patches_per_stage": 6.3032407407407405,
+            "share_of_blocks": 0.16822916666666668,
+            "share_of_block_patches": 0.22793286736701127,
+            "share_of_divergence_replay": 0.22793286736701127,
+            "share_of_producer_patch_visits": 0.0,
+            "integer_totals": {
+              "rank_steps": 864,
+              "domain_samples": 0,
+              "block_samples": 3876,
+              "domain_patch_samples": 0,
+              "block_patch_samples": 21784,
+              "producer_patch_layer_visits": 0,
+              "restriction_parents": 4960,
+              "restriction_edges": 1503120,
+              "divergence_values": 10456320
+            }
+          }
+        },
+        "mean_scope_entries_per_rank_step": 2420.8255208333335,
+        "unqualified_capture_mpi_mean_seconds": {
+          "Domain_owners": {
+            "mean": 0.0024256231353825164,
+            "minimum": 0.00023006973788142204,
+            "median": 0.0021912066731601954,
+            "p90": 0.004071402829140425,
+            "maximum": 0.007601241581141949
+          },
+          "without_Domains": {
+            "mean": 0.1527723219354542,
+            "minimum": 0.11759030632674694,
+            "median": 0.15522793540731072,
+            "p90": 0.1754814274609089,
+            "maximum": 0.18165108934044838
+          }
+        }
+      },
+      {
+        "label": "J5-n256-timing-5-candidate",
+        "groups": {
+          "Domain_owners": {
+            "rank_step_samples": 1440,
+            "ranks_per_ordinary_step": 160,
+            "mean_blocks_per_stage": 3.3270833333333334,
+            "mean_block_patches_per_stage": 12.810416666666667,
+            "share_of_blocks": 0.8317708333333333,
+            "share_of_block_patches": 0.7720671326329888,
+            "share_of_divergence_replay": 0.7720671326329888,
+            "share_of_producer_patch_visits": 1.0,
+            "integer_totals": {
+              "rank_steps": 1440,
+              "domain_samples": 5760,
+              "block_samples": 19164,
+              "domain_patch_samples": 95572,
+              "block_patch_samples": 73788,
+              "producer_patch_layer_visits": 2867160,
+              "restriction_parents": 15472,
+              "restriction_edges": 4148040,
+              "divergence_values": 35418240
+            }
+          },
+          "without_Domains": {
+            "rank_step_samples": 864,
+            "ranks_per_ordinary_step": 96,
+            "mean_blocks_per_stage": 1.1215277777777777,
+            "mean_block_patches_per_stage": 6.3032407407407405,
+            "share_of_blocks": 0.16822916666666668,
+            "share_of_block_patches": 0.22793286736701127,
+            "share_of_divergence_replay": 0.22793286736701127,
+            "share_of_producer_patch_visits": 0.0,
+            "integer_totals": {
+              "rank_steps": 864,
+              "domain_samples": 0,
+              "block_samples": 3876,
+              "domain_patch_samples": 0,
+              "block_patch_samples": 21784,
+              "producer_patch_layer_visits": 0,
+              "restriction_parents": 4960,
+              "restriction_edges": 1503120,
+              "divergence_values": 10456320
+            }
+          }
+        },
+        "mean_scope_entries_per_rank_step": 2420.8255208333335,
+        "unqualified_capture_mpi_mean_seconds": {
+          "Domain_owners": {
+            "mean": 0.0023991271840511923,
+            "minimum": 0.00023370236158370972,
+            "median": 0.0021851281635463238,
+            "p90": 0.003974481485784054,
+            "maximum": 0.00811626436188817
+          },
+          "without_Domains": {
+            "mean": 0.1527386910408192,
+            "minimum": 0.11790938954800367,
+            "median": 0.15548080275766551,
+            "p90": 0.17372628720477223,
+            "maximum": 0.17872292501851916
+          }
+        }
+      }
+    ]
+  },
+  "global_work_exact_by_step": true,
+  "ordinary_global_work": {
+    "2": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 10936,
+      "block_patch_samples": 10936,
+      "producer_patch_layer_visits": 328080,
+      "restriction_parents": 2376,
+      "restriction_edges": 601080,
+      "divergence_values": 5249280
+    },
+    "3": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 10976,
+      "block_patch_samples": 10976,
+      "producer_patch_layer_visits": 329280,
+      "restriction_parents": 2384,
+      "restriction_edges": 617040,
+      "divergence_values": 5268480
+    },
+    "4": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 10996,
+      "block_patch_samples": 10996,
+      "producer_patch_layer_visits": 329880,
+      "restriction_parents": 2388,
+      "restriction_edges": 622440,
+      "divergence_values": 5278080
+    },
+    "5": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 11008,
+      "block_patch_samples": 11008,
+      "producer_patch_layer_visits": 330240,
+      "restriction_parents": 2392,
+      "restriction_edges": 623040,
+      "divergence_values": 5283840
+    },
+    "6": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 11072,
+      "block_patch_samples": 11072,
+      "producer_patch_layer_visits": 332160,
+      "restriction_parents": 2408,
+      "restriction_edges": 623640,
+      "divergence_values": 5314560
+    },
+    "7": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 11752,
+      "block_patch_samples": 11752,
+      "producer_patch_layer_visits": 352560,
+      "restriction_parents": 2616,
+      "restriction_edges": 675600,
+      "divergence_values": 5640960
+    },
+    "10": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 8996,
+      "block_patch_samples": 8996,
+      "producer_patch_layer_visits": 269880,
+      "restriction_parents": 1740,
+      "restriction_edges": 622080,
+      "divergence_values": 4318080
+    },
+    "11": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 9140,
+      "block_patch_samples": 9140,
+      "producer_patch_layer_visits": 274200,
+      "restriction_parents": 1784,
+      "restriction_edges": 620760,
+      "divergence_values": 4387200
+    },
+    "12": {
+      "domain_samples": 640,
+      "block_samples": 2560,
+      "domain_patch_samples": 10696,
+      "block_patch_samples": 10696,
+      "producer_patch_layer_visits": 320880,
+      "restriction_parents": 2344,
+      "restriction_edges": 645480,
+      "divergence_values": 5134080
+    }
+  },
+  "source_findings": {
+    "partitioner": "src/parallel_block_mpi.f90:5243-5302; fixed average, increasing-rank next-fit, reserve one block for each remaining rank, relax overload tolerance until all blocks assigned.",
+    "weight": "src/domain.f90:427; descendant leaf patches times PATCH_SIZE**2; no fixed cost per block or retained Domain workload in this proxy.",
+    "partitioner_sha256": "2c5a38a48c6eacb744b8d8039cac04f32b9a93abc1edc3d5a78cd84e71d64521",
+    "weight_source_sha256": "36c0849bcb5149c03585bdc1c198416647fc4552a970c8847d451469e781f241"
+  },
+  "equal_weight_counterexample": {
+    "scope": "Offline execution of the current assignment algorithm with 640 unit-weight blocks, not a reconstruction of the J5 catalogue.",
+    "ranks": 256,
+    "blocks": 640,
+    "attempts": 9,
+    "relaxed_goal": 0.21499084799999996,
+    "loads": {
+      "3": 192,
+      "1": 64
+    },
+    "first160_load": 480,
+    "last96_load": 160,
+    "feasible_balanced_alternative": {
+      "2": 128,
+      "3": 128
+    }
+  },
+  "recommendation": "One isolated block assignment correction using balanced cumulative/remaining-weight cuts while retaining catalogue order and the weight definition initially; validate actual workload distribution and uninstrumented complete-step performance at 83/160/256 before acceptance. Keep full Domain producer/consumer migration as the subsequent architectural target; no promised speedup.",
+  "limitations": [
+    "Both preset timing calibrations failed; retain all failures and do not attribute an exact slowdown or recoverable budget to phase timings.",
+    "Integer counts and exact science are usable despite failed time calibration; block inventory is not an execution-cost model.",
+    "The synthetic partition counterexample proves a design weakness, not the cause or fraction of the measured J5 slowdown.",
+    "One node/trajectory; hardware bandwidth, NUMA, frequency, communication and cross-run variation remain possible contributors."
+  ]
+}

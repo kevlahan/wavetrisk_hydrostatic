@@ -306,3 +306,25 @@ replacement or address measured preparation/communication growth first. MPI
 scope durations combine waiting and transfers; inventories are not executed
 work; no automatic speedup or causal conclusion is claimed. The strategic goal
 remains efficient execution on at least 640 ranks for J5's 160 Domains.
+
+## Stage272 review (job 55471, 2026-10-08)
+
+All fourteen runs pass correctness; runtime is 18:52. Untouched Stage266 averages
+547.507 ms at 160 ranks and 594.543 ms at 256 (+8.591%). Both preset observer
+calibrations fail: +9.516 ms mean overhead at 160; a 12.105 ms control spread at
+256 exceeds its 11.891 ms bound. Phase timing attribution remains unqualified.
+
+Exact counters nevertheless confirm two limitations. Domain producer visits
+remain confined to 160 owners. At 256 ranks, those owners also carry 77.21% of
+block patch/divergence work, leaving the extra 96 ranks 22.79% despite being
+37.5% of ranks. The groups are balanced across sockets. The increasing-rank,
+fixed-target next-fit assignment can front-load work; an equal-weight 640-block,
+256-rank counterexample yields 192 ranks with three blocks and 64 with one,
+despite a feasible two/three-block distribution with the same maximum.
+
+Next proposed isolated intervention: balanced contiguous block assignment,
+initially preserving catalogue order and the weight definition. Qualify actual
+work distribution and uninstrumented 83/160/256 performance; retain the full
+Domain producer/consumer replacement as the architectural target afterward.
+Do not promote from unqualified phase times or claim all capture waiting is
+recoverable. See [Stage272 results](parallel-blocks-stage272-results.md).

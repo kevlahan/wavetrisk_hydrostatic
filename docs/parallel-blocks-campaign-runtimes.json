@@ -50,6 +50,33 @@
         25
       ],
       "estimate_limit": "Observed campaign falls within the 20-25-minute estimate. Not an estimate for larger or multi-node campaigns."
+    },
+    {
+      "stage": 272,
+      "job_id": 55471,
+      "state": "COMPLETED",
+      "start": "2026-10-08T12:29:35",
+      "end": "2026-10-08T12:48:27",
+      "elapsed": "00:18:52",
+      "elapsed_seconds": 1132,
+      "timestamp_basis": "As printed by sacct; runner UTC timestamps retained separately.",
+      "source": "Raw sacct output in hash-verified review/accounting.json; independent review.",
+      "archive_sha256": "7c103ed35cce3e39b9387d1dda53bd741e8b8b5c3ee397628c7f6661d3d2ece8",
+      "scope": "Four serial builds and fourteen solver runs with validation; queue and review collection/transfer excluded.",
+      "partition": "nk",
+      "node": "bb13",
+      "serial_builds": 4,
+      "validation_runs": 6,
+      "timing_runs": 8,
+      "total_solver_runs": 14,
+      "runner_elapsed_seconds": 1131.67485022638,
+      "runner_started_utc": "2026-10-08T16:29:35.556240+00:00",
+      "runner_ended_utc": "2026-10-08T16:48:27.231065+00:00",
+      "future_comparable_campaign_planning_minutes": [
+        16,
+        22
+      ],
+      "estimate_limit": "18:52 observed within the 16\u201322-minute estimate; not a multi-node forecast."
     }
   ]
 }
