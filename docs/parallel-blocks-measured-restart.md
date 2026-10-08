@@ -418,3 +418,29 @@ Recovery elapsed 8:21 with four builds/three outputs reused and five new runs.
 Combined runner time with original attempt 55483 is about 14:10; exact original
 Slurm elapsed is unavailable because its accounting query failed. See
 [Stage274 review](parallel-blocks-stage274-results.md) and the runtime ledger.
+
+## Stage275: input contract gate before compact numerical execution
+
+The next diagnostic narrows the conservative input budget and tests real input
+freshness. The direct source expressions use 19 of 27 declared components in each
+flux/PV stencil. Shadow calls supply only those components, poisoning unused
+locations, and must reproduce the existing ordered source/restriction and gradient
+outputs bitwise at their live execution phases. The probe also compares actual
+resident block scalar state, mean and sums with mapped gradient inputs at eight
+common RHS-call ordinals, first/last atmospheric layers.
+
+Optimized, checked and oracle four-rank replays pass exact Stage266 science gates.
+Each verifies 172,800 source calls and 57,600 gradient calls. All 339,836 sampled
+mapped input records match, including 12,146 with different Domain/block owner
+ranks. The three variants agree on budgets and input-epoch comparisons; raw
+plan generations can differ under the oracle. Minimal Domain-fed input budgets
+are only 4.23–4.69% smaller locally after deduplication. This is a transfer budget,
+not a speedup, and keeps producer placement and field reuse as the main priorities.
+
+These checks establish neither destination halo freshness nor residency of flux,
+PV, physics, Bernoulli or Exner. They are the input gate for the compact executor,
+not a production migration. The sealed kit excludes Stage273 and uses the proven
+four-build/eight-validation schedule at 16/83/160/256 ranks. Allow 20–30 minutes,
+excluding queue and collection; no timing comparison or promotion is attempted.
+See [Stage275 plan](parallel-blocks-stage275-plan.md) and
+[commands](../test/parallel_block_profile/inputs_275/README.md).

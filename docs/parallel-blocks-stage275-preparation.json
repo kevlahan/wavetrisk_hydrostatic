@@ -1,0 +1,420 @@
+{
+  "stage": 275,
+  "revision": "input-contract",
+  "prepared_date": "2026-10-08",
+  "status": "locally-validated-cluster-input-evidence-pending",
+  "promoted": false,
+  "production_source_changed": false,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "d72c9a0d48da3d0c27571a0a1c4cd0ce82784e76",
+  "diagnostic_changed_source": [
+    "src/multi_level.f90"
+  ],
+  "stage273_excluded": true,
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage275-validation/rk275-input-contract-kit-v1.tar.gz",
+    "sha256": "dd25ffaebfb6866254382280264a51e70b383eb7374be718b8e1e00bca8180ae",
+    "bytes": 19849667,
+    "files": 51,
+    "source_manifest_sha256": "c69273de954ccb343c4ad9eeb68e6121a53217e21160ee2f8247a1dd36501fe6",
+    "local_validation_sha256": "9c0bcd161c52ab163d35386b6e8bfd5df63f89c02c30954ca7d695509c760644",
+    "test_validation_sha256": "1c22a6cfd661a72095f2fbebc30b09e712dec073f25575de8f6fb10a118f6c7b"
+  },
+  "tests": {
+    "status": "passed",
+    "workflow_tests": 9,
+    "contract_tests": 6,
+    "input_tests": 8,
+    "total_tests": 23,
+    "log_sha256": "16c6ae81d8c03a7899c022ad5b7cad868024d4819aea08637b27e8519a14ad0a",
+    "tested_source_sha256": {
+      "README.md": "3079cb5cde3ad0d6995cda2145ecdda3a647076fae45b55dc767de41caa0ee13",
+      "accounting.py": "a5d964e72a491ea5f7c360d2b0e100e22b6983649ecd9d95fb699dadd8911318",
+      "build.py": "dc1b176a91c96aaa543e2cfbd7895f0d0a5799a548dac83e8aa0d5fa802dd689",
+      "collect.sh": "4f47bd66bccba77e7b4540afafdb3bc42708cd9928cb1c08e891e38ff14df97b",
+      "common.py": "8e03778e8ea5769de65f672b1528aaf36d9dba9fde598b7fd65edb68e6346d3d",
+      "contract.py": "141c93e89cfc14bad60cada6d774841a021505ffdba1a2543836382da9ac323e",
+      "control.py": "b5a4d79be87713204c994b0f4e4b1e86558e4a4c0e7ee816391a034748f97f6d",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "export.f90": "8302c131dee6ad15b8d32b3a025ee6d87067fc23a734d9393f3513d038d4463f",
+      "instrument.py": "6d1d1f1f5917c48eb5de18a04208673c9383ac23bb0439254f7736bed9242409",
+      "launch.sh": "b3ab9adfb54c2b590468e2df8ece0d87e512be5676463b02267ec37184699a27",
+      "local_verify.py": "cdc9ff24d5d8686caca771930218c47247ed03502e81708945acb0efc2aba2a7",
+      "ownership.py": "d2609f2b759b484b08a2d06ab475307dd2b8f97d34203016778f5ce18fd2cec8",
+      "placement_275.py": "3bcb11f81fbb124ea0083db1bc07e47d98623f15747c50e484f25a1a93c557dd",
+      "prepare.py": "7aa707879cab4b00ac433f723032f3fa72998f8b3efd8b7f3ea83ae8b6ab00af",
+      "probe.f90": "280b41122a2ef358346037d7227bc9c326578e0f1b1d9d78e54bcfc292a41117",
+      "review.py": "f113579bcc2917aaa6d81ec04845e03d9acc7a964a27bf528eac7b16af10492b",
+      "run.py": "2c47e3a1bdd6b7cba358e29188378484def06bd995e94beb3975b1f57b683c45",
+      "seal.py": "2c89ba10f621851982fbcf7434ad4f8f020d84ade269287d4a680c4aa2471df4",
+      "status.sh": "b8d09f89016519672e1afd960e06f34e00644fd56cc89f038ebb22710cd8cb33",
+      "test_contract.py": "bf8c99829b481932bcd1f213fd283c7b27ad47ed0d2b765563c56a1f3f452945",
+      "test_inputs.py": "126183a5ff9d6b98da36cecda3b5545961f5ba1e18d35275ca92b4d8ee025a84",
+      "test_workflow.py": "e6b5e66b6f0b7450ec01464881bd7f36de6afe55870ed11fd2e648615fe9c251",
+      "timing.sbatch": "3401778fdf4aba113731a8c2ac1df5635466d3a86ed5ac09a76357583654cbda"
+    }
+  },
+  "fresh_delivery": {
+    "status": "passed",
+    "sealed_files": 51,
+    "source_members_verified": true,
+    "overlay_reproduced_exactly": true,
+    "stage273_excluded": true,
+    "helper_imports_and_shell_syntax": true,
+    "macos_xattr_headers": false,
+    "delivered_workflow_tests": 9,
+    "delivered_contract_tests": 6,
+    "delivered_input_tests": 8,
+    "source_manifest_sha256": "c69273de954ccb343c4ad9eeb68e6121a53217e21160ee2f8247a1dd36501fe6"
+  },
+  "local_validation": {
+    "ranks": 4,
+    "new_serial_builds": 2,
+    "cases": {
+      "candidate": {
+        "status": "passed",
+        "exact_checkpoint": true,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "source_shadow_calls": 172800,
+        "gradient_shadow_calls": 57600,
+        "transactions": 48,
+        "sampled_epochs": 16,
+        "mapped_input_records": 339836,
+        "cross_rank_matches": 12146,
+        "missing": 0,
+        "different_values": 0,
+        "sampled_owner_interior_reuse_matches": true,
+        "budgets": {
+          "1": {
+            "full_argument_remote_bytes": 71056,
+            "minimal_component_remote_bytes": 68048,
+            "reduction_fraction": 0.0423328079261428
+          },
+          "2": {
+            "full_argument_remote_bytes": 66312,
+            "minimal_component_remote_bytes": 63240,
+            "reduction_fraction": 0.04632645674990954
+          },
+          "3": {
+            "full_argument_remote_bytes": 56320,
+            "minimal_component_remote_bytes": 53680,
+            "reduction_fraction": 0.046875
+          }
+        },
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "coverage": [],
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      },
+      "checked": {
+        "status": "passed",
+        "exact_checkpoint": true,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "source_shadow_calls": 172800,
+        "gradient_shadow_calls": 57600,
+        "transactions": 48,
+        "sampled_epochs": 16,
+        "mapped_input_records": 339836,
+        "cross_rank_matches": 12146,
+        "missing": 0,
+        "different_values": 0,
+        "sampled_owner_interior_reuse_matches": true,
+        "budgets": {
+          "1": {
+            "full_argument_remote_bytes": 71056,
+            "minimal_component_remote_bytes": 68048,
+            "reduction_fraction": 0.0423328079261428
+          },
+          "2": {
+            "full_argument_remote_bytes": 66312,
+            "minimal_component_remote_bytes": 63240,
+            "reduction_fraction": 0.04632645674990954
+          },
+          "3": {
+            "full_argument_remote_bytes": 56320,
+            "minimal_component_remote_bytes": 53680,
+            "reduction_fraction": 0.046875
+          }
+        },
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "coverage": [],
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      },
+      "candidate-oracle": {
+        "status": "passed",
+        "exact_checkpoint": true,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "source_shadow_calls": 172800,
+        "gradient_shadow_calls": 57600,
+        "transactions": 48,
+        "sampled_epochs": 16,
+        "mapped_input_records": 339836,
+        "cross_rank_matches": 12146,
+        "missing": 0,
+        "different_values": 0,
+        "sampled_owner_interior_reuse_matches": true,
+        "budgets": {
+          "1": {
+            "full_argument_remote_bytes": 71056,
+            "minimal_component_remote_bytes": 68048,
+            "reduction_fraction": 0.0423328079261428
+          },
+          "2": {
+            "full_argument_remote_bytes": 66312,
+            "minimal_component_remote_bytes": 63240,
+            "reduction_fraction": 0.04632645674990954
+          },
+          "3": {
+            "full_argument_remote_bytes": 56320,
+            "minimal_component_remote_bytes": 53680,
+            "reduction_fraction": 0.046875
+          }
+        },
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "coverage": [
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            }
+          ],
+          "oracle_installations": 84,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        }
+      }
+    },
+    "source_manifest_sha256": "c69273de954ccb343c4ad9eeb68e6121a53217e21160ee2f8247a1dd36501fe6",
+    "validation_sha256": "223767fc035aae68fcabe3a89a6f03809e4f09d0586bf3cebbe8313427e77730"
+  },
+  "campaign": {
+    "builds": 4,
+    "solver_runs": 8,
+    "timing_runs": 0,
+    "ranks": [
+      16,
+      83,
+      160,
+      256
+    ],
+    "estimated_execution_minutes": [
+      20,
+      30
+    ],
+    "estimate_basis": "Stage274 combined runner time 14:10 plus uncertain live shadow execution and field export cost.",
+    "queue_and_transfer_excluded": true,
+    "accounting_automatic": true
+  },
+  "scope": "Input-contract diagnostic before compact block numerical migration; no performance inference. Mapped owner-interior reuse at sampled exact phases does not prove destination halo freshness, boundary aliases, unsampled layers/calls or derived upstream fields."
+}
