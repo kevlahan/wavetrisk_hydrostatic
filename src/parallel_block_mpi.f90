@@ -36854,8 +36854,6 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: local_recv_checksum
     integer(int64) :: local_send_checksum
     integer(int64) :: rank_nbyte
-    integer(int64) :: local_proof(3)
-    integer(int64) :: global_proof(3)
     logical :: print_local
 
     print_local = .true.
@@ -36987,17 +36985,20 @@ end subroutine build_parallel_block_catalog
             sum(int(manifest%recv_payload(1:n_recv_byte),int64))
     end if
 
-    ! All three independent integer sums have the same communicator and
-    ! lifetime. Reduce them together while retaining both byte scans and
-    ! the global payload conservation check on every rank.
-    local_proof = [local_send_checksum, local_recv_checksum, &
-         manifest%total_send_nbyte]
-    call MPI_Allreduce(local_proof,global_proof,3, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce payload checksums and transferred bytes")
-    global_send_checksum = global_proof(1)
-    global_recv_checksum = global_proof(2)
-    global_send_nbyte = global_proof(3)
+    call MPI_Allreduce( &
+         local_send_checksum, global_send_checksum, 1, &
+         MPI_INTEGER8, MPI_SUM, comm, ierr)
+    call check_mpi(ierr,"MPI_Allreduce outgoing payload checksum")
+
+    call MPI_Allreduce( &
+         local_recv_checksum, global_recv_checksum, 1, &
+         MPI_INTEGER8, MPI_SUM, comm, ierr)
+    call check_mpi(ierr,"MPI_Allreduce incoming payload checksum")
+
+    call MPI_Allreduce( &
+         manifest%total_send_nbyte, global_send_nbyte, 1, &
+         MPI_INTEGER8, MPI_SUM, comm, ierr)
+    call check_mpi(ierr,"MPI_Allreduce transferred payload bytes")
 
     if (global_send_checksum /= global_recv_checksum) then
        call fail("global payload byte checksums differ")

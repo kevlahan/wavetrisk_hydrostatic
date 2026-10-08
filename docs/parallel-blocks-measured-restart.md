@@ -253,6 +253,24 @@ from a fresh extraction. Accounting capture is included. Stage266 remains the
 accepted performance baseline until the cluster results qualify or reject this
 candidate; no speedup or fourfold-scaling success is claimed by preparation.
 
+The [Stage271 review](parallel-blocks-stage271-results.md), job 55468, now verifies
+all twenty runs and 5,314 archive files. Slurm elapsed was **00:21:47**. The fused
+candidate is not promoted: changes are +5.164 ms at 83 ranks, −2.357 ms at 160,
+and −1.194 ms at 256 with mixed pair signs at 256. The exact Stage266 solver
+source has been restored; the experiment remains in commit `ab9c8463` and its
+sealed kit. Do not stack further changes on the unqualified candidate.
+
+Stage266 itself slows from 549.270 to 584.620 ms when increasing 160 → 256 ranks,
+a 6.436% penalty despite 60% more ranks. Source inspection confirms shared
+operators and even native mass/velocity workspaces still follow `size(grid)`
+and Domain ownership. The next investigation must distinguish these producer
+costs and their waits from growing communication/replicated preparation using
+targeted, separately calibrated 160/256-rank phase/work evidence. Whole-process
+CPU/RSS records cannot provide that attribution. Prioritize the complete shared
+producer/capture/restriction ownership replacement, preserve Stage267 epochs and
+oracles, and keep the >=640-rank strategic target; do not resume serial small
+optimizations or another main-profiler calibration campaign.
+
 Then migrate the remaining shared primitive consumers and reassess adaptation
 and the remaining complete producer/consumer chains. Choose each change from its
 actual removable work and replacement cost. Preserve formulas and operation

@@ -1,0 +1,281 @@
+{
+  "stage": 271,
+  "job_id": 55468,
+  "reviewed_date": "2026-10-08",
+  "status": "verified-correctness-rejected-performance-promotion",
+  "archive": "/Users/kevlahan/Desktop/rk271-review-55468.tar.gz",
+  "archive_sha256": "6a6215971760327a3797dadb26fa40a82a30630e0ac75faabe5e93550b6f6654",
+  "verified_files": 5314,
+  "delivered_kit_seals_exact": true,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "candidate_commit": "ab9c8463",
+  "candidate_kept": false,
+  "solver_source_restored_to": "ff740744608731a05d53771c32a3055309f3a586",
+  "correctness": "All twenty runs passed independent science, storage, physical-core placement, exact block checkpoint, same-rank 62-member VTK, raw timing, reload/remap and installation checks. Both candidate oracles at 16/256 ranks retain 48 exact inverse returns and 84 installations. Four serial builds share 23 physics objects.",
+  "comparison": {
+    "by_ranks": {
+      "83": {
+        "means_seconds": {
+          "stage266": 0.7552977675,
+          "candidate": 0.760462026,
+          "main": 0.539121504
+        },
+        "candidate_minus_stage266_seconds": 0.0051642585000000185,
+        "paired_candidate_gaps_seconds": [
+          0.008917768999999964,
+          0.0014107480000000727
+        ],
+        "candidate_minus_main_seconds": 0.22134052199999998,
+        "stage266_minus_main_seconds": 0.21617626349999997,
+        "independent_runs": {
+          "stage266": 2,
+          "candidate": 2,
+          "main": 1
+        },
+        "spans_seconds": {
+          "stage266": 0.002546192999999919,
+          "candidate": 0.004960827999999973
+        },
+        "assessment": "no_consistent_gain"
+      },
+      "160": {
+        "means_seconds": {
+          "stage266": 0.549270276,
+          "candidate": 0.5469137225,
+          "main": 0.356142085
+        },
+        "candidate_minus_stage266_seconds": -0.0023565534999999693,
+        "paired_candidate_gaps_seconds": [
+          -0.0033495289999999622,
+          -0.0013635779999999764
+        ],
+        "candidate_minus_main_seconds": 0.19077163750000004,
+        "stage266_minus_main_seconds": 0.193128191,
+        "independent_runs": {
+          "stage266": 2,
+          "candidate": 2,
+          "main": 1
+        },
+        "spans_seconds": {
+          "stage266": 0.0025141440000000514,
+          "candidate": 0.004500095000000037
+        },
+        "assessment": "both_pairs_faster"
+      },
+      "256": {
+        "means_seconds": {
+          "stage266": 0.5846198810000001,
+          "candidate": 0.5834262944999999,
+          "main": null
+        },
+        "candidate_minus_stage266_seconds": -0.0011935865000001211,
+        "paired_candidate_gaps_seconds": [
+          0.0019705209999999473,
+          -0.0043576939999999675
+        ],
+        "candidate_minus_main_seconds": null,
+        "stage266_minus_main_seconds": null,
+        "independent_runs": {
+          "stage266": 2,
+          "candidate": 2,
+          "main": 0
+        },
+        "spans_seconds": {
+          "stage266": 0.0004439520000000252,
+          "candidate": 0.00677216699999994
+        },
+        "assessment": "mixed_pair_signs"
+      }
+    },
+    "scaling": {
+      "stage266": {
+        "83": {
+          "83": {
+            "speedup": 1.0,
+            "relative_efficiency": 1.0
+          },
+          "160": {
+            "speedup": 1.3750931017064538,
+            "relative_efficiency": 0.713329546510223
+          },
+          "256": {
+            "speedup": 1.2919467709651837,
+            "relative_efficiency": 0.41887336714886814
+          }
+        },
+        "160": {
+          "160": {
+            "speedup": 1.0,
+            "relative_efficiency": 1.0
+          },
+          "256": {
+            "speedup": 0.9395340354496086,
+            "relative_efficiency": 0.5872087721560053
+          }
+        }
+      },
+      "candidate": {
+        "83": {
+          "83": {
+            "speedup": 1.0,
+            "relative_efficiency": 1.0
+          },
+          "160": {
+            "speedup": 1.3904606791064746,
+            "relative_efficiency": 0.7213014772864837
+          },
+          "256": {
+            "speedup": 1.303441468389286,
+            "relative_efficiency": 0.42260016357933883
+          }
+        },
+        "160": {
+          "160": {
+            "speedup": 1.0,
+            "relative_efficiency": 1.0
+          },
+          "256": {
+            "speedup": 0.9374169927817679,
+            "relative_efficiency": 0.5858856204886049
+          }
+        }
+      }
+    },
+    "geometric_domains": 160,
+    "strategic_target_ranks_minimum": 640,
+    "automatic_promotion": false,
+    "scope": "Two independent uninstrumented candidate/baseline runs per count; one main anchor at 83/160. Ordinary steps 2-7 and 10-12. No main beyond its supported Domain limit. No 640-rank claim."
+  },
+  "derived_percentages": {
+    "83": {
+      "candidate_change_percent": 0.6837380861184572,
+      "baseline_legacy_gap_percent": 40.0978743930793,
+      "candidate_legacy_gap_percent": 41.05577691814719
+    },
+    "160": {
+      "candidate_change_percent": -0.42903350189661404,
+      "baseline_legacy_gap_percent": 54.22784869696038,
+      "candidate_legacy_gap_percent": 53.566159556796
+    },
+    "256": {
+      "candidate_change_percent": -0.20416454157502484,
+      "baseline_legacy_gap_percent": null,
+      "candidate_legacy_gap_percent": null
+    }
+  },
+  "scaling_interpretation": {
+    "stage266": {
+      "step_time_increase_percent_160_to_256": 6.435739661251949,
+      "rank_increase_percent": 60.0,
+      "speedup_160_to_256": 0.9395340354496086,
+      "relative_efficiency_160_to_256": 0.5872087721560053
+    },
+    "candidate": {
+      "step_time_increase_percent_160_to_256": 6.676111879785562,
+      "rank_increase_percent": 60.0,
+      "speedup_160_to_256": 0.9374169927817679,
+      "relative_efficiency_160_to_256": 0.5858856204886049
+    }
+  },
+  "runtime": {
+    "slurm": {
+      "job_id": "55468",
+      "state": "COMPLETED",
+      "start": "2026-10-08T10:15:09",
+      "end": "2026-10-08T10:36:56",
+      "elapsed_seconds": 1307,
+      "elapsed": "00:21:47"
+    },
+    "campaign_started_utc": "2026-10-08T14:15:10.383472+00:00",
+    "campaign_ended_utc": "2026-10-08T14:36:56.358387+00:00",
+    "campaign_elapsed_seconds": 1305.9749424778856,
+    "limitation": "Slurm elapsed includes batch setup; runner elapsed begins before preflight. Queue and collection/transfer excluded. Accounting can be unavailable; no timestamp inference."
+  },
+  "decision": "Do not promote the fused proof reduction. At 83 ranks both pairs are slower; the small 160-rank gain does not carry consistently to 256, whose paired signs differ. Restore the exact accepted Stage266 solver source; preserve the candidate commit, kit and evidence. No claim of a statistically established general regression or reason to repeat this micro-optimization solely to resolve noise.",
+  "next_step": "Prioritize the complete shared Domain producer/capture/restriction ownership chain. Use targeted Stage266-only 160/256 cost and per-rank work/imbalance evidence, recalibrated at each count, to distinguish Domain-owner work from communication/replicated preparation before choosing one complete block-owned replacement. Preserve Stage267 reader/epoch/oracle requirements and compare each intervention uninstrumented at 83/160/256. No further small optimizations stacked on this rejected candidate.",
+  "strategic_goal": "Efficient P >= 4*D: >=640 ranks for J5 with 160 geometric Domains. This single-node 256-rank test is intermediate and does not qualify that goal.",
+  "limitations": [
+    "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun.",
+    "Two independent runs per block version/count, one main anchor at 83/160; ordinary steps within a run are not independent replicates.",
+    "One fixed J5 trajectory on bb13. Increasing rank counts were run sequentially, so absolute cross-count scaling retains order/thermal/system-load uncertainty; same-count block pairs were A-B-B-A.",
+    "No phase instrumentation or per-rank work census in this campaign. The observed scaling loss does not isolate a particular bottleneck.",
+    "The 256-rank oracle is excluded from timing comparisons. No legacy main run beyond its supported Domain count."
+  ],
+  "available_per_rank_resource_evidence": {
+    "baseline_runs": {
+      "83": [
+        {
+          "run": "J5-n83-timing-2-stage266",
+          "ranks": 83,
+          "mean_solver_user_cpu_seconds": 17.119264361445783,
+          "mean_solver_system_cpu_seconds": 3.4459043012048194,
+          "median_rank_peak_rss_kib": 270936,
+          "distinct_affinity_cpus": 83
+        },
+        {
+          "run": "J5-n83-timing-5-stage266",
+          "ranks": 83,
+          "mean_solver_user_cpu_seconds": 17.013200313253012,
+          "mean_solver_system_cpu_seconds": 3.47313443373494,
+          "median_rank_peak_rss_kib": 271484,
+          "distinct_affinity_cpus": 83
+        }
+      ],
+      "160": [
+        {
+          "run": "J5-n160-timing-7-stage266",
+          "ranks": 160,
+          "mean_solver_user_cpu_seconds": 15.3510354875,
+          "mean_solver_system_cpu_seconds": 5.80299158125,
+          "median_rank_peak_rss_kib": 205064.0,
+          "distinct_affinity_cpus": 160
+        },
+        {
+          "run": "J5-n160-timing-10-stage266",
+          "ranks": 160,
+          "mean_solver_user_cpu_seconds": 15.36793645,
+          "mean_solver_system_cpu_seconds": 5.75004308125,
+          "median_rank_peak_rss_kib": 204990.0,
+          "distinct_affinity_cpus": 160
+        }
+      ],
+      "256": [
+        {
+          "run": "J5-n256-timing-11-stage266",
+          "ranks": 256,
+          "mean_solver_user_cpu_seconds": 17.545075078125,
+          "mean_solver_system_cpu_seconds": 8.72602578125,
+          "median_rank_peak_rss_kib": 182896.0,
+          "distinct_affinity_cpus": 256
+        },
+        {
+          "run": "J5-n256-timing-14-stage266",
+          "ranks": 256,
+          "mean_solver_user_cpu_seconds": 17.65899550390625,
+          "mean_solver_system_cpu_seconds": 8.638778140625,
+          "median_rank_peak_rss_kib": 183354.0,
+          "distinct_affinity_cpus": 256
+        }
+      ]
+    },
+    "limitation": "Resource records cover the entire solver process, including initialization, checkpoint/reload/I/O and MPI spin. No phase-resolved useful CPU work, ordinary-step hardware bandwidth counters, or per-rank Domain/block ownership census was recorded. Do not use these totals to attribute the 35.350 ms ordinary-step scaling loss or assume CPU utilization means useful work."
+  },
+  "source_backed_scaling_findings": [
+    {
+      "file": "src/time_integr.f90",
+      "symbol": "prepare_block_multistage_tendency",
+      "finding": "Production still calls block_tendency_compatibility_ml(domain_stage), then finalizes scalar capture and prepares velocity remainder."
+    },
+    {
+      "file": "src/multi_level.f90",
+      "symbol": "basic_operators",
+      "finding": "Shared pressure/flux/vorticity/Exner production traverses size(grid) and Domain patch lists; useful producer work remains assigned to geometric-Domain owners."
+    },
+    {
+      "file": "src/multi_level.f90",
+      "symbol": "prepare_native_mass / prepare_native_velocity_programs",
+      "finding": "Native workspaces are sized and prepared from size(grid); native storage/naming does not imply final-block-owner execution."
+    }
+  ]
+}
