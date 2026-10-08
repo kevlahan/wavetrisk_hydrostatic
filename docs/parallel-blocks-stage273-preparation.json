@@ -1,0 +1,303 @@
+{
+  "stage": 273,
+  "revision": "balanced-partition",
+  "prepared_date": "2026-10-08",
+  "status": "locally-validated-cluster-performance-pending",
+  "promoted": false,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "f3aa2b6e09e56b78b20b997c70daddb20f667337",
+  "changed_source": [
+    "src/parallel_block_mpi.f90"
+  ],
+  "basis": {
+    "stage272_job": 55471,
+    "baseline_160_seconds": 0.5475072615,
+    "baseline_256_seconds": 0.594542631,
+    "domain_owner_block_patch_share": 0.772067,
+    "domain_free_rank_fraction": 0.375,
+    "observer_phase_timings_qualified": false
+  },
+  "algorithm": {
+    "guarantee": "Minimum maximum contiguous load for unchanged leaf-weight model; feasible cuts near cumulative ideal targets.",
+    "runtime_speedup_proven": false,
+    "unchanged": [
+      "catalogue order",
+      "block subdivision",
+      "leaf weights",
+      "Domain ownership",
+      "numerical kernels",
+      "payload proof reductions"
+    ]
+  },
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage273-validation/rk273-balanced-partition-kit-v1.tar.gz",
+    "sha256": "135f3f5aeef55f70cc3303b7d27e0bef8d1f4de7897ddf95de94a6315748bbf6",
+    "bytes": 19831085,
+    "files": 46,
+    "source_manifest_sha256": "7681f51cfc46f242f99c7a346fe79272d416986253258f9db54cf04ac46e9614",
+    "local_validation_sha256": "f197d7a9b426088644d96ddd1072ad615ee48a7150068fec5a44698a9a54f69c",
+    "test_validation_sha256": "0e5d33f8cb52cf8555ea03b3e767a54e495488865b64c44533ff7ba7ad4ead5d"
+  },
+  "local_validation": {
+    "ranks": 4,
+    "new_serial_builds": 2,
+    "physics_objects": 23,
+    "cases": {
+      "candidate": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "40f873240c7f08dd84060f121b7b5bc04812e6ab33c008632cf15fcfcfcc1d79",
+        "log_sha256": "39801356e7d0ce202042854e98aed3557aadeaec5f4dd37c202e4a31c5ef9f11",
+        "numerical_exact": true,
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "catalogues_checked": 14,
+        "catalogue_model_peak_never_worse": true,
+        "catalogue_model_peak_strictly_better": 11
+      },
+      "checked": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "f5dd443eab02cae76eb3f0f5be1b05426b6a764d218209eb5422b8c48919d30f",
+        "log_sha256": "699dfaf8aeaadbb143720597c1ab7484205803bb6b1826ea4ff047db7b0e37fd",
+        "numerical_exact": true,
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "catalogues_checked": 14,
+        "catalogue_model_peak_never_worse": true,
+        "catalogue_model_peak_strictly_better": 11
+      },
+      "candidate-oracle": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "40f873240c7f08dd84060f121b7b5bc04812e6ab33c008632cf15fcfcfcc1d79",
+        "log_sha256": "79a6295b8736a5182a49ca4d124c1ccd83d017315e1ddb31ff19aef56d73446e",
+        "numerical_exact": true,
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "oracle_installations": 84,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "catalogues_checked": 14,
+        "catalogue_model_peak_never_worse": true,
+        "catalogue_model_peak_strictly_better": 11
+      }
+    },
+    "source_manifest_sha256": "7681f51cfc46f242f99c7a346fe79272d416986253258f9db54cf04ac46e9614",
+    "validation_sha256": "5e231138b7f576bba5eb784333fa20e62d59b83e40e06caa66f387e4a0e18068"
+  },
+  "tests": {
+    "status": "passed",
+    "workflow_tests": 10,
+    "workflow_log_sha256": "321d6c46a82b404e6932a2c9b93a9a9987554ac0983cde7094420d477ecad390",
+    "tested_source_sha256": {
+      "README.md": "dbbefbcdab3a2f42b2083f91bd85cfa2125cb436f0acf2c25a790f870a68c5bf",
+      "accounting.py": "a5d964e72a491ea5f7c360d2b0e100e22b6983649ecd9d95fb699dadd8911318",
+      "build.py": "15024c1bc3e1bd5c4817f1f54fd0e5a9913ec48cfcc6172ae996a31ec79411d4",
+      "collect.sh": "4f47bd66bccba77e7b4540afafdb3bc42708cd9928cb1c08e891e38ff14df97b",
+      "common.py": "b438e5ef5aaaa3f1aa263b1b0d5a03a9f197e4c25f81472cb7e421916fc73ca3",
+      "control.py": "3def6fcdeeb6f133dad81bde34cfe5f495b2cc9dd356844f0d45884d2f9c72e9",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "launch.sh": "b3ab9adfb54c2b590468e2df8ece0d87e512be5676463b02267ec37184699a27",
+      "local_verify.py": "dbec24badd6b5838a5d14d53e752152afcb5a789c7759fdfff714abd14528265",
+      "partition_evidence.py": "d55faea0156c81640b482c949c635149f396ab811a7c313ce3987c6c0913ed3f",
+      "placement_273.py": "3bcb11f81fbb124ea0083db1bc07e47d98623f15747c50e484f25a1a93c557dd",
+      "prepare.py": "5640ff5525adeb5beccd1cbb21412d2cdaa073af3c8fc3d050d2a94f1cbb11b0",
+      "review.py": "e353e11b4bc05b24b7aa747b872d4cec37efc4da99fed9bf2e210dcfc21fa719",
+      "run.py": "f77105d2ea78186bc05c2007d50a15eb4e4b458783dd2b3d1d2282d207d2874b",
+      "seal.py": "482ed2f9008fdd03c7df16842a73d5a552982155dabbf2519384c7ad47594bec",
+      "status.sh": "b8d09f89016519672e1afd960e06f34e00644fd56cc89f038ebb22710cd8cb33",
+      "test_partition.py": "12f6c1190206b61c69d28cde7df6638691aafdf10cd288464449ca15ca180238",
+      "test_workflow.py": "d2a675ac04ad47b9ae5b79958b3075efdf7a42120158429e286c679553992039",
+      "timing.sbatch": "da9d14a4ff84aad8c7e482415deeea13554fb60d5e5d4a1196f8f0d4e30aaff9"
+    }
+  },
+  "partition_tests": {
+    "status": "passed",
+    "source_manifest_sha256": "7681f51cfc46f242f99c7a346fe79272d416986253258f9db54cf04ac46e9614",
+    "extracted_source_sha256": "0137ed6be50159ece1bafb8f4e0cb578ab32e49c22c237b66b624068be2d6fc5",
+    "cases": [
+      {
+        "optimization": "-O0",
+        "mode": "candidate",
+        "cases": 248,
+        "passed": true
+      },
+      {
+        "optimization": "-O0",
+        "mode": "baseline",
+        "cases": 148,
+        "passed": true
+      },
+      {
+        "optimization": "-O2",
+        "mode": "candidate",
+        "cases": 248,
+        "passed": true
+      },
+      {
+        "optimization": "-O2",
+        "mode": "baseline",
+        "cases": 148,
+        "passed": true
+      }
+    ],
+    "invalid_cases": 4,
+    "equal_weight_candidate": {
+      "2": 128,
+      "3": 128
+    },
+    "equal_weight_baseline": {
+      "3": 192,
+      "1": 64
+    },
+    "limitation": "Assignment correctness and work distribution only, not a solver speedup or actual J5 catalogue replay."
+  },
+  "fresh_delivery": {
+    "status": "passed",
+    "sealed_files": 46,
+    "source_members_verified": true,
+    "helper_imports_and_shell_syntax": true,
+    "macos_xattr_headers": false,
+    "delivered_workflow_tests": 10,
+    "delivered_partition_case_executions": 796,
+    "source_manifest_sha256": "7681f51cfc46f242f99c7a346fe79272d416986253258f9db54cf04ac46e9614"
+  },
+  "campaign": {
+    "builds": 4,
+    "solver_runs": 20,
+    "validations": [
+      [
+        16,
+        "main",
+        false
+      ],
+      [
+        16,
+        "stage266",
+        false
+      ],
+      [
+        16,
+        "candidate",
+        false
+      ],
+      [
+        16,
+        "checked",
+        false
+      ],
+      [
+        16,
+        "candidate",
+        true
+      ],
+      [
+        256,
+        "candidate",
+        true
+      ]
+    ],
+    "timing_order": [
+      [
+        83,
+        "main"
+      ],
+      [
+        83,
+        "stage266"
+      ],
+      [
+        83,
+        "candidate"
+      ],
+      [
+        83,
+        "candidate"
+      ],
+      [
+        83,
+        "stage266"
+      ],
+      [
+        160,
+        "main"
+      ],
+      [
+        160,
+        "stage266"
+      ],
+      [
+        160,
+        "candidate"
+      ],
+      [
+        160,
+        "candidate"
+      ],
+      [
+        160,
+        "stage266"
+      ],
+      [
+        256,
+        "stage266"
+      ],
+      [
+        256,
+        "candidate"
+      ],
+      [
+        256,
+        "candidate"
+      ],
+      [
+        256,
+        "stage266"
+      ]
+    ],
+    "estimated_execution_minutes": [
+      20,
+      25
+    ],
+    "estimate_basis": "Stage271: 21:47 for four builds/twenty runs",
+    "queue_and_transfer_excluded": true,
+    "accounting_automatic": true,
+    "automatic_promotion": false
+  },
+  "limitations": [
+    "Local J4 science/model checks do not establish J5 speedup or scaling.",
+    "Real J5 catalogue evidence and uninstrumented timings remain pending.",
+    "Leaf weight omits retained Domain producer cost, communication and fixed block costs.",
+    "Extra replicated partition work is included in full-step acceptance timings.",
+    "Efficient >=640-rank J5 execution remains the strategic goal, not a demonstrated result."
+  ]
+}

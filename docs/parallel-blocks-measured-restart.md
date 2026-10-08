@@ -328,3 +328,30 @@ work distribution and uninstrumented 83/160/256 performance; retain the full
 Domain producer/consumer replacement as the architectural target afterward.
 Do not promote from unqualified phase times or claim all capture waiting is
 recoverable. See [Stage272 results](parallel-blocks-stage272-results.md).
+
+## Stage273 isolated partition candidate (2026-10-08)
+
+The candidate replaces next-fit assignment with an exact minimax contiguous
+partition of the existing ordered leaf weights, then chooses feasible cuts near
+cumulative equal-work targets. A naive nearest-target rule was insufficient:
+nonuniform-weight tests showed it could increase the heaviest rank's load.
+The capacity constraint guarantees the smallest possible peak for this weight
+model. It does not guarantee lower complete-step time, communication, or Domain
+producer cost. Catalogue order, granularity, weight formula and numerical kernels
+remain unchanged; only `src/parallel_block_mpi.f90` differs from Stage266.
+
+Actual-routine Fortran tests cover optimized/checked assignment against an
+independent dynamic-programming reference. Scientific validations record actual
+catalogue weights and ownership; review reconstructs the old assignment on those
+same weights as an explicitly labeled counterfactual. Timing runs disable these
+records and added phase profiling. Four builds/twenty runs compare accepted
+Stage266 and the candidate at 83/160/256 ranks, with supported-count legacy main
+anchors, checked/oracle coverage and retained exact scientific gates.
+
+Budget 20–25 minutes after allocation, based on Stage271's measured 21:47 for
+the same build/run counts. Candidate is unpromoted pending bbserv evidence;
+Stage266 remains the accepted fallback. A successful partition correction still
+requires complete Domain producer/consumer migration and finer granularity for
+efficient execution at >=640 ranks. See the
+[Stage273 plan](parallel-blocks-stage273-plan.md) and
+[commands](../test/parallel_block_profile/partition_273/README.md).

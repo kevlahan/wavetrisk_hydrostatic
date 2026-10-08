@@ -4908,6 +4908,110 @@ contains
   end function block_remap_mean_scalar_value
 
 
+  subroutine assign_balanced_block_owners(weights,nrank,owners)
+    ! Minimize maximum contiguous leaf weight, then choose feasible cuts near
+    ! cumulative ideal targets. This removes early-rank rounding bias without
+    ! increasing the peak modelled load. Catalogue order/weights stay fixed.
+    integer, intent(in) :: weights(:),nrank
+    integer, intent(out) :: owners(:)
+    integer(int64), allocatable :: prefix(:)
+    integer, allocatable :: suffix_groups(:)
+    integer(int64) :: total,target,scaled_remainder,remainder
+    integer(int64) :: lower,upper,capacity,load,value,left_gap,right_gap
+    integer :: n,active,r,i,j,groups,previous,cut,first,last,limit
+
+    n=size(weights)
+    if (nrank<1.or.size(owners)/=n) error stop 'invalid block partition extents'
+    if (any(weights<0)) error stop 'negative block partition weight'
+    if (n==0) return
+    active=min(n,nrank)
+    allocate(prefix(0:n),suffix_groups(n+1))
+    prefix(0)=0_int64
+    do i=1,n
+       prefix(i)=prefix(i-1)+int(weights(i),int64)
+    end do
+    if (prefix(n)==0_int64) then
+       do i=1,n
+          prefix(i)=int(i,int64)
+       end do
+    end if
+    total=prefix(n)
+    lower=max(maxval(prefix(1:n)-prefix(0:n-1)), &
+         total/int(active,int64)+min(1_int64,mod(total,int(active,int64))))
+    upper=total
+    do while (lower<upper)
+       capacity=lower+(upper-lower)/2_int64
+       groups=1
+       load=0_int64
+       do i=1,n
+          value=prefix(i)-prefix(i-1)
+          if (load+value>capacity) then
+             groups=groups+1
+             load=0_int64
+          end if
+          load=load+value
+       end do
+       if (groups<=active) then
+          upper=capacity
+       else
+          lower=capacity+1_int64
+       end if
+    end do
+    capacity=lower
+    ! Minimum groups needed for each suffix at this optimal capacity.
+    suffix_groups(n+1)=0
+    j=n
+    do i=n,1,-1
+       do while (prefix(j)-prefix(i-1)>capacity)
+          j=j-1
+       end do
+       suffix_groups(i)=1+suffix_groups(j+1)
+    end do
+    previous=0
+    limit=0
+    do r=1,active-1
+       scaled_remainder=mod(total,int(active,int64))*int(r,int64)
+       target=(total/int(active,int64))*int(r,int64)+scaled_remainder/int(active,int64)
+       remainder=mod(scaled_remainder,int(active,int64))
+       last=n-(active-r)
+       do while (limit<last)
+          if (prefix(limit+1)-prefix(previous)>capacity) exit
+          limit=limit+1
+       end do
+       last=min(last,limit)
+       first=previous+1
+       do while (first<=last)
+          if (suffix_groups(first+1)<=active-r) exit
+          first=first+1
+       end do
+       if (first>last) error stop 'infeasible block partition cut'
+       cut=first
+       do while (cut<last)
+          if (prefix(cut)>target) exit
+          if (prefix(cut)==target.and.remainder==0_int64) exit
+          cut=cut+1
+       end do
+       if (cut>first) then
+          left_gap=target-prefix(cut-1)
+          right_gap=prefix(cut)-target
+          ! Compare exact rational distances without multiplying full sums.
+          if (right_gap>left_gap) then
+             if (right_gap-left_gap>=2_int64.or.2_int64*remainder<=int(active,int64)) cut=cut-1
+          else if (right_gap==left_gap.and.remainder==0_int64) then
+             cut=cut-1
+          end if
+       end if
+       do while (cut>first)
+          if (prefix(cut)/=prefix(cut-1)) exit
+          cut=cut-1
+       end do
+       owners(previous+1:cut)=r-1
+       previous=cut
+    end do
+    owners(previous+1:n)=active-1
+  end subroutine assign_balanced_block_owners
+
+
   subroutine build_parallel_block_catalog
   ! Construct the parallel-block decomposition of all locally owned
   ! geometric root domains, build the replicated global block catalogue,
@@ -4927,7 +5031,7 @@ contains
   integer :: b, c, d, i, k, p, p_chd, r
   integer :: n_block_local, n_block_before, n_block_total
   integer :: n_data_local, n_data_total
-  integer :: n_assigned, n_changed
+  integer :: n_changed
   integer :: ierr
 
   integer, allocatable :: block_count(:)
@@ -4938,16 +5042,13 @@ contains
   integer, allocatable :: domain_count(:)
 
   integer, allocatable :: block_owner_new(:)
-  integer, allocatable :: load_current(:)
-  integer, allocatable :: load_proposed(:)
+  integer(int64), allocatable :: load_current(:)
+  integer(int64), allocatable :: load_proposed(:)
 
   real(dp) :: balanced_weight
-  real(dp) :: imbalance_goal
 
   logical :: detailed_diagnostics
 
-  real(dp), parameter :: init_goal = 0.05_dp
-  real(dp), parameter :: incr_goal = 1.20_dp
 
   type(Parallel_Block), allocatable :: block_loc(:)
 
@@ -5241,67 +5342,15 @@ contains
   ! Ideal average load per MPI rank.
   !
   balanced_weight = &
-       real(sum(block_catalog%weight), kind=dp) / &
+       real(sum(int(block_catalog%weight,int64)), kind=dp) / &
        real(n_process, kind=dp)
 
   !
-  ! Use the same next-fit strategy as distribute_grid(), but apply it
-  ! only to the prospective candidate blocks.
+  ! Choose minimax contiguous cuts near cumulative ideal weights. A fixed target
+  ! for each rank can consume excess work early and starve later ranks.
+  ! Keep the catalogue order and leaf-weight definition unchanged.
   !
-  n_assigned     = 0
-  imbalance_goal = init_goal
-
-  do while (n_assigned < n_block_total)
-
-     n_assigned      = 0
-     load_proposed   = 0
-     block_owner_new = -1
-
-     do r = 1, n_process
-
-        do while ( &
-             real(load_proposed(r),kind=dp) < balanced_weight .and. &
-             n_block_total - n_assigned > n_process - r)
-
-           block_owner_new(n_assigned+1) = r - 1
-
-           load_proposed(r) = load_proposed(r) + &
-                block_catalog(n_assigned+1)%weight
-
-           n_assigned = n_assigned + 1
-
-        end do
-
-        !
-        ! If the final block makes this rank too heavy,
-        ! move that block to the next rank.
-        !
-        if (n_assigned > 0) then
-
-           if (real(load_proposed(r),kind=dp) > &
-                balanced_weight * (1.0_dp + imbalance_goal)) then
-
-              load_proposed(r) = load_proposed(r) - &
-                   block_catalog(n_assigned)%weight
-
-              block_owner_new(n_assigned) = -1
-
-              n_assigned = n_assigned - 1
-
-           end if
-
-        end if
-
-     end do
-
-     !
-     ! If all blocks could not be assigned, relax the allowed imbalance.
-     !
-     if (n_assigned < n_block_total) then
-        imbalance_goal = imbalance_goal * incr_goal
-     end if
-
-  end do
+  call assign_balanced_block_owners(block_catalog%weight,n_process,block_owner_new)
 
   if (any(block_owner_new < 0)) then
      error stop &
@@ -5351,6 +5400,14 @@ contains
   !
   detailed_diagnostics = block_detailed_diagnostics_enabled()
   if (detailed_diagnostics .and. rank == 0) then
+
+     ! Validation-only catalogue evidence; timing runs keep this selector off.
+     write(6,'(a,2(1x,i0))') 'Stage273 partition catalogue:',n_process,n_block_total
+     do b = 1,n_block_total
+        write(6,'(a,6(1x,i0))') 'Stage273 partition block:', &
+             block_catalog(b)%id,block_catalog(b)%root_domain,block_catalog(b)%root_patch, &
+             block_catalog(b)%weight,block_catalog(b)%owner,owner(block_catalog(b)%root_domain+1)
+     end do
 
      write(6,'(/,a,i0)') &
           "Total candidate parallel blocks = ", n_block_total
