@@ -1,0 +1,445 @@
+{
+  "stage": 272,
+  "revision": "ownership-scaling",
+  "prepared_date": "2026-10-08",
+  "status": "locally-validated-cluster-diagnostic-pending",
+  "promoted": false,
+  "production_source_changed": false,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "9278045980a6bb395bc97e4c158cdc87d5aa73ed",
+  "observer_changed_source": [
+    "Makefile",
+    "src/adapt.f90",
+    "src/comm_mpi.f90",
+    "src/cost_observer.f90",
+    "src/diagnostics.f90",
+    "src/main.f90",
+    "src/multi_level.f90",
+    "src/parallel_block.f90",
+    "src/parallel_block_build.f90",
+    "src/parallel_block_inverse.f90",
+    "src/parallel_block_mpi.f90",
+    "src/time_integr.f90",
+    "src/wavelet.f90",
+    "test/climate/climate.f90"
+  ],
+  "basis": {
+    "stage271_job": 55468,
+    "baseline_160_seconds": 0.549270276,
+    "baseline_256_seconds": 0.584619881,
+    "interpretation": "Explain retained Domain-owner computation versus waits/transfers/preparation; no dominant cause or recoverable speedup assumed."
+  },
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage272-validation/rk272-ownership-scaling-kit-v1.tar.gz",
+    "sha256": "2115a6397d15682c13a75d1b8328cef1be260f1ac689fd17585b3e72ab605c74",
+    "bytes": 19865934,
+    "files": 51,
+    "source_manifest_sha256": "80cc22d48146a1e834a0acc1f4f2b5d754471c1a1277184be4447e9cbe9fec8c",
+    "local_validation_sha256": "0f444e6dfab5dc9d531486b02aaff7c9c31e415c36dfe577340de32758ec8e7e",
+    "test_validation_sha256": "fb1e75797964d5d8e2e6af7c45426659e93a6f3a7f4449a25339568c2999b9f2"
+  },
+  "local_validation": {
+    "ranks": 4,
+    "new_serial_builds": 2,
+    "physics_objects": 23,
+    "cases": {
+      "candidate": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "d0b5970ccfb454351de2e1e026ce054b7da154f88e8380bd61793a7f5d869e1c",
+        "log_sha256": "82b2d6d44a520720c6827caeab3ff7c93f42b148413094f2b98dc1d130dc0046",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "coverage": [],
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "numerical_exact": true,
+        "observer_rank_files": 4,
+        "observer_steps": 12,
+        "observer_phases": 67,
+        "ownership_and_payload_checks": true
+      },
+      "checked": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "329b4d631525705c46acbd99074b826726f8f2e320d3edd4cbc974596e770b52",
+        "log_sha256": "38dbe8302f6fc2168d1837c1e05f881843256c47a356d65c79c2625ded9ab015",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "coverage": [],
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "numerical_exact": true,
+        "observer_rank_files": 4,
+        "observer_steps": 12,
+        "observer_phases": 67,
+        "ownership_and_payload_checks": true
+      },
+      "candidate-oracle": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "d0b5970ccfb454351de2e1e026ce054b7da154f88e8380bd61793a7f5d869e1c",
+        "log_sha256": "7f7a8e009088333bb66767540d4d8c2ab3490085884548f031dd0d121753c63c",
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "coverage": [
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2317,
+              "values": 7599760
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2361,
+              "values": 7744080
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2395,
+              "values": 7855600
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2440,
+              "values": 8003200
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2468,
+              "values": 8095040
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2499,
+              "values": 8196720
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2594,
+              "values": 8508320
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2621,
+              "values": 8596880
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2366,
+              "values": 7760480
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2439,
+              "values": 7999920
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2508,
+              "values": 8226240
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            },
+            {
+              "patches": 2725,
+              "values": 8938000
+            }
+          ],
+          "oracle_installations": 84,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "numerical_exact": true,
+        "observer_rank_files": 4,
+        "observer_steps": 12,
+        "observer_phases": 67,
+        "ownership_and_payload_checks": true
+      }
+    },
+    "source_manifest_sha256": "80cc22d48146a1e834a0acc1f4f2b5d754471c1a1277184be4447e9cbe9fec8c",
+    "validation_sha256": "72506bd4e7db750f96d05fc43b39b6e00abb9a6e821d3671ff6da06c26477885"
+  },
+  "tests": {
+    "status": "passed",
+    "workflow_tests": 9,
+    "analysis_tests": 3,
+    "observer_tests": 1,
+    "observer_compiled_cases": 12,
+    "logs": {
+      "workflow": "4fadbba36225dfc52bc775eaf0f0bd98fcfbc4e385d6ae07a4efd2e7213f41c3",
+      "analysis": "27c4a39d34ece4cbc66cc59cb0870c7abe4cc0a5f009205bdd0ea06a93f8b3ac",
+      "observer": "a2943af0354be7c94ec783c0ce58724d4e2ba7c44b7543bc745809a5a99a5c1d"
+    },
+    "tested_source_sha256": {
+      "README.md": "fc01651e93bbd7e82e311890faa85ef6cddef753b70b9670b550c67006a68931",
+      "accounting.py": "a5d964e72a491ea5f7c360d2b0e100e22b6983649ecd9d95fb699dadd8911318",
+      "build.py": "5d82913847d0d6b21488d0f6553e9b0ff9724fa4652bc32f3fe7601754056589",
+      "collect.sh": "4f47bd66bccba77e7b4540afafdb3bc42708cd9928cb1c08e891e38ff14df97b",
+      "common.py": "ca6325cd80924fb67b3367892e6f9800c96d8f296d536a426db2772ea4a3ebb1",
+      "control.py": "198a90412fa9cab09e5e0f8872c242d82001e3d46232a88b9cac6d6c81bac3b6",
+      "cost_analysis.py": "7b240402aff95a2fb68e81aa4cfb5fa55eec6a11c33c4a8ec5e1ed9b732f6680",
+      "cost_observer.f90": "f80e4d9a23218b9479178ae8a416afe8850738083654581cdea342db2a90e782",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "instrument.py": "210b7c5a58f8df7c486b32f24b8aa6094d98442205a132f58c28773c190bd381",
+      "instrument_base.py": "b58686d2b2725048a2a19734e642331660da153ed500c7bc05f2b97834ebd94c",
+      "launch.sh": "b3ab9adfb54c2b590468e2df8ece0d87e512be5676463b02267ec37184699a27",
+      "local_verify.py": "b010ba0d516ebe98bc898e50e469efd5a77b04f54855c429217e238ec4a896c8",
+      "phases.py": "0197ffb61a7d807f9e01504abb970e013ac3602bdd20519399ad6ebc49edd992",
+      "placement_272.py": "3bcb11f81fbb124ea0083db1bc07e47d98623f15747c50e484f25a1a93c557dd",
+      "prepare.py": "76bec90d6eb4c1e68c5af276877af3249d6f0b8816daf0f90c8c49634ee0b555",
+      "review.py": "da22688fe687b25e62619309653f7c5b0d6fd7e120ffafa9b94ef923a186920a",
+      "run.py": "d6c650e965b7d9d41b6ae8f2c5c3f2bc77c84da409ce06e6d7de4b342fb42ad6",
+      "seal.py": "d8ef043809500c9a59e146c92f4c2db3ad864b32bef6fcccb39867ad2474972f",
+      "status.sh": "b8d09f89016519672e1afd960e06f34e00644fd56cc89f038ebb22710cd8cb33",
+      "test_analysis.py": "07d93ec77aceb3d4ec8fd393482522f3ae0adb071596074e2f17dd7a428d2ead",
+      "test_observer.py": "31fb68531d366129f75ff623ca2813270d67b15aff48f9a8fb6efc0018710c53",
+      "test_workflow.py": "02031eec503ed1d0b0513c937b203f9030309518f468c9db2aa0f33068e4f5ec",
+      "timing.sbatch": "37898cedf931337bc99c0b60939ee1fa02a8076f503f3b10885d46b0b2ff5a76"
+    },
+    "post_test_edits": "Documentation/comment clarification only; executable analysis and observer unchanged."
+  },
+  "campaign": {
+    "builds": 4,
+    "solver_runs": 14,
+    "validations": [
+      [
+        16,
+        "main",
+        false
+      ],
+      [
+        16,
+        "stage266",
+        false
+      ],
+      [
+        16,
+        "candidate",
+        false
+      ],
+      [
+        16,
+        "checked",
+        false
+      ],
+      [
+        16,
+        "candidate",
+        true
+      ],
+      [
+        256,
+        "candidate",
+        true
+      ]
+    ],
+    "timing_order": [
+      [
+        160,
+        "stage266"
+      ],
+      [
+        160,
+        "candidate"
+      ],
+      [
+        256,
+        "stage266"
+      ],
+      [
+        256,
+        "candidate"
+      ],
+      [
+        256,
+        "candidate"
+      ],
+      [
+        256,
+        "stage266"
+      ],
+      [
+        160,
+        "candidate"
+      ],
+      [
+        160,
+        "stage266"
+      ]
+    ],
+    "estimated_execution_minutes": [
+      16,
+      22
+    ],
+    "queue_and_transfer_excluded": true,
+    "accounting_automatic": true
+  },
+  "fresh_delivery": {
+    "status": "passed",
+    "sealed_files": 51,
+    "source_members_verified": true,
+    "helper_imports_and_shell_syntax": true,
+    "macos_xattr_headers": false,
+    "delivered_tests": 13
+  },
+  "limitations": [
+    "Local four-rank correctness only; cluster overhead calibration and scaling are pending.",
+    "Ownership counts are actual recorded inventories, distinct from executed producer/restriction work.",
+    "Inclusive times overlap; MPI time combines late-arrival waiting and transfer; CPU may spin.",
+    "Stage272 is diagnostic-only; the target of at least 640 J5 ranks remains unmet."
+  ]
+}

@@ -283,3 +283,26 @@ than legacy main where supported, and measured efficient execution at four or
 more MPI ranks per geometric Domain. Retain necessary
 geometry and explicit output/checkpoint adapters until their own replacements
 are validated and measured.
+
+## Stage272 targeted scaling diagnostic (prepared 2026-10-08)
+
+The next campaign uses exact accepted Stage266 plus a separate observer overlay
+at 160/256 ranks. Production source remains at `ff740744`; rejected Stage271
+fusion is absent. It records actual Domain/block ownership, Domain producer
+patch visits, native restriction work and selected remote payload counts, with
+separate local producer and MPI-wait scopes. Compare Domain owners with ranks
+without Domains using recorded membership. Calibrate at both counts before
+qualifying cross-count phase attribution; 83-rank calibration is insufficient.
+
+Four serial builds and fourteen runs retain exact science, checked/oracle and
+placement gates. Timing order is 160 A-B, 256 A-B-B-A, 160 B-A. Main is only a
+16-rank correctness anchor in this diagnostic. Runtime estimate is 16–22 minutes
+after allocation; accounting is captured automatically. See the
+[Stage272 plan](parallel-blocks-stage272-plan.md) and
+[commands](../test/parallel_block_profile/scaling_272/README.md).
+
+Use the resulting evidence to choose one complete producer/consumer ownership
+replacement or address measured preparation/communication growth first. MPI
+scope durations combine waiting and transfers; inventories are not executed
+work; no automatic speedup or causal conclusion is claimed. The strategic goal
+remains efficient execution on at least 640 ranks for J5's 160 Domains.
