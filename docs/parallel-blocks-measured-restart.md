@@ -355,3 +355,32 @@ requires complete Domain producer/consumer migration and finer granularity for
 efficient execution at >=640 ranks. See the
 [Stage273 plan](parallel-blocks-stage273-plan.md) and
 [commands](../test/parallel_block_profile/partition_273/README.md).
+
+## New direct block architecture program: Stage274 (2026-10-08)
+
+The user authorized beginning a new migration program informed by the failed
+owner-program approach. Stage251 confirmed a 386 ms velocity-owner penalty;
+Stage252 attributed most of the observed all-step increase to source execution.
+Subsequent empty-collective and traversal optimizations recovered only part of
+the regression. The replacement must change the execution structure rather than
+repeat that architecture with more frequent benchmarking.
+
+Stage266 already has direct velocity kernels, but its workspaces and upstream
+inputs remain on Domain owners. Stage274 exports actual source/restriction/
+gradient plans from a disposable Stage266 build and compiles an ownership-cut
+budget. It compares the completed tendency exported today with the inputs that
+would have to move if velocity moved alone, and flags same-level remote source
+dependencies and unmapped boundary/scaffold inputs. This selects a complete
+producer/consumer slice before its numerical migration. It adds no numerical
+interpreter, new MPI collectives or production ownership changes.
+
+Four builds/eight full runs retain science, checked/oracle and zero-Domain-rank
+coverage; 83/160/256 configurations provide real plan samples. This is not a
+performance campaign. The first three plan builds per Domain are structural
+samples, not a synchronized or call-weighted trajectory. Conservative packed
+input budgets and conditional upstream block placement do not prove a speedup.
+Stage273 remains separate and unpromoted. The architectural goal remains direct
+fused block producers, bounded halo/restriction communication, retirement of the
+displaced Domain computation/transfers, and efficient execution at >=640 ranks.
+See [Stage274 plan](parallel-blocks-stage274-plan.md) and
+[commands](../test/parallel_block_profile/ownership_274/README.md).

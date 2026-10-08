@@ -1,0 +1,716 @@
+{
+  "stage": 274,
+  "revision": "ownership-contract",
+  "prepared_date": "2026-10-08",
+  "status": "locally-validated-cluster-contract-evidence-pending",
+  "promoted": false,
+  "production_source_changed": false,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "0a8c3d6f33c53dd1764fa75d991549d1b7653552",
+  "diagnostic_changed_source": [
+    "src/multi_level.f90"
+  ],
+  "stage273_partition_excluded": true,
+  "scope": "First three actual velocity plan builds per Domain; conservative input packing and versioned source dependency budget. No numerical migration, performance comparison or speedup claim.",
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage274-validation/rk274-ownership-contract-kit-v1.tar.gz",
+    "sha256": "fe5408e61b9ffa8e6c5d8d0179d2e882e9ea21911c48916ab8059ef9fbeb6c8f",
+    "bytes": 19836378,
+    "files": 48,
+    "source_manifest_sha256": "ad22f245ff2a34fa0b5c8391286e53114ab25a949252fbb52d625e122e5ea43d",
+    "local_validation_sha256": "55833c43209874a34615b35035ca963aad9ed940d74f71c27f2d9ddb78ade936",
+    "test_validation_sha256": "a3d5fce6b8169a8eb1a7247cf66081fe144567dbf3ca35e692daeeee5af77000"
+  },
+  "local_validation": {
+    "ranks": 4,
+    "new_serial_builds": 2,
+    "physics_objects": 23,
+    "cases": {
+      "candidate": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "38e8ad9db95db0a19bb1c538eba7a273142bcbaf484b125ce61bb273cc356dec",
+        "log_sha256": "57dff68f4b10ecbb8d2db2bb7ae16068555e351375873264f5551b4c667d4219",
+        "contract_file_sha256": {
+          "ownership274-rank-0.txt": "86075622def106c8e560538d69013477d1d36ecb06b27813cacf7d1cf9ae4819",
+          "ownership274-rank-1.txt": "10388ca86fa2f4e970e93201b87268efe5b1185330a9bca064bf07a68604ba6b",
+          "ownership274-rank-2.txt": "50b6caab396a774f9f4a68b1960ab7e29857a7b8fad90783142c1edfde39a6cf",
+          "ownership274-rank-3.txt": "7748a3af054e85eb8b5cb39208873fd6f3b3343d77fdcdbd8a94f20065c9adb2"
+        },
+        "numerical_exact": true,
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "sampled_plans": 120,
+        "by_sample": {
+          "1": {
+            "domains": 40,
+            "counts": {
+              "direct": 34823,
+              "active_direct": 20581,
+              "restriction_actions": 8308,
+              "restricted_edges": 7401,
+              "gradient": 35792,
+              "active_gradient": 21583
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 8981,
+                "restriction": 2128,
+                "gradient": 9152
+              },
+              {
+                "rank": 1,
+                "direct": 8624,
+                "restriction": 2092,
+                "gradient": 8992
+              },
+              {
+                "rank": 2,
+                "direct": 9059,
+                "restriction": 2124,
+                "gradient": 9184
+              },
+              {
+                "rank": 3,
+                "direct": 8159,
+                "restriction": 1964,
+                "gradient": 8464
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 23040,
+            "source_input_budget": {
+              "logical_packed_values": 229194,
+              "retained_Domain_producer_remote_bytes": 49680,
+              "hypothetical_upstream_block_producer_remote_bytes": 12288,
+              "unresolved_adapter_input_values": 25434,
+              "upstream_block_peer_pairs": 5
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 101716,
+              "retained_Domain_producer_remote_bytes": 21376,
+              "hypothetical_upstream_block_producer_remote_bytes": 4352,
+              "unresolved_adapter_input_values": 9092,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          },
+          "2": {
+            "domains": 40,
+            "counts": {
+              "direct": 35727,
+              "active_direct": 18007,
+              "restriction_actions": 8484,
+              "restricted_edges": 6341,
+              "gradient": 36496,
+              "active_gradient": 18814
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 9107,
+                "restriction": 2144,
+                "gradient": 9232
+              },
+              {
+                "rank": 1,
+                "direct": 8849,
+                "restriction": 2140,
+                "gradient": 9168
+              },
+              {
+                "rank": 2,
+                "direct": 9340,
+                "restriction": 2176,
+                "gradient": 9392
+              },
+              {
+                "rank": 3,
+                "direct": 8431,
+                "restriction": 2024,
+                "gradient": 8704
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 21120,
+            "source_input_budget": {
+              "logical_packed_values": 203445,
+              "retained_Domain_producer_remote_bytes": 46440,
+              "hypothetical_upstream_block_producer_remote_bytes": 13584,
+              "unresolved_adapter_input_values": 23994,
+              "upstream_block_peer_pairs": 6
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 89856,
+              "retained_Domain_producer_remote_bytes": 19872,
+              "hypothetical_upstream_block_producer_remote_bytes": 4384,
+              "unresolved_adapter_input_values": 8604,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          },
+          "3": {
+            "domains": 40,
+            "counts": {
+              "direct": 36479,
+              "active_direct": 15496,
+              "restriction_actions": 8620,
+              "restricted_edges": 5453,
+              "gradient": 37040,
+              "active_gradient": 16095
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 9340,
+                "restriction": 2180,
+                "gradient": 9392
+              },
+              {
+                "rank": 1,
+                "direct": 9051,
+                "restriction": 2184,
+                "gradient": 9328
+              },
+              {
+                "rank": 2,
+                "direct": 9389,
+                "restriction": 2176,
+                "gradient": 9392
+              },
+              {
+                "rank": 3,
+                "direct": 8699,
+                "restriction": 2080,
+                "gradient": 8928
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 17664,
+            "source_input_budget": {
+              "logical_packed_values": 175356,
+              "retained_Domain_producer_remote_bytes": 39360,
+              "hypothetical_upstream_block_producer_remote_bytes": 12096,
+              "unresolved_adapter_input_values": 22692,
+              "upstream_block_peer_pairs": 6
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 77504,
+              "retained_Domain_producer_remote_bytes": 16960,
+              "hypothetical_upstream_block_producer_remote_bytes": 3584,
+              "unresolved_adapter_input_values": 8292,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          }
+        }
+      },
+      "checked": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "d09e5104bc306132a21961655cbe1565dc48a68919082621c718a30b99612d4b",
+        "log_sha256": "c40c5845e7e017a03b7fa72d1ad9bb0d77978a79b33de0d8f1194d23163b620a",
+        "contract_file_sha256": {
+          "ownership274-rank-0.txt": "86075622def106c8e560538d69013477d1d36ecb06b27813cacf7d1cf9ae4819",
+          "ownership274-rank-1.txt": "10388ca86fa2f4e970e93201b87268efe5b1185330a9bca064bf07a68604ba6b",
+          "ownership274-rank-2.txt": "50b6caab396a774f9f4a68b1960ab7e29857a7b8fad90783142c1edfde39a6cf",
+          "ownership274-rank-3.txt": "7748a3af054e85eb8b5cb39208873fd6f3b3343d77fdcdbd8a94f20065c9adb2"
+        },
+        "numerical_exact": true,
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 0,
+          "accepted_transactions": 0,
+          "oracle_installations": 0,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "sampled_plans": 120,
+        "by_sample": {
+          "1": {
+            "domains": 40,
+            "counts": {
+              "direct": 34823,
+              "active_direct": 20581,
+              "restriction_actions": 8308,
+              "restricted_edges": 7401,
+              "gradient": 35792,
+              "active_gradient": 21583
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 8981,
+                "restriction": 2128,
+                "gradient": 9152
+              },
+              {
+                "rank": 1,
+                "direct": 8624,
+                "restriction": 2092,
+                "gradient": 8992
+              },
+              {
+                "rank": 2,
+                "direct": 9059,
+                "restriction": 2124,
+                "gradient": 9184
+              },
+              {
+                "rank": 3,
+                "direct": 8159,
+                "restriction": 1964,
+                "gradient": 8464
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 23040,
+            "source_input_budget": {
+              "logical_packed_values": 229194,
+              "retained_Domain_producer_remote_bytes": 49680,
+              "hypothetical_upstream_block_producer_remote_bytes": 12288,
+              "unresolved_adapter_input_values": 25434,
+              "upstream_block_peer_pairs": 5
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 101716,
+              "retained_Domain_producer_remote_bytes": 21376,
+              "hypothetical_upstream_block_producer_remote_bytes": 4352,
+              "unresolved_adapter_input_values": 9092,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          },
+          "2": {
+            "domains": 40,
+            "counts": {
+              "direct": 35727,
+              "active_direct": 18007,
+              "restriction_actions": 8484,
+              "restricted_edges": 6341,
+              "gradient": 36496,
+              "active_gradient": 18814
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 9107,
+                "restriction": 2144,
+                "gradient": 9232
+              },
+              {
+                "rank": 1,
+                "direct": 8849,
+                "restriction": 2140,
+                "gradient": 9168
+              },
+              {
+                "rank": 2,
+                "direct": 9340,
+                "restriction": 2176,
+                "gradient": 9392
+              },
+              {
+                "rank": 3,
+                "direct": 8431,
+                "restriction": 2024,
+                "gradient": 8704
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 21120,
+            "source_input_budget": {
+              "logical_packed_values": 203445,
+              "retained_Domain_producer_remote_bytes": 46440,
+              "hypothetical_upstream_block_producer_remote_bytes": 13584,
+              "unresolved_adapter_input_values": 23994,
+              "upstream_block_peer_pairs": 6
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 89856,
+              "retained_Domain_producer_remote_bytes": 19872,
+              "hypothetical_upstream_block_producer_remote_bytes": 4384,
+              "unresolved_adapter_input_values": 8604,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          },
+          "3": {
+            "domains": 40,
+            "counts": {
+              "direct": 36479,
+              "active_direct": 15496,
+              "restriction_actions": 8620,
+              "restricted_edges": 5453,
+              "gradient": 37040,
+              "active_gradient": 16095
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 9340,
+                "restriction": 2180,
+                "gradient": 9392
+              },
+              {
+                "rank": 1,
+                "direct": 9051,
+                "restriction": 2184,
+                "gradient": 9328
+              },
+              {
+                "rank": 2,
+                "direct": 9389,
+                "restriction": 2176,
+                "gradient": 9392
+              },
+              {
+                "rank": 3,
+                "direct": 8699,
+                "restriction": 2080,
+                "gradient": 8928
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 17664,
+            "source_input_budget": {
+              "logical_packed_values": 175356,
+              "retained_Domain_producer_remote_bytes": 39360,
+              "hypothetical_upstream_block_producer_remote_bytes": 12096,
+              "unresolved_adapter_input_values": 22692,
+              "upstream_block_peer_pairs": 6
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 77504,
+              "retained_Domain_producer_remote_bytes": 16960,
+              "hypothetical_upstream_block_producer_remote_bytes": 3584,
+              "unresolved_adapter_input_values": 8292,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          }
+        }
+      },
+      "candidate-oracle": {
+        "status": "passed",
+        "steps": 12,
+        "step_states_exact": true,
+        "vtk_exact_members": 62,
+        "binary_sha256": "38e8ad9db95db0a19bb1c538eba7a273142bcbaf484b125ce61bb273cc356dec",
+        "log_sha256": "d2888c1aa212846fca6dfac76bdcf8907fb62e9d5f8b6ad13a0740dbc5d46343",
+        "contract_file_sha256": {
+          "ownership274-rank-0.txt": "9ba72225094c31b357dedc989e89904d7bf21e9e556501cefbcb49976ff3e74f",
+          "ownership274-rank-1.txt": "d728dac5ca8a409a52f0557454d9584f1339e923646e97fe01775636958083f5",
+          "ownership274-rank-2.txt": "383f9ca79c4d3b989377c3f9bd03ada4f310c312e1144f890610d8912422c200",
+          "ownership274-rank-3.txt": "8d176a7069e16b61716316e383ee2b06b83f11d435040fbf44bb83f5f1e0849e"
+        },
+        "numerical_exact": true,
+        "publication": {
+          "mode": "deferred_first_installation",
+          "exact_transactions": 48,
+          "accepted_transactions": 12,
+          "oracle_installations": 84,
+          "production_provisional_installations": 1,
+          "production_accepted_installations": 1,
+          "production_full_SOL_returns_per_inverse": 0,
+          "limitation": "Actual installation calls counted on every rank and asserted at each Stage203 exit; per-transaction logging occurs only in the oracle."
+        },
+        "sampled_plans": 120,
+        "by_sample": {
+          "1": {
+            "domains": 40,
+            "counts": {
+              "direct": 34823,
+              "active_direct": 20581,
+              "restriction_actions": 8308,
+              "restricted_edges": 7401,
+              "gradient": 35792,
+              "active_gradient": 21583
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 8981,
+                "restriction": 2128,
+                "gradient": 9152
+              },
+              {
+                "rank": 1,
+                "direct": 8624,
+                "restriction": 2092,
+                "gradient": 8992
+              },
+              {
+                "rank": 2,
+                "direct": 9059,
+                "restriction": 2124,
+                "gradient": 9184
+              },
+              {
+                "rank": 3,
+                "direct": 8159,
+                "restriction": 1964,
+                "gradient": 8464
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 23040,
+            "source_input_budget": {
+              "logical_packed_values": 229194,
+              "retained_Domain_producer_remote_bytes": 49680,
+              "hypothetical_upstream_block_producer_remote_bytes": 12288,
+              "unresolved_adapter_input_values": 25434,
+              "upstream_block_peer_pairs": 5
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 101716,
+              "retained_Domain_producer_remote_bytes": 21376,
+              "hypothetical_upstream_block_producer_remote_bytes": 4352,
+              "unresolved_adapter_input_values": 9092,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          },
+          "2": {
+            "domains": 40,
+            "counts": {
+              "direct": 35727,
+              "active_direct": 18007,
+              "restriction_actions": 8484,
+              "restricted_edges": 6341,
+              "gradient": 36496,
+              "active_gradient": 18814
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 9107,
+                "restriction": 2144,
+                "gradient": 9232
+              },
+              {
+                "rank": 1,
+                "direct": 8849,
+                "restriction": 2140,
+                "gradient": 9168
+              },
+              {
+                "rank": 2,
+                "direct": 9340,
+                "restriction": 2176,
+                "gradient": 9392
+              },
+              {
+                "rank": 3,
+                "direct": 8431,
+                "restriction": 2024,
+                "gradient": 8704
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 21120,
+            "source_input_budget": {
+              "logical_packed_values": 203445,
+              "retained_Domain_producer_remote_bytes": 46440,
+              "hypothetical_upstream_block_producer_remote_bytes": 13584,
+              "unresolved_adapter_input_values": 23994,
+              "upstream_block_peer_pairs": 6
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 89856,
+              "retained_Domain_producer_remote_bytes": 19872,
+              "hypothetical_upstream_block_producer_remote_bytes": 4384,
+              "unresolved_adapter_input_values": 8604,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          },
+          "3": {
+            "domains": 40,
+            "counts": {
+              "direct": 36479,
+              "active_direct": 15496,
+              "restriction_actions": 8620,
+              "restricted_edges": 5453,
+              "gradient": 37040,
+              "active_gradient": 16095
+            },
+            "work_by_rank": [
+              {
+                "rank": 0,
+                "direct": 9340,
+                "restriction": 2180,
+                "gradient": 9392
+              },
+              {
+                "rank": 1,
+                "direct": 9051,
+                "restriction": 2184,
+                "gradient": 9328
+              },
+              {
+                "rank": 2,
+                "direct": 9389,
+                "restriction": 2176,
+                "gradient": 9392
+              },
+              {
+                "rank": 3,
+                "direct": 8699,
+                "restriction": 2080,
+                "gradient": 8928
+              }
+            ],
+            "same_level_cross_owner_dependencies": 0,
+            "unresolved_source_reads": 0,
+            "current_native_tendency_export_remote_bytes_per_layer": 17664,
+            "source_input_budget": {
+              "logical_packed_values": 175356,
+              "retained_Domain_producer_remote_bytes": 39360,
+              "hypothetical_upstream_block_producer_remote_bytes": 12096,
+              "unresolved_adapter_input_values": 22692,
+              "upstream_block_peer_pairs": 6
+            },
+            "gradient_input_budget": {
+              "logical_packed_values": 77504,
+              "retained_Domain_producer_remote_bytes": 16960,
+              "hypothetical_upstream_block_producer_remote_bytes": 3584,
+              "unresolved_adapter_input_values": 8292,
+              "upstream_block_peer_pairs": 4
+            },
+            "unmapped_target_adapter_work": {}
+          }
+        }
+      }
+    },
+    "source_manifest_sha256": "ad22f245ff2a34fa0b5c8391286e53114ab25a949252fbb52d625e122e5ea43d",
+    "validation_sha256": "4f8036be0cded7470e74d698d9ec2e448fc79a03d91ed301a74066b74c180e84"
+  },
+  "tests": {
+    "status": "passed",
+    "workflow_tests": 9,
+    "contract_tests": 6,
+    "test_log_sha256": "9c640964935d4befc01fb086dfcc9b0bceabe95d741cec173907fed67f04cd9c",
+    "tested_source_sha256": {
+      "README.md": "133f0d995f4879afd4371dccbe05176b77724f37667dac8cc8ce6b05b62a506d",
+      "accounting.py": "a5d964e72a491ea5f7c360d2b0e100e22b6983649ecd9d95fb699dadd8911318",
+      "build.py": "f8d60b949ca0b42f3a9f739caca2a12bcebbf422ac67700fa979d397b12664f2",
+      "collect.sh": "4f47bd66bccba77e7b4540afafdb3bc42708cd9928cb1c08e891e38ff14df97b",
+      "common.py": "22c755728f10972867746d526551637e4618ac49853447608cdc66052823ccbc",
+      "contract.py": "06bebe655d14e576296cbdfc2b78916e2760428dc6adca2d96e04bebe1e5ec5a",
+      "control.py": "d00192ca845edac89f66f533463e599b0372291b20d3e81faf0f8b247896cde1",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "export.f90": "ed94fdae735ee9e42723855445a9d7899ae809da541c53c9a2defbc42e71c228",
+      "instrument.py": "409fb51696982a8a6170ff7a2fe9e9d80325c187e359609e16f7fe1a65fc14d5",
+      "launch.sh": "b3ab9adfb54c2b590468e2df8ece0d87e512be5676463b02267ec37184699a27",
+      "local_verify.py": "10fcd15e24730ac5af3802f143ac474bd1a9e67adb125181323c8eb4d18b2b39",
+      "placement_274.py": "3bcb11f81fbb124ea0083db1bc07e47d98623f15747c50e484f25a1a93c557dd",
+      "prepare.py": "06436e9ad6747ea49089aab47a076f3c6ae50ae7b3c945b0c2343a70bbb6a89e",
+      "review.py": "5e798594c48b1d70bafae1618ed7a85820eaa0536acab504cb88e6414471de83",
+      "run.py": "0bea9a4e3b89e53da3c75e8395e65370a750dd6c4df372cc1142c6f4e4c08741",
+      "seal.py": "c60d98a03e4d6f2cd725c51a9c994a2530aafb1e988d7d89632864a89aaba077",
+      "status.sh": "b8d09f89016519672e1afd960e06f34e00644fd56cc89f038ebb22710cd8cb33",
+      "test_contract.py": "64db022c7ee38f0b536425568e0a151b5b984a63fc6770205777006ad478c0b2",
+      "test_workflow.py": "f6d3423f4fa9d210cf12f902e33c5ddcecfc6e56f3fd02e8af3ba34f52b03f5f",
+      "timing.sbatch": "fc0f0a1b36018cccdf76db96466601864289e14f521840136e31dd1dea229380"
+    }
+  },
+  "fresh_delivery": {
+    "status": "passed",
+    "sealed_files": 48,
+    "source_members_verified": true,
+    "overlay_reproduced_exactly": true,
+    "stage273_excluded": true,
+    "helper_imports_and_shell_syntax": true,
+    "macos_xattr_headers": false,
+    "delivered_workflow_tests": 9,
+    "delivered_contract_tests": 6,
+    "source_manifest_sha256": "ad22f245ff2a34fa0b5c8391286e53114ab25a949252fbb52d625e122e5ea43d"
+  },
+  "campaign": {
+    "builds": 4,
+    "solver_runs": 8,
+    "validations": [
+      [
+        16,
+        "main",
+        false
+      ],
+      [
+        16,
+        "stage266",
+        false
+      ],
+      [
+        16,
+        "candidate",
+        false
+      ],
+      [
+        16,
+        "checked",
+        false
+      ],
+      [
+        16,
+        "candidate",
+        true
+      ],
+      [
+        83,
+        "candidate",
+        false
+      ],
+      [
+        160,
+        "candidate",
+        false
+      ],
+      [
+        256,
+        "candidate",
+        true
+      ]
+    ],
+    "timing_runs": 0,
+    "estimated_execution_minutes": [
+      12,
+      18
+    ],
+    "estimate_basis": "Stage272 18:52 for four builds/fourteen runs; new export/postprocessing cost makes the estimate less certain.",
+    "queue_and_transfer_excluded": true,
+    "accounting_automatic": true,
+    "automatic_promotion": false
+  },
+  "limitations": [
+    "Sample ordinals across Domains need not be simultaneous or cover all topology/mask transitions.",
+    "Budgets are per layer and per sampled plan, not invocation-weighted step totals or observed network traffic.",
+    "Full declared kernel argument packing is conservative; boundary aliases retain separate Domain-local identities.",
+    "Hypothetical upstream block ownership requires replacing those producers; it is not implemented.",
+    "No numerical migration or kernel speedup is established; >=640-rank efficiency remains the goal."
+  ]
+}
