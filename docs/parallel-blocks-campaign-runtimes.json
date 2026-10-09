@@ -125,6 +125,37 @@
       "timestamp_basis": "As printed by sacct; runner UTC timestamps recorded separately.",
       "combined_runner_seconds": 849.810508446,
       "estimate_limit": "8:21 is recovery only; combined runner time about 14:10 excludes original batch setup and is not an exact combined Slurm elapsed."
+    },
+    {
+      "stage": 275,
+      "job_id": 55485,
+      "state": "COMPLETED",
+      "start": "2026-10-08T18:05:40",
+      "end": "2026-10-08T18:20:15",
+      "elapsed": "00:14:35",
+      "elapsed_seconds": 875,
+      "timestamp_basis": "As printed by sacct; runner UTC timestamps retained separately.",
+      "source": "Raw sacct output in independently hash-verified review/accounting.json.",
+      "archive_sha256": "eadae59d76427e6d090b1a726e160e5cf6195d9b16cdeae3e46502905e1ba912",
+      "scope": "Four serial builds and eight full science/input-contract validation runs, including shadow kernels and input export. Excludes queue and collection/transfer; not performance-qualified step timing.",
+      "partition": "nk",
+      "node": "bb13",
+      "serial_builds": 4,
+      "validation_runs": 8,
+      "timing_runs": 0,
+      "total_solver_runs": 8,
+      "runner_elapsed_seconds": 874.363459510263,
+      "runner_started_utc": "2026-10-08T22:05:41.123762+00:00",
+      "runner_ended_utc": "2026-10-08T22:20:15.487190+00:00",
+      "previous_estimate_minutes": [
+        20,
+        30
+      ],
+      "future_comparable_campaign_planning_minutes": [
+        15,
+        20
+      ],
+      "estimate_limit": "Observed 14:35 is below the conservative 20\u201330-minute estimate. 15\u201320 minutes applies only to a comparable diagnostic schedule; not a forecast for a new numerical prototype or multi-node campaign."
     }
   ]
 }

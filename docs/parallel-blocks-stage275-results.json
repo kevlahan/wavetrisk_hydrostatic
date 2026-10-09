@@ -1,0 +1,1446 @@
+{
+  "stage": 275,
+  "job_id": 55485,
+  "reviewed_date": "2026-10-09",
+  "status": "independently_verified",
+  "archive": "rk275-review-55485.tar.gz",
+  "archive_sha256": "eadae59d76427e6d090b1a726e160e5cf6195d9b16cdeae3e46502905e1ba912",
+  "verified_files": 2334,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "runtime": {
+    "slurm": {
+      "job_id": "55485",
+      "state": "COMPLETED",
+      "start": "2026-10-08T18:05:40",
+      "end": "2026-10-08T18:20:15",
+      "elapsed_seconds": 875,
+      "elapsed": "00:14:35"
+    },
+    "campaign_started_utc": "2026-10-08T22:05:41.123762+00:00",
+    "campaign_ended_utc": "2026-10-08T22:20:15.487190+00:00",
+    "campaign_elapsed_seconds": 874.363459510263,
+    "limitation": "Slurm elapsed includes batch setup; runner elapsed begins before preflight. Queue and collection/transfer excluded. Accounting can be unavailable; no timestamp inference."
+  },
+  "science": {
+    "total_runs": 8,
+    "steps_per_run": 12,
+    "remaps_per_run": 2,
+    "vtk_outputs_per_run": 62,
+    "all_required_gates_passed": true,
+    "exact_Stage266_family_checkpoints": true,
+    "main_comparison": "Established scientific tolerances; not bitwise equality for the block family.",
+    "oracle_ranks": [
+      16,
+      256
+    ],
+    "exact_inverse_transactions_per_oracle": 48,
+    "oracle_installations_per_oracle": 84
+  },
+  "cases": {
+    "J5-n16-validation-3-candidate": {
+      "ranks": 16,
+      "source_shadow_calls": 672000,
+      "gradient_shadow_calls": 230400,
+      "rhs_transactions": 48,
+      "layers": 30,
+      "sampled_epochs": 16,
+      "mapped_input_records": 424580,
+      "missing_records": 0,
+      "different_component_values": 0,
+      "cross_Domain_block_rank_matches": 214108,
+      "sampled_owner_interior_reuse_matches": true,
+      "sampled_plans": 492,
+      "budgets": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 2082104,
+          "minimal_component_remote_bytes_per_layer": 1996152,
+          "current_tendency_export_remote_bytes_per_layer": 619392,
+          "minimal_to_export_ratio": 3.2227603843769375,
+          "reduction_fraction": 0.0412813192808813,
+          "hypothetical_upstream_remote_bytes_per_layer": 320768,
+          "hypothetical_to_export_ratio": 0.5178755941310188,
+          "flux_pv_share_of_minimal_budget": 0.5128908019028611,
+          "scalar_state_share_of_minimal_budget": 0.15510642476124062,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "exner": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "flux": {
+              "logical_values": 111498,
+              "Domain_remote_bytes": 511904,
+              "hypothetical_upstream_remote_bytes": 113392,
+              "unmapped_values": 23032
+            },
+            "physics": {
+              "logical_values": 76836,
+              "Domain_remote_bytes": 353112,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 111498,
+              "Domain_remote_bytes": 511904,
+              "hypothetical_upstream_remote_bytes": 113392,
+              "unmapped_values": 23032
+            },
+            "rho": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "rho_theta": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 1927360,
+          "minimal_component_remote_bytes_per_layer": 1848720,
+          "current_tendency_export_remote_bytes_per_layer": 619392,
+          "minimal_to_export_ratio": 2.9847334159950405,
+          "reduction_fraction": 0.04080192595052301,
+          "hypothetical_upstream_remote_bytes_per_layer": 312608,
+          "hypothetical_to_export_ratio": 0.5047013845835917,
+          "flux_pv_share_of_minimal_budget": 0.5127785711194772,
+          "scalar_state_share_of_minimal_budget": 0.15507378077805184,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "exner": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "flux": {
+              "logical_values": 102951,
+              "Domain_remote_bytes": 473992,
+              "hypothetical_upstream_remote_bytes": 110352,
+              "unmapped_values": 22535
+            },
+            "physics": {
+              "logical_values": 71052,
+              "Domain_remote_bytes": 327360,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 102951,
+              "Domain_remote_bytes": 473992,
+              "hypothetical_upstream_remote_bytes": 110352,
+              "unmapped_values": 22535
+            },
+            "rho": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "rho_theta": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 1925544,
+          "minimal_component_remote_bytes_per_layer": 1847464,
+          "current_tendency_export_remote_bytes_per_layer": 616704,
+          "minimal_to_export_ratio": 2.995706205894562,
+          "reduction_fraction": 0.040549579755123744,
+          "hypothetical_upstream_remote_bytes_per_layer": 309392,
+          "hypothetical_to_export_ratio": 0.5016863843918639,
+          "flux_pv_share_of_minimal_budget": 0.5120013163991287,
+          "scalar_state_share_of_minimal_budget": 0.15526581302802112,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "exner": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "flux": {
+              "logical_values": 103427,
+              "Domain_remote_bytes": 472952,
+              "hypothetical_upstream_remote_bytes": 109048,
+              "unmapped_values": 22584
+            },
+            "physics": {
+              "logical_values": 71505,
+              "Domain_remote_bytes": 327864,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 103427,
+              "Domain_remote_bytes": 472952,
+              "hypothetical_upstream_remote_bytes": 109048,
+              "unmapped_values": 22584
+            },
+            "rho": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "rho_theta": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            }
+          }
+        }
+      ]
+    },
+    "J5-n16-validation-4-checked": {
+      "ranks": 16,
+      "source_shadow_calls": 672000,
+      "gradient_shadow_calls": 230400,
+      "rhs_transactions": 48,
+      "layers": 30,
+      "sampled_epochs": 16,
+      "mapped_input_records": 424580,
+      "missing_records": 0,
+      "different_component_values": 0,
+      "cross_Domain_block_rank_matches": 214108,
+      "sampled_owner_interior_reuse_matches": true,
+      "sampled_plans": 492,
+      "budgets": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 2082104,
+          "minimal_component_remote_bytes_per_layer": 1996152,
+          "current_tendency_export_remote_bytes_per_layer": 619392,
+          "minimal_to_export_ratio": 3.2227603843769375,
+          "reduction_fraction": 0.0412813192808813,
+          "hypothetical_upstream_remote_bytes_per_layer": 320768,
+          "hypothetical_to_export_ratio": 0.5178755941310188,
+          "flux_pv_share_of_minimal_budget": 0.5128908019028611,
+          "scalar_state_share_of_minimal_budget": 0.15510642476124062,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "exner": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "flux": {
+              "logical_values": 111498,
+              "Domain_remote_bytes": 511904,
+              "hypothetical_upstream_remote_bytes": 113392,
+              "unmapped_values": 23032
+            },
+            "physics": {
+              "logical_values": 76836,
+              "Domain_remote_bytes": 353112,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 111498,
+              "Domain_remote_bytes": 511904,
+              "hypothetical_upstream_remote_bytes": 113392,
+              "unmapped_values": 23032
+            },
+            "rho": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "rho_theta": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 1927360,
+          "minimal_component_remote_bytes_per_layer": 1848720,
+          "current_tendency_export_remote_bytes_per_layer": 619392,
+          "minimal_to_export_ratio": 2.9847334159950405,
+          "reduction_fraction": 0.04080192595052301,
+          "hypothetical_upstream_remote_bytes_per_layer": 312608,
+          "hypothetical_to_export_ratio": 0.5047013845835917,
+          "flux_pv_share_of_minimal_budget": 0.5127785711194772,
+          "scalar_state_share_of_minimal_budget": 0.15507378077805184,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "exner": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "flux": {
+              "logical_values": 102951,
+              "Domain_remote_bytes": 473992,
+              "hypothetical_upstream_remote_bytes": 110352,
+              "unmapped_values": 22535
+            },
+            "physics": {
+              "logical_values": 71052,
+              "Domain_remote_bytes": 327360,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 102951,
+              "Domain_remote_bytes": 473992,
+              "hypothetical_upstream_remote_bytes": 110352,
+              "unmapped_values": 22535
+            },
+            "rho": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "rho_theta": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 1925544,
+          "minimal_component_remote_bytes_per_layer": 1847464,
+          "current_tendency_export_remote_bytes_per_layer": 616704,
+          "minimal_to_export_ratio": 2.995706205894562,
+          "reduction_fraction": 0.040549579755123744,
+          "hypothetical_upstream_remote_bytes_per_layer": 309392,
+          "hypothetical_to_export_ratio": 0.5016863843918639,
+          "flux_pv_share_of_minimal_budget": 0.5120013163991287,
+          "scalar_state_share_of_minimal_budget": 0.15526581302802112,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "exner": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "flux": {
+              "logical_values": 103427,
+              "Domain_remote_bytes": 472952,
+              "hypothetical_upstream_remote_bytes": 109048,
+              "unmapped_values": 22584
+            },
+            "physics": {
+              "logical_values": 71505,
+              "Domain_remote_bytes": 327864,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 103427,
+              "Domain_remote_bytes": 472952,
+              "hypothetical_upstream_remote_bytes": 109048,
+              "unmapped_values": 22584
+            },
+            "rho": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "rho_theta": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            }
+          }
+        }
+      ]
+    },
+    "J5-n16-validation-5-candidate": {
+      "ranks": 16,
+      "source_shadow_calls": 672000,
+      "gradient_shadow_calls": 230400,
+      "rhs_transactions": 48,
+      "layers": 30,
+      "sampled_epochs": 16,
+      "mapped_input_records": 424580,
+      "missing_records": 0,
+      "different_component_values": 0,
+      "cross_Domain_block_rank_matches": 214108,
+      "sampled_owner_interior_reuse_matches": true,
+      "sampled_plans": 492,
+      "budgets": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 2082104,
+          "minimal_component_remote_bytes_per_layer": 1996152,
+          "current_tendency_export_remote_bytes_per_layer": 619392,
+          "minimal_to_export_ratio": 3.2227603843769375,
+          "reduction_fraction": 0.0412813192808813,
+          "hypothetical_upstream_remote_bytes_per_layer": 320768,
+          "hypothetical_to_export_ratio": 0.5178755941310188,
+          "flux_pv_share_of_minimal_budget": 0.5128908019028611,
+          "scalar_state_share_of_minimal_budget": 0.15510642476124062,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "exner": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "flux": {
+              "logical_values": 111498,
+              "Domain_remote_bytes": 511904,
+              "hypothetical_upstream_remote_bytes": 113392,
+              "unmapped_values": 23032
+            },
+            "physics": {
+              "logical_values": 76836,
+              "Domain_remote_bytes": 353112,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 111498,
+              "Domain_remote_bytes": 511904,
+              "hypothetical_upstream_remote_bytes": 113392,
+              "unmapped_values": 23032
+            },
+            "rho": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            },
+            "rho_theta": {
+              "logical_values": 33620,
+              "Domain_remote_bytes": 154808,
+              "hypothetical_upstream_remote_bytes": 23496,
+              "unmapped_values": 4696
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 1927360,
+          "minimal_component_remote_bytes_per_layer": 1848720,
+          "current_tendency_export_remote_bytes_per_layer": 619392,
+          "minimal_to_export_ratio": 2.9847334159950405,
+          "reduction_fraction": 0.04080192595052301,
+          "hypothetical_upstream_remote_bytes_per_layer": 312608,
+          "hypothetical_to_export_ratio": 0.5047013845835917,
+          "flux_pv_share_of_minimal_budget": 0.5127785711194772,
+          "scalar_state_share_of_minimal_budget": 0.15507378077805184,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "exner": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "flux": {
+              "logical_values": 102951,
+              "Domain_remote_bytes": 473992,
+              "hypothetical_upstream_remote_bytes": 110352,
+              "unmapped_values": 22535
+            },
+            "physics": {
+              "logical_values": 71052,
+              "Domain_remote_bytes": 327360,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 102951,
+              "Domain_remote_bytes": 473992,
+              "hypothetical_upstream_remote_bytes": 110352,
+              "unmapped_values": 22535
+            },
+            "rho": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            },
+            "rho_theta": {
+              "logical_values": 31053,
+              "Domain_remote_bytes": 143344,
+              "hypothetical_upstream_remote_bytes": 22976,
+              "unmapped_values": 4592
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 164,
+          "full_argument_remote_bytes_per_layer": 1925544,
+          "minimal_component_remote_bytes_per_layer": 1847464,
+          "current_tendency_export_remote_bytes_per_layer": 616704,
+          "minimal_to_export_ratio": 2.995706205894562,
+          "reduction_fraction": 0.040549579755123744,
+          "hypothetical_upstream_remote_bytes_per_layer": 309392,
+          "hypothetical_to_export_ratio": 0.5016863843918639,
+          "flux_pv_share_of_minimal_budget": 0.5120013163991287,
+          "scalar_state_share_of_minimal_budget": 0.15526581302802112,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "exner": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "flux": {
+              "logical_values": 103427,
+              "Domain_remote_bytes": 472952,
+              "hypothetical_upstream_remote_bytes": 109048,
+              "unmapped_values": 22584
+            },
+            "physics": {
+              "logical_values": 71505,
+              "Domain_remote_bytes": 327864,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 103427,
+              "Domain_remote_bytes": 472952,
+              "hypothetical_upstream_remote_bytes": 109048,
+              "unmapped_values": 22584
+            },
+            "rho": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            },
+            "rho_theta": {
+              "logical_values": 31290,
+              "Domain_remote_bytes": 143424,
+              "hypothetical_upstream_remote_bytes": 22824,
+              "unmapped_values": 4621
+            }
+          }
+        }
+      ]
+    },
+    "J5-n83-validation-6-candidate": {
+      "ranks": 83,
+      "source_shadow_calls": 672000,
+      "gradient_shadow_calls": 230400,
+      "rhs_transactions": 48,
+      "layers": 30,
+      "sampled_epochs": 16,
+      "mapped_input_records": 424580,
+      "missing_records": 0,
+      "different_component_values": 0,
+      "cross_Domain_block_rank_matches": 344510,
+      "sampled_owner_interior_reuse_matches": true,
+      "sampled_plans": 792,
+      "budgets": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 264,
+          "full_argument_remote_bytes_per_layer": 4945552,
+          "minimal_component_remote_bytes_per_layer": 4722032,
+          "current_tendency_export_remote_bytes_per_layer": 1363200,
+          "minimal_to_export_ratio": 3.4639319248826292,
+          "reduction_fraction": 0.045196168193156194,
+          "hypothetical_upstream_remote_bytes_per_layer": 883472,
+          "hypothetical_to_export_ratio": 0.6480868544600938,
+          "flux_pv_share_of_minimal_budget": 0.5172451182033497,
+          "scalar_state_share_of_minimal_budget": 0.15515693243925496,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 55495,
+              "Domain_remote_bytes": 366328,
+              "hypothetical_upstream_remote_bytes": 64240,
+              "unmapped_values": 7736
+            },
+            "exner": {
+              "logical_values": 55495,
+              "Domain_remote_bytes": 366328,
+              "hypothetical_upstream_remote_bytes": 64240,
+              "unmapped_values": 7736
+            },
+            "flux": {
+              "logical_values": 184858,
+              "Domain_remote_bytes": 1221224,
+              "hypothetical_upstream_remote_bytes": 313256,
+              "unmapped_values": 37632
+            },
+            "physics": {
+              "logical_values": 123483,
+              "Domain_remote_bytes": 814272,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 184858,
+              "Domain_remote_bytes": 1221224,
+              "hypothetical_upstream_remote_bytes": 313256,
+              "unmapped_values": 37632
+            },
+            "rho": {
+              "logical_values": 55495,
+              "Domain_remote_bytes": 366328,
+              "hypothetical_upstream_remote_bytes": 64240,
+              "unmapped_values": 7736
+            },
+            "rho_theta": {
+              "logical_values": 55495,
+              "Domain_remote_bytes": 366328,
+              "hypothetical_upstream_remote_bytes": 64240,
+              "unmapped_values": 7736
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 264,
+          "full_argument_remote_bytes_per_layer": 4702688,
+          "minimal_component_remote_bytes_per_layer": 4488192,
+          "current_tendency_export_remote_bytes_per_layer": 1362816,
+          "minimal_to_export_ratio": 3.2933220625528317,
+          "reduction_fraction": 0.045611360991841265,
+          "hypothetical_upstream_remote_bytes_per_layer": 877536,
+          "hypothetical_to_export_ratio": 0.6439137785291631,
+          "flux_pv_share_of_minimal_budget": 0.5180669632671686,
+          "scalar_state_share_of_minimal_budget": 0.15509853410905772,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 53100,
+              "Domain_remote_bytes": 348056,
+              "hypothetical_upstream_remote_bytes": 63776,
+              "unmapped_values": 7665
+            },
+            "exner": {
+              "logical_values": 53100,
+              "Domain_remote_bytes": 348056,
+              "hypothetical_upstream_remote_bytes": 63776,
+              "unmapped_values": 7665
+            },
+            "flux": {
+              "logical_values": 177014,
+              "Domain_remote_bytes": 1162592,
+              "hypothetical_upstream_remote_bytes": 311216,
+              "unmapped_values": 37267
+            },
+            "physics": {
+              "logical_values": 117837,
+              "Domain_remote_bytes": 770784,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 177014,
+              "Domain_remote_bytes": 1162592,
+              "hypothetical_upstream_remote_bytes": 311216,
+              "unmapped_values": 37267
+            },
+            "rho": {
+              "logical_values": 53100,
+              "Domain_remote_bytes": 348056,
+              "hypothetical_upstream_remote_bytes": 63776,
+              "unmapped_values": 7665
+            },
+            "rho_theta": {
+              "logical_values": 53100,
+              "Domain_remote_bytes": 348056,
+              "hypothetical_upstream_remote_bytes": 63776,
+              "unmapped_values": 7665
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 264,
+          "full_argument_remote_bytes_per_layer": 4768816,
+          "minimal_component_remote_bytes_per_layer": 4552448,
+          "current_tendency_export_remote_bytes_per_layer": 1391232,
+          "minimal_to_export_ratio": 3.2722421565921427,
+          "reduction_fraction": 0.045371429721759005,
+          "hypothetical_upstream_remote_bytes_per_layer": 883520,
+          "hypothetical_to_export_ratio": 0.6350630232772104,
+          "flux_pv_share_of_minimal_budget": 0.5171758139796435,
+          "scalar_state_share_of_minimal_budget": 0.15540122588989486,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 53327,
+              "Domain_remote_bytes": 353728,
+              "hypothetical_upstream_remote_bytes": 64536,
+              "unmapped_values": 7689
+            },
+            "exner": {
+              "logical_values": 53327,
+              "Domain_remote_bytes": 353728,
+              "hypothetical_upstream_remote_bytes": 64536,
+              "unmapped_values": 7689
+            },
+            "flux": {
+              "logical_values": 177524,
+              "Domain_remote_bytes": 1177208,
+              "hypothetical_upstream_remote_bytes": 312688,
+              "unmapped_values": 37262
+            },
+            "physics": {
+              "logical_values": 118227,
+              "Domain_remote_bytes": 783120,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 177524,
+              "Domain_remote_bytes": 1177208,
+              "hypothetical_upstream_remote_bytes": 312688,
+              "unmapped_values": 37262
+            },
+            "rho": {
+              "logical_values": 53327,
+              "Domain_remote_bytes": 353728,
+              "hypothetical_upstream_remote_bytes": 64536,
+              "unmapped_values": 7689
+            },
+            "rho_theta": {
+              "logical_values": 53327,
+              "Domain_remote_bytes": 353728,
+              "hypothetical_upstream_remote_bytes": 64536,
+              "unmapped_values": 7689
+            }
+          }
+        }
+      ]
+    },
+    "J5-n160-validation-7-candidate": {
+      "ranks": 160,
+      "source_shadow_calls": 672000,
+      "gradient_shadow_calls": 230400,
+      "rhs_transactions": 48,
+      "layers": 30,
+      "sampled_epochs": 16,
+      "mapped_input_records": 424580,
+      "missing_records": 0,
+      "different_component_values": 0,
+      "cross_Domain_block_rank_matches": 410882,
+      "sampled_owner_interior_reuse_matches": true,
+      "sampled_plans": 480,
+      "budgets": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 160,
+          "full_argument_remote_bytes_per_layer": 3644168,
+          "minimal_component_remote_bytes_per_layer": 3461688,
+          "current_tendency_export_remote_bytes_per_layer": 1023360,
+          "minimal_to_export_ratio": 3.382668855534709,
+          "reduction_fraction": 0.05007453004362039,
+          "hypothetical_upstream_remote_bytes_per_layer": 709088,
+          "hypothetical_to_export_ratio": 0.692901813633521,
+          "flux_pv_share_of_minimal_budget": 0.5238230597327085,
+          "scalar_state_share_of_minimal_budget": 0.15433395499536642,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 34286,
+              "Domain_remote_bytes": 267128,
+              "hypothetical_upstream_remote_bytes": 51440,
+              "unmapped_values": 4726
+            },
+            "exner": {
+              "logical_values": 34286,
+              "Domain_remote_bytes": 267128,
+              "hypothetical_upstream_remote_bytes": 51440,
+              "unmapped_values": 4726
+            },
+            "flux": {
+              "logical_values": 116456,
+              "Domain_remote_bytes": 906656,
+              "hypothetical_upstream_remote_bytes": 251664,
+              "unmapped_values": 23140
+            },
+            "physics": {
+              "logical_values": 74427,
+              "Domain_remote_bytes": 579864,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 116456,
+              "Domain_remote_bytes": 906656,
+              "hypothetical_upstream_remote_bytes": 251664,
+              "unmapped_values": 23140
+            },
+            "rho": {
+              "logical_values": 34286,
+              "Domain_remote_bytes": 267128,
+              "hypothetical_upstream_remote_bytes": 51440,
+              "unmapped_values": 4726
+            },
+            "rho_theta": {
+              "logical_values": 34286,
+              "Domain_remote_bytes": 267128,
+              "hypothetical_upstream_remote_bytes": 51440,
+              "unmapped_values": 4726
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 160,
+          "full_argument_remote_bytes_per_layer": 3356312,
+          "minimal_component_remote_bytes_per_layer": 3188856,
+          "current_tendency_export_remote_bytes_per_layer": 1023360,
+          "minimal_to_export_ratio": 3.116064727954972,
+          "reduction_fraction": 0.04989285859002379,
+          "hypothetical_upstream_remote_bytes_per_layer": 681904,
+          "hypothetical_to_export_ratio": 0.6663383364602877,
+          "flux_pv_share_of_minimal_budget": 0.5239647070924495,
+          "scalar_state_share_of_minimal_budget": 0.1543073754349522,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 31623,
+              "Domain_remote_bytes": 246032,
+              "hypothetical_upstream_remote_bytes": 49440,
+              "unmapped_values": 4617
+            },
+            "exner": {
+              "logical_values": 31623,
+              "Domain_remote_bytes": 246032,
+              "hypothetical_upstream_remote_bytes": 49440,
+              "unmapped_values": 4617
+            },
+            "flux": {
+              "logical_values": 107466,
+              "Domain_remote_bytes": 835424,
+              "hypothetical_upstream_remote_bytes": 242072,
+              "unmapped_values": 22625
+            },
+            "physics": {
+              "logical_values": 68619,
+              "Domain_remote_bytes": 533880,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 107466,
+              "Domain_remote_bytes": 835424,
+              "hypothetical_upstream_remote_bytes": 242072,
+              "unmapped_values": 22625
+            },
+            "rho": {
+              "logical_values": 31623,
+              "Domain_remote_bytes": 246032,
+              "hypothetical_upstream_remote_bytes": 49440,
+              "unmapped_values": 4617
+            },
+            "rho_theta": {
+              "logical_values": 31623,
+              "Domain_remote_bytes": 246032,
+              "hypothetical_upstream_remote_bytes": 49440,
+              "unmapped_values": 4617
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 160,
+          "full_argument_remote_bytes_per_layer": 3376984,
+          "minimal_component_remote_bytes_per_layer": 3208824,
+          "current_tendency_export_remote_bytes_per_layer": 1027200,
+          "minimal_to_export_ratio": 3.1238551401869157,
+          "reduction_fraction": 0.04979591256576876,
+          "hypothetical_upstream_remote_bytes_per_layer": 682496,
+          "hypothetical_to_export_ratio": 0.6644236760124611,
+          "flux_pv_share_of_minimal_budget": 0.5232521322453335,
+          "scalar_state_share_of_minimal_budget": 0.15459370785060197,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 31854,
+              "Domain_remote_bytes": 248032,
+              "hypothetical_upstream_remote_bytes": 49624,
+              "unmapped_values": 4640
+            },
+            "exner": {
+              "logical_values": 31854,
+              "Domain_remote_bytes": 248032,
+              "hypothetical_upstream_remote_bytes": 49624,
+              "unmapped_values": 4640
+            },
+            "flux": {
+              "logical_values": 107920,
+              "Domain_remote_bytes": 839512,
+              "hypothetical_upstream_remote_bytes": 242000,
+              "unmapped_values": 22647
+            },
+            "physics": {
+              "logical_values": 69051,
+              "Domain_remote_bytes": 537672,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 107920,
+              "Domain_remote_bytes": 839512,
+              "hypothetical_upstream_remote_bytes": 242000,
+              "unmapped_values": 22647
+            },
+            "rho": {
+              "logical_values": 31854,
+              "Domain_remote_bytes": 248032,
+              "hypothetical_upstream_remote_bytes": 49624,
+              "unmapped_values": 4640
+            },
+            "rho_theta": {
+              "logical_values": 31854,
+              "Domain_remote_bytes": 248032,
+              "hypothetical_upstream_remote_bytes": 49624,
+              "unmapped_values": 4640
+            }
+          }
+        }
+      ]
+    },
+    "J5-n256-validation-8-candidate": {
+      "ranks": 256,
+      "source_shadow_calls": 672000,
+      "gradient_shadow_calls": 230400,
+      "rhs_transactions": 48,
+      "layers": 30,
+      "sampled_epochs": 16,
+      "mapped_input_records": 424580,
+      "missing_records": 0,
+      "different_component_values": 0,
+      "cross_Domain_block_rank_matches": 417340,
+      "sampled_owner_interior_reuse_matches": true,
+      "sampled_plans": 480,
+      "budgets": [
+        {
+          "rank_local_ordinal": 1,
+          "domains": 160,
+          "observations": 160,
+          "full_argument_remote_bytes_per_layer": 3794248,
+          "minimal_component_remote_bytes_per_layer": 3587480,
+          "current_tendency_export_remote_bytes_per_layer": 1031808,
+          "minimal_to_export_ratio": 3.476887172807344,
+          "reduction_fraction": 0.05449511998161427,
+          "hypothetical_upstream_remote_bytes_per_layer": 810784,
+          "hypothetical_to_export_ratio": 0.7857896042674606,
+          "flux_pv_share_of_minimal_budget": 0.5285760478107195,
+          "scalar_state_share_of_minimal_budget": 0.15419849030517244,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 35188,
+              "Domain_remote_bytes": 276592,
+              "hypothetical_upstream_remote_bytes": 58872,
+              "unmapped_values": 4796
+            },
+            "exner": {
+              "logical_values": 35188,
+              "Domain_remote_bytes": 276592,
+              "hypothetical_upstream_remote_bytes": 58872,
+              "unmapped_values": 4796
+            },
+            "flux": {
+              "logical_values": 120664,
+              "Domain_remote_bytes": 948128,
+              "hypothetical_upstream_remote_bytes": 287648,
+              "unmapped_values": 23520
+            },
+            "physics": {
+              "logical_values": 74427,
+              "Domain_remote_bytes": 584856,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 120664,
+              "Domain_remote_bytes": 948128,
+              "hypothetical_upstream_remote_bytes": 287648,
+              "unmapped_values": 23520
+            },
+            "rho": {
+              "logical_values": 35188,
+              "Domain_remote_bytes": 276592,
+              "hypothetical_upstream_remote_bytes": 58872,
+              "unmapped_values": 4796
+            },
+            "rho_theta": {
+              "logical_values": 35188,
+              "Domain_remote_bytes": 276592,
+              "hypothetical_upstream_remote_bytes": 58872,
+              "unmapped_values": 4796
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 2,
+          "domains": 160,
+          "observations": 160,
+          "full_argument_remote_bytes_per_layer": 3503128,
+          "minimal_component_remote_bytes_per_layer": 3311544,
+          "current_tendency_export_remote_bytes_per_layer": 1031808,
+          "minimal_to_export_ratio": 3.2094575735020467,
+          "reduction_fraction": 0.05468940900817787,
+          "hypothetical_upstream_remote_bytes_per_layer": 782240,
+          "hypothetical_to_export_ratio": 0.7581255427366331,
+          "flux_pv_share_of_minimal_budget": 0.5291259907765079,
+          "scalar_state_share_of_minimal_budget": 0.15414682697859367,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 32518,
+              "Domain_remote_bytes": 255232,
+              "hypothetical_upstream_remote_bytes": 56728,
+              "unmapped_values": 4684
+            },
+            "exner": {
+              "logical_values": 32518,
+              "Domain_remote_bytes": 255232,
+              "hypothetical_upstream_remote_bytes": 56728,
+              "unmapped_values": 4684
+            },
+            "flux": {
+              "logical_values": 111662,
+              "Domain_remote_bytes": 876112,
+              "hypothetical_upstream_remote_bytes": 277664,
+              "unmapped_values": 22997
+            },
+            "physics": {
+              "logical_values": 68619,
+              "Domain_remote_bytes": 538392,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 111662,
+              "Domain_remote_bytes": 876112,
+              "hypothetical_upstream_remote_bytes": 277664,
+              "unmapped_values": 22997
+            },
+            "rho": {
+              "logical_values": 32518,
+              "Domain_remote_bytes": 255232,
+              "hypothetical_upstream_remote_bytes": 56728,
+              "unmapped_values": 4684
+            },
+            "rho_theta": {
+              "logical_values": 32518,
+              "Domain_remote_bytes": 255232,
+              "hypothetical_upstream_remote_bytes": 56728,
+              "unmapped_values": 4684
+            }
+          }
+        },
+        {
+          "rank_local_ordinal": 3,
+          "domains": 160,
+          "observations": 160,
+          "full_argument_remote_bytes_per_layer": 3525824,
+          "minimal_component_remote_bytes_per_layer": 3333488,
+          "current_tendency_export_remote_bytes_per_layer": 1035648,
+          "minimal_to_export_ratio": 3.2187461376838464,
+          "reduction_fraction": 0.0545506525566789,
+          "hypothetical_upstream_remote_bytes_per_layer": 785248,
+          "hypothetical_to_export_ratio": 0.7582190087751823,
+          "flux_pv_share_of_minimal_budget": 0.5283834830063885,
+          "scalar_state_share_of_minimal_budget": 0.15448083208939106,
+          "fields": {
+            "bernoulli": {
+              "logical_values": 32780,
+              "Domain_remote_bytes": 257480,
+              "hypothetical_upstream_remote_bytes": 57160,
+              "unmapped_values": 4717
+            },
+            "exner": {
+              "logical_values": 32780,
+              "Domain_remote_bytes": 257480,
+              "hypothetical_upstream_remote_bytes": 57160,
+              "unmapped_values": 4717
+            },
+            "flux": {
+              "logical_values": 112171,
+              "Domain_remote_bytes": 880680,
+              "hypothetical_upstream_remote_bytes": 278304,
+              "unmapped_values": 23032
+            },
+            "physics": {
+              "logical_values": 69051,
+              "Domain_remote_bytes": 542208,
+              "hypothetical_upstream_remote_bytes": 0,
+              "unmapped_values": 0
+            },
+            "pv": {
+              "logical_values": 112171,
+              "Domain_remote_bytes": 880680,
+              "hypothetical_upstream_remote_bytes": 278304,
+              "unmapped_values": 23032
+            },
+            "rho": {
+              "logical_values": 32780,
+              "Domain_remote_bytes": 257480,
+              "hypothetical_upstream_remote_bytes": 57160,
+              "unmapped_values": 4717
+            },
+            "rho_theta": {
+              "logical_values": 32780,
+              "Domain_remote_bytes": 257480,
+              "hypothetical_upstream_remote_bytes": 57160,
+              "unmapped_values": 4717
+            }
+          }
+        }
+      ]
+    }
+  },
+  "zero_Domain_rank_inputs": {
+    "status": "verified",
+    "scope": "Map exact matched gradient input records to the actual resident block rank. Zero Domain status is inferred from that rank's gradient-check counter increment at the same transaction/layer, not its rank number.",
+    "epochs": [
+      {
+        "transaction": 1,
+        "layer": 1,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 27801,
+        "cross_Domain_block_rank_inputs": 27325,
+        "matched_inputs_on_zero_Domain_ranks": 5953
+      },
+      {
+        "transaction": 1,
+        "layer": 30,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 27801,
+        "cross_Domain_block_rank_inputs": 27325,
+        "matched_inputs_on_zero_Domain_ranks": 5953
+      },
+      {
+        "transaction": 2,
+        "layer": 1,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 27801,
+        "cross_Domain_block_rank_inputs": 27325,
+        "matched_inputs_on_zero_Domain_ranks": 5953
+      },
+      {
+        "transaction": 2,
+        "layer": 30,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 27801,
+        "cross_Domain_block_rank_inputs": 27325,
+        "matched_inputs_on_zero_Domain_ranks": 5953
+      },
+      {
+        "transaction": 3,
+        "layer": 1,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 27801,
+        "cross_Domain_block_rank_inputs": 27325,
+        "matched_inputs_on_zero_Domain_ranks": 5953
+      },
+      {
+        "transaction": 3,
+        "layer": 30,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 27801,
+        "cross_Domain_block_rank_inputs": 27325,
+        "matched_inputs_on_zero_Domain_ranks": 5953
+      },
+      {
+        "transaction": 9,
+        "layer": 1,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 25571,
+        "cross_Domain_block_rank_inputs": 25110,
+        "matched_inputs_on_zero_Domain_ranks": 5298
+      },
+      {
+        "transaction": 9,
+        "layer": 30,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 25571,
+        "cross_Domain_block_rank_inputs": 25110,
+        "matched_inputs_on_zero_Domain_ranks": 5298
+      },
+      {
+        "transaction": 17,
+        "layer": 1,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 25607,
+        "cross_Domain_block_rank_inputs": 25120,
+        "matched_inputs_on_zero_Domain_ranks": 5222
+      },
+      {
+        "transaction": 17,
+        "layer": 30,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 25607,
+        "cross_Domain_block_rank_inputs": 25120,
+        "matched_inputs_on_zero_Domain_ranks": 5222
+      },
+      {
+        "transaction": 33,
+        "layer": 1,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 25397,
+        "cross_Domain_block_rank_inputs": 25285,
+        "matched_inputs_on_zero_Domain_ranks": 8225
+      },
+      {
+        "transaction": 33,
+        "layer": 30,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 25397,
+        "cross_Domain_block_rank_inputs": 25285,
+        "matched_inputs_on_zero_Domain_ranks": 8225
+      },
+      {
+        "transaction": 41,
+        "layer": 1,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 25328,
+        "cross_Domain_block_rank_inputs": 24886,
+        "matched_inputs_on_zero_Domain_ranks": 6603
+      },
+      {
+        "transaction": 41,
+        "layer": 30,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 25328,
+        "cross_Domain_block_rank_inputs": 24886,
+        "matched_inputs_on_zero_Domain_ranks": 6603
+      },
+      {
+        "transaction": 48,
+        "layer": 1,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 26984,
+        "cross_Domain_block_rank_inputs": 26294,
+        "matched_inputs_on_zero_Domain_ranks": 5102
+      },
+      {
+        "transaction": 48,
+        "layer": 30,
+        "Domain_owners": 160,
+        "zero_Domain_ranks": 96,
+        "matched_mapped_inputs": 26984,
+        "cross_Domain_block_rank_inputs": 26294,
+        "matched_inputs_on_zero_Domain_ranks": 5102
+      }
+    ],
+    "totals": {
+      "matched_mapped_inputs": 424580,
+      "cross_Domain_block_rank_inputs": 417340,
+      "matched_inputs_on_zero_Domain_ranks": 96618
+    },
+    "observed_zero_Domain_ranks": [
+      160,
+      161,
+      162,
+      163,
+      164,
+      165,
+      166,
+      167,
+      168,
+      169,
+      170,
+      171,
+      172,
+      173,
+      174,
+      175,
+      176,
+      177,
+      178,
+      179,
+      180,
+      181,
+      182,
+      183,
+      184,
+      185,
+      186,
+      187,
+      188,
+      189,
+      190,
+      191,
+      192,
+      193,
+      194,
+      195,
+      196,
+      197,
+      198,
+      199,
+      200,
+      201,
+      202,
+      203,
+      204,
+      205,
+      206,
+      207,
+      208,
+      209,
+      210,
+      211,
+      212,
+      213,
+      214,
+      215,
+      216,
+      217,
+      218,
+      219,
+      220,
+      221,
+      222,
+      223,
+      224,
+      225,
+      226,
+      227,
+      228,
+      229,
+      230,
+      231,
+      232,
+      233,
+      234,
+      235,
+      236,
+      237,
+      238,
+      239,
+      240,
+      241,
+      242,
+      243,
+      244,
+      245,
+      246,
+      247,
+      248,
+      249,
+      250,
+      251,
+      252,
+      253,
+      254,
+      255
+    ]
+  },
+  "performance_qualified": false,
+  "promoted": false,
+  "decision": "Sampled interior scalar reuse gate passes through 256 ranks. Proceed to a bounded fused block primitive-producer prototype with exact-phase halo/alias validation and direct local consumers. Preserve fusion and measure all new preparation/communication costs before production replacement.",
+  "limitations": [
+    "All input matches are mapped owner interiors at 16 selected call/layer combinations; destination halo freshness, unsampled layers/calls and boundary aliases remain unproved.",
+    "Flux, PV, physics, Bernoulli and Exner block residency is not established by this scalar probe.",
+    "Budgets sum rank-local structural observations; they are not a synchronized mesh census, executed traffic, time-weighted work or speedup.",
+    "Hypothetical upstream ownership is conditional and excludes its own production/communication costs.",
+    "Zero-Domain-rank input correctness does not establish useful computation, load balance or >=640-rank efficiency.",
+    "Binary/checkpoint/VTK payloads omitted; cluster-computed hashes and numerical reports verified, not rerun."
+  ]
+}

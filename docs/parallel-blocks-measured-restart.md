@@ -444,3 +444,23 @@ four-build/eight-validation schedule at 16/83/160/256 ranks. Allow 20–30 minut
 excluding queue and collection; no timing comparison or promotion is attempted.
 See [Stage275 plan](parallel-blocks-stage275-plan.md) and
 [commands](../test/parallel_block_profile/inputs_275/README.md).
+
+Stage275 job 55485 was reviewed on 2026-10-09 and passes all eight cases. Slurm
+elapsed is 14:35, recorded in the runtime ledger. Independent review verifies
+2,334 sealed files. Each instrumented configuration checks 672,000 source calls
+and 230,400 gradient calls. All 424,580 sampled mapped scalar input records match
+at 16/83/160/256 ranks, including 96,618 matches on the 96 zero-Domain ranks at
+256. Rank status was reconstructed from execution counters at the same phase.
+This proves sampled owner-interior freshness, not destination halos or efficiency.
+
+Component trimming reduces the 256-rank Domain-fed input budget by only
+5.45–5.47%; it remains 3.21–3.48 times the current tendency export. Flux and PV
+make up about 53% of that remaining budget. Combine this evidence with Stage270's
+measured shared producer bottleneck to prioritize a bounded executable fused
+block primitive-producer prototype. Validate halo/alias freshness with that
+prototype, preserve shared fusion and exact numerical phases, and measure all
+preparation, communication and publication costs. A production replacement must
+connect direct local consumers, retire displaced work and pass full-step timing;
+do not promote temporary shadow duplication or label byte savings a speedup.
+See [Stage275 review](parallel-blocks-stage275-results.md). Stage266 remains
+accepted and Stage273 separate; the >=640-rank target is still unqualified.
