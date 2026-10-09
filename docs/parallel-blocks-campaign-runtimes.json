@@ -156,6 +156,52 @@
         20
       ],
       "estimate_limit": "Observed 14:35 is below the conservative 20\u201330-minute estimate. 15\u201320 minutes applies only to a comparable diagnostic schedule; not a forecast for a new numerical prototype or multi-node campaign."
+    },
+    {
+      "stage": 276,
+      "state": "COMPLETED",
+      "start": "2026-10-09T09:50:53",
+      "end": "2026-10-09T10:07:04",
+      "elapsed": "00:16:11",
+      "elapsed_seconds": 971,
+      "job_id": 55493,
+      "timestamp_basis": "As printed by sacct; runner UTC timestamps retained separately.",
+      "source": "Raw sacct output in independently hash-verified review/accounting.json.",
+      "archive_sha256": "4d4e0b8c7eeda53d56314c2cd15b867fff5de25bc10bbc5482a0e41236c9f30d",
+      "scope": "Four serial builds, eight science/prototype validations and five single uninstrumented timing controls. Excludes queue and collection/transfer.",
+      "partition": "nk",
+      "node": "bb13",
+      "serial_builds": 4,
+      "validation_runs": 8,
+      "timing_runs": 5,
+      "total_solver_runs": 13,
+      "schedule": [
+        "J5-n16-validation-1-main",
+        "J5-n16-validation-2-stage266",
+        "J5-n16-validation-3-candidate",
+        "J5-n16-validation-4-checked",
+        "J5-n16-validation-5-candidate",
+        "J5-n83-validation-6-candidate",
+        "J5-n160-validation-7-candidate",
+        "J5-n256-validation-8-candidate",
+        "J5-n83-timing-1-main",
+        "J5-n83-timing-2-stage266",
+        "J5-n160-timing-3-main",
+        "J5-n160-timing-4-stage266",
+        "J5-n256-timing-5-stage266"
+      ],
+      "runner_elapsed_seconds": 971.0846510999836,
+      "runner_started_utc": "2026-10-09T13:50:53.649549+00:00",
+      "runner_ended_utc": "2026-10-09T14:07:04.734173+00:00",
+      "previous_estimate_minutes": [
+        18,
+        25
+      ],
+      "future_comparable_campaign_planning_minutes": [
+        16,
+        22
+      ],
+      "estimate_limit": "Observed 16:11 was below the 18\u201325-minute estimate. Comparable schedule only; new production replacement or multi-node campaigns need their own estimate."
     }
   ]
 }

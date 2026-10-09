@@ -492,3 +492,21 @@ allocation. A subsequent complete producer/restriction/consumer replacement must
 retire displaced work and pass both performance gates before further removals.
 See [Stage276 plan](parallel-blocks-stage276-plan.md) and
 [commands](../test/parallel_block_profile/primitive_276/README.md).
+
+Stage276 job 55493 reviewed 2026-10-09: all thirteen runs pass; Slurm elapsed
+16:11. Each instrumented run verifies 10,692,608 resident patch/boundary/ghost
+inputs and 6,014,592 primitive outputs with no differences. At 256 ranks all
+96 zero-Domain ranks compute exact outputs, accounting for 22.56% of sampled
+nodes. This proves executable block-owned arithmetic with the existing refresh
+path, not production migration or useful parallel efficiency.
+
+Single uninstrumented controls reproduce 755.113 ms for Stage266 versus
+543.124 ms for main at 83 ranks, and 548.911 versus 368.380 ms at 160. Stage266
+at 256 takes 577.059 ms, 5.13% slower than at 160. The legacy gap remains.
+The next substantial change should complete a bounded fused producer,
+restriction and consumer slice, cache geometry/addresses, bound required
+refresh/physics/publication, and retire the displaced Domain work. Gate total
+step time immediately before further removal; do not adopt diagnostic reference
+packets as production communication or infer savings from uncalibrated timers.
+Stage266 stays accepted, Stage273 separate, and explicit shared-memory changes
+remain an independent later experiment. See [Stage276 review](parallel-blocks-stage276-results.md).
