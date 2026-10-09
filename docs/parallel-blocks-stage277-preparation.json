@@ -1,0 +1,151 @@
+{
+  "stage": 277,
+  "revision": "primitive-production",
+  "prepared_date": "2026-10-09",
+  "status": "locally-validated-cluster-performance-pending",
+  "promoted": false,
+  "production_working_source_changed": false,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "3a27fad746205c148a438de26d52c92dd638971b",
+  "candidate_changed_source": [
+    "src/multi_level.f90",
+    "src/ops.f90"
+  ],
+  "stage273_excluded": true,
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage277-validation/rk277-primitive-production-kit-v1.tar.gz",
+    "sha256": "3a1f6fb87bc95e799e20eff74ddada3198fdde8f65d77dd6cf44aa3c2eaeda2b",
+    "bytes": 19811346,
+    "files": 49,
+    "source_manifest_sha256": "49eebd72984c720fa881b80e5d218b2ec074ab64b55fa46872dd1c00556492ef",
+    "local_validation_sha256": "4db8346bf45272b9fd99f0012f3ad17cfb0b1031fa9313f8527fc1d3b5c91e6c",
+    "test_validation_sha256": "e8f19da3be20077168f98f15e71da8016387a96e0dc264a2af22da3e5fe183dc"
+  },
+  "tests": {
+    "status": "passed",
+    "workflow_tests": 11,
+    "contract_tests": 4,
+    "total_tests": 15,
+    "log_sha256": "af480ac1a5f28b564e657e3f6604197c80fe2a292c25d1941cb45f76c0648cbc",
+    "tested_source_sha256": {
+      "README.md": "1b258bf2d8bae02241324afed5a8c1f7b506517abc496bf3f92a048bca62d0ba",
+      "accounting.py": "a5d964e72a491ea5f7c360d2b0e100e22b6983649ecd9d95fb699dadd8911318",
+      "build.py": "9e166a2fd3774c70dcc70c66374e348a77f1fe4928bb570a34609f43837fd55f",
+      "collect.sh": "4f47bd66bccba77e7b4540afafdb3bc42708cd9928cb1c08e891e38ff14df97b",
+      "common.py": "79682daf62ac46d4a26ff515ff28e44bc812622b8ec707b53b61726033c9cef3",
+      "contract.py": "0a4227b259b4b81810d2e0d4ab7ad9adfbaf18f477897342bf2ab6bc512696b9",
+      "control.py": "4cbd375f41ddce02fefcfe7d4289f91aebcc6959daf3daed274b8918b964b3c6",
+      "declarations.f90": "950a2dbf4bcf4b16496d21de0f83cc7d05cc928c78d26df32223162f6a0abd38",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "instrument.py": "25e52d2ecbd951c3cdfe94c3ba160529f607760050280080d00719ea567c71b3",
+      "launch.sh": "b3ab9adfb54c2b590468e2df8ece0d87e512be5676463b02267ec37184699a27",
+      "local_verify.py": "0729b7609ce4de0a9a6f378f77b05063e84260c5743c708da4ebbd92d49a5813",
+      "placement_277.py": "3bcb11f81fbb124ea0083db1bc07e47d98623f15747c50e484f25a1a93c557dd",
+      "prepare.py": "1f1b677d556427cbfe27374c1c229fe2fca3cfdf95968881b96113d175fd4d9e",
+      "producer.f90": "5c40566d0d536a3b06cd0df3f01418f6ddbb5b284027135d298170dd0ae5572d",
+      "review.py": "d6001ca6ec524ea0ac02f0aa2b87233c1ec1dc7018dd95e51bd6e3a34f7c5812",
+      "run.py": "86335cd5fa54a78ddd7ad2e8c1ac2455817a05f8f985e0861be2436f15467b23",
+      "seal.py": "60cb2195e0da4a8a71d0d924cf37ef3a788d3a4a27d1ea46358edc7648bb3ad0",
+      "status.sh": "b8d09f89016519672e1afd960e06f34e00644fd56cc89f038ebb22710cd8cb33",
+      "test_contract.py": "f5c09257539580e8502c0feaf38b600cf36137d0c6e6a09142dfe953b41f49c1",
+      "test_workflow.py": "8f3c79b316ddf5cac1b88a489ec7fadf7adef5ac8391d65c1c3645312b2d0e79",
+      "timing.sbatch": "c341850a9d978a9846202dfbe43015ee1dd9baebc3021124e8989fe998df5118"
+    }
+  },
+  "local_contracts": {
+    "candidate": {
+      "enabled": true,
+      "nodes": 55244160,
+      "assignments": 1049639040,
+      "rhs_per_rank": 48,
+      "layers": 30,
+      "zero_domain_ranks": 0,
+      "zero_domain_rank_nodes": 0,
+      "cache_rebuilds_min": 12,
+      "cache_rebuilds_max": 12,
+      "assignment_gate_passed": true,
+      "reference_gate_passed": true,
+      "scope": "Full-call production assignment checks on existing Domain owners; no ownership migration or new MPI traffic."
+    },
+    "checked": {
+      "enabled": true,
+      "nodes": 55244160,
+      "assignments": 1049639040,
+      "rhs_per_rank": 48,
+      "layers": 30,
+      "zero_domain_ranks": 0,
+      "zero_domain_rank_nodes": 0,
+      "cache_rebuilds_min": 12,
+      "cache_rebuilds_max": 12,
+      "assignment_gate_passed": true,
+      "reference_gate_passed": true,
+      "scope": "Full-call production assignment checks on existing Domain owners; no ownership migration or new MPI traffic."
+    },
+    "candidate-oracle": {
+      "enabled": true,
+      "nodes": 55244160,
+      "assignments": 1049639040,
+      "rhs_per_rank": 48,
+      "layers": 30,
+      "zero_domain_ranks": 0,
+      "zero_domain_rank_nodes": 0,
+      "cache_rebuilds_min": 12,
+      "cache_rebuilds_max": 12,
+      "assignment_gate_passed": true,
+      "reference_gate_passed": true,
+      "scope": "Full-call production assignment checks on existing Domain owners; no ownership migration or new MPI traffic."
+    },
+    "candidate-production": {
+      "enabled": false
+    }
+  },
+  "local_science": {
+    "ranks": 4,
+    "serial_builds": true,
+    "exact_checkpoint": true,
+    "exact_step_states": true,
+    "exact_vtk_members": 62,
+    "optimized_checked_oracle_and_checks_disabled_production": true
+  },
+  "campaign": {
+    "builds": 4,
+    "validations": 8,
+    "timing_controls": 8,
+    "repeated_identical_timings": false,
+    "partition": "nk",
+    "node": "bb13",
+    "ranks": [
+      16,
+      83,
+      160,
+      256
+    ],
+    "expected_minutes": [
+      20,
+      30
+    ],
+    "based_on": "Stage276 measured 16:11 for four builds/thirteen runs. Adds three timing runs and full-call assignment checks."
+  },
+  "scope_adjustment": "Complete block-owned producer/restriction/consumer migration is not implemented here. Retained physics and Bernoulli consumers would require a bulk primitive return. Stage277 integrates the fused kernel in production on existing Domain owners, preserving final shared writes and introducing no MPI route.",
+  "limitations": [
+    "Ownership distribution remains Domain-bound; zero-Domain ranks perform no primitive work in this candidate.",
+    "Pressure/physics, boundary/pentagon handling, restriction and native tendency export remain.",
+    "Geometry cache and patch buffer memory costs may offset reduced geometry lookups; timing gate required.",
+    "No speedup or >=640-rank efficiency qualification before cluster evidence."
+  ],
+  "delivery_check": {
+    "status": "passed",
+    "sealed_files": 49,
+    "source_members_verified": true,
+    "actual_packaged_grid_verified": true,
+    "all_fixture_hashes_match_stage275": true,
+    "overlay_reproduced_exactly": true,
+    "stage273_excluded": true,
+    "helper_imports_and_shell_syntax": true,
+    "macos_xattr_headers": false,
+    "delivered_workflow_tests": 11,
+    "delivered_contract_tests": 4,
+    "source_manifest_sha256": "49eebd72984c720fa881b80e5d218b2ec074ab64b55fa46872dd1c00556492ef"
+  }
+}

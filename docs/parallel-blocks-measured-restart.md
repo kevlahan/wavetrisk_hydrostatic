@@ -510,3 +510,28 @@ step time immediately before further removal; do not adopt diagnostic reference
 packets as production communication or infer savings from uncalibrated timers.
 Stage266 stays accepted, Stage273 separate, and explicit shared-memory changes
 remain an independent later experiment. See [Stage276 review](parallel-blocks-stage276-results.md).
+
+## Stage277: cached primitive production integration (2026-10-09)
+
+The complete block-owned producer/restriction/consumer replacement recommended
+after Stage276 remains outstanding. Implementation tracing showed that moving
+the primitive producer alone would require returning bulk outputs to retained
+physics/Bernoulli consumers. Stage277 instead integrates the fused array kernel
+into production at existing Domain owners, with geometry/operand addresses
+cached at the valid generation and shared vorticity writes installed in their
+original order. It adds no MPI route and makes no ownership-scaling claim.
+
+Three four-rank assignment-check replays (optimized, checked and full oracle)
+each pass 1,049,639,040 bitwise comparisons over all 48 RHS calls and 30 layers.
+A separate checks-disabled production replay also passes exact Stage266
+checkpoint, trajectory and 62-member VTK comparisons. The kit's 15 workflow and
+contract tests and fresh delivery extraction pass. Working solver source remains
+unchanged; Stage273 is excluded from the sealed Stage266 overlay.
+
+The cluster gate has four serial builds, eight validations and eight single
+uninstrumented timing runs: main/Stage266/candidate at 83/160 and
+Stage266/candidate at 256. Estimate 20–30 minutes after allocation, using
+Stage276's measured 16:11 and allowing extra full-call checks/timing runs.
+No automatic promotion or speedup claim. Resolve a regression before stacking
+another removal. See [Stage277 plan](parallel-blocks-stage277-plan.md) and its
+preparation record for the narrowed scope and remaining ownership migration.
