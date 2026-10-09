@@ -1,7 +1,7 @@
 """Seal only after real source-bound optimized/checked/oracle diagnostic replays."""
 import json,shutil,sys,tarfile
 from pathlib import Path
-from common import save,sha,verify,source_scope
+from common import save,sha,verify,source_scope,verify_packaged_grid
 from prepare import inventory
 from evidence import publication_evidence
 from contract import evidence
@@ -9,11 +9,11 @@ from contract import evidence
 
 def seal(kit,validation,tests):
     kit,validation,tests=map(lambda p:Path(p).resolve(strict=True),(kit,validation,tests))
-    verify(kit);source_scope(kit)
+    verify(kit);source_scope(kit);verify_packaged_grid(kit)
     result=json.loads(validation.read_text());checks=json.loads(tests.read_text())
     if result['status']!='passed' or result['ranks']!=4 or set(result['cases'])!={'candidate','checked','candidate-oracle'}:
         raise ValueError('Require three real source-bound diagnostic replays')
-    if checks['status']!='passed' or checks['workflow_tests']!=9 or checks['contract_tests']!=4:
+    if checks['status']!='passed' or checks['workflow_tests']!=11 or checks['contract_tests']!=4:
         raise ValueError('Require workflow and contract test evidence')
     if result['source_manifest_sha256']!=sha(kit/'source-files.json'):raise ValueError('Tested source differs')
     bp=validation.parent/'builds.json';builds=json.loads(bp.read_text())

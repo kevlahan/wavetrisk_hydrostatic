@@ -25,6 +25,41 @@ from evidence import publication_evidence
 
 
 class Workflow(unittest.TestCase):
+    def test_packaged_grid_catches_corrupted_expected_checksum(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            kit=Path(tmp);(kit/'grids').mkdir()
+            name='grids/HR95JT_WT_004';(kit/name).write_bytes(b'unchanged grid bytes')
+            expected=common.sha(kit/name)
+            with patch.dict(common.J5_HASHES,{name:expected}):
+                self.assertEqual(common.verify_packaged_grid(kit),expected)
+            wrong=('0' if expected[0]!='0' else '1')+expected[1:]
+            with patch.dict(common.J5_HASHES,{name:wrong}):
+                with self.assertRaisesRegex(ValueError,'Packaged J5 grid checksum differs'):
+                    common.verify_packaged_grid(kit)
+
+    def test_real_preflight_checks_both_packaged_and_external_grid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);kit=root/'kit';fixture=root/'fixture'
+            for p in (kit,fixture):(p/'grids').mkdir(parents=True)
+            hashes={}
+            for name in common.J5_HASHES:
+                (fixture/name).write_bytes(('fixture '+name).encode())
+                hashes[name]=common.sha(fixture/name)
+            name='grids/HR95JT_WT_004';(kit/name).write_bytes((fixture/name).read_bytes())
+            identity=dict(stage=276,revision='primitive-prototype',stage266_commit=common.BASELINE,main_commit=common.MAIN)
+            common.save(kit/'IDENTITY.json',identity)
+            common.save(kit/'files-sha256.json',{n:common.sha(kit/n) for n in ('IDENTITY.json',name)})
+            with patch.dict(common.J5_HASHES,hashes),patch.object(common,'source_scope'):
+                self.assertEqual(common.preflight(kit,fixture),identity)
+                (fixture/name).write_bytes(b'changed external grid')
+                with self.assertRaisesRegex(ValueError,'Established J5 fixture differs'):
+                    common.preflight(kit,fixture)
+                (fixture/name).write_bytes((kit/name).read_bytes())
+                wrong=('0' if hashes[name][0]!='0' else '1')+hashes[name][1:]
+                with patch.dict(common.J5_HASHES,{name:wrong}):
+                    with self.assertRaisesRegex(ValueError,'Packaged J5 grid checksum differs'):
+                        common.preflight(kit,fixture)
+
     def test_four_builds_share_physics_and_check_candidate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

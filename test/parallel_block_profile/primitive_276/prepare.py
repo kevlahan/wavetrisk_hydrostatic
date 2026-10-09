@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-from common import BASELINE, MAIN, save, sha, verify, source_scope
+from common import BASELINE, MAIN, save, sha, verify, source_scope, verify_packaged_grid
 HERE=Path(__file__).resolve().parent
 
 def inventory(root):
@@ -55,6 +55,7 @@ def prepare(repo,anchor,destination):
                     baseline_source_sha256={name:manifests['stage266'][name] for name in changed})
     save(destination/'IDENTITY.json',identity)
     source_scope(destination)
+    verify_packaged_grid(destination)
     save(destination/'files-sha256.json',inventory(destination));verify(destination)
     print('Prepared: '+str(destination))
 

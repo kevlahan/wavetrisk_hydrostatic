@@ -94,3 +94,15 @@ collector records Slurm start/end/elapsed automatically.
 Reproducible source overlay, preparation and one-command launch/status/collection:
 `test/parallel_block_profile/primitive_276/`. Delivery details and actual local
 validation are recorded in `parallel-blocks-stage276-preparation.json`.
+
+## Packaging correction: v2
+
+The initial launch failed in preflight, before `sbatch`. Renaming Stage275 to
+Stage276 by unrestricted text substitution had also altered `275` inside the
+expected grid SHA256. The packaged grid retained the correct established bytes.
+V2 restores the checksum and verifies it against the actual packaged grid during
+preparation, sealing and preflight. Tests cover a corrupted expected checksum and
+an altered external fixture. All three fixture hashes also match the successful
+Stage275 campaign. Solver archive, source manifest, campaign and local MPI
+validation are unchanged; the repair does not require new solver runs locally.
+Use the v2 commands in the campaign README.

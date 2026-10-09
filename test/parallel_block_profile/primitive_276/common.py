@@ -10,7 +10,7 @@ MAIN = '6a245db7f1632b0205c2bebe95e5f0cd535c2582'
 J5_HASHES = {
     'simple.in': 'ed173774b8400630657243fa67b4065faff1faf409ba93c1712bb80174d6ae8d',
     'test_checkpoint_0003.bin.zst': '8c7b651c2d6bc6f481838163591565771e1f9a95fd54ec9adf0ce9b74a117e2d',
-    'grids/HR95JT_WT_004': 'd4d8393bf53d6276432f6f954ef3178a3ae2e3447a17160f5a3aa029ac39098d',
+    'grids/HR95JT_WT_004': 'd4d8393bf53d6275432f6f954ef3178a3ae2e3447a17160f5a3aa029ac39098d',
 }
 CHECKPOINTS = {
     'main': '5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765',
@@ -52,15 +52,26 @@ def verify(root, filename='files-sha256.json'):
     return manifest
 
 
+def verify_packaged_grid(kit):
+    """Bind the fixture checksum to actual sealed grid bytes before delivery."""
+    name='grids/HR95JT_WT_004'
+    actual=sha(Path(kit)/name)
+    if actual!=J5_HASHES[name]:
+        raise ValueError(f'Packaged J5 grid checksum differs: expected {J5_HASHES[name]}, observed {actual}')
+    return actual
+
+
 def preflight(kit, fixture):
     kit, fixture = Path(kit).resolve(strict=True), Path(fixture).resolve(strict=True)
     verify(kit)
+    verify_packaged_grid(kit)
     identity = json.loads((kit / 'IDENTITY.json').read_text())
     if identity['stage'] != 276 or identity.get('revision') != 'primitive-prototype' or identity['stage266_commit'] != BASELINE or identity['main_commit'] != MAIN:
         raise ValueError('Wrong reset baseline source identities')
     for name, expected in J5_HASHES.items():
-        if sha(fixture / name) != expected:
-            raise ValueError('Established J5 fixture differs: ' + str(fixture / name))
+        actual=sha(fixture/name)
+        if actual != expected:
+            raise ValueError(f'Established J5 fixture differs: {fixture/name}; expected {expected}, observed {actual}')
     # Exercise the complete analysis import graph before submitting a job.
     from capability_223 import coverage, numerical
     from protocol_229 import ordinary

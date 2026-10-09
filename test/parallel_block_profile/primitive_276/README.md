@@ -41,27 +41,31 @@ The review preserves Slurm accounting, source seals and failed-job diagnostics.
 Local transfer:
 
 ```bash
-scp /Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage276-validation/rk276-primitive-prototype-kit-v1.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
+scp /Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage276-validation/rk276-primitive-prototype-kit-v2.tar.gz kevlahan@bbserv.math.mcmaster.ca:~/
 ```
 
 On bbserv:
 
 ```bash
-tar -xzf "$HOME/rk276-primitive-prototype-kit-v1.tar.gz" -C "$HOME"
-bash "$HOME/rk276-primitive-prototype-kit-v1/launch.sh"
+tar -xzf "$HOME/rk276-primitive-prototype-kit-v2.tar.gz" -C "$HOME"
+bash "$HOME/rk276-primitive-prototype-kit-v2/launch.sh"
 ```
 
 Status:
 
 ```bash
-bash "$HOME/rk276-primitive-prototype-kit-v1/status.sh"
+bash "$HOME/rk276-primitive-prototype-kit-v2/status.sh"
 ```
 
 After completion, collect and transfer to the local Desktop:
 
 ```bash
-bash "$HOME/rk276-primitive-prototype-kit-v1/collect.sh"
+bash "$HOME/rk276-primitive-prototype-kit-v2/collect.sh"
 ```
 
 Only the established hash-checked J5 fixture is required on bbserv. Source and
 helpers are self-contained. Partition nk contains bb13; no exclusion is needed.
+
+Package v2 fixes a stage-renaming error in the expected grid checksum. The grid,
+solver sources and campaign are unchanged. Preparation, sealing and preflight
+now compare the expected grid checksum with the actual packaged bytes.
