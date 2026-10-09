@@ -464,3 +464,31 @@ connect direct local consumers, retire displaced work and pass full-step timing;
 do not promote temporary shadow duplication or label byte savings a speedup.
 See [Stage275 review](parallel-blocks-stage275-results.md). Stage266 remains
 accepted and Stage273 separate; the >=640-rank target is still unqualified.
+
+## Stage276 — executable fused producer prototype (2026-10-09)
+
+Stage276 advances from input budgets to numerical execution on block owners:
+a fused positive-interior mass-flux/PV/KE/vorticity kernel reads resident scalar,
+mean and velocity data through cached patch/boundary/ghost addresses. A bounded
+overlay on Stage266 supplies assignment-point `step1` references and a bulk
+validation exchange. It excludes Stage273 and leaves production numerics intact.
+
+Local preparation uncovered two design details: restriction-field address
+metadata is not ready at this earlier producer phase, so the prototype uses
+direct neighbour records; shared vorticity entries are overwritten later with
+a different arithmetic order, so exact primitive references must be captured
+at assignment, and final write order must be retained by a future replacement.
+
+The optimized, checked and oracle four-rank replays each pass 9,611,776 input comparisons
+and 5,406,624 output comparisons, with exact Stage266 science. The preparation
+record contains the complete optimized/checked/oracle validation and delivery
+checks. No production work is retired or full-step speedup claimed here.
+
+The cluster kit combines eight prototype/scientific validations at 16/83/160/256
+with five single-run controls (main/Stage266 at 83/160 and Stage266 at 256).
+This tests actual primitive execution on zero-Domain ranks while preserving a
+same-node view of the legacy gap. Estimated execution is 18–25 minutes after
+allocation. A subsequent complete producer/restriction/consumer replacement must
+retire displaced work and pass both performance gates before further removals.
+See [Stage276 plan](parallel-blocks-stage276-plan.md) and
+[commands](../test/parallel_block_profile/primitive_276/README.md).

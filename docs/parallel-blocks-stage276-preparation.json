@@ -1,0 +1,164 @@
+{
+  "stage": 276,
+  "revision": "primitive-prototype",
+  "prepared_date": "2026-10-09",
+  "status": "locally-validated-cluster-prototype-evidence-pending",
+  "promoted": false,
+  "production_source_changed": false,
+  "baseline_commit": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_commit": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "preparation_parent_commit": "2c30bfe8d6b012d74f4f1dd094a4b1a600a7e61b",
+  "prototype_changed_source": [
+    "src/multi_level.f90",
+    "src/ops.f90"
+  ],
+  "stage273_excluded": true,
+  "kit": {
+    "archive": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage276-validation/rk276-primitive-prototype-kit-v1.tar.gz",
+    "sha256": "15c86357d9d6eccc7fd4b2684fce6c7e5ae5fbe67e49ca73b89b9642a9872fb5",
+    "bytes": 19827630,
+    "files": 49,
+    "source_manifest_sha256": "43942d3be9970e436d68f46bde4ad461fe3d9539dbd6045846e034a6b0dc1622",
+    "local_validation_sha256": "c632247783cfe8efcb93f087e42d734f6f81b906d9cbb176f874ce54f5949597",
+    "test_validation_sha256": "bfb3261fc652d5026ccbefaee49bc7f3217fed3742edddc4c4ebb59e13cddc05"
+  },
+  "tests": {
+    "status": "passed",
+    "workflow_tests": 9,
+    "contract_tests": 4,
+    "total_tests": 13,
+    "log_sha256": "ce5a0a27a445d934981ab7392d60d41dfc785d44a4522b7ad0dc78cbdd38aa39",
+    "tested_source_sha256": {
+      "README.md": "ac49e1d58018e21efdc487eced09f6e8f8e87aac07075bc64f8ddb6ae78d55be",
+      "accounting.py": "a5d964e72a491ea5f7c360d2b0e100e22b6983649ecd9d95fb699dadd8911318",
+      "build.py": "a090f3b303e0a916cb3bdb44bb0879fb9638591bcfba7531c1597f689ed17ae3",
+      "collect.sh": "4f47bd66bccba77e7b4540afafdb3bc42708cd9928cb1c08e891e38ff14df97b",
+      "common.py": "da756d2a1380f3b29c92475bdbffb4c2b724a10c3aadb80efaf887825be3a65b",
+      "contract.py": "440c4194f3d219bb915cdfab2934d892afebbd90d1cdd408fbd70ee42c59738c",
+      "control.py": "6fcdf330bf0722e0dfe54bb956468ef8371b85819cb4d58108d272eb755a2a1d",
+      "declarations.f90": "0479008a0515312b712c15efa2975c9375be4af071ba0b526a1542f2c5798d9d",
+      "evidence.py": "a788a8fa92a04f89801471a32b7e2cb0a795d5c3faa8ed8a81d6d7518a109bcf",
+      "instrument.py": "cfe35716878866a681463e14481d048a45a135a5d6b987c64e38da93e9568e98",
+      "launch.sh": "b3ab9adfb54c2b590468e2df8ece0d87e512be5676463b02267ec37184699a27",
+      "local_verify.py": "c369f806f47297a74ea8a4676580fe327b2dab7551cbf5b14f4951feec27e49d",
+      "placement_276.py": "3bcb11f81fbb124ea0083db1bc07e47d98623f15747c50e484f25a1a93c557dd",
+      "prepare.py": "b1d746d1e7279806ee42a29e0772f22d126bb1caa42be4718ce948aa14062682",
+      "producer.f90": "7054de5f22a9bcc6ffa8bf976e32619baf4b0f954db14a41ae972cbdd23ff8f6",
+      "review.py": "669540166f38e15c57c81813d03abebb4a0aaaa84da03f99d6a41a0412edba01",
+      "run.py": "175c371c0d199db2c164af5c41485c436bbc2d2f2f1c90d64afe022b59fc3cdf",
+      "seal.py": "3fd42042731e9f5e7081a6da746164dbaab500f7290a38b7fb8a2634c14cf572",
+      "status.sh": "b8d09f89016519672e1afd960e06f34e00644fd56cc89f038ebb22710cd8cb33",
+      "test_contract.py": "40f52e6eeb854cbfdea486024ecb836e54e5fa8b53383c76698126a349cfef3a",
+      "test_workflow.py": "50685306c7d3a02a0b3b52e271f3b483703bc97fb04fc5ec6ae96d8146d86d84",
+      "timing.sbatch": "85114b9f5a85336676c0fa12a0e4ba798f24dd8933158572f84214dcfd2c50e2"
+    }
+  },
+  "local_prototype": {
+    "candidate": {
+      "nodes": 600736,
+      "outputs": 5406624,
+      "output_differences": 0,
+      "reference_differences": 0,
+      "inputs": [
+        8774496,
+        467212,
+        370068
+      ],
+      "input_differences": [
+        0,
+        0,
+        0
+      ],
+      "phases_per_rank": 48,
+      "skipped_domain_nodes": 0,
+      "resident_gate_passed": true,
+      "reference_gate_passed": true
+    },
+    "checked": {
+      "nodes": 600736,
+      "outputs": 5406624,
+      "output_differences": 0,
+      "reference_differences": 0,
+      "inputs": [
+        8774496,
+        467212,
+        370068
+      ],
+      "input_differences": [
+        0,
+        0,
+        0
+      ],
+      "phases_per_rank": 48,
+      "skipped_domain_nodes": 0,
+      "resident_gate_passed": true,
+      "reference_gate_passed": true
+    },
+    "candidate-oracle": {
+      "nodes": 600736,
+      "outputs": 5406624,
+      "output_differences": 0,
+      "reference_differences": 0,
+      "inputs": [
+        8774496,
+        467212,
+        370068
+      ],
+      "input_differences": [
+        0,
+        0,
+        0
+      ],
+      "phases_per_rank": 48,
+      "skipped_domain_nodes": 0,
+      "resident_gate_passed": true,
+      "reference_gate_passed": true
+    }
+  },
+  "local_science": {
+    "ranks": 4,
+    "serial_builds": true,
+    "exact_checkpoint": true,
+    "exact_step_states": true,
+    "exact_vtk_members": 62,
+    "optimized_checked_oracle": true
+  },
+  "campaign": {
+    "builds": 4,
+    "validations": 8,
+    "timing_controls": 5,
+    "repeated_identical_timings": false,
+    "partition": "nk",
+    "node": "bb13",
+    "ranks": [
+      16,
+      83,
+      160,
+      256
+    ],
+    "expected_minutes": [
+      18,
+      25
+    ],
+    "based_on": "Stage275: 14:35 for four builds/eight validations; five additional timing controls and new prototype costs."
+  },
+  "limitations": [
+    "Positive patch interiors, eight RHS ordinals and first/last layers only.",
+    "Reference geometry and physics remain Domain-fed; diagnostic packet traffic is not proposed production traffic.",
+    "Initial vorticity assignment only; final shared-write ownership/publication remains to be preserved.",
+    "No production consumers connected or Domain work retired; no prototype full-step speedup qualification.",
+    "Zero-Domain execution and >=640-rank efficient scaling remain unverified locally."
+  ],
+  "delivery_check": {
+    "status": "passed",
+    "sealed_files": 49,
+    "source_members_verified": true,
+    "overlay_reproduced_exactly": true,
+    "stage273_excluded": true,
+    "helper_imports_and_shell_syntax": true,
+    "macos_xattr_headers": false,
+    "delivered_workflow_tests": 9,
+    "delivered_contract_tests": 4,
+    "source_manifest_sha256": "43942d3be9970e436d68f46bde4ad461fe3d9539dbd6045846e034a6b0dc1622"
+  }
+}
