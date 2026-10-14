@@ -1,0 +1,79 @@
+{
+  "status": "local_science_and_lifetime_qualified",
+  "performance_qualified": false,
+  "local_speedup_established": false,
+  "cluster_submitted": false,
+  "source_delta_files": 12,
+  "local_ranks": 4,
+  "fixture": "J4/J6, 40 Domains; local above-Domain execution not tested",
+  "full_replays_passed": 9,
+  "exchange_cases_passed": 24,
+  "helper_tests_passed": 32,
+  "bare_runs": [
+    {
+      "name": "A1",
+      "kind": "v7",
+      "median_seconds": 7.2401,
+      "mean_seconds": 7.0759023333333335,
+      "validation_sha256": "af9cb2ca23a8c880f331bcdc3d949e7213e43b9eb5befbb83cb559e0255b147a"
+    },
+    {
+      "name": "B1",
+      "kind": "candidate",
+      "median_seconds": 7.218158,
+      "mean_seconds": 7.389440666666666,
+      "validation_sha256": "eca8d6ae7e490995cd2c91438e5231309339d58513db5a28ccb7258921f061bc"
+    },
+    {
+      "name": "B2",
+      "kind": "candidate",
+      "median_seconds": 6.673557,
+      "mean_seconds": 6.991783222222222,
+      "validation_sha256": "5f0a568b6d6581246fd9efee1314046572ac67b07f8f79655a3ca4aa2467cd28"
+    },
+    {
+      "name": "A2",
+      "kind": "v7",
+      "median_seconds": 6.364683,
+      "mean_seconds": 6.68245,
+      "validation_sha256": "45ad53a89fb6b42a53cb88b7a93462fa9884046315bb8a2522916a7e77ed6bba"
+    }
+  ],
+  "bare_summary": {
+    "v7": {
+      "mean_run_median_seconds": 6.802391500000001,
+      "mean_ordinary_seconds": 6.879176166666667,
+      "range_run_medians_seconds": [
+        6.364683,
+        7.2401
+      ]
+    },
+    "candidate": {
+      "mean_run_median_seconds": 6.9458575,
+      "mean_ordinary_seconds": 7.190611944444444,
+      "range_run_medians_seconds": [
+        6.673557,
+        7.218158
+      ]
+    }
+  },
+  "candidate_minus_v7_percent": {
+    "mean_run_median_seconds": 2.109052382533405,
+    "mean_ordinary_seconds": 4.527224921013828
+  },
+  "timing_interpretation": "Candidate point estimates are slower, within overlapping run ranges and large host-load variation. No established speedup; cluster comparison must resolve absolute performance. Extra RHS wait could include new pipeline producer lateness, not only external disturbance or transport.",
+  "named_new_transform_storage": {
+    "initial_MiB": 1450.3385696411133,
+    "final_MiB": 601.5531387329102,
+    "reduction_percent": 58.52326130430603,
+    "scope": "Summed rank maxima of named numerical arrays and route payload across two new-transform implementations. Not total RSS and not reduction versus v7; excludes kernel/geometry metadata, descriptors, construction peaks, retained final-transform workspace and MPI."
+  },
+  "remaining_gates": [
+    "83/160 main and266 absolute ordinary performance",
+    "160-to256 J5 scaling and memory",
+    "256 production transform ownership/science",
+    "finer numerical units and cost-aware assignment",
+    "final lifecycle ownership",
+    "matched J5 >=640 multi-node scaling"
+  ]
+}

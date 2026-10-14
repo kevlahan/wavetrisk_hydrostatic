@@ -22,8 +22,9 @@ contains
     matches=node_level==requested
     if(requested==NONE) matches=node_level>=level_start-1.and.node_level<=level_end
   end function
-  subroutine compile_rhs_boundary_map(pos,level,base,output)
+  subroutine compile_rhs_boundary_map(pos,level,base,output,first_level)
     integer, intent(in) :: pos,level,base(:)
+    integer,optional,intent(in) :: first_level
     type(Rhs_Boundary_Map), intent(out) :: output
     integer, allocatable :: sc(:),sd(:),rc(:),rd(:),sent(:,:),received(:,:),dest(:),sgn(:),map(:,:),signs(:)
     logical, allocatable :: changed(:)
@@ -59,6 +60,9 @@ contains
                 do i=1,grid(ds)%pack(pos,g)%length
                    id=grid(ds)%pack(pos,g)%elts(i)
                    if(.not.matches_level(grid(ds)%level%elts(id/mult+1),level)) cycle
+                   if(present(first_level)) then
+                      if(grid(ds)%level%elts(id/mult+1)<first_level) cycle
+                   end if
                    ns=ns+1
                    if(pass==2) sent(:,ns)=output%key(:,mult*base(ds)+id+1)
                 end do
@@ -71,6 +75,9 @@ contains
                 do i=1,grid(dd)%unpk(pos,g)%length
                    id=grid(dd)%unpk(pos,g)%elts(i)
                    if(.not.matches_level(grid(dd)%level%elts(abs(id)/mult+1),level)) cycle
+                   if(present(first_level)) then
+                      if(grid(dd)%level%elts(abs(id)/mult+1)<first_level) cycle
+                   end if
                    nr=nr+1
                    if(pass==2) then
                       dest(nr)=mult*base(dd)+abs(id)+1

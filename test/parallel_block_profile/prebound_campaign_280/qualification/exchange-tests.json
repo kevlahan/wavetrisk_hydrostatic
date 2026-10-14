@@ -1,0 +1,204 @@
+{
+  "status": "passed",
+  "sources": {
+    "/private/tmp/rk279-resident-transform/source/src/kind.f90": "8370452d9259c3bc0e2e6588f42c5eb5eb6f78996656b398641300935c86af41",
+    "/private/tmp/rk279-resident-transform/source/src/parallel_block_profile.f90": "80f9bf657967eb6e4eba21715b1480b282812f0f7d02f4de38f72fadb1e87455",
+    "/private/tmp/rk279-resident-transform/source/src/parallel_block_rhs_exchange.f90": "f46a220c5ce96201c2fd33a99646ad28f2f91a386ac7dc3ad5da0d81a7be3e71",
+    "/private/tmp/rk279-resident-transform/helpers/exchange_shared_unit.f90": "cf778a2f47d050356a4ed933da0970169627017e317ef34525492fa4e5602ad5",
+    "/private/tmp/rk279-resident-transform/helpers/exchange_shared_stress.f90": "8c74adbf5c9e490e913bf02486a1e82f50c672d0e814080a1b3e1f5fb15e7523"
+  },
+  "runs": [
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "f29adb9fd5b04919fc04b00a09eab4e3b9da70377c16aba4f7effeea61752dc1"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "6d3e3ff10e09dc54635f298a5da8c1bb95b6d0ca525c31c8f217a1504c4b0b89"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "05b055b6786dd404de6fe4aa349deca5e4dccda352b47d3ec53d9c3737c15464"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "8f43c0e53a114e1fbb8bab3af361889872b00a69706f3150b1c65590a64adcac"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "263b82d08db2922eac66a0b13054318ccf11d2fc612e7b6f456dfac21ef0d4d4"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "b646568aabdb43bf1e3acca3366f16d7e39ca9a011af22981d24558e0f10a731"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "scratch",
+      "passed": true,
+      "log_sha256": "da87dd1740834ddd5674be6b4c6affc4dfab97e81eff1346b833ea367d66a1e4"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_stress",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "426daceb462cb3a98b67111629913c8c6f29a7fd0b6ce2ea05e93862f2f5ebbf"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "9bcb8e895355f572c228d29996bba884bf2d337def2096c558d8d5302d13f4b4"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "578a865de5d203408faecfefaf8ec0c02b0f506dd675bb0dc92d43f75a751b10"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "2cb6bb3cbcc0583cf0790c06004e5f1a5e57911231ad977256e5e3ac7a687f1d"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "c9bdf5eeabcf311091e80e8241e0447539a5f0c255ba190cea7c8216286b4cce"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "e7fa88394cb3cb478452ca54eed138c54fbdce675bdadf6f104ffe1f64f948f8"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "430a5287cdd35225bb3704b404928b44f79f3c16a628c2f08dc59d7630886133"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "scratch",
+      "passed": true,
+      "log_sha256": "1a9ee7d26adf7ad091c27d375d4b8cb9361773ab19bef4b8cafae036c9d01983"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_stress",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "426daceb462cb3a98b67111629913c8c6f29a7fd0b6ce2ea05e93862f2f5ebbf"
+    }
+  ]
+}

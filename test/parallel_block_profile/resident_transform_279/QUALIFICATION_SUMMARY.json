@@ -1,0 +1,70 @@
+{
+  "status": "checker_qualified_on_local_and_cluster_evidence",
+  "performance_qualified": false,
+  "local_speedup_established": false,
+  "cluster_submitted": false,
+  "failed_job": 55505,
+  "failed_job_solver_runs": 0,
+  "source_delta_from_v1": [
+    "src/parallel_block_transform_backend.f90"
+  ],
+  "full_replays_passed": 3,
+  "local_ranks": 4,
+  "helper_tests_passed": 40,
+  "mpi_exchange_cases_inherited_from_v1": 24,
+  "exchange_test_scope": "Exchange implementation and tests unchanged; prior24 cases retained. Fresh solver replays exercise the corrected backend.",
+  "gcc13_builds": {
+    "checked": {
+      "command": [
+        "make",
+        "-f",
+        "Makefile",
+        "-f",
+        "stage279-flags.mk",
+        "-j1",
+        "TEST_CASE=climate",
+        "PARAM=param_J5",
+        "DEBUG=check",
+        "BUILD_DIR=build-fix-check",
+        "BIN_DIR=bin-fix-check",
+        "FP_CONTRACT=off",
+        "STAGE202=on",
+        "STAGE203=on"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 35.09286403423175,
+      "log_sha256": "3c307ec9ba43bdb658144e249bfa08bd97d17bbb2de0b74a092b111a9b7a7507",
+      "binary_sha256": "5f1f1950733a90fb9b05c686487deaefddb5d2f9b8b6bf75314ee1a26f5bdcbf"
+    },
+    "optimized": {
+      "command": [
+        "make",
+        "-f",
+        "Makefile",
+        "-f",
+        "stage279-flags.mk",
+        "-j1",
+        "TEST_CASE=climate",
+        "PARAM=param_J5",
+        "DEBUG=false",
+        "BUILD_DIR=build-fix-false",
+        "BIN_DIR=bin-fix-false",
+        "FP_CONTRACT=off",
+        "STAGE202=on",
+        "STAGE203=on"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 73.75913687841967,
+      "log_sha256": "84c1152a9cac6e3c5d9d8d26a53cd300fc8b29d426e8a8aa37d55264e49c843b",
+      "binary_sha256": "93dcf376d3aad623d9badb43ea67a407ad142404c4a47e70f374f04bde22ee4d"
+    }
+  },
+  "historical_timing": "See qualification/v1-QUALIFICATION_SUMMARY.json: +2.11% median/+4.53% mean with large overlapping variation; no new bare speed measurement or promotion.",
+  "revision": "resident-transform-v3",
+  "solver_source_unchanged_from_v2": true,
+  "source_delta_from_v2": [],
+  "failed_checker_job": 55506,
+  "cluster_runs_rechecked": 6,
+  "measurement_runs": 0,
+  "checker_revalidation_sha256": "bee272840a0c845617c15fc86beaab72334abb30808960ff08a6830b285c24c0"
+}

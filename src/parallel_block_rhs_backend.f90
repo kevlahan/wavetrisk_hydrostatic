@@ -17,6 +17,7 @@ module parallel_block_rhs_backend_mod
   use parallel_block_rhs_retention_mod
   implicit none
   private
+  public :: connected_rhs_mask_generation
   public :: connected_rhs_enabled,prepare_connected_rhs,evaluate_connected_rhs,retain_connected_rhs
   public :: prepare_connected_rhs_rk,install_connected_rhs_rk,connected_rhs_needs_prepare
   real(dp),save :: evaluate_seconds=0.0_dp,rk_seconds=0.0_dp
@@ -35,6 +36,9 @@ module parallel_block_rhs_backend_mod
   integer(int64),save :: rhs_calls=0,rk_calls=0,adapter_rk_values=0,resident_rk_values=0
   logical,save :: option_read=.false.,enabled=.false.,completed=.false.,rk_prepared=.false.
 contains
+  integer(int64) function connected_rhs_mask_generation() result(epoch)
+    epoch=mask_epoch
+  end function
   logical function connected_rhs_enabled() result(value)
     character(len=8) :: option
     if(.not.option_read) then

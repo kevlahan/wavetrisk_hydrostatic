@@ -1,0 +1,230 @@
+...............Building J5-stage266 with make -j1
+Building J5-main with make -j1
+Building J5-previous with make -j1
+Building J5-candidate with make -j1
+Building J5-checked with make -j1
+..........Submitted resident-transform campaign on nk/bb13: 12345
+Log: /var/folders/sq/kywp_f496g94pkt2q6kk7ylh0000gn/T/tmpi9roy_5o/rk279-12345.log
+After completion: bash /private/var/folders/sq/kywp_f496g94pkt2q6kk7ylh0000gn/T/tmpi9roy_5o/kit/collect.sh
+PASS: 3 review files; SHA256 19afae1a5c61e70489348621b6b161a8fec2481374afa9d78f05cfcc2803a759
+Transferred review to murier Desktop: rk279-review-12345.tar.gz
+PASS: 3 review files; SHA256 19afae1a5c61e70489348621b6b161a8fec2481374afa9d78f05cfcc2803a759
+Transferred review to murier Desktop: rk279-review-12345.tar.gz
+Starting J5-n16-validation-1-main-off
+PASS J5-n16-validation-1-main-off: science; ownership checks; timing excluded
+Starting J5-n16-validation-2-stage266-off
+PASS J5-n16-validation-2-stage266-off: science; ownership checks; timing excluded
+Starting J5-n16-validation-3-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n16-validation-3-candidate-off
+PASS J5-n16-validation-3-candidate-off: science; ownership checks; timing excluded
+Starting J5-n16-validation-4-checked-off
+PASS connected RHS/RK ownership and retirement guards: J5-n16-validation-4-checked-off
+PASS J5-n16-validation-4-checked-off: science; ownership checks; timing excluded
+Starting J5-n16-validation-5-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n16-validation-5-candidate-off
+PASS J5-n16-validation-5-candidate-off: science; ownership checks; timing excluded
+Starting J5-n83-validation-6-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n83-validation-6-candidate-off
+PASS J5-n83-validation-6-candidate-off: science; ownership checks; timing excluded
+Starting J5-n160-validation-7-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n160-validation-7-candidate-off
+PASS J5-n160-validation-7-candidate-off: science; ownership checks; timing excluded
+Starting J5-n256-validation-8-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n256-validation-8-candidate-off
+PASS J5-n256-validation-8-candidate-off: science; ownership checks; timing excluded
+Starting J5-n256-validation-9-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n256-validation-9-candidate-off
+PASS J5-n256-validation-9-candidate-off: science; ownership checks; timing excluded
+Starting J5-n83-measurement-1-main-off
+PASS J5-n83-measurement-1-main-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-2-stage266-off
+PASS J5-n83-measurement-2-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-3-previous-off
+PASS J5-n83-measurement-3-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-4-candidate-off
+PASS J5-n83-measurement-4-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-5-candidate-off
+PASS J5-n83-measurement-5-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-6-previous-off
+PASS J5-n83-measurement-6-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-7-candidate-off
+PASS J5-n83-measurement-7-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-8-previous-off
+PASS J5-n83-measurement-8-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-9-previous-off
+PASS J5-n83-measurement-9-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-10-candidate-off
+PASS J5-n83-measurement-10-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-11-stage266-off
+PASS J5-n83-measurement-11-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-12-main-off
+PASS J5-n83-measurement-12-main-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-13-previous-coarse
+PASS J5-n83-measurement-13-previous-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-14-candidate-coarse
+PASS J5-n83-measurement-14-candidate-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-15-main-off
+PASS J5-n160-measurement-15-main-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-16-stage266-off
+PASS J5-n160-measurement-16-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-17-previous-off
+PASS J5-n160-measurement-17-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-18-candidate-off
+PASS J5-n160-measurement-18-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-19-candidate-off
+PASS J5-n160-measurement-19-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-20-previous-off
+PASS J5-n160-measurement-20-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-21-candidate-off
+PASS J5-n160-measurement-21-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-22-previous-off
+PASS J5-n160-measurement-22-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-23-previous-off
+PASS J5-n160-measurement-23-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-24-candidate-off
+PASS J5-n160-measurement-24-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-25-stage266-off
+PASS J5-n160-measurement-25-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-26-main-off
+PASS J5-n160-measurement-26-main-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-27-candidate-coarse
+PASS J5-n160-measurement-27-candidate-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-28-previous-coarse
+PASS J5-n160-measurement-28-previous-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-29-stage266-off
+PASS J5-n256-measurement-29-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-30-previous-off
+PASS J5-n256-measurement-30-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-31-candidate-off
+PASS J5-n256-measurement-31-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-32-candidate-off
+PASS J5-n256-measurement-32-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-33-previous-off
+PASS J5-n256-measurement-33-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-34-candidate-off
+PASS J5-n256-measurement-34-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-35-previous-off
+PASS J5-n256-measurement-35-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-36-previous-off
+PASS J5-n256-measurement-36-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-37-candidate-off
+PASS J5-n256-measurement-37-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-38-stage266-off
+PASS J5-n256-measurement-38-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-39-previous-coarse
+PASS J5-n256-measurement-39-previous-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-40-candidate-coarse
+PASS J5-n256-measurement-40-candidate-coarse: science; ordinary timing and diagnostic mode recorded
+COMPLETE: resident-transform campaign; absolute performance, scaling, memory and ownership require review.
+.Starting J5-n16-validation-1-main-off
+.Starting J5-n16-validation-1-main-off
+PASS J5-n16-validation-1-main-off: science; ownership checks; timing excluded
+Starting J5-n16-validation-2-stage266-off
+PASS J5-n16-validation-2-stage266-off: science; ownership checks; timing excluded
+Starting J5-n16-validation-3-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n16-validation-3-candidate-off
+PASS J5-n16-validation-3-candidate-off: science; ownership checks; timing excluded
+Starting J5-n16-validation-4-checked-off
+PASS connected RHS/RK ownership and retirement guards: J5-n16-validation-4-checked-off
+PASS J5-n16-validation-4-checked-off: science; ownership checks; timing excluded
+Starting J5-n16-validation-5-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n16-validation-5-candidate-off
+PASS J5-n16-validation-5-candidate-off: science; ownership checks; timing excluded
+Starting J5-n83-validation-6-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n83-validation-6-candidate-off
+PASS J5-n83-validation-6-candidate-off: science; ownership checks; timing excluded
+Starting J5-n160-validation-7-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n160-validation-7-candidate-off
+PASS J5-n160-validation-7-candidate-off: science; ownership checks; timing excluded
+Starting J5-n256-validation-8-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n256-validation-8-candidate-off
+PASS J5-n256-validation-8-candidate-off: science; ownership checks; timing excluded
+Starting J5-n256-validation-9-candidate-off
+PASS connected RHS/RK ownership and retirement guards: J5-n256-validation-9-candidate-off
+PASS J5-n256-validation-9-candidate-off: science; ownership checks; timing excluded
+Starting J5-n83-measurement-1-main-off
+PASS J5-n83-measurement-1-main-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-2-stage266-off
+PASS J5-n83-measurement-2-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-3-previous-off
+PASS J5-n83-measurement-3-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-4-candidate-off
+PASS J5-n83-measurement-4-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-5-candidate-off
+PASS J5-n83-measurement-5-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-6-previous-off
+PASS J5-n83-measurement-6-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-7-candidate-off
+PASS J5-n83-measurement-7-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-8-previous-off
+PASS J5-n83-measurement-8-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-9-previous-off
+PASS J5-n83-measurement-9-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-10-candidate-off
+PASS J5-n83-measurement-10-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-11-stage266-off
+PASS J5-n83-measurement-11-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-12-main-off
+PASS J5-n83-measurement-12-main-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-13-previous-coarse
+PASS J5-n83-measurement-13-previous-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n83-measurement-14-candidate-coarse
+PASS J5-n83-measurement-14-candidate-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-15-main-off
+PASS J5-n160-measurement-15-main-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-16-stage266-off
+PASS J5-n160-measurement-16-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-17-previous-off
+PASS J5-n160-measurement-17-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-18-candidate-off
+PASS J5-n160-measurement-18-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-19-candidate-off
+PASS J5-n160-measurement-19-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-20-previous-off
+PASS J5-n160-measurement-20-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-21-candidate-off
+PASS J5-n160-measurement-21-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-22-previous-off
+PASS J5-n160-measurement-22-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-23-previous-off
+PASS J5-n160-measurement-23-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-24-candidate-off
+PASS J5-n160-measurement-24-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-25-stage266-off
+PASS J5-n160-measurement-25-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-26-main-off
+PASS J5-n160-measurement-26-main-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-27-candidate-coarse
+PASS J5-n160-measurement-27-candidate-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n160-measurement-28-previous-coarse
+PASS J5-n160-measurement-28-previous-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-29-stage266-off
+PASS J5-n256-measurement-29-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-30-previous-off
+PASS J5-n256-measurement-30-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-31-candidate-off
+PASS J5-n256-measurement-31-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-32-candidate-off
+PASS J5-n256-measurement-32-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-33-previous-off
+PASS J5-n256-measurement-33-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-34-candidate-off
+PASS J5-n256-measurement-34-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-35-previous-off
+PASS J5-n256-measurement-35-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-36-previous-off
+PASS J5-n256-measurement-36-previous-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-37-candidate-off
+PASS J5-n256-measurement-37-candidate-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-38-stage266-off
+PASS J5-n256-measurement-38-stage266-off: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-39-previous-coarse
+PASS J5-n256-measurement-39-previous-coarse: science; ordinary timing and diagnostic mode recorded
+Starting J5-n256-measurement-40-candidate-coarse
+PASS J5-n256-measurement-40-candidate-coarse: science; ordinary timing and diagnostic mode recorded
+COMPLETE: resident-transform campaign; absolute performance, scaling, memory and ownership require review.
+.............
+----------------------------------------------------------------------
+Ran 40 tests in 4.873s
+
+OK

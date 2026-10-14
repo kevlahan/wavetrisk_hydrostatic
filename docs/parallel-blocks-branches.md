@@ -1,4 +1,4 @@
-# Branch roles and Stage278 continuation
+# Branch roles and Stage280 continuation
 
 Checked2026-10-14 against actual Git refs/worktrees, following the SourceTree view.
 The active continuation is **codex/stage278-structural-repair**, checked out at:
@@ -14,7 +14,7 @@ Commit history records evidence; production acceptance remainsStage266.
 | Branch | Role |
 |---|---|
 | main | Legacy main at6a245db7; branch, remote refs and primary checkout untouched |
-| codex/stage278-structural-repair | Active v7 candidate and next repair work |
+| codex/stage278-structural-repair | Reviewed Stage280 candidate, retaining v7 ancestry and controls |
 | codex/domain-migration-measured | Historical Stage267–277 experiments, ending atb5f03c8e; retained with existing uncommitted handoff work |
 | codex/performance-investigation | Earlier investigation history with divergent commits; retained |
 | codex/stage187-validated | Earlier validated-stage history; retained |
@@ -36,3 +36,21 @@ shows its candidate checkout. The26d8 worktree stays on its historical branch.
 Tracked structural_278 helpers include source identities and compact qualification
 reports. Full raw evidence remains locally preserved outside Git. Commit scope is
 explicit; unrelated files in the primary or historical worktrees are not staged.
+
+## Stage280 reviewed candidate snapshot
+
+The next commit after de558ed03798f721991f38eeecc00f00eafc8370 records the complete
+Stage280 source tested by job55508, including the prerequisite provisional
+transform implementation from Stage279 and the two-file construction/publication
+repair. These had remained uncommitted together. The combined source changes
+12 files versus v7; all255 packaged candidate source paths match local files and
+the sealed kit. This is one reviewed end-state snapshot, not promotion of the
+rejected intermediate Stage279 implementation. Its exact source remains preserved
+in prior kit manifests and archives.
+
+The commit includes source, regression/MPI/campaign helpers and the reviewed
+55507/55508 evidence, scorecard and minimum-run campaign policy. Full local
+.stage279-validation and .stage280-validation build/return archives are preserved
+outside Git. The small job55506 audit archive inside the helper tests is a
+required regression fixture. Stage266 remains accepted; main and historical
+branches are unchanged. No merge, branch deletion or remote push is required.

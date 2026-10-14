@@ -34,6 +34,7 @@ module time_integr_mod
        prepare_block_native_wavelet_compression, &
        prepare_block_native_multistage_wavelet_acceptance, &
        prepare_block_native_multistage_wavelet_stage, &
+       begin_resident_transform_trial,end_resident_transform_trial,try_resident_provisional_transform, &
        prepare_block_native_velocity_remainder, &
        retain_block_native_multistage_candidate, &
        refresh_parallel_block_candidate_boundary_state, &
@@ -244,8 +245,12 @@ contains
          wavelet(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: stage
     integer, intent(in) :: stage_count
+    logical :: handled
 
     call prepare_block_native_multistage_wavelet_stage(stage,stage_count)
+    call try_resident_provisional_transform(scaling,wavelet,handled)
+    if(.not.handled) then
+    call begin_resident_transform_trial(scaling,wavelet)
     call WT_after_step( &
          scaling,wavelet,level_start, &
          validate_scalar_wavelets= &
@@ -259,6 +264,8 @@ contains
          activate_block_native_wavelet_compression, &
          activate_native_inverse= &
          activate_block_native_inverse_transform)
+    call end_resident_transform_trial(scaling)
+    end if
     call refresh_parallel_block_candidate_boundary_state( &
          scaling,stage,stage_count,native_inverse=.true.)
 

@@ -1,0 +1,182 @@
+{
+  "J5-n16-validation-1-main-off": {
+    "status": "passed",
+    "checkpoint_sha256": "5a60b279f97aa48098126201e4e5a549f759a04c8a9d0ef18e94648ccba49765",
+    "binary_sha256": "eba529208ad6e80eb445c63f944e75faaaf6707726462d800505e881b0ba8c37",
+    "vtk_members": 62,
+    "vtk_manifest_sha256": "674b7d892960db87a63cc4aa6f8f3cb9632d02821b1e09ba99bf8c6e4a41bf27",
+    "coverage": {
+      "domains": 160,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "new_checkpoint": "test_checkpoint_0004.bin.zst"
+    },
+    "states": [
+      "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+      "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+      "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+      "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+      "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+      "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+      "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+      "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+      "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+      "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+      "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+      "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616"
+    ]
+  },
+  "J5-n16-validation-2-stage266-off": {
+    "status": "passed",
+    "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+    "binary_sha256": "48c41e8a07dcaaf806df8e7f2d543aa516397a2d9fbc756dde448ee31bff2917",
+    "vtk_members": 62,
+    "vtk_manifest_sha256": "674b7d892960db87a63cc4aa6f8f3cb9632d02821b1e09ba99bf8c6e4a41bf27",
+    "coverage": {
+      "domains": 160,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "new_checkpoint": "test_checkpoint_0004.bin.zst"
+    },
+    "states": [
+      "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+      "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+      "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+      "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+      "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+      "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+      "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+      "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+      "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+      "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+      "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+      "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616"
+    ]
+  },
+  "J5-n16-validation-3-candidate-off": {
+    "status": "passed",
+    "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+    "binary_sha256": "0953ed7ca40f046d94be55066f25d433fcc51c174673468d27af4f544cb6e1cb",
+    "vtk_members": 62,
+    "vtk_manifest_sha256": "674b7d892960db87a63cc4aa6f8f3cb9632d02821b1e09ba99bf8c6e4a41bf27",
+    "coverage": {
+      "domains": 160,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "new_checkpoint": "test_checkpoint_0004.bin.zst"
+    },
+    "states": [
+      "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+      "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+      "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+      "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+      "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+      "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+      "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+      "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+      "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+      "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+      "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+      "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616"
+    ]
+  },
+  "J5-n16-validation-4-checked-off": {
+    "status": "passed",
+    "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+    "binary_sha256": "120cc49bb10587bc0a2e3c2430567e6072236742e5f7e6df92cc0359001a41bd",
+    "vtk_members": 62,
+    "vtk_manifest_sha256": "674b7d892960db87a63cc4aa6f8f3cb9632d02821b1e09ba99bf8c6e4a41bf27",
+    "coverage": {
+      "domains": 160,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "new_checkpoint": "test_checkpoint_0004.bin.zst"
+    },
+    "states": [
+      "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+      "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+      "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+      "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+      "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+      "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+      "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+      "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+      "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+      "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+      "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+      "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616"
+    ]
+  },
+  "J5-n16-validation-5-candidate-off": {
+    "status": "passed",
+    "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+    "binary_sha256": "0953ed7ca40f046d94be55066f25d433fcc51c174673468d27af4f544cb6e1cb",
+    "vtk_members": 62,
+    "vtk_manifest_sha256": "674b7d892960db87a63cc4aa6f8f3cb9632d02821b1e09ba99bf8c6e4a41bf27",
+    "coverage": {
+      "domains": 160,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "new_checkpoint": "test_checkpoint_0004.bin.zst"
+    },
+    "states": [
+      "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+      "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+      "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+      "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+      "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+      "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+      "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+      "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+      "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+      "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+      "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+      "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616"
+    ]
+  },
+  "J5-n83-validation-6-candidate-off": {
+    "status": "passed",
+    "checkpoint_sha256": "1c944c62270f6ea5e97eca5af0666b0e6cd1d612884d73192143d07dc9f23b53",
+    "binary_sha256": "0953ed7ca40f046d94be55066f25d433fcc51c174673468d27af4f544cb6e1cb",
+    "vtk_members": 62,
+    "vtk_manifest_sha256": "6e0bb895531d06e27a065450b9b629491cace424fde2c53a0655069820588456",
+    "coverage": {
+      "domains": 160,
+      "reloads": [
+        3,
+        4
+      ],
+      "remaps": 2,
+      "new_checkpoint": "test_checkpoint_0004.bin.zst"
+    },
+    "states": [
+      "00000322     0.3021 d dt =    103.6 s Jmax =  7 dof =        62782",
+      "00000322     0.3033 d dt =    103.6 s Jmax =  7 dof =        63390",
+      "00000322     0.3045 d dt =    103.6 s Jmax =  7 dof =        63716",
+      "00000322     0.3057 d dt =    103.6 s Jmax =  7 dof =        63781",
+      "00000322     0.3069 d dt =    103.6 s Jmax =  7 dof =        63988",
+      "00000322     0.3081 d dt =    103.6 s Jmax =  7 dof =        66355",
+      "00000322     0.3093 d dt =    103.6 s Jmax =  7 dof =        64661",
+      "00000322     0.3104 d dt =    103.6 s Jmax =  6 dof =        64222",
+      "00000322     0.3116 d dt =    103.6 s Jmax =  7 dof =        64019",
+      "00000322     0.3128 d dt =    103.6 s Jmax =  7 dof =        64049",
+      "00000322     0.3140 d dt =    103.6 s Jmax =  7 dof =        65254",
+      "00000322     0.3152 d dt =    103.6 s Jmax =  7 dof =        64616"
+    ]
+  }
+}

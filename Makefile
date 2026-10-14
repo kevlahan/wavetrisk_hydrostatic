@@ -324,6 +324,7 @@ SRC = kind.f90 \
       parallel_block_rhs_schedule.f90 \
       parallel_block_rhs_exchange.f90 \
       parallel_block_rhs_boundary.f90 \
+      parallel_block_transform_kernels.f90 parallel_block_transform_placement.f90 parallel_block_transform_adapter.f90 parallel_block_transform_backend.f90 \
       parallel_block_inverse.f90 \
       parallel_block_mpi.f90 \
       spline.f90 \
@@ -535,3 +536,16 @@ $(BUILD_DIR)/parallel_block_rhs_backend.o: $(BUILD_DIR)/parallel_block_rhs_reten
 $(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_rhs_backend.o
 $(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_rhs_backend.o
 $(BUILD_DIR)/time_integr.o: $(BUILD_DIR)/parallel_block_rhs_backend.o
+
+$(BUILD_DIR)/parallel_block_transform_kernels.o: $(BUILD_DIR)/domain.o $(BUILD_DIR)/arch.o
+
+$(BUILD_DIR)/parallel_block_inverse.o: $(BUILD_DIR)/parallel_block_transform_kernels.o
+
+$(BUILD_DIR)/parallel_block_transform_kernels.o: $(BUILD_DIR)/parallel_block_rhs_placement.o
+
+$(BUILD_DIR)/parallel_block_transform_placement.o: $(BUILD_DIR)/parallel_block_transform_kernels.o $(BUILD_DIR)/parallel_block_rhs_placement.o
+$(BUILD_DIR)/parallel_block_transform_backend.o: $(BUILD_DIR)/parallel_block_transform_placement.o $(BUILD_DIR)/parallel_block_rhs_backend.o $(BUILD_DIR)/parallel_block_rhs_boundary.o
+$(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_transform_backend.o
+
+$(BUILD_DIR)/parallel_block_transform_adapter.o: $(BUILD_DIR)/domain.o $(BUILD_DIR)/arch.o
+$(BUILD_DIR)/parallel_block_transform_backend.o: $(BUILD_DIR)/parallel_block_transform_adapter.o

@@ -1,0 +1,101 @@
+{
+  "status": "repair specification; not implemented or qualified",
+  "development_source": "de558ed03798f721991f38eeecc00f00eafc8370",
+  "evidence_job": 55504,
+  "results_sha256": "30b20236be09dc7db460ca672ad29c077dda864a9797c76291589189bbb25c48",
+  "profile_group_regions": {
+    "inverse": [
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      36,
+      42
+    ],
+    "domain_boundary_publication": [
+      32,
+      38,
+      40
+    ],
+    "wavelet_compression": [
+      43,
+      44
+    ],
+    "rhs_preparation": [
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      84
+    ],
+    "rhs_exchange": [
+      78
+    ]
+  },
+  "profile_scope": "Disjoint self regions on the same slowest ordinary-step profile-window rank. Broad screening envelopes, not removable costs, bare time partitions or predicted speedups. Boundary/publication regions also include callers outside the selected transform slice.",
+  "ranks": {
+    "83": {
+      "coarse_mean_ms": {
+        "inverse": 99.26300499888889,
+        "domain_boundary_publication": 59.93778566666667,
+        "wavelet_compression": 48.910916666666665,
+        "rhs_preparation": 62.73676777777778,
+        "rhs_exchange": 129.15555555555554
+      },
+      "broad_transform_boundary_publication_ms": 208.11170733222224,
+      "bare_mean_run_median_ms": {
+        "candidate": 632.9894859999999,
+        "stage266": 756.4246435,
+        "main": 540.8999484999999
+      },
+      "legacy_gap_ms": 92.0895375,
+      "required_candidate_cut_percent": 14.548351834709628
+    },
+    "160": {
+      "coarse_mean_ms": {
+        "inverse": 69.26210121111112,
+        "domain_boundary_publication": 41.36614,
+        "wavelet_compression": 31.618340000000003,
+        "rhs_preparation": 58.56474311111111,
+        "rhs_exchange": 130.66055555555556
+      },
+      "broad_transform_boundary_publication_ms": 142.2465812111111,
+      "bare_mean_run_median_ms": {
+        "candidate": 505.522472,
+        "stage266": 550.0080475,
+        "main": 365.127379
+      },
+      "legacy_gap_ms": 140.39509299999997,
+      "required_candidate_cut_percent": 27.772275373744403
+    },
+    "256": {
+      "coarse_mean_ms": {
+        "inverse": 76.67628178,
+        "domain_boundary_publication": 31.07914455555555,
+        "wavelet_compression": 44.80168333333333,
+        "rhs_preparation": 72.51636898888889,
+        "rhs_exchange": 145.05066666666667
+      },
+      "broad_transform_boundary_publication_ms": 152.55710966888887,
+      "bare_mean_run_median_ms": {
+        "candidate": 544.53208825,
+        "stage266": 591.898518
+      }
+    }
+  },
+  "source_sha256": {
+    "src/parallel_block_inverse.f90": "40c40693e7d6b932bd3e599c8d2bfad119bf2a16666751883479b22123dc92b2",
+    "src/parallel_block_mpi.f90": "3cab2c8b329a4c4794d772e9d1ba0136090877938a674ceed4a99ed63f5f96dc",
+    "src/parallel_block_rhs_backend.f90": "5cb0176152eaa7021e291059ff4effb0e54b20b2af6d99d166ec99994d4cf323",
+    "src/parallel_block_rhs_placement.f90": "8d2f771e65811eff518c5da10b82b48864ad69fd4bcc8dfedfda27488271e70d",
+    "src/time_integr.f90": "71cdcd09a72dd05e6b36db1d4579983d810dd63dfd463fbc28bfb11d02b81da2",
+    "src/adapt.f90": "cd90e9486f381436bb7833eac66905969bf4da801a0d937c03171b3cc14535e0",
+    "src/domain.f90": "36c0849bcb5149c03585bdc1c198416647fc4552a970c8847d451469e781f241"
+  }
+}

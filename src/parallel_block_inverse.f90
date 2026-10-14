@@ -1,4 +1,5 @@
 module parallel_block_inverse_mod
+  use parallel_block_transform_kernels_mod
   use parallel_block_profile_mod
   ! Native inverse boundary dependency workspace. Topology is compiled once
   ! per generation; only required nodes are staged, never Float_Field copies.
@@ -117,7 +118,91 @@ module parallel_block_inverse_mod
   real(dp), parameter :: base_weight(9) = &
        [16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp,-1.0_dp,-1.0_dp,1.0_dp,1.0_dp]/16.0_dp
 
+  type(Transform_Geometry) :: shadow_program
+  logical :: shadow_enabled=.false.,shadow_configured=.false.
+  type :: Transform_Shadow
+     real(dp),allocatable :: scalar(:,:),scalar_wavelet(:,:),vector(:,:),vector_wavelet(:,:)
+  end type
+  type(Transform_Shadow),allocatable :: shadow(:)
 contains
+
+  subroutine configure_transform_shadow
+    character(8) :: setting
+    if(shadow_configured) return
+    call get_environment_variable('WAVETRISK_TRANSFORM_KERNEL_CHECK',setting)
+    shadow_enabled=trim(setting)=='1';shadow_configured=.true.
+  end subroutine
+  subroutine begin_transform_shadow(family,level,phase)
+    integer,intent(in) :: family,level,phase
+    integer :: p,d,id,k,v,i
+    do d=1,size(shadow)
+       shadow(d)%scalar=0;shadow(d)%scalar_wavelet=0
+       shadow(d)%vector=0;shadow(d)%vector_wavelet=0
+    end do
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)+1
+       do k=1,zlevels
+          do v=1,nscalar
+             shadow(d)%scalar(id,(v-1)*zlevels+k)=value(v,k,p,1)
+             shadow(d)%scalar_wavelet(id,(v-1)*zlevels+k)=value(v,k,p,2)
+          end do
+          do v=1,EDGE
+             shadow(d)%vector(EDGE*(id-1)+v,k)=value(nscalar+v,k,p,1)
+             shadow(d)%vector_wavelet(EDGE*(id-1)+v,k)=value(nscalar+v,k,p,2)
+          end do
+       end do
+    end do
+    select case(family)
+    case(1)
+       do i=1,size(shadow_program%scalar)
+          associate(op=>shadow_program%scalar(i))
+          if(op%level/=level.or.op%phase/=phase) cycle
+          d=op%d
+          call execute_transform_scalar(op,shadow(d)%scalar,shadow(d)%scalar_wavelet,.true.)
+          end associate
+       end do
+    case(2)
+       do i=1,size(shadow_program%inner)
+          associate(op=>shadow_program%inner(i))
+          if(op%level/=level) cycle
+          d=op%d
+          call execute_transform_inner(op,shadow(d)%vector,shadow(d)%vector_wavelet,.true.)
+          end associate
+       end do
+    case(3)
+       do i=1,size(shadow_program%outer)
+          associate(op=>shadow_program%outer(i))
+          if(op%level/=level) cycle
+          d=loc_id(op%global_domain)+1
+          call execute_transform_outer(op,shadow(d)%vector,shadow(d)%vector_wavelet,.true.)
+          end associate
+       end do
+    end select
+  end subroutine
+  subroutine finish_transform_shadow(family,level,phase)
+    integer,intent(in) :: family,level,phase
+    integer :: p,d,id,k,v
+    real(dp) :: expected,observed
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)+1
+       do k=1,zlevels
+          do v=1,nscalar+EDGE
+             if(family==1.and.v>nscalar) cycle
+             if(family/=1.and.v<=nscalar) cycle
+             if(v<=nscalar) then
+                expected=shadow(d)%scalar(id,(v-1)*zlevels+k)
+             else
+                expected=shadow(d)%vector(EDGE*(id-1)+v-nscalar,k)
+             end if
+             observed=value(v,k,p,1)
+             if(transfer(expected,0_int64)/=transfer(observed,0_int64)) then
+                write(*,*) 'transform shadow difference ',rank,family,level,phase,d,id,k,v,expected,observed
+                call die('transform kernel differs from accepted inverse')
+             end if
+          end do
+       end do
+    end do
+  end subroutine
 
   subroutine configure_stage192
     character(16) :: setting
@@ -210,6 +295,7 @@ contains
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
     resident203=.false.
+    call configure_transform_shadow
     call configure_stage192
     call detail_enter(DP_INVERSE_PLAN)
     timing=profile
@@ -439,6 +525,16 @@ contains
              if (restore203_index(p)>0) restore203_slot(restore203_index(p))=p
           end do
           call compile_publication203
+       end if
+       if(shadow_enabled) then
+          call compile_transform_geometry(shadow_program)
+          if(allocated(shadow)) deallocate(shadow)
+          allocate(shadow(size(grid)))
+          do d=1,size(grid)
+             n=grid(d)%node%length
+             allocate(shadow(d)%scalar(n,nscalar*zlevels),shadow(d)%scalar_wavelet(n,nscalar*zlevels), &
+                  shadow(d)%vector(EDGE*n,zlevels),shadow(d)%vector_wavelet(EDGE*n,zlevels))
+          end do
        end if
        plan_generation=generation
     else
@@ -1676,6 +1772,7 @@ contains
     integer :: p,k,q
     real(dp) :: s(13),x(9),correction,second,first
     call detail_enter(DP_OUTER_KERNEL)
+    if(shadow_enabled) call begin_transform_shadow(3,level,0)
     count=coverage(:,level)
     first=0.0_dp
     second=0.0_dp
@@ -1718,6 +1815,7 @@ contains
     end do
     call detail_leave(DP_OUTER_KERNEL)
 
+    if(shadow_enabled) call finish_transform_shadow(3,level,0)
   end subroutine
 
   subroutine begin_inverse203(oracle)
@@ -1931,6 +2029,7 @@ contains
     integer, parameter :: wi(11)=[1,2,3,1,2,3,4,1,2,3,4]
     real(dp) :: w(11),area,s,x
     if(.not.resident203) return
+    if(shadow_enabled) call begin_transform_shadow(1,level,phase)
     do p=1,size(scalar203_ops)
        associate(op=>scalar203_ops(p))
          if(op%level/=level.or.op%phase/=phase) cycle
@@ -1959,6 +2058,7 @@ contains
          if(ledger203) work203(3)=work203(3)+int(zlevels,int64)*nscalar
        end associate
     end do
+    if(shadow_enabled) call finish_transform_shadow(1,level,phase)
   end subroutine
 
   subroutine inner_inverse203(level)
@@ -1968,6 +2068,7 @@ contains
     integer, parameter :: inputs(18)=[1,2,3,5,6,7,10,11,14,15,18,19,22,23,26,27,30,31]
     real(dp) :: g(32),u(32),curl(LORT:UPLT),x(6)
     if(.not.resident203) return
+    if(shadow_enabled) call begin_transform_shadow(2,level,0)
     do p=1,size(inner203_ops)
        associate(op=>inner203_ops(p))
          if(op%level/=level) cycle
@@ -2002,6 +2103,7 @@ contains
          if(ledger203) work203(4)=work203(4)+int(zlevels,int64)
        end associate
     end do
+    if(shadow_enabled) call finish_transform_shadow(2,level,0)
   end subroutine
 
 end module parallel_block_inverse_mod

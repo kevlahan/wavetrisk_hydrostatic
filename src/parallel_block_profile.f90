@@ -25,7 +25,8 @@ module parallel_block_profile_mod
        DP_RHS_INPUT=74, DP_RHS_KERNEL=75, DP_RHS_RETAIN=76, &
        DP_RHS_RK=77, DP_RHS_EXCHANGE=78, DP_RHS_PACK=79, &
        DP_RHS_POST=80, DP_RHS_WAIT=81, DP_RHS_INSTALL=82, &
-       DP_RHS_COST=83, DP_RHS_TRANSFORM=84, DP_COUNT=84
+       DP_RHS_COST=83, DP_RHS_TRANSFORM=84, DP_TRANSFORM_PLAN=85, DP_TRANSFORM_INPUT=86, &
+       DP_TRANSFORM_FORWARD=87, DP_TRANSFORM_INVERSE=88, DP_TRANSFORM_OUTPUT=89, DP_TRANSFORM_EXCHANGE=90, DP_COUNT=90
   character(32), parameter, public :: detail_name(DP_COUNT)=[character(32) :: &
        'timestep residual', 'dynamics residual', 'adaptation residual', 'output/checkpoint', &
        'source extraction', 'source serialization proof', 'receive serialization proof', &
@@ -53,7 +54,9 @@ module parallel_block_profile_mod
        'RHS resident input', 'RHS arithmetic residual', 'RHS tendency retention', &
        'RHS RK adapter residual', 'RHS exchange residual', 'RHS exchange packing', &
        'RHS MPI post and local copy', 'RHS MPI completion wait', 'RHS exchange installation', &
-       'RHS traffic accounting', 'RHS transform preparation']
+       'RHS traffic accounting', 'RHS transform preparation', 'resident transform plan', &
+       'resident transform input', 'resident forward/compression', 'resident inverse arithmetic', &
+       'resident transform output', 'resident transform exchange']
   logical, public, save :: detail_enabled=.false.
   logical, save :: rhs_detail_option_read=.false.,rhs_detail_fine=.false.
   public :: rhs_detail_enter,rhs_detail_leave

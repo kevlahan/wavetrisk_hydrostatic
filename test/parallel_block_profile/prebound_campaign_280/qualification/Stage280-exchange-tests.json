@@ -1,0 +1,404 @@
+{
+  "status": "passed",
+  "sources": {
+    "/private/tmp/rk280-prebound-repair/source/src/kind.f90": "8370452d9259c3bc0e2e6588f42c5eb5eb6f78996656b398641300935c86af41",
+    "/private/tmp/rk280-prebound-repair/source/src/parallel_block_profile.f90": "80f9bf657967eb6e4eba21715b1480b282812f0f7d02f4de38f72fadb1e87455",
+    "/private/tmp/rk280-prebound-repair/source/src/parallel_block_rhs_exchange.f90": "fad50457db3d2ff37b09e74fabcbfcf591332df805c4610f74df9a868a234c6b",
+    "/private/tmp/rk280-prebound-repair/units/exchange_shared_unit.f90": "cf778a2f47d050356a4ed933da0970169627017e317ef34525492fa4e5602ad5",
+    "/private/tmp/rk280-prebound-repair/units/exchange_shared_stress.f90": "8c74adbf5c9e490e913bf02486a1e82f50c672d0e814080a1b3e1f5fb15e7523"
+  },
+  "runs": [
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "5173d138fd01d008359f72a56912392ceb9b38d986780b94d8c2aad902966311"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "e941c44a2f794101daaaaa3b1583d97a534950752643b74795c823a337a343bc"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "2305aff31ef380440b493303d33626aeaa8abfa1d773a3bf9519f8490b450066"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "ambiguous",
+      "passed": true,
+      "log_sha256": "de7b6773204963d624d081c25d527dfe7c2020979031ccbc7ed52f3a741e0b88"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "abffc1fa65c6cbbf01393f329dbe29eb97db6345a01780c4a4ee1415045ee68d"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "8ceff23ffa9c50632e1d58944ed7639f0865d052fa1c6652c92291052f813203"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "2fb29e1aa13321e1ff2876ac36c73d96c9199afb0c919584186b27db733a6c47"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "scratch",
+      "passed": true,
+      "log_sha256": "9cab923fd6998faa7dc1391674b676f4d5b5575d6c2107f8bf3758e71378a57d"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "ambiguous",
+      "passed": true,
+      "log_sha256": "4beb6a4b5b18bddb0fa8d57607cb97b862e5a71ab5fb8eb46f25fb8e4e99a177"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_shared_stress",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "426daceb462cb3a98b67111629913c8c6f29a7fd0b6ce2ea05e93862f2f5ebbf"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "2c6088b9c8a63b59b7f234c7f7016448467c9c413ce5967373472642e7d868b2"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "473dafa7e78d9613db32f5ca6d753a8ad64e6912b933720e9759cc7ea14bda9e"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "22bc03599dbe3e28800c2274a76b92790dc9b82bbd38f9dbb27a2006e8cec2f4"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "scratch",
+      "passed": true,
+      "log_sha256": "3f5c04eb02a16e6743c9483eea2809a304d7b6ac2ca7a83d67fd0b1aef3740ce"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "provider-rank",
+      "passed": true,
+      "log_sha256": "59041906c250b5a35d3ba1cd0a9fc9e5cf79f3b869ba43f473c6af55b928f642"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "provider-slot",
+      "passed": true,
+      "log_sha256": "86620802da32659110d9d616a52f8c10ebd6e8cf2e685a0ac17d7934cba5e84a"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "mixed",
+      "passed": true,
+      "log_sha256": "51345dee28171e91dbffaf3c895128372641bb272253b5abfbf0785ca8554f8e"
+    },
+    {
+      "mode": "optimized",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "binding-mode",
+      "passed": true,
+      "log_sha256": "4d9d58775194dfbfd23882ad1f4b1da80974687ef23ea3e7ff01b48e4524e598"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "d67799e79b05b68b06c6c762e5e6b00f70f391b66b1a10b2a37b3745948fcd97"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "a9361739ffa01cc9e745ccb65f9075af7bdc21fb35997b741002965002a5b1cd"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "6910edf42b2f0d56c3646c1a12256fe745241fec14164cf411fcfa849d4621bf"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_reference_unit",
+      "ranks": 4,
+      "case": "ambiguous",
+      "passed": true,
+      "log_sha256": "f71e2e1486f70ec5292fedf121d52aee3ac73bff414ce382502cb0aabebab3ff"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "5c6536cd8eabe5bfca498a357c942a007af6b0e9f125772b308fa084fb8daef1"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "3037f09c46bf524b3c130a2b20fda22b56baf6f4eb751302a893dc69b9f47288"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "81a01edd4552fdd375e1d29ff71c141d457fe781469a3805c04829aed58c1f1b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "scratch",
+      "passed": true,
+      "log_sha256": "84f9f39359a137e02056360cade2542033e085fffbfc14974d24510cce35e80b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_unit",
+      "ranks": 4,
+      "case": "ambiguous",
+      "passed": true,
+      "log_sha256": "09713ae1a42db9cce4f06f433dae4b3f4f3762f3366b6c1d29779cab8537bcf2"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_shared_stress",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "426daceb462cb3a98b67111629913c8c6f29a7fd0b6ce2ea05e93862f2f5ebbf"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 1,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "normal",
+      "passed": true,
+      "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "peer-state",
+      "passed": true,
+      "log_sha256": "d4244f9ef8d10c01cc217ea7b53e1e8c80bcc5212d15d812232ca6722a5bad0d"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "mask",
+      "passed": true,
+      "log_sha256": "c7113ca56d4a26c1f847b6c140fcc89c1585bea3023556f6c693c6b5b2ff6572"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "duplicate",
+      "passed": true,
+      "log_sha256": "bd2484edb1a6682b6a6d7d7bad23e4dafc45d1f7df9a59809469e9bcb536f2f7"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "scratch",
+      "passed": true,
+      "log_sha256": "035eea4d1a7a15d0f328a6af00886e0f7ba6abafd7c10d3f393eda0cf6bd040d"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "provider-rank",
+      "passed": true,
+      "log_sha256": "698cdcbeb96e60bea6125cbc756b9f2d6ed9b6439c2df9f691c3459768afb653"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "provider-slot",
+      "passed": true,
+      "log_sha256": "f9f7137aeb35ec006a684823cfabf2374f8bda33fd1ace1317d898d59887be46"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "mixed",
+      "passed": true,
+      "log_sha256": "95e7fd4bc083a24738cb77fb44bdff1802fc2d70a0fe1996e72553009f62a8f9"
+    },
+    {
+      "mode": "checked",
+      "kind": "exchange_prebound_unit",
+      "ranks": 4,
+      "case": "binding-mode",
+      "passed": true,
+      "log_sha256": "621c34e9ab57e687b75ac523912b7e10ede429b158766e1a58e541475b142571"
+    }
+  ],
+  "complete_test_source_sha256": {
+    "/private/tmp/rk280-prebound-repair/units/exchange_prebound_unit.f90": "37cc3b84d0661b1d5531d080f2ca5b29ccaac84796f021309d598f00fd5aa36c",
+    "/private/tmp/rk280-prebound-repair/units/exchange_reference_unit.f90": "e86ab05f82e812fa1f5e64fa6797938fd38cf662bbd6f7ab920d4ad5d0d32871",
+    "/private/tmp/rk280-prebound-repair/units/exchange_shared_stress.f90": "8c74adbf5c9e490e913bf02486a1e82f50c672d0e814080a1b3e1f5fb15e7523",
+    "/private/tmp/rk280-prebound-repair/units/exchange_shared_unit.f90": "cf778a2f47d050356a4ed933da0970169627017e317ef34525492fa4e5602ad5",
+    "/private/tmp/rk280-prebound-repair/units/exchange_units.py": "67d78b8114f2e2ccfd39514314998ff31b84e7e11e487c7692eaae300cc38b2d"
+  },
+  "scope": "48 serial optimized/checked cases, <=4 ranks; actual numerical exchange semantics, old/new compiler paths, new invalid-provider/mixed-mode checks. Source and tests remained unchanged during qualification."
+}

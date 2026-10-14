@@ -16,6 +16,8 @@ module parallel_block_mpi_mod
        MPI_STATUSES_IGNORE, MPI_SUM, MPI_Wtime
 
   use kind_mod,   only : dp
+  use parallel_block_transform_kernels_mod,only : check_forward_transform
+  use parallel_block_transform_backend_mod
   use parallel_block_inverse_mod, only : prepare_native_inverse, native_inverse_gather, &
        native_inverse_boundary, native_inverse_scatter, native_inverse_outer, &
        compare_native_inverse, publish_native_inverse, native_inverse_seconds, &
@@ -1182,7 +1184,42 @@ module parallel_block_mpi_mod
   public :: prepare_block_native_multistage_wavelet_stage
   public :: prepare_block_native_multistage_wavelet_acceptance
 
+  public :: begin_resident_transform_trial,end_resident_transform_trial,try_resident_provisional_transform
 contains
+  subroutine try_resident_provisional_transform(scaling,wavelet,handled)
+    type(Float_Field),intent(inout) :: scaling(N_VARIABLE,zlevels),wavelet(N_VARIABLE,zlevels)
+    logical,intent(out) :: handled
+    integer(int64) :: before
+    handled=.false.
+    if(.not.resident_transform_enabled()) return
+    if(block_dynamics_validation_enabled()) return
+    if(.not.production_multistage_provisional_snapshot_consumed.or.production_adaptation_pending.or. &
+         production_multistage_candidate_stage>=production_multistage_candidate_stage_count) &
+         call fail('resident transform is outside a provisional RK transition')
+    if(.not.local_block_tendency_commit_checkpoint_is_ready()) call fail('resident transform lost rollback state')
+    before=block_domain_production_writeback_count()
+    call detail_enter(DP_WT_DRIVER)
+    call prepare_resident_transform(block_writeback_plan_generation)
+    call execute_resident_transform(scaling,wavelet,.true.)
+    call detail_leave(DP_WT_DRIVER)
+    if(block_domain_production_writeback_count()/=before) call fail('resident transform entered Domain writeback')
+    production_inverse_completed_mode=1
+    production_complete_vector_wavelet_validated=.false.
+    production_native_wavelet_output_activated=.false.
+    handled=.true.
+  end subroutine
+  subroutine begin_resident_transform_trial(scaling,wavelet)
+    type(Float_Field),intent(inout) :: scaling(N_VARIABLE,zlevels),wavelet(N_VARIABLE,zlevels)
+    if(.not.resident_transform_check_enabled()) return
+    call prepare_resident_transform(block_writeback_plan_generation)
+    call execute_resident_transform(scaling,wavelet,.false.)
+  end subroutine
+  subroutine end_resident_transform_trial(scaling)
+    type(Float_Field),intent(inout) :: scaling(N_VARIABLE,zlevels)
+    if(.not.resident_transform_check_enabled()) return
+    call check_resident_transform(scaling)
+    if(resident_transform_enabled()) call install_checked_transform(scaling)
+  end subroutine
 
 
   subroutine clear_parallel_block_state
@@ -1192,6 +1229,7 @@ contains
 
     implicit none
 
+    call release_backend
     call clear_block_adaptation_decisions
     call clear_block_velocity_source_transport
     call clear_block_vertical_remap_storage
@@ -12993,6 +13031,8 @@ end subroutine build_parallel_block_catalog
          first_field_level,n_field_level)
     end if
 
+    if(first_level==level_start) call check_transform_vector_stage(production_vector_transform_stage, &
+         production_vector_transform_displ,n_field_level,first_field_level,.false.)
     count_local = 0_int64
     do d = 1,size(grid)
        n_edge_value = size(sol(S_VELO,first_field_level)%data(d)%elts)
@@ -13075,6 +13115,10 @@ end subroutine build_parallel_block_catalog
        end if
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
+    if(first_level==level_start) call check_transform_vector_stage(production_vector_wavelet_stage, &
+         production_vector_transform_displ,n_field_level,first_field_level,.true.)
+    call check_forward_transform(production_vector_transform_stage,production_vector_wavelet_stage, &
+         production_vector_transform_displ,n_field_level,first_field_level,first_level)
     production_complete_vector_wavelet_validated = .true.
   contains
 

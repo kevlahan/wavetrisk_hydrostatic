@@ -1,0 +1,29 @@
+{
+  "checked": {
+    "enabled": true,
+    "epoch_rank_samples": 48,
+    "logical_outputs": 1224120,
+    "unique_remote_rows": 29483,
+    "local_canonical_outputs": 1180141,
+    "avoided_numerical_rows": 1194637,
+    "scope": "Summed across12 epochs; not simultaneous memory. Actual RSS and named plan/numeric buffers remain separate evidence."
+  },
+  "optimized": {
+    "enabled": true,
+    "epoch_rank_samples": 48,
+    "logical_outputs": 1224120,
+    "unique_remote_rows": 29483,
+    "local_canonical_outputs": 1180141,
+    "avoided_numerical_rows": 1194637,
+    "scope": "Summed across12 epochs; not simultaneous memory. Actual RSS and named plan/numeric buffers remain separate evidence."
+  },
+  "oracle": {
+    "enabled": true,
+    "epoch_rank_samples": 48,
+    "logical_outputs": 1224120,
+    "unique_remote_rows": 29483,
+    "local_canonical_outputs": 1180141,
+    "avoided_numerical_rows": 1194637,
+    "scope": "Summed across12 epochs; not simultaneous memory. Actual RSS and named plan/numeric buffers remain separate evidence."
+  }
+}

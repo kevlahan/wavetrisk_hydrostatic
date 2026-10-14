@@ -1,0 +1,1 @@
+{"status": "passed", "runtimes": ["Python3.11", "Python3.14"], "comparison_exact": true, "scope": "Derived aggregation tested on the fixed49-measurement schedule using archived55507 records as a helper fixture, not new campaign results."}

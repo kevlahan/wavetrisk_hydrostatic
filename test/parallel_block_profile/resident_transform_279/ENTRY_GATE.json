@@ -1,0 +1,7 @@
+{
+  "status": "entry_gate_passed",
+  "launch_authorized": false,
+  "sealing_ready": true,
+  "errors": [],
+  "scope": "Local production entry gate only; cluster performance/promotion remain separate"
+}

@@ -1,0 +1,568 @@
+{
+  "job": 55508,
+  "archive_sha256": "436126e96c274d6be75ea3395a13fb8e214f3608c5cc3e0410986649754eb835",
+  "verified_files": 22280,
+  "source_seal_matches_prepared_kit": true,
+  "working_solver_matches_sealed_candidate": true,
+  "runtime": {
+    "slurm": {
+      "job_id": "55508",
+      "state": "COMPLETED",
+      "start": "2026-10-14T16:35:37",
+      "end": "2026-10-14T17:29:21",
+      "elapsed_seconds": 3224,
+      "elapsed": "00:53:44"
+    },
+    "campaign_started_utc": "2026-10-14T20:35:38.358394+00:00",
+    "campaign_ended_utc": "2026-10-14T21:29:21.245454+00:00",
+    "campaign_elapsed_seconds": 3222.887090856675,
+    "limitation": "Slurm elapsed includes batch setup; runner elapsed begins before preflight. Queue and collection/transfer excluded. Accounting can be unavailable; no timestamp inference."
+  },
+  "builds": 6,
+  "runs": 60,
+  "validations": 11,
+  "bare_measurements": 40,
+  "coarse_measurements": 9,
+  "by_ranks": {
+    "83": {
+      "variants": {
+        "main": {
+          "mean_run_median_ms": 545.7868195,
+          "run_medians_ms": [
+            541.065158,
+            550.5084810000001
+          ],
+          "mean_ordinary_ms": 537.7101612222222,
+          "run_means_ms": [
+            535.804770111111,
+            539.6155523333333
+          ],
+          "mean_summed_rank_peak_rss_GiB": 11.081682205200195,
+          "mean_max_rank_peak_rss_MiB": 168.064453125
+        },
+        "stage266": {
+          "mean_run_median_ms": 756.8032725,
+          "run_medians_ms": [
+            747.073387,
+            766.533158
+          ],
+          "mean_ordinary_ms": 744.4229963333333,
+          "run_means_ms": [
+            740.6116187777778,
+            748.234373888889
+          ],
+          "mean_summed_rank_peak_rss_GiB": 21.47254180908203,
+          "mean_max_rank_peak_rss_MiB": 374.171875
+        },
+        "stage279": {
+          "mean_run_median_ms": 703.6986565,
+          "run_medians_ms": [
+            709.930534,
+            697.466779
+          ],
+          "mean_ordinary_ms": 733.346284,
+          "run_means_ms": [
+            736.6232035555555,
+            730.0693644444444
+          ],
+          "mean_summed_rank_peak_rss_GiB": 26.09307289123535,
+          "mean_max_rank_peak_rss_MiB": 427.087890625
+        },
+        "previous": {
+          "mean_run_median_ms": 631.71794375,
+          "run_medians_ms": [
+            621.999684,
+            636.693853,
+            641.2474970000001,
+            626.930741
+          ],
+          "mean_ordinary_ms": 628.6852249166667,
+          "run_means_ms": [
+            619.8036087777779,
+            637.8840069999999,
+            636.7833211111111,
+            620.2699627777778
+          ],
+          "mean_summed_rank_peak_rss_GiB": 24.942298889160156,
+          "mean_max_rank_peak_rss_MiB": 412.1484375
+        },
+        "candidate": {
+          "mean_run_median_ms": 608.5637945,
+          "run_medians_ms": [
+            609.369516,
+            600.345178,
+            621.750103,
+            602.790381
+          ],
+          "mean_ordinary_ms": 615.3783581388889,
+          "run_means_ms": [
+            620.8675815555556,
+            605.5152491111111,
+            628.9601423333334,
+            606.1704595555556
+          ],
+          "mean_summed_rank_peak_rss_GiB": 25.876721382141113,
+          "mean_max_rank_peak_rss_MiB": 425.220703125
+        }
+      },
+      "median_change_vs_v7_percent": -3.6652669880726463,
+      "median_change_vs_stage279_percent": -13.519261564768959,
+      "median_change_vs_stage266_percent": -19.587584169702442,
+      "mean_change_vs_v7_percent": -2.116618341005494,
+      "all_candidate_medians_below_all_v7_medians": true,
+      "main_gap_ms": 62.77697499999999,
+      "main_gap_percent": 11.502105356357006,
+      "memory_change_vs_v7_percent": 3.7463366834524336,
+      "memory_change_vs_stage279_percent": -0.829153047615605,
+      "subgroups_ms": {
+        "previous": {
+          "remap": 585.35137025,
+          "non_remap": 641.0663262500001
+        },
+        "stage279": {
+          "remap": 754.6604807499999,
+          "non_remap": 727.2565135
+        },
+        "candidate": {
+          "remap": 584.4457066250001,
+          "non_remap": 624.2162585714286
+        },
+        "stage266": {
+          "remap": 687.6049245,
+          "non_remap": 760.6567311428571
+        },
+        "main": {
+          "remap": 509.07292325,
+          "non_remap": 545.8922292142857
+        }
+      },
+      "profile_perturbation_percent": {
+        "previous": 1.7676420878142807,
+        "stage279": -0.17111592993356295,
+        "candidate": 2.322291044542246
+      },
+      "coarse_plan": {
+        "stage279_ms": 132.59992222222223,
+        "stage280_ms": 34.11791111111111,
+        "change_percent": -74.27003686025289,
+        "saved_ms": 98.48201111111112
+      },
+      "audit_comparison_55507_to_55508": {
+        "kernel_records": {
+          "stage279": 4029429,
+          "stage280": 4029429,
+          "change_percent": 0.0
+        },
+        "sent_values": {
+          "stage279": 2444033070,
+          "stage280": 2444033070,
+          "change_percent": 0.0
+        },
+        "received_values": {
+          "stage279": 2444033070,
+          "stage280": 2444033070,
+          "change_percent": 0.0
+        },
+        "route_invocations": {
+          "stage279": 73455,
+          "stage280": 73455,
+          "change_percent": 0.0
+        },
+        "send_messages": {
+          "stage279": 452040,
+          "stage280": 452040,
+          "change_percent": 0.0
+        },
+        "max_numerical_buffer_bytes": {
+          "stage279": 1257178864,
+          "stage280": 1030183024,
+          "change_percent": -18.05597011691409
+        },
+        "max_route_payload_bytes": {
+          "stage279": 51875640,
+          "stage280": 44080960,
+          "change_percent": -15.02570377926904
+        }
+      },
+      "publication": {
+        "enabled": true,
+        "epoch_rank_samples": 996,
+        "logical_outputs": 2207700,
+        "unique_remote_rows": 1019973,
+        "local_canonical_outputs": 1115055,
+        "avoided_numerical_rows": 1187727,
+        "scope": "Summed across12 epochs; not simultaneous memory. Actual RSS and named plan/numeric buffers remain separate evidence."
+      },
+      "zero_domain_ranks": 0,
+      "zero_domain_kernel_records": 0,
+      "zero_domain_rhs_events": 0
+    },
+    "160": {
+      "variants": {
+        "main": {
+          "mean_run_median_ms": 356.945708,
+          "run_medians_ms": [
+            355.80129700000003,
+            358.09011899999996
+          ],
+          "mean_ordinary_ms": 353.33946794444444,
+          "run_means_ms": [
+            352.4277314444445,
+            354.2512044444444
+          ],
+          "mean_summed_rank_peak_rss_GiB": 19.026935577392578,
+          "mean_max_rank_peak_rss_MiB": 141.60546875
+        },
+        "stage266": {
+          "mean_run_median_ms": 546.019367,
+          "run_medians_ms": [
+            545.891976,
+            546.146758
+          ],
+          "mean_ordinary_ms": 532.8437012777778,
+          "run_means_ms": [
+            531.9952274444444,
+            533.692175111111
+          ],
+          "mean_summed_rank_peak_rss_GiB": 31.579328536987305,
+          "mean_max_rank_peak_rss_MiB": 265.345703125
+        },
+        "stage279": {
+          "mean_run_median_ms": 568.4455275,
+          "run_medians_ms": [
+            571.2440519999999,
+            565.647003
+          ],
+          "mean_ordinary_ms": 567.2789082222223,
+          "run_means_ms": [
+            569.7998944444445,
+            564.757922
+          ],
+          "mean_summed_rank_peak_rss_GiB": 46.33077430725098,
+          "mean_max_rank_peak_rss_MiB": 366.27734375
+        },
+        "previous": {
+          "mean_run_median_ms": 505.14589249999995,
+          "run_medians_ms": [
+            505.45102900000006,
+            503.440798,
+            506.682446,
+            505.00929699999995
+          ],
+          "mean_ordinary_ms": 492.21614080555554,
+          "run_means_ms": [
+            491.9325071111111,
+            491.04657222222227,
+            492.23082755555555,
+            493.6546563333333
+          ],
+          "mean_summed_rank_peak_rss_GiB": 43.75540828704834,
+          "mean_max_rank_peak_rss_MiB": 351.3740234375
+        },
+        "candidate": {
+          "mean_run_median_ms": 483.67524975,
+          "run_medians_ms": [
+            484.961179,
+            484.50261700000004,
+            479.724431,
+            485.512772
+          ],
+          "mean_ordinary_ms": 480.0420608611111,
+          "run_means_ms": [
+            475.12581022222224,
+            473.3097881111111,
+            475.09973322222226,
+            496.63291188888894
+          ],
+          "mean_summed_rank_peak_rss_GiB": 46.066667556762695,
+          "mean_max_rank_peak_rss_MiB": 363.248046875
+        }
+      },
+      "median_change_vs_v7_percent": -4.250384506491844,
+      "median_change_vs_stage279_percent": -14.91264750077571,
+      "median_change_vs_stage266_percent": -11.417931490697475,
+      "mean_change_vs_v7_percent": -2.47331993715616,
+      "all_candidate_medians_below_all_v7_medians": true,
+      "main_gap_ms": 126.72954174999995,
+      "main_gap_percent": 35.50387045135726,
+      "memory_change_vs_v7_percent": 5.282225352696557,
+      "memory_change_vs_stage279_percent": -0.5700460534866281,
+      "subgroups_ms": {
+        "previous": {
+          "remap": 469.461516875,
+          "non_remap": 498.7174619285714
+        },
+        "stage279": {
+          "remap": 500.7686645,
+          "non_remap": 586.281835
+        },
+        "candidate": {
+          "remap": 454.270086,
+          "non_remap": 487.40548225000003
+        },
+        "stage266": {
+          "remap": 493.80128700000006,
+          "non_remap": 543.9986767857142
+        },
+        "main": {
+          "remap": 333.94554025,
+          "non_remap": 358.8805901428571
+        }
+      },
+      "profile_perturbation_percent": {
+        "previous": 3.0605739311242663,
+        "stage279": 2.5564691420674412,
+        "candidate": 2.3545102330305934
+      },
+      "coarse_plan": {
+        "stage279_ms": 116.37332222222221,
+        "stage280_ms": 27.1265,
+        "change_percent": -76.69010432803472,
+        "saved_ms": 89.24682222222222
+      },
+      "audit_comparison_55507_to_55508": {
+        "kernel_records": {
+          "stage279": 4029429,
+          "stage280": 4029429,
+          "change_percent": 0.0
+        },
+        "sent_values": {
+          "stage279": 3176592750,
+          "stage280": 3176592750,
+          "change_percent": 0.0
+        },
+        "received_values": {
+          "stage279": 3176592750,
+          "stage280": 3176592750,
+          "change_percent": 0.0
+        },
+        "route_invocations": {
+          "stage279": 141600,
+          "stage280": 141600,
+          "change_percent": 0.0
+        },
+        "send_messages": {
+          "stage279": 943695,
+          "stage280": 943695,
+          "change_percent": 0.0
+        },
+        "max_numerical_buffer_bytes": {
+          "stage279": 1501532080,
+          "stage280": 1286759200,
+          "change_percent": -14.303582511537149
+        },
+        "max_route_payload_bytes": {
+          "stage279": 68844412,
+          "stage280": 62648696,
+          "change_percent": -8.99959171704452
+        }
+      },
+      "publication": {
+        "enabled": true,
+        "epoch_rank_samples": 1920,
+        "logical_outputs": 2207700,
+        "unique_remote_rows": 1371900,
+        "local_canonical_outputs": 758352,
+        "avoided_numerical_rows": 835800,
+        "scope": "Summed across12 epochs; not simultaneous memory. Actual RSS and named plan/numeric buffers remain separate evidence."
+      },
+      "zero_domain_ranks": 0,
+      "zero_domain_kernel_records": 0,
+      "zero_domain_rhs_events": 0
+    },
+    "256": {
+      "variants": {
+        "stage266": {
+          "mean_run_median_ms": 585.611346,
+          "run_medians_ms": [
+            592.955907,
+            578.2667849999999
+          ],
+          "mean_ordinary_ms": 569.3778230555555,
+          "run_means_ms": [
+            573.1540705555556,
+            565.6015755555555
+          ],
+          "mean_summed_rank_peak_rss_GiB": 43.0819091796875,
+          "mean_max_rank_peak_rss_MiB": 268.478515625
+        },
+        "stage279": {
+          "mean_run_median_ms": 553.0315005000001,
+          "run_medians_ms": [
+            552.7615340000001,
+            553.301467
+          ],
+          "mean_ordinary_ms": 564.9886571111111,
+          "run_means_ms": [
+            563.6080044444445,
+            566.3693097777777
+          ],
+          "mean_summed_rank_peak_rss_GiB": 65.12680244445801,
+          "mean_max_rank_peak_rss_MiB": 393.080078125
+        },
+        "previous": {
+          "mean_run_median_ms": 547.47207475,
+          "run_medians_ms": [
+            545.949226,
+            545.954417,
+            553.747399,
+            544.237257
+          ],
+          "mean_ordinary_ms": 538.0045977222223,
+          "run_means_ms": [
+            533.8738495555556,
+            538.5432611111111,
+            543.948842,
+            535.6524382222223
+          ],
+          "mean_summed_rank_peak_rss_GiB": 61.45547389984131,
+          "mean_max_rank_peak_rss_MiB": 376.0634765625
+        },
+        "candidate": {
+          "mean_run_median_ms": 526.969274,
+          "run_medians_ms": [
+            523.983305,
+            527.1411919999999,
+            528.647371,
+            528.105228
+          ],
+          "mean_ordinary_ms": 536.1063088611111,
+          "run_means_ms": [
+            514.127202111111,
+            526.838206111111,
+            519.2030083333333,
+            584.2568188888889
+          ],
+          "mean_summed_rank_peak_rss_GiB": 64.89455604553223,
+          "mean_max_rank_peak_rss_MiB": 394.5830078125
+        }
+      },
+      "median_change_vs_v7_percent": -3.7449948034997904,
+      "median_change_vs_stage279_percent": -4.712611573922465,
+      "median_change_vs_stage266_percent": -10.013821009540347,
+      "mean_change_vs_v7_percent": -0.3528387804022759,
+      "all_candidate_medians_below_all_v7_medians": true,
+      "main_gap_ms": null,
+      "main_gap_percent": null,
+      "memory_change_vs_v7_percent": 5.596055041892378,
+      "memory_change_vs_stage279_percent": -0.35660648183034604,
+      "subgroups_ms": {
+        "previous": {
+          "remap": 504.94149525,
+          "non_remap": 547.4511984285715
+        },
+        "stage279": {
+          "remap": 531.08956425,
+          "non_remap": 574.6741122142857
+        },
+        "candidate": {
+          "remap": 486.347533625,
+          "non_remap": 550.3231017857144
+        },
+        "stage266": {
+          "remap": 515.7374914999999,
+          "non_remap": 584.7036320714285
+        }
+      },
+      "profile_perturbation_percent": {
+        "previous": 4.383255942498643,
+        "stage279": 4.116608453481763,
+        "candidate": 3.700193153956066
+      },
+      "coarse_plan": {
+        "stage279_ms": 67.94590000000001,
+        "stage280_ms": 30.59631111111111,
+        "change_percent": -54.969599179477925,
+        "saved_ms": 37.3495888888889
+      },
+      "audit_comparison_55507_to_55508": {
+        "kernel_records": {
+          "stage279": 4029429,
+          "stage280": 4029429,
+          "change_percent": 0.0
+        },
+        "sent_values": {
+          "stage279": 3617806230,
+          "stage280": 3617806230,
+          "change_percent": 0.0
+        },
+        "received_values": {
+          "stage279": 3617806230,
+          "stage280": 3617806230,
+          "change_percent": 0.0
+        },
+        "route_invocations": {
+          "stage279": 226560,
+          "stage280": 226560,
+          "change_percent": 0.0
+        },
+        "send_messages": {
+          "stage279": 1410969,
+          "stage280": 1410969,
+          "change_percent": 0.0
+        },
+        "max_numerical_buffer_bytes": {
+          "stage279": 1644250336,
+          "stage280": 1425294736,
+          "change_percent": -13.316439425681226
+        },
+        "max_route_payload_bytes": {
+          "stage279": 90273520,
+          "stage280": 83995720,
+          "change_percent": -6.954198750641383
+        }
+      },
+      "publication": {
+        "enabled": true,
+        "epoch_rank_samples": 3072,
+        "logical_outputs": 2207700,
+        "unique_remote_rows": 1536663,
+        "local_canonical_outputs": 603393,
+        "avoided_numerical_rows": 671037,
+        "scope": "Summed across12 epochs; not simultaneous memory. Actual RSS and named plan/numeric buffers remain separate evidence."
+      },
+      "zero_domain_ranks": 96,
+      "zero_domain_kernel_records": 956031,
+      "zero_domain_rhs_events": 16212000
+    }
+  },
+  "scaling": {
+    "previous": {
+      "speedup_160_to_256": 0.9226879612639091,
+      "relative_efficiency_percent": 57.66799757899432,
+      "ordinary_mean_speedup_160_to_256": 0.9148920713493459,
+      "ordinary_mean_relative_efficiency_percent": 57.18075445933412
+    },
+    "stage279": {
+      "speedup_160_to_256": 1.027871878882241,
+      "relative_efficiency_percent": 64.24199243014006,
+      "ordinary_mean_speedup_160_to_256": 1.0040536231697492,
+      "ordinary_mean_relative_efficiency_percent": 62.75335144810932
+    },
+    "candidate": {
+      "speedup_160_to_256": 0.9178433613000365,
+      "relative_efficiency_percent": 57.365210081252286,
+      "ordinary_mean_speedup_160_to_256": 0.8954232638688747,
+      "ordinary_mean_relative_efficiency_percent": 55.963953991804665
+    },
+    "stage266": {
+      "speedup_160_to_256": 0.9323920561470815,
+      "relative_efficiency_percent": 58.2745035091926,
+      "ordinary_mean_speedup_160_to_256": 0.9358350109568405,
+      "ordinary_mean_relative_efficiency_percent": 58.48968818480253
+    }
+  },
+  "decision": "Keep as measured repair candidate for continued repair of this slice; no accepted-source promotion, additional migration or repeat campaign. Absolute median gains established; legacy/memory parity and scaling remain open.",
+  "256_vs_160": {
+    "median_time_change_percent": 8.951052234402667,
+    "mean_time_change_percent": 11.679028270862467
+  },
+  "qualification_limitations": [
+    "Archived binary/checkpoint/VTK content omitted; recorded hashes/reports independently checked, not rerun",
+    "Single separate coarse replay per kind/count; self times on same slowest step rank, not phase maxima or bare savings forecasts",
+    "Rank peak RSS sums are not simultaneous peaks; named allocations are partial",
+    "Work descriptors are not FLOPs; counters and timers joined across separate exact-science replays; correlations descriptive",
+    "Four run-level timing observations each; do not treat timesteps as independent samples",
+    "256 above-Domain participation is intermediate, not>=640 scaling or whole-timestep independence"
+  ]
+}

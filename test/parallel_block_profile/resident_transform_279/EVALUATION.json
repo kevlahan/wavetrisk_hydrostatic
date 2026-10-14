@@ -1,0 +1,51 @@
+{
+  "accepted_source": "ff740744608731a05d53771c32a3055309f3a586",
+  "production_active": true,
+  "ownership_credit": true,
+  "full_step_science_qualified": true,
+  "connected_retirement_qualified": true,
+  "replacement_cost_case_qualified": true,
+  "performance_qualified": false,
+  "local_speedup_established": false,
+  "replacement_cost_scope": "Concrete bounded local replacement allocations and communication measured; this is a quantified cost case, not demonstrated net speedup. Exclusive bbserv comparison is required.",
+  "qualified_source_sha256": {
+    "Makefile": "4c5a390b90bbb9dddb93cc63e2e1ccfd9a1715fc8eadc98088fc644a1aea62c0",
+    "src/parallel_block_inverse.f90": "6606c0f609b9581c5f0d1d5b91252c75dfa0df97ca93b89946b7d01b4693e2a9",
+    "src/parallel_block_mpi.f90": "33f6d5f9e5608a8a51a3148c0c80ddd20b177a4a63357a4f0f296f6aab2b6f9d",
+    "src/parallel_block_profile.f90": "80f9bf657967eb6e4eba21715b1480b282812f0f7d02f4de38f72fadb1e87455",
+    "src/parallel_block_rhs_backend.f90": "9cd2f14d55832c82953095cc0e735f4e7b6f67b92a89f4dbf5258ebd582bef31",
+    "src/parallel_block_rhs_boundary.f90": "117c9baf720d986d37c11b2f693520412b0012dc1a7a474c8396532038abe91c",
+    "src/parallel_block_rhs_exchange.f90": "f46a220c5ce96201c2fd33a99646ad28f2f91a386ac7dc3ad5da0d81a7be3e71",
+    "src/parallel_block_transform_adapter.f90": "fdc22aeb087f3ceb50e3416a9b648ed06288b0aed758fd7f2dc99129f55fe469",
+    "src/parallel_block_transform_backend.f90": "5ec3f665a7d826966e2cf652b718d9427ad81ea95d945a1a836e1656b4039fc2",
+    "src/parallel_block_transform_kernels.f90": "d0b720303af3265e2222950c3c26c2e0995402960de16004c0acb2b395581268",
+    "src/parallel_block_transform_placement.f90": "9c880fb7f4bf5652a72c87e7803c94494d076686abe9edb7825427257a3fd241",
+    "src/time_integr.f90": "9863d6bfaaf27afb364ed2463cc54ef77a9a93f2d53eb254119b898be682a7ca"
+  },
+  "full_step_local_runs": {
+    "optimized": {
+      "passed": true,
+      "ranks": 4,
+      "binary_sha256": "a61ddd6b9327440b0b89922ddd26eae0974a29fce0a8222fe8bb047a9332f742"
+    },
+    "checked": {
+      "passed": true,
+      "ranks": 4,
+      "binary_sha256": "9fc7ace9599e6d0dcb3558d0b9087f5523147c0e6f0f1f92b286e199b7662d03"
+    },
+    "oracle": {
+      "passed": true,
+      "ranks": 4,
+      "binary_sha256": "a61ddd6b9327440b0b89922ddd26eae0974a29fce0a8222fe8bb047a9332f742"
+    }
+  },
+  "retired_production_work": [
+    "Three provisional WT_after_step paths per RK4 step",
+    "Provisional Domain vector staging and coefficient round trip",
+    "Provisional geometry-owner inverse arithmetic and canonical Domain interior publication"
+  ],
+  "validation_only_reference_packets_in_production": false,
+  "ownership_scope": "Local4-rank numerical ownership and paired retirement;96 zero-Domain ranks require dedicated256 production audit. Final lifecycle and granularity unchanged.",
+  "gcc13_checked_and_optimized_builds_passed": true,
+  "portability_change": "Explicit stable selection; numerical operations, routing order and checks unchanged."
+}

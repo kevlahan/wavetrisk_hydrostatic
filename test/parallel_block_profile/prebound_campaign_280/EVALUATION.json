@@ -1,0 +1,50 @@
+{
+  "accepted_source": "ff740744608731a05d53771c32a3055309f3a586",
+  "production_active": true,
+  "ownership_credit": true,
+  "full_step_science_qualified": true,
+  "connected_retirement_qualified": true,
+  "replacement_cost_case_qualified": true,
+  "performance_qualified": false,
+  "local_speedup_established": true,
+  "replacement_cost_scope": "128 redundant preparation collectives per state removed by sole-provider binding; named extra-transform allocations fall 29.64%. Numerical payload and runtime route counts unchanged. Exact-source local replays and GCC13 builds passed; cluster RSS, absolute time and scaling require the campaign.",
+  "qualified_source_sha256": {
+    "src/parallel_block_rhs_exchange.f90": "fad50457db3d2ff37b09e74fabcbfcf591332df805c4610f74df9a868a234c6b",
+    "src/parallel_block_transform_backend.f90": "9afa1a9ca37923e600a45f07c90b05160659c0baaf35f87037f031279b30606d"
+  },
+  "full_step_local_runs": {
+    "optimized": {
+      "passed": true,
+      "ranks": 4,
+      "binary_sha256": "f49201a37302e4ff6f7f628064d56d8d34224120ac81a3d30cc757652c178a11",
+      "validation_sha256": "437757004c0a160e7122d2e0589998da3284120c4f902e05f171e5e2e8abce2f"
+    },
+    "checked": {
+      "passed": true,
+      "ranks": 4,
+      "binary_sha256": "70b4a62804fa294dab2e449df7ff8240442c3b7ad5899eda19842d4028ce7e93",
+      "validation_sha256": "a20808e16b7a2fd83ff10929dee74c7e7bb7a8a6046dee83b3b03e69d1700e28"
+    },
+    "oracle": {
+      "passed": true,
+      "ranks": 4,
+      "binary_sha256": "f49201a37302e4ff6f7f628064d56d8d34224120ac81a3d30cc757652c178a11",
+      "validation_sha256": "5d4fe6a9d865d068a59bfaeec57ba50d054e936368ef122d5fd9a1392b9d0c97"
+    }
+  },
+  "retired_production_work": [
+    "Three provisional WT_after_step paths per RK4 step",
+    "Provisional Domain vector staging and coefficient round trip",
+    "Provisional geometry-owner inverse arithmetic and canonical Domain interior publication",
+    "Redundant distributed last-writer discovery on 16 ordinary sole-provider routes",
+    "Local and duplicate remote provisional publication staging",
+    "Redundant distributed last-writer discovery on 16 ordinary sole-provider routes",
+    "Local and duplicate remote provisional publication staging"
+  ],
+  "validation_only_reference_packets_in_production": false,
+  "ownership_scope": "Local4-rank numerical ownership and paired retirement;96 zero-Domain ranks require dedicated256 production audit. Final lifecycle and granularity unchanged.",
+  "gcc13_checked_and_optimized_builds_passed": true,
+  "portability_change": "Exact Stage279 v3 compiler/checker fixes retained; two solver files implement direct provider binding and compact publication.",
+  "cluster_performance_qualified": false,
+  "local_speedup_scope": "Four-rank J4/J6 two bare runs each: 4.79% versus v7, 5.38% versus Stage279 on mean ordinary run medians; no cluster prediction or qualification."
+}

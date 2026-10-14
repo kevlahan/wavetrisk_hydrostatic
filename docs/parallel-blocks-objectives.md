@@ -26,6 +26,15 @@ a count of removed references, or a runnable-but-slower P>D configuration. No
 numerical efficiency threshold has yet been agreed: report speedup and relative
 efficiency honestly and agree the threshold before final scaling acceptance.
 
+### Workload continuity — user clarification, 2026-10-14
+
+Keep the current J5/D=160 workload as the deciding absolute-performance and
+above-Domain scaling track. The user may later consider J6 coarsest/J8 finest
+with four times the Domains and more numerical work. This is complementary:
+with D=640,160/256 tasks are below the Domain count,640 only reaches it, and
+P>=4D requires2,560 tasks. A larger-workload result cannot replace breaking the
+Domain barrier on the original workload. No J6/J8 campaign is requested now.
+
 ## Immediate substantial deliverable: connected production RHS ownership
 
 Start from accepted Stage266 `ff740744608731a05d53771c32a3055309f3a586`.

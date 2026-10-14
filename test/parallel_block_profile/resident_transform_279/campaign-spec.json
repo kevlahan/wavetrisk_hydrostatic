@@ -1,0 +1,231 @@
+{
+  "stage": 279,
+  "revision": "resident-transform-v3",
+  "repair_revision": "resident-transform-v3",
+  "status": "sealed_for_user_submission",
+  "launch_ready": true,
+  "sealed": true,
+  "submitted": false,
+  "partition": "nk",
+  "node": "bb13",
+  "exclusive": true,
+  "memory": "all node memory",
+  "wall_limit_minutes": 90,
+  "planning_minutes": [
+    50,
+    70
+  ],
+  "projection_minutes": null,
+  "planning_basis": "Job55504 actual42:33 for five builds48runs; allow extra compilation/oracle work and one new above-Domain production validation. Planning range, not measured duration.",
+  "serial_builds": 5,
+  "validation_runs": 9,
+  "measurement_runs": 40,
+  "measurement_schedule": [
+    [
+      83,
+      "main",
+      "off"
+    ],
+    [
+      83,
+      "stage266",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "off"
+    ],
+    [
+      83,
+      "candidate",
+      "off"
+    ],
+    [
+      83,
+      "candidate",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "off"
+    ],
+    [
+      83,
+      "candidate",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "off"
+    ],
+    [
+      83,
+      "candidate",
+      "off"
+    ],
+    [
+      83,
+      "stage266",
+      "off"
+    ],
+    [
+      83,
+      "main",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "coarse"
+    ],
+    [
+      83,
+      "candidate",
+      "coarse"
+    ],
+    [
+      160,
+      "main",
+      "off"
+    ],
+    [
+      160,
+      "stage266",
+      "off"
+    ],
+    [
+      160,
+      "previous",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "off"
+    ],
+    [
+      160,
+      "previous",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "off"
+    ],
+    [
+      160,
+      "previous",
+      "off"
+    ],
+    [
+      160,
+      "previous",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "off"
+    ],
+    [
+      160,
+      "stage266",
+      "off"
+    ],
+    [
+      160,
+      "main",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "coarse"
+    ],
+    [
+      160,
+      "previous",
+      "coarse"
+    ],
+    [
+      256,
+      "stage266",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "off"
+    ],
+    [
+      256,
+      "candidate",
+      "off"
+    ],
+    [
+      256,
+      "candidate",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "off"
+    ],
+    [
+      256,
+      "candidate",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "off"
+    ],
+    [
+      256,
+      "candidate",
+      "off"
+    ],
+    [
+      256,
+      "stage266",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "coarse"
+    ],
+    [
+      256,
+      "candidate",
+      "coarse"
+    ]
+  ],
+  "total_runs_minimum": 49,
+  "total_runs_maximum": 49,
+  "fine_runs": 0,
+  "automatic_promotion": false,
+  "purpose": "Qualify resident provisional transform closure while testing ordinary absolute time against v7,266 and main; separately assess memory and160-to256 scaling.",
+  "parent_kit_sha256": "78d70c48b8f89b2329108e0427c4d54c7240f5ffce9fb7c9f7c91b9af1d804c5"
+}

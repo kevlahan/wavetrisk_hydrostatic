@@ -1,0 +1,410 @@
+{
+  "status": "passed",
+  "ranks": 4,
+  "oracles": false,
+  "coverage": {
+    "domains": 40,
+    "reloads": [
+      2,
+      3
+    ],
+    "remaps": 2,
+    "new_checkpoint": "localJ4J6_checkpoint_0003.bin.zst"
+  },
+  "reference_directory": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/local-J4/opt",
+  "reference_ranks": 4,
+  "reference_binary_sha256": "0baeb416b0874820d52ffcb7272fce9238b6f236dc3d637d4a228b992d688a23",
+  "steps": 12,
+  "step_states_exact": true,
+  "numerical": {
+    "passed": true,
+    "exact_required": true,
+    "exact_observed": true,
+    "failures": [],
+    "policy": {
+      "id": "stage180-local-v1",
+      "atmosphere_absolute": {
+        "velocity": 1e-10,
+        "mass": 1e-10,
+        "temperature": 1e-07
+      },
+      "soil_absolute": 0.0
+    },
+    "report": {
+      "left": "/Users/kevlahan/.codex/worktrees/26d8/wavetrisk_hydrostatic/.stage266-validation/local-J4/opt/localJ4J6_checkpoint_0003.bin.zst",
+      "right": "/private/tmp/rk279-resident-transform/pool-qualification/checked/localJ4J6_checkpoint_0003.bin.zst",
+      "header_differences": 0,
+      "topology_differences": 0,
+      "threshold_max_abs": 0.0,
+      "threshold_nonfinite": 0,
+      "fields": {
+        "coarse/velocity/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/velocity/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/mass/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/temperature/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/velocity/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/velocity/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/mass/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/temperature/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/mass/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/temperature/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/temperature/atmosphere": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        }
+      }
+    }
+  },
+  "vtk_exact_members": 62,
+  "storage_headers": {
+    "absent": 2,
+    "retained": 0
+  },
+  "storage_ranks": [
+    [
+      0,
+      4
+    ],
+    [
+      0,
+      4
+    ]
+  ],
+  "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+  "seed_sha256": "285df4e715661c2a74836f5781f9cb099c777f9fff4e456a0b3593061dddf34c",
+  "environment": {
+    "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+    "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+    "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+    "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+    "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+    "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+    "WAVETRISK_STAGE191_INSTALL": "1",
+    "WAVETRISK_STAGE191_MASS_OVERLAP": "0",
+    "WAVETRISK_STAGE192_SPARSE_OUTER": "0",
+    "WAVETRISK_STAGE193_SCALAR_COLUMNS": "1",
+    "WAVETRISK_STAGE194_INNER_GEOMETRY": "1",
+    "WAVETRISK_STAGE197_RESIDENT_WAVELETS": "1",
+    "WAVETRISK_SAMPLE_RANKS201": "[]",
+    "WAVETRISK_COST_AUDIT": "0",
+    "WAVETRISK_CONNECTED_RHS": "1",
+    "WAVETRISK_CONNECTED_RHS_AUDIT": "1",
+    "WAVETRISK_TRANSFORM_KERNEL_CHECK": "0",
+    "WAVETRISK_RESIDENT_TRANSFORM_CHECK": "0",
+    "WAVETRISK_RESIDENT_TRANSFORM": "1"
+  },
+  "command": [
+    "mpirun",
+    "--oversubscribe",
+    "--bind-to",
+    "none",
+    "-n",
+    "4",
+    "./climate",
+    "simple.in"
+  ],
+  "binary_sha256": "4a81d67957c40fdd8dd959a22a97ef897ee56d87f4eaefbf46d61dd617413a40",
+  "log_sha256": "249a693e43147eb7b3536cc256824cfd00b4441b4ca1e73ddc3b0dc012bdcd99",
+  "ordinary": {
+    "precision_source": "test_log",
+    "median": 14.873662,
+    "included": [
+      {
+        "index": 1,
+        "state": "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33810",
+        "seconds": 13.810739
+      },
+      {
+        "index": 2,
+        "state": "00000322     0.3092 d dt =    207.1 s Jmax =  6 dof =        33697",
+        "seconds": 14.385025
+      },
+      {
+        "index": 3,
+        "state": "00000322     0.3116 d dt =    207.1 s Jmax =  6 dof =        33534",
+        "seconds": 14.873662
+      },
+      {
+        "index": 4,
+        "state": "00000322     0.3140 d dt =    207.1 s Jmax =  6 dof =        33869",
+        "seconds": 14.777222
+      },
+      {
+        "index": 5,
+        "state": "00000322     0.3164 d dt =    207.1 s Jmax =  6 dof =        44374",
+        "seconds": 12.817239
+      },
+      {
+        "index": 6,
+        "state": "00000322     0.3188 d dt =    207.1 s Jmax =  6 dof =        42262",
+        "seconds": 16.14585
+      },
+      {
+        "index": 9,
+        "state": "00000322     0.3260 d dt =    207.1 s Jmax =  6 dof =        39600",
+        "seconds": 15.255183
+      },
+      {
+        "index": 10,
+        "state": "00000322     0.3284 d dt =    207.1 s Jmax =  6 dof =        47611",
+        "seconds": 15.425512
+      },
+      {
+        "index": 11,
+        "state": "00000322     0.3308 d dt =    207.1 s Jmax =  6 dof =        43849",
+        "seconds": 17.504902
+      }
+    ],
+    "excluded": [
+      {
+        "index": 0,
+        "state": "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37700",
+        "seconds": 15.124822,
+        "reasons": [
+          "first step after startup/reload",
+          "data saving"
+        ]
+      },
+      {
+        "index": 7,
+        "state": "00000322     0.3212 d dt =    207.1 s Jmax =  6 dof =        38445",
+        "seconds": 23.5737,
+        "reasons": [
+          "checkpoint write",
+          "data saving"
+        ]
+      },
+      {
+        "index": 8,
+        "state": "00000322     0.3236 d dt =    207.1 s Jmax =  6 dof =        38247",
+        "seconds": 13.058108,
+        "reasons": [
+          "first step after startup/reload"
+        ]
+      }
+    ],
+    "scope": "One run-level median; timesteps share run conditions and are not independent repetitions."
+  },
+  "contract": {
+    "enabled": true,
+    "ownership_gate_passed": true,
+    "rhs_per_rank": 48,
+    "layers": 30,
+    "zero_domain_ranks": 0,
+    "zero_domain_rank_primitive_events": 0,
+    "ranks": [
+      {
+        "rank": 0,
+        "replacement_cost": {
+          "input_sent_values": 5907840,
+          "input_received_values": 6823560,
+          "input_send_messages": 328,
+          "rk_sent_values": 6194400,
+          "rk_received_values": 1203600,
+          "rk_send_messages": 72,
+          "max_route_payload_bytes": 111890076,
+          "max_numerical_buffer_bytes": 325197824,
+          "max_rounding_column_bytes": 18893424,
+          "placement_sent_bytes": 1266004,
+          "placement_received_bytes": 4157320,
+          "backend_preparation_seconds": 16.18135400000002,
+          "scope": "Numerical buffers, rounding columns and resident/derived/RK route payload allocations only; excludes descriptors, compilation peak, geometry-only transform/metric adapters, retained accepted workspaces and MPI storage. Placement metadata is only its named topology stream. Stage traffic excludes 8-byte per-peer epoch headers. Full-step time and rank RSS include all costs."
+        },
+        "domains": 11,
+        "blocks": 46,
+        "epochs": 12,
+        "primitive_events": 15627600,
+        "scalar_targets": 15501720,
+        "velocity_targets": 14113920,
+        "input_adapter_values": 34639920,
+        "input_resident_values": 98797440,
+        "derived_sent_values": 80914920,
+        "derived_messages": 144240,
+        "rk_adapter_values": 106651800,
+        "rk_resident_values": 30288600,
+        "evaluate_seconds": 69.19598099999993,
+        "rk_adapter_seconds": 6.055054000000013
+      },
+      {
+        "rank": 1,
+        "replacement_cost": {
+          "input_sent_values": 8230680,
+          "input_received_values": 8683320,
+          "input_send_messages": 372,
+          "rk_sent_values": 5892000,
+          "rk_received_values": 7011600,
+          "rk_send_messages": 120,
+          "max_route_payload_bytes": 99977636,
+          "max_numerical_buffer_bytes": 282526000,
+          "max_rounding_column_bytes": 16512144,
+          "placement_sent_bytes": 6490140,
+          "placement_received_bytes": 4320236,
+          "backend_preparation_seconds": 16.166985000000007,
+          "scope": "Numerical buffers, rounding columns and resident/derived/RK route payload allocations only; excludes descriptors, compilation peak, geometry-only transform/metric adapters, retained accepted workspaces and MPI storage. Placement metadata is only its named topology stream. Stage traffic excludes 8-byte per-peer epoch headers. Full-step time and rank RSS include all costs."
+        },
+        "domains": 9,
+        "blocks": 35,
+        "epochs": 12,
+        "primitive_events": 15319200,
+        "scalar_targets": 15194040,
+        "velocity_targets": 13921920,
+        "input_adapter_values": 31826760,
+        "input_resident_values": 97453440,
+        "derived_sent_values": 119516880,
+        "derived_messages": 198000,
+        "rk_adapter_values": 101707200,
+        "rk_resident_values": 29664000,
+        "evaluate_seconds": 69.1672670000001,
+        "rk_adapter_seconds": 6.4597430000000315
+      },
+      {
+        "rank": 2,
+        "replacement_cost": {
+          "input_sent_values": 8356200,
+          "input_received_values": 8090520,
+          "input_send_messages": 380,
+          "rk_sent_values": 7456800,
+          "rk_received_values": 5630400,
+          "rk_send_messages": 144,
+          "max_route_payload_bytes": 107841624,
+          "max_numerical_buffer_bytes": 309895344,
+          "max_rounding_column_bytes": 18088048,
+          "placement_sent_bytes": 4571396,
+          "placement_received_bytes": 8843764,
+          "backend_preparation_seconds": 16.191369999999985,
+          "scope": "Numerical buffers, rounding columns and resident/derived/RK route payload allocations only; excludes descriptors, compilation peak, geometry-only transform/metric adapters, retained accepted workspaces and MPI storage. Placement metadata is only its named topology stream. Stage traffic excludes 8-byte per-peer epoch headers. Full-step time and rank RSS include all costs."
+        },
+        "domains": 11,
+        "blocks": 45,
+        "epochs": 12,
+        "primitive_events": 15553080,
+        "scalar_targets": 15427320,
+        "velocity_targets": 14088960,
+        "input_adapter_values": 34382880,
+        "input_resident_values": 98622720,
+        "derived_sent_values": 118617360,
+        "derived_messages": 204120,
+        "rk_adapter_values": 108216000,
+        "rk_resident_values": 30110400,
+        "evaluate_seconds": 69.26020000000005,
+        "rk_adapter_seconds": 6.243332000000095
+      },
+      {
+        "rank": 3,
+        "replacement_cost": {
+          "input_sent_values": 7482000,
+          "input_received_values": 6379320,
+          "input_send_messages": 336,
+          "rk_sent_values": 942000,
+          "rk_received_values": 6639600,
+          "rk_send_messages": 72,
+          "max_route_payload_bytes": 93243740,
+          "max_numerical_buffer_bytes": 265165328,
+          "max_rounding_column_bytes": 15520912,
+          "placement_sent_bytes": 6510944,
+          "placement_received_bytes": 1517164,
+          "backend_preparation_seconds": 16.15730099999999,
+          "scope": "Numerical buffers, rounding columns and resident/derived/RK route payload allocations only; excludes descriptors, compilation peak, geometry-only transform/metric adapters, retained accepted workspaces and MPI storage. Placement metadata is only its named topology stream. Stage traffic excludes 8-byte per-peer epoch headers. Full-step time and rank RSS include all costs."
+        },
+        "domains": 9,
+        "blocks": 34,
+        "epochs": 12,
+        "primitive_events": 14378520,
+        "scalar_targets": 14272920,
+        "velocity_targets": 13119360,
+        "input_adapter_values": 31172400,
+        "input_resident_values": 91835520,
+        "derived_sent_values": 93640560,
+        "derived_messages": 150840,
+        "rk_adapter_values": 99657000,
+        "rk_resident_values": 29370600,
+        "evaluate_seconds": 69.18482900000001,
+        "rk_adapter_seconds": 6.4695310000000745
+      }
+    ],
+    "scope": "Authoritative RHS retained by real resident RK; old Domain RHS and capture entry guards active. Local/cluster science gates are separate. RK adapter counts include raw five-field bounded reader values and five-field resident deliveries (only temperature installed). Input/derived counters exclude topology preparation and metadata; whole-step timing includes all costs. No speedup claim."
+  },
+  "elapsed": 196.2078282078728
+}

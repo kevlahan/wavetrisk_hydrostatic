@@ -11,7 +11,7 @@ module parallel_block_rhs_exchange_mod
   implicit none
   private
   public :: Rhs_Exchange, compile_rhs_exchange, exchange_rhs_values, release_rhs_exchange
-  public :: rhs_exchange_cost,rhs_exchange_source_slots,deliver_rhs_indexed_metadata
+  public :: rhs_exchange_cost,rhs_exchange_source_slots,deliver_rhs_indexed_metadata,rhs_exchange_buffer_values
   public :: Rhs_Owner_Directory,compile_rhs_owner_directory,lookup_rhs_owner_directory
   integer, parameter :: KEY_SIZE=4, DEFINITION_SIZE=8
   type :: Rhs_Owner_Directory
@@ -25,7 +25,7 @@ module parallel_block_rhs_exchange_mod
      private
      type(MPI_Comm) :: comm=MPI_COMM_NULL
      integer(int64) :: topology=-1_int64, masks=-1_int64, last_state=-1_int64
-     integer :: phase=-1,nslot=0,nlayer=0,me=-1,nrank=0,tag=0
+     integer :: phase=-1,nslot=0,nlayer=0,me=-1,nrank=0,tag=0,profile_region=DP_RHS_EXCHANGE
      logical :: owns_comm=.true.,variable_columns=.false.
      integer :: last_columns=0
      integer, allocatable :: sc(:),sd(:),rc(:),rd(:),source(:),target(:),address(:),orientation(:)
@@ -361,7 +361,7 @@ contains
 
   subroutine compile_rhs_exchange(plan,comm,topology,masks,phase,nslot,nlayer, &
        definition_key,definition_order,definition_slot,consumer_key,consumer_slot,orientation,shared_tag,variable_columns, &
-       definition_home,consumer_home,canonical_slot)
+       definition_home,consumer_home,canonical_slot,profile_region,shared_buffers,consumer_provider)
     ! Each definition is the FINAL local write for its physical storage key.
     ! order=(accepted patch ordinal, accepted assignment ordinal) compares
     ! lexicographically. All pentagon writes must follow all direct/SW writes.
@@ -374,15 +374,18 @@ contains
     integer, intent(in) :: phase,nslot,nlayer
     integer, intent(in) :: definition_key(:,:),definition_order(:,:),definition_slot(:)
     integer, intent(in) :: consumer_key(:,:),consumer_slot(:),orientation(:)
+    logical, optional, intent(in) :: shared_buffers
+    integer, optional, intent(in) :: profile_region
     integer, optional, intent(in) :: shared_tag
     logical, optional, intent(in) :: variable_columns
-    integer, optional, intent(in) :: definition_home(:,:),consumer_home(:,:),canonical_slot(:)
+    integer, optional, intent(in) :: definition_home(:,:),consumer_home(:,:),canonical_slot(:),consumer_provider(:,:)
     integer, allocatable :: outgoing(:,:),destination(:),definitions(:,:),table(:),query(:,:),answer(:,:),active(:)
     integer, allocatable :: incoming(:,:),reply(:,:),replies(:,:),slots(:),unique(:,:),mapping(:),order(:),cursor(:)
     integer :: ierr,nd,nc,i,j,h,t,n,u,r,a,failures,total_failures,choice
     integer(int64) :: signature(7),lower(7),upper(7)
     if (plan%comm/=MPI_COMM_NULL) call die(comm,'release previous plan before recompiling')
     if (topology<0.or.masks<0.or.phase<1.or.nslot<0.or.nlayer<1) call die(comm,'invalid plan epoch or extent')
+    if(present(profile_region)) plan%profile_region=profile_region
     nd=size(definition_slot);nc=size(consumer_slot)
     if (any(shape(definition_key)/=[KEY_SIZE,nd]).or.any(shape(definition_order)/=[2,nd]).or. &
          any(shape(consumer_key)/=[KEY_SIZE,nc]).or.size(orientation)/=nc) call die(comm,'plan argument extent')
@@ -413,14 +416,25 @@ contains
     if(present(variable_columns)) plan%variable_columns=variable_columns
     plan%last_columns=nlayer
     signature=[topology,masks,int(phase,int64),int(nlayer,int64),int(plan%tag,int64), &
-         int(merge(1,0,plan%variable_columns),int64),int(merge(1,0,present(definition_home)),int64)]
+         int(merge(1,0,plan%variable_columns),int64), &
+         int(merge(2,merge(1,0,present(definition_home)),present(consumer_provider)),int64)]
     call MPI_Allreduce(signature,lower,7,MPI_INTEGER8,MPI_MIN,plan%comm,ierr)
     call mpi_check(comm,ierr,'plan signature minimum')
     call MPI_Allreduce(signature,upper,7,MPI_INTEGER8,MPI_MAX,plan%comm,ierr)
     call mpi_check(comm,ierr,'plan signature maximum')
     if (any(lower/=upper)) call die(plan%comm,'inconsistent distributed plan epoch')
     plan%topology=topology;plan%masks=masks;plan%phase=phase;plan%nslot=nslot;plan%nlayer=nlayer
-    if(present(definition_home)) then
+    if(present(consumer_provider)) then
+       ! The caller supplies providers from a UNIQUE canonical ownership
+       ! directory for a phase with no competing writes. This is not a writer
+       ! election shortcut for alias/in-place phases: they retain that proof.
+       if(nd/=0.or.present(definition_home).or.present(consumer_home).or.present(canonical_slot)) &
+            call die(comm,'prebound provider with competing definitions')
+       if(any(shape(consumer_provider)/=[2,nc])) call die(comm,'prebound provider extent')
+       if(any(consumer_provider(1,:)<0).or.any(consumer_provider(1,:)>=plan%nrank).or. &
+            any(consumer_provider(2,:)<1)) call die(comm,'prebound provider address')
+       answer=consumer_provider
+    else if(present(definition_home)) then
        if(.not.present(consumer_home).or..not.present(canonical_slot)) call die(comm,'incomplete home binding')
        if(size(consumer_home,2)/=nc) call die(comm,'home consumer extent')
        call resolve_rhs_home_writers(plan%comm,plan%me,plan%nrank,nslot,definition_home, &
@@ -549,17 +563,24 @@ contains
     end do
     ! One int64 state stamp is embedded in each peer message. Even otherwise
     ! valid local transactions must reject a peer sending a different stage.
-    allocate(plan%send(nlayer*sum(plan%sc)+plan%nrank), &
-         plan%received(nlayer*sum(plan%rc)+plan%nrank), &
-         plan%requests(size(plan%send_peer)+size(plan%receive_peer)))
+    allocate(plan%requests(size(plan%send_peer)+size(plan%receive_peer)))
+    if(present(shared_buffers)) then
+       if(shared_buffers) then
+          allocate(plan%send(0),plan%received(0))
+          return
+       end if
+    end if
+    allocate(plan%send(nlayer*sum(plan%sc)+plan%nrank),plan%received(nlayer*sum(plan%rc)+plan%nrank))
   end subroutine
 
-  subroutine exchange_rhs_values(plan,topology,masks,phase,state,values)
-    type(Rhs_Exchange), intent(inout), asynchronous :: plan
+  subroutine exchange_rhs_values(plan,topology,masks,phase,state,values,scratch)
+    type(Rhs_Exchange), intent(inout), target, asynchronous :: plan
     integer(int64), intent(in) :: topology,masks,state
     integer, intent(in) :: phase
     real(dp), intent(inout) :: values(:,:)
-    integer :: i,k,r,n,ierr,a,b,tag,peer,columns
+    real(dp),optional,intent(inout),target,asynchronous :: scratch(:)
+    real(dp),pointer,asynchronous :: sent(:),received(:)
+    integer :: i,k,r,n,ierr,a,b,tag,peer,columns,ns,nr
     if (plan%comm==MPI_COMM_NULL) error stop 'RHS exchange missing compiled plan'
     if (topology/=plan%topology.or.masks/=plan%masks.or.phase/=plan%phase) &
          call die(plan%comm,'stale topology, mask or phase')
@@ -568,17 +589,25 @@ contains
     if(size(values,1)/=plan%nslot.or.columns<1.or.columns>plan%nlayer) &
          call die(plan%comm,'runtime workspace extent')
     if(.not.plan%variable_columns.and.columns/=plan%nlayer) call die(plan%comm,'runtime workspace extent')
-    call detail_enter(DP_RHS_EXCHANGE)
+    ns=columns*sum(plan%sc)+plan%nrank;nr=columns*sum(plan%rc)+plan%nrank
+    if(present(scratch)) then
+       if(size(plan%send)/=0.or.size(scratch)<ns+nr) call die(plan%comm,'shared exchange scratch extent')
+       sent=>scratch(:ns);received=>scratch(ns+1:ns+nr)
+    else
+       if(size(plan%send)<ns.or.size(plan%received)<nr) call die(plan%comm,'missing exchange scratch')
+       sent=>plan%send;received=>plan%received
+    end if
+    call detail_enter(plan%profile_region)
     call rhs_detail_enter(DP_RHS_PACK)
     ! Snapshot ALL sends before modifying any destination, including local
     ! cycles and aliases which are both consumers and remote producers.
     do peer=1,size(plan%send_peer)
        r=plan%send_peer(peer)
        a=columns*plan%sd(r)+r
-       plan%send(a)=transfer(state,0.0_dp)
+       sent(a)=transfer(state,0.0_dp)
        do i=plan%sd(r)+1,plan%sd(r)+plan%sc(r)
           do k=1,columns
-             plan%send((i-1)*columns+r+k)=values(plan%source(i),k)
+             sent((i-1)*columns+r+k)=values(plan%source(i),k)
           end do
        end do
     end do
@@ -589,7 +618,7 @@ contains
        r=plan%receive_peer(peer)
        if (r==plan%me+1) cycle
        n=n+1;a=columns*plan%rd(r)+r;b=a+columns*plan%rc(r)
-       call MPI_Irecv(plan%received(a:b),b-a+1,MPI_DOUBLE_PRECISION, &
+       call MPI_Irecv(received(a:b),b-a+1,MPI_DOUBLE_PRECISION, &
             r-1,tag,plan%comm,plan%requests(n),ierr)
        call mpi_check(plan%comm,ierr,'phase receive')
     end do
@@ -597,13 +626,13 @@ contains
        r=plan%send_peer(peer)
        if (r==plan%me+1) cycle
        n=n+1;a=columns*plan%sd(r)+r;b=a+columns*plan%sc(r)
-       call MPI_Isend(plan%send(a:b),b-a+1,MPI_DOUBLE_PRECISION, &
+       call MPI_Isend(sent(a:b),b-a+1,MPI_DOUBLE_PRECISION, &
             r-1,tag,plan%comm,plan%requests(n),ierr)
        call mpi_check(plan%comm,ierr,'phase send')
     end do
     r=plan%me+1
     a=columns*plan%rd(r)+r;b=columns*plan%sd(r)+r
-    if (plan%rc(r)>0) plan%received(a:a+columns*plan%rc(r))=plan%send(b:b+columns*plan%sc(r))
+    if (plan%rc(r)>0) received(a:a+columns*plan%rc(r))=sent(b:b+columns*plan%sc(r))
     call rhs_detail_leave(DP_RHS_POST)
     call rhs_detail_enter(DP_RHS_WAIT)
     call MPI_Waitall(n,plan%requests(:n),MPI_STATUSES_IGNORE,ierr)
@@ -613,16 +642,16 @@ contains
     do peer=1,size(plan%receive_peer)
        r=plan%receive_peer(peer)
        a=columns*plan%rd(r)+r
-       if (transfer(plan%received(a),0_int64)/=state) call die(plan%comm,'peer state epoch mismatch')
+       if (transfer(received(a),0_int64)/=state) call die(plan%comm,'peer state epoch mismatch')
     end do
     do i=1,size(plan%target)
        do k=1,columns
-          values(plan%target(i),k)=plan%orientation(i)*plan%received(plan%address(i)*columns+plan%target_peer(i)+k)
+          values(plan%target(i),k)=plan%orientation(i)*received(plan%address(i)*columns+plan%target_peer(i)+k)
        end do
     end do
     plan%last_state=state;plan%last_columns=columns
     call rhs_detail_leave(DP_RHS_INSTALL)
-    call detail_leave(DP_RHS_EXCHANGE)
+    call detail_leave(plan%profile_region)
   end subroutine
 
   subroutine rhs_exchange_source_slots(plan,source)
@@ -633,6 +662,12 @@ contains
     if(plan%comm==MPI_COMM_NULL) error stop 'RHS source binding needs a compiled route'
     source=plan%source
   end subroutine
+
+  integer function rhs_exchange_buffer_values(plan) result(n)
+    type(Rhs_Exchange),intent(in) :: plan
+    if(plan%comm==MPI_COMM_NULL) error stop 'buffer capacity requires compiled route'
+    n=plan%nlayer*(sum(plan%sc)+sum(plan%rc))+2*plan%nrank
+  end function
 
   subroutine rhs_exchange_cost(plan,send_values,receive_values,send_peers,receive_peers,storage_bytes,header_bytes)
     type(Rhs_Exchange), intent(in) :: plan

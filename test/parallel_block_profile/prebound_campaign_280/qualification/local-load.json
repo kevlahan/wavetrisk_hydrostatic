@@ -1,0 +1,11 @@
+{
+  "time": 1791998131.2773,
+  "load_average": [
+    43.3671875,
+    46.78857421875,
+    43.7763671875
+  ],
+  "uptime": "13:15  4 users, load averages: 43.37 46.79 43.78\n",
+  "vm_stat": "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                                     4284.\nPages active:                                 247134.\nPages inactive:                               245634.\nPages speculative:                               337.\nPages throttled:                                   0.\nPages wired down:                             148208.\nPages purgeable:                                 720.\n\"Translation faults\":                     6845266354.\nPages copy-on-write:                        99050358.\nPages zero filled:                        2233468710.\nPages reactivated:                        2599625870.\nPages purged:                               51531601.\nFile-backed pages:                            144977.\nAnonymous pages:                              348128.\nPages stored in compressor:                   707180.\nPages occupied by compressor:                 346622.\nDecompressions:                           3076500936.\nCompressions:                             3388461731.\nPageins:                                  1110097591.\nPageouts:                                     241167.\nSwapins:                                    49812644.\nSwapouts:                                   55288649.\n",
+  "scope": "System snapshot during four-rank qualification. Other machine activity is uncontrolled; local timing is not a cluster forecast."
+}
