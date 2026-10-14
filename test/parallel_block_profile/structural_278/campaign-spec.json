@@ -1,0 +1,231 @@
+{
+  "stage": 278,
+  "revision": "structural-v1",
+  "repair_revision": "v7",
+  "status": "sealed_for_user_submission",
+  "launch_ready": true,
+  "sealed": true,
+  "submitted": false,
+  "partition": "nk",
+  "node": "bb13",
+  "exclusive": true,
+  "memory": "all node memory",
+  "wall_limit_minutes": 90,
+  "planning_minutes": [
+    45,
+    60
+  ],
+  "projection_minutes": 46.4522,
+  "planning_basis": "Prior55503 actual38:06, five builds37runs. Reweight measured build/launch durations to this48-run schedule and scale non-launch overhead; projection not actual runtime.",
+  "serial_builds": 5,
+  "validation_runs": 8,
+  "measurement_runs": 40,
+  "measurement_schedule": [
+    [
+      83,
+      "main",
+      "off"
+    ],
+    [
+      83,
+      "stage266",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "off"
+    ],
+    [
+      83,
+      "candidate",
+      "off"
+    ],
+    [
+      83,
+      "candidate",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "off"
+    ],
+    [
+      83,
+      "candidate",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "off"
+    ],
+    [
+      83,
+      "candidate",
+      "off"
+    ],
+    [
+      83,
+      "stage266",
+      "off"
+    ],
+    [
+      83,
+      "main",
+      "off"
+    ],
+    [
+      83,
+      "previous",
+      "coarse"
+    ],
+    [
+      83,
+      "candidate",
+      "coarse"
+    ],
+    [
+      160,
+      "main",
+      "off"
+    ],
+    [
+      160,
+      "stage266",
+      "off"
+    ],
+    [
+      160,
+      "previous",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "off"
+    ],
+    [
+      160,
+      "previous",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "off"
+    ],
+    [
+      160,
+      "previous",
+      "off"
+    ],
+    [
+      160,
+      "previous",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "off"
+    ],
+    [
+      160,
+      "stage266",
+      "off"
+    ],
+    [
+      160,
+      "main",
+      "off"
+    ],
+    [
+      160,
+      "candidate",
+      "coarse"
+    ],
+    [
+      160,
+      "previous",
+      "coarse"
+    ],
+    [
+      256,
+      "stage266",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "off"
+    ],
+    [
+      256,
+      "candidate",
+      "off"
+    ],
+    [
+      256,
+      "candidate",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "off"
+    ],
+    [
+      256,
+      "candidate",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "off"
+    ],
+    [
+      256,
+      "candidate",
+      "off"
+    ],
+    [
+      256,
+      "stage266",
+      "off"
+    ],
+    [
+      256,
+      "previous",
+      "coarse"
+    ],
+    [
+      256,
+      "candidate",
+      "coarse"
+    ]
+  ],
+  "total_runs_minimum": 48,
+  "total_runs_maximum": 48,
+  "fine_runs": 0,
+  "automatic_promotion": false,
+  "purpose": "Validate ordinary absolute-time and construction gains, memory and160-to256 scaling while preserving ownership/retirement gates.",
+  "parent_kit_sha256": "85e4960e80a82bb3373621e1803cfea4f7f0ad308725fec5b219decd1011fd23"
+}

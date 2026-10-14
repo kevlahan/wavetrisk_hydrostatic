@@ -1,0 +1,233 @@
+{
+  "status": "passed",
+  "production_active": false,
+  "source_sha256": {
+    "src/kind.f90": "8370452d9259c3bc0e2e6588f42c5eb5eb6f78996656b398641300935c86af41",
+    "src/parallel_block_profile.f90": "804bcb0586b8527ce1bd8789e5cd140106c86f1ed4d3442997d78ec0580b669b",
+    "src/parallel_block_rhs_exchange.f90": "bd69437a1f39cde4304817032909260d5269c306b6af0d2a460de165e9f7ecdf",
+    "test/parallel_block_profile/connected_rhs_278/exchange_unit.f90": "e86ab05f82e812fa1f5e64fa6797938fd38cf662bbd6f7ab920d4ad5d0d32871",
+    "test/parallel_block_profile/connected_rhs_278/local_exchange_units.py": "ccc6016557c5035307d475dddd55d3a5e26ca0f608bbc9ed3b8db542a9fa8017",
+    "test/parallel_block_profile/connected_rhs_278/exchange_stress.f90": "670942034fc236a70df1b8b367bfec9db65d85c764056df16c7a31c8b7839b1e"
+  },
+  "modes": {
+    "optimized": {
+      "build": [
+        "mpifort",
+        "-ffree-line-length-132",
+        "-ffp-contract=off",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-J/private/tmp/rk278-structural-repair/indexed-final/exchange-units/optimized",
+        "-I/private/tmp/rk278-structural-repair/indexed-final/exchange-units/optimized",
+        "-O2",
+        "/private/tmp/rk278-structural-repair/source/src/kind.f90",
+        "/private/tmp/rk278-structural-repair/source/src/parallel_block_profile.f90",
+        "/private/tmp/rk278-structural-repair/source/src/parallel_block_rhs_exchange.f90",
+        "/private/tmp/rk278-structural-repair/source/test/parallel_block_profile/connected_rhs_278/exchange_unit.f90",
+        "-o",
+        "/private/tmp/rk278-structural-repair/indexed-final/exchange-units/optimized/unit"
+      ],
+      "binary_sha256": "e3d5fccec0120def8619ac7745053fb81fa88d804e0d671e756c9497d6328c97",
+      "runs": {
+        "1-normal": {
+          "passed": true,
+          "exit_code": 0,
+          "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+        },
+        "4-normal": {
+          "passed": true,
+          "exit_code": 0,
+          "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+        },
+        "4-missing": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "58cebbbd849e0b6117c44d7a5c66990252e3e8e1a80173ee13f84ecef4666899"
+        },
+        "4-ambiguous": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "ed0146d805c8562e1955b979f13da9e16d40b2977c508a480c5a83a48f6be84d"
+        },
+        "4-destination": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "2690c3a0bc44aeb276180ecdb51371d55f5c23cf5e83a19d3db88327c8fe85ad"
+        },
+        "4-orientation": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "89f1e1b662f77270776abf0a9aad997a25117913938ee784cb17e0d09be44518"
+        },
+        "4-identity": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "9a53bfe8f3d5811b4ceb9689c601a4290fea24a1c647afeabcbc90829e1dda11"
+        },
+        "4-extent": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "8528fe431b220fbc447354de61020f14c5cbca4eea8639facf5992231bfdf370"
+        },
+        "4-recompile": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "36760a53be9c60e828ceb7d70063655edc057844a2daf36b0faea7ee066a583a"
+        },
+        "4-topology": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "ea2b7ce77ccc6a60426e9cd464c964be9715eab7edae3cff7dbc147cab55d079"
+        },
+        "4-mask": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "e4042eb388cae2a25177597fcb053eae572b97c8005a66a98fb3269ae62ed9fe"
+        },
+        "4-phase": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "4423d3c93256a2b493130e3ba3495206da64cf3e727c181554e324af430b88c4"
+        },
+        "4-state": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "1134d63f5399eeb82ccd3b1b2cde51456435f09c22a62528aa3c3b7a56c01760"
+        },
+        "4-duplicate": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "3c3b169e49f5d4448529ada9a6a51251dd22a9011d37728f2daaedff406179bb"
+        },
+        "4-distributed-mask": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "5ac64167117348ee2191e51b0185e31cb2c3d955a373a621d65081a19903599c"
+        },
+        "4-peer-state": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "9f1ddbfb761045cab2d2fc5810f493dff279d20519501ff4ec1ea9d57997d324"
+        }
+      },
+      "stress": {
+        "passed": true,
+        "exit_code": 0,
+        "binary_sha256": "a078ee9085334ce237564ae7becbebd9681caeae906bfed513dc8aa3cc8f34c1",
+        "log_sha256": "426daceb462cb3a98b67111629913c8c6f29a7fd0b6ce2ea05e93862f2f5ebbf"
+      }
+    },
+    "checked": {
+      "build": [
+        "mpifort",
+        "-ffree-line-length-132",
+        "-ffp-contract=off",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-J/private/tmp/rk278-structural-repair/indexed-final/exchange-units/checked",
+        "-I/private/tmp/rk278-structural-repair/indexed-final/exchange-units/checked",
+        "-O0",
+        "-g",
+        "-fcheck=all",
+        "-ffpe-trap=invalid,zero,overflow",
+        "/private/tmp/rk278-structural-repair/source/src/kind.f90",
+        "/private/tmp/rk278-structural-repair/source/src/parallel_block_profile.f90",
+        "/private/tmp/rk278-structural-repair/source/src/parallel_block_rhs_exchange.f90",
+        "/private/tmp/rk278-structural-repair/source/test/parallel_block_profile/connected_rhs_278/exchange_unit.f90",
+        "-o",
+        "/private/tmp/rk278-structural-repair/indexed-final/exchange-units/checked/unit"
+      ],
+      "binary_sha256": "7f4e8ab970fd93e3ddac7024626dc7293c1fc983ed086f43921d75b004134e1d",
+      "runs": {
+        "1-normal": {
+          "passed": true,
+          "exit_code": 0,
+          "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+        },
+        "4-normal": {
+          "passed": true,
+          "exit_code": 0,
+          "log_sha256": "1e9a58383f7a9f4be9142ac5469d25680abd9492e7c877c89acc8f80d2412e7b"
+        },
+        "4-missing": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "3ced84cde444e03f67de5dfc1a4b4ff0ba5401a2dfbdca578932570d76929d91"
+        },
+        "4-ambiguous": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "5a2e5c178c14d811f00939bed1260f3a409aba2024746754b0784f0ab9913884"
+        },
+        "4-destination": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "4c375e1db6373c7b5ef96595b2d03e668897d7aca1e69f2dbd8299eb1bd15616"
+        },
+        "4-orientation": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "bd781c732ef2f695798e32368d7fe5c3fa35cafe1ab5d7d4e353f04396541cfc"
+        },
+        "4-identity": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "1e2dd71fc2684a4a46a7c21057f58bad8a4af194dd415651174dde5174f75d5f"
+        },
+        "4-extent": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "69a747ac94d7e8cc5e2da9abd836c36b89e6794fd1fa5db82beaa874a2058d73"
+        },
+        "4-recompile": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "445ae6ae9c0d779c5732617eea6801d98083276114cc1e1faf74406f8eca3066"
+        },
+        "4-topology": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "dae56f630cc03b28daeb3e7a869ba2f5e8b3fdacbc23e8ec0c72059b4713af3e"
+        },
+        "4-mask": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "d42268f63e803959b213df0ef9ff14c5648e0d03928ad10f7b73cc77729d565c"
+        },
+        "4-phase": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "561f69c74fe604cfd7bb883663b4594e8a2f86be1931eabe065fe6338827cd6a"
+        },
+        "4-state": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "e96b273d14d3c6e495afe1a709b63436c0beecc8edcba069b3a1129b50920f24"
+        },
+        "4-duplicate": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "2c489a337037cf387b81aaf48380970589d2b46f2b0f696d6b5c3d3718eb118d"
+        },
+        "4-distributed-mask": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "75b303e19e1a2733913578d365fbb85a8c0da772f865029f92296660623c4ce8"
+        },
+        "4-peer-state": {
+          "passed": true,
+          "exit_code": 1,
+          "log_sha256": "ba56d98a791489614b4823eb2cfc88bd787997a681550bdaaafc2c7397c6cd22"
+        }
+      },
+      "stress": {
+        "passed": true,
+        "exit_code": 0,
+        "binary_sha256": "f7d3af04368e405a1966806037ee8453c1ba15b82c48f2d8802e1508f6775c89",
+        "log_sha256": "426daceb462cb3a98b67111629913c8c6f29a7fd0b6ce2ea05e93862f2f5ebbf"
+      }
+    }
+  }
+}

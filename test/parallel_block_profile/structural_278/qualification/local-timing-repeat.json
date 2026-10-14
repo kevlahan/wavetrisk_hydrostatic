@@ -1,0 +1,108 @@
+{
+  "status": "passed",
+  "reason": "Resolve disagreement between construction/ordinary-total reductions and noisy median-based first ABBA result; predeclared additional BAAB, retain all eight timing runs.",
+  "order": [
+    "bare-B3",
+    "bare-A3",
+    "bare-A4",
+    "bare-B4"
+  ],
+  "runs": [
+    {
+      "name": "bare-B3",
+      "status": "passed",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/test/parallel_block_profile/connected_rhs_278/run_local_attribution.py",
+        "/private/tmp/rk278-structural-repair/source/bin-probe/climate",
+        "/private/tmp/rk278-structural-repair/indexed-final/bare-B3",
+        "bare"
+      ],
+      "ordinary": 3.971342,
+      "elapsed": 54.09001170890406,
+      "load_before": [
+        3.8837890625,
+        4.76904296875,
+        4.310546875
+      ],
+      "load_after": [
+        4.5400390625,
+        4.82861328125,
+        4.357421875
+      ],
+      "binary_sha256": "c08149e6210f3b273a8c484fac04d7bbb0c847249e17087ea771395f2398424c"
+    },
+    {
+      "name": "bare-A3",
+      "status": "passed",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/test/parallel_block_profile/connected_rhs_278/run_local_attribution.py",
+        "/private/tmp/rk278-attribution-v6/probe-source/bin-probe/climate",
+        "/private/tmp/rk278-structural-repair/indexed-final/bare-A3",
+        "bare"
+      ],
+      "ordinary": 3.701969,
+      "elapsed": 57.996103334240615,
+      "load_before": [
+        4.5400390625,
+        4.82861328125,
+        4.357421875
+      ],
+      "load_after": [
+        5.7353515625,
+        5.06494140625,
+        4.4736328125
+      ],
+      "binary_sha256": "470cd650c665fc4631d6fadbe16b1a11a13ce60998b33e2bc085fb2a683fe0d5"
+    },
+    {
+      "name": "bare-A4",
+      "status": "passed",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/test/parallel_block_profile/connected_rhs_278/run_local_attribution.py",
+        "/private/tmp/rk278-attribution-v6/probe-source/bin-probe/climate",
+        "/private/tmp/rk278-structural-repair/indexed-final/bare-A4",
+        "bare"
+      ],
+      "ordinary": 4.176575,
+      "elapsed": 69.31044737482443,
+      "load_before": [
+        5.7353515625,
+        5.06494140625,
+        4.4736328125
+      ],
+      "load_after": [
+        6.453125,
+        5.51611328125,
+        4.69580078125
+      ],
+      "binary_sha256": "470cd650c665fc4631d6fadbe16b1a11a13ce60998b33e2bc085fb2a683fe0d5"
+    },
+    {
+      "name": "bare-B4",
+      "status": "passed",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/test/parallel_block_profile/connected_rhs_278/run_local_attribution.py",
+        "/private/tmp/rk278-structural-repair/source/bin-probe/climate",
+        "/private/tmp/rk278-structural-repair/indexed-final/bare-B4",
+        "bare"
+      ],
+      "ordinary": 3.480904,
+      "elapsed": 48.72109687514603,
+      "load_before": [
+        6.453125,
+        5.51611328125,
+        4.69580078125
+      ],
+      "load_after": [
+        5.50146484375,
+        5.39501953125,
+        4.69140625
+      ],
+      "binary_sha256": "c08149e6210f3b273a8c484fac04d7bbb0c847249e17087ea771395f2398424c"
+    }
+  ]
+}

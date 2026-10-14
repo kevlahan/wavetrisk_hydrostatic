@@ -1,0 +1,907 @@
+{
+  "ranks": {
+    "83": {
+      "median_ms": {
+        "main-off": 540.8999484999999,
+        "stage266-off": 756.4246434999999,
+        "previous-off": 790.52884775,
+        "candidate-off": 632.989486
+      },
+      "change_previous_percent": -19.92835077409102,
+      "change_266_percent": -16.31823586932092,
+      "change_main_percent": 17.025244272139204,
+      "remaining_main_cut_ms": 92.08953750000015,
+      "required_main_time_reduction_percent": 14.548351834709639,
+      "run_medians_ms": {
+        "main-off": [
+          541.735248,
+          540.0646489999999
+        ],
+        "stage266-off": [
+          747.257289,
+          765.591998
+        ],
+        "previous-off": [
+          779.551123,
+          788.568092,
+          789.018455,
+          804.977721
+        ],
+        "candidate-off": [
+          630.6827480000001,
+          631.710064,
+          634.890811,
+          634.674321
+        ]
+      },
+      "ordinary_mean_ms": {
+        "main-off": 534.432088,
+        "stage266-off": 743.8658499999999,
+        "previous-off": 781.0693181388888,
+        "candidate-off": 632.3889381388889
+      },
+      "all_candidate_run_medians_below_all_previous": true,
+      "all_candidate_run_medians_below_all_266": true,
+      "adjacent_paired_gains_ms": [
+        148.86837499999993,
+        156.85802800000005,
+        154.127644,
+        170.30339999999998
+      ],
+      "memory": {
+        "main-off": {
+          "mean_sum_rank_peaks_gib": 11.073392868041992,
+          "mean_max_rank_peak_mib": 167.61328125,
+          "mean_total_cpu_seconds": 1470.2203555
+        },
+        "stage266-off": {
+          "mean_sum_rank_peaks_gib": 21.488677978515625,
+          "mean_max_rank_peak_mib": 374.45703125,
+          "mean_total_cpu_seconds": 1690.4974104999997
+        },
+        "previous-off": {
+          "mean_sum_rank_peaks_gib": 27.649624824523926,
+          "mean_max_rank_peak_mib": 457.5,
+          "mean_total_cpu_seconds": 1722.7290114999998
+        },
+        "candidate-off": {
+          "mean_sum_rank_peaks_gib": 24.92766284942627,
+          "mean_max_rank_peak_mib": 411.6142578125,
+          "mean_total_cpu_seconds": 1587.2502517500002
+        }
+      },
+      "rss_change_previous_percent": -9.84448068417696,
+      "rss_change_266_percent": 16.003706111418015,
+      "subgroup_mean_change_previous_percent": {
+        "remap": -16.756250499934033,
+        "non_remap": -19.610975275502053
+      },
+      "construction_ms": {
+        "71": {
+          "name": "RHS route construction",
+          "previous_ms": 151.5082222222222,
+          "candidate_ms": 37.33465555555556,
+          "change_percent": -75.35800037255036
+        },
+        "72": {
+          "name": "RHS input plan construction",
+          "previous_ms": 33.831799999999994,
+          "candidate_ms": 14.278733333333333,
+          "change_percent": -57.79493454875787
+        },
+        "73": {
+          "name": "RHS retention plan",
+          "previous_ms": 10.94572111111111,
+          "candidate_ms": 1.502340888888889,
+          "change_percent": -86.27462847227262
+        },
+        "84": {
+          "name": "RHS transform preparation",
+          "previous_ms": 7.1868477777777775,
+          "candidate_ms": 2.82758,
+          "change_percent": -60.65618630823002
+        }
+      },
+      "profile_perturbation_percent": {
+        "previous": 2.4027633278737692,
+        "candidate": 1.1130916319832762
+      },
+      "coarse_construction_parent_ms": {
+        "previous": 216.9352802222222,
+        "candidate": 62.73676777777777
+      },
+      "coarse_whole_ms": {
+        "previous": 805.1805908888889,
+        "candidate": 636.9379147777777
+      },
+      "profile_mean_perturbation_percent": {
+        "previous": 3.5208604694188184,
+        "candidate": 1.2555489270803744
+      },
+      "coarse_logged_ordinary_minus_profiled_window_ms": {
+        "previous": 3.389088111111164,
+        "candidate": 3.390975888889102
+      }
+    },
+    "160": {
+      "median_ms": {
+        "main-off": 365.127379,
+        "stage266-off": 550.0080475,
+        "previous-off": 598.31018625,
+        "candidate-off": 505.522472
+      },
+      "change_previous_percent": -15.508295927829863,
+      "change_266_percent": -8.088168109940241,
+      "change_main_percent": 38.450990277560095,
+      "remaining_main_cut_ms": 140.39509299999997,
+      "required_main_time_reduction_percent": 27.772275373744403,
+      "run_medians_ms": {
+        "main-off": [
+          372.79463499999997,
+          357.460123
+        ],
+        "stage266-off": [
+          549.9903419999999,
+          550.025753
+        ],
+        "previous-off": [
+          596.107493,
+          600.161833,
+          598.570595,
+          598.4008240000001
+        ],
+        "candidate-off": [
+          505.676763,
+          505.793194,
+          505.652362,
+          504.96756899999997
+        ]
+      },
+      "ordinary_mean_ms": {
+        "main-off": 358.38022433333333,
+        "stage266-off": 533.3433665555556,
+        "previous-off": 578.2558195555556,
+        "candidate-off": 493.71344708333334
+      },
+      "all_candidate_run_medians_below_all_previous": true,
+      "all_candidate_run_medians_below_all_266": true,
+      "adjacent_paired_gains_ms": [
+        90.43073000000001,
+        94.36863900000003,
+        92.91823300000001,
+        93.4332550000001
+      ],
+      "memory": {
+        "main-off": {
+          "mean_sum_rank_peaks_gib": 19.02775001525879,
+          "mean_max_rank_peak_mib": 141.421875,
+          "mean_total_cpu_seconds": 3040.7678335
+        },
+        "stage266-off": {
+          "mean_sum_rank_peaks_gib": 31.577707290649414,
+          "mean_max_rank_peak_mib": 265.587890625,
+          "mean_total_cpu_seconds": 3384.835768
+        },
+        "previous-off": {
+          "mean_sum_rank_peaks_gib": 54.04233741760254,
+          "mean_max_rank_peak_mib": 420.0625,
+          "mean_total_cpu_seconds": 3477.3233007499994
+        },
+        "candidate-off": {
+          "mean_sum_rank_peaks_gib": 43.788193702697754,
+          "mean_max_rank_peak_mib": 351.69140625,
+          "mean_total_cpu_seconds": 3322.1840682499997
+        }
+      },
+      "rss_change_previous_percent": -18.97427869499373,
+      "rss_change_266_percent": 38.66805876582442,
+      "subgroup_mean_change_previous_percent": {
+        "remap": -14.458985236704812,
+        "non_remap": -14.663295838124647
+      },
+      "construction_ms": {
+        "71": {
+          "name": "RHS route construction",
+          "previous_ms": 92.40645555555555,
+          "candidate_ms": 33.57341111111111,
+          "change_percent": -63.667677859447295
+        },
+        "72": {
+          "name": "RHS input plan construction",
+          "previous_ms": 27.150855555555555,
+          "candidate_ms": 14.69651111111111,
+          "change_percent": -45.87090973601404
+        },
+        "73": {
+          "name": "RHS retention plan",
+          "previous_ms": 6.995818888888889,
+          "candidate_ms": 1.3409127777777778,
+          "change_percent": -80.83265448870492
+        },
+        "84": {
+          "name": "RHS transform preparation",
+          "previous_ms": 5.184577777777777,
+          "candidate_ms": 2.754218888888889,
+          "change_percent": -46.87669841324269
+        }
+      },
+      "profile_perturbation_percent": {
+        "previous": 3.0984758702158777,
+        "candidate": 2.501522424902203
+      },
+      "coarse_construction_parent_ms": {
+        "previous": 141.5028431111111,
+        "candidate": 58.564743111111106
+      },
+      "coarse_whole_ms": {
+        "previous": 595.7044307777778,
+        "candidate": 506.4790874444445
+      },
+      "profile_mean_perturbation_percent": {
+        "previous": 4.652308426899898,
+        "candidate": 4.521077502587412
+      },
+      "coarse_logged_ordinary_minus_profiled_window_ms": {
+        "previous": 9.453632999999968,
+        "candidate": 9.555527222222338
+      }
+    },
+    "256": {
+      "median_ms": {
+        "stage266-off": 591.8985180000001,
+        "previous-off": 608.27039225,
+        "candidate-off": 544.53208825
+      },
+      "change_previous_percent": -10.478613592259723,
+      "change_266_percent": -8.002457906137217,
+      "change_main_percent": null,
+      "remaining_main_cut_ms": null,
+      "required_main_time_reduction_percent": null,
+      "run_medians_ms": {
+        "stage266-off": [
+          604.141955,
+          579.655081
+        ],
+        "previous-off": [
+          607.3297239999999,
+          609.222985,
+          607.040873,
+          609.487987
+        ],
+        "candidate-off": [
+          542.507344,
+          549.924897,
+          540.4539619999999,
+          545.24215
+        ]
+      },
+      "ordinary_mean_ms": {
+        "stage266-off": 571.3719292777778,
+        "previous-off": 602.6915681111111,
+        "candidate-off": 536.6094778333334
+      },
+      "all_candidate_run_medians_below_all_previous": true,
+      "all_candidate_run_medians_below_all_266": true,
+      "adjacent_paired_gains_ms": [
+        64.82237999999995,
+        59.29808800000003,
+        66.58691100000003,
+        64.24583699999997
+      ],
+      "memory": {
+        "stage266-off": {
+          "mean_sum_rank_peaks_gib": 43.04390907287598,
+          "mean_max_rank_peak_mib": 268.466796875,
+          "mean_total_cpu_seconds": 6717.321358000003
+        },
+        "previous-off": {
+          "mean_sum_rank_peaks_gib": 80.89432048797607,
+          "mean_max_rank_peak_mib": 494.0986328125,
+          "mean_total_cpu_seconds": 6855.010110249999
+        },
+        "candidate-off": {
+          "mean_sum_rank_peaks_gib": 61.30230236053467,
+          "mean_max_rank_peak_mib": 377.3115234375,
+          "mean_total_cpu_seconds": 6619.69396175
+        }
+      },
+      "rss_change_previous_percent": -24.219275233733516,
+      "rss_change_266_percent": 42.4180649037849,
+      "subgroup_mean_change_previous_percent": {
+        "remap": -9.323876057276937,
+        "non_remap": -11.392252445247086
+      },
+      "construction_ms": {
+        "71": {
+          "name": "RHS route construction",
+          "previous_ms": 79.95314444444445,
+          "candidate_ms": 40.7242,
+          "change_percent": -49.064917605214056
+        },
+        "72": {
+          "name": "RHS input plan construction",
+          "previous_ms": 31.023000000000003,
+          "candidate_ms": 19.147955555555555,
+          "change_percent": -38.27819503092689
+        },
+        "73": {
+          "name": "RHS retention plan",
+          "previous_ms": 7.480476666666667,
+          "candidate_ms": 1.3424588888888889,
+          "change_percent": -82.05383227955319
+        },
+        "84": {
+          "name": "RHS transform preparation",
+          "previous_ms": 4.429998888888889,
+          "candidate_ms": 3.71153,
+          "change_percent": -16.218263410650458
+        }
+      },
+      "profile_perturbation_percent": {
+        "previous": 4.0907338359768675,
+        "candidate": 4.908339715276644
+      },
+      "coarse_construction_parent_ms": {
+        "previous": 133.12022857777777,
+        "candidate": 72.51636898888889
+      },
+      "coarse_whole_ms": {
+        "previous": 614.2935905555555,
+        "candidate": 557.0762892222222
+      },
+      "profile_mean_perturbation_percent": {
+        "previous": 7.2015307970738185,
+        "candidate": 9.260644927394178
+      },
+      "coarse_logged_ordinary_minus_profiled_window_ms": {
+        "previous": 31.800996444444422,
+        "candidate": 29.226687000000084
+      }
+    }
+  },
+  "scaling": {
+    "previous": {
+      "speedup_160_to_256": 0.9836253644318326,
+      "relative_efficiency_percent": 61.47658527698954,
+      "ordinary_mean_speedup_160_to_256": 0.9594556322861139,
+      "ordinary_mean_relative_efficiency_percent": 59.96597701788212
+    },
+    "candidate": {
+      "speedup_160_to_256": 0.9283612167367989,
+      "relative_efficiency_percent": 58.022576046049934,
+      "ordinary_mean_speedup_160_to_256": 0.9200609893749897,
+      "ordinary_mean_relative_efficiency_percent": 57.50381183593686
+    },
+    "stage266": {
+      "speedup_160_to_256": 0.92922693802048,
+      "relative_efficiency_percent": 58.07668362628,
+      "ordinary_mean_speedup_160_to_256": 0.9334434178971815,
+      "ordinary_mean_relative_efficiency_percent": 58.34021361857385
+    }
+  },
+  "runtime": {
+    "slurm": {
+      "job_id": "55504",
+      "state": "COMPLETED",
+      "start": "2026-10-14T09:47:28",
+      "end": "2026-10-14T10:30:01",
+      "elapsed_seconds": 2553,
+      "elapsed": "00:42:33"
+    },
+    "campaign_started_utc": "2026-10-14T13:47:28.786718+00:00",
+    "campaign_ended_utc": "2026-10-14T14:30:00.670716+00:00",
+    "campaign_elapsed_seconds": 2551.8840288701467,
+    "limitation": "Slurm elapsed includes batch setup; runner elapsed begins before preflight. Queue and collection/transfer excluded. Accounting can be unavailable; no timestamp inference."
+  },
+  "integer_equivalence_files": 1094,
+  "candidate_coarse_scaling": {
+    "whole_160_ms": 506.4790874444445,
+    "whole_256_ms": 557.0762892222222,
+    "region_changes_ms": {
+      "1": {
+        "name": "timestep residual",
+        "ms160": 3.131427,
+        "ms256": 3.52351,
+        "delta_ms": 0.3920830000000001
+      },
+      "2": {
+        "name": "dynamics residual",
+        "ms160": 7.651664444444445,
+        "ms256": 6.152215555555555,
+        "delta_ms": -1.499448888888889
+      },
+      "3": {
+        "name": "adaptation residual",
+        "ms160": 19.121744444444445,
+        "ms256": 31.502544444444446,
+        "delta_ms": 12.3808
+      },
+      "4": {
+        "name": "output/checkpoint",
+        "ms160": 0.3515114777777778,
+        "ms256": 0.43758477777777777,
+        "delta_ms": 0.08607329999999998
+      },
+      "5": {
+        "name": "source extraction",
+        "ms160": 4.830853333333334,
+        "ms256": 1.7469300688888887,
+        "delta_ms": -3.083923264444445
+      },
+      "6": {
+        "name": "6",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "7": {
+        "name": "7",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "8": {
+        "name": "local install/deep copy",
+        "ms160": 0.013183554444444445,
+        "ms256": 0.01262418,
+        "delta_ms": -0.0005593744444444442
+      },
+      "9": {
+        "name": "9",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "10": {
+        "name": "migration residual",
+        "ms160": 23.497733333333333,
+        "ms256": 28.504711111111114,
+        "delta_ms": 5.006977777777779
+      },
+      "11": {
+        "name": "migration pack",
+        "ms160": 9.414353333333333,
+        "ms256": 2.96215883,
+        "delta_ms": -6.452194503333333
+      },
+      "12": {
+        "name": "migration unpack",
+        "ms160": 1.8708965555555557,
+        "ms256": 2.674077,
+        "delta_ms": 0.8031804444444443
+      },
+      "13": {
+        "name": "migration MPI",
+        "ms160": 20.847511111111114,
+        "ms256": 28.978444444444445,
+        "delta_ms": 8.130933333333333
+      },
+      "14": {
+        "name": "inverse residual",
+        "ms160": 3.7510411111111113,
+        "ms256": 1.9046859999999999,
+        "delta_ms": -1.8463551111111114
+      },
+      "15": {
+        "name": "inverse plan",
+        "ms160": 3.4420122222222225,
+        "ms256": 3.8659788888888893,
+        "delta_ms": 0.42396666666666677
+      },
+      "16": {
+        "name": "inverse pack",
+        "ms160": 10.313867777777777,
+        "ms256": 4.668803333333333,
+        "delta_ms": -5.6450644444444436
+      },
+      "17": {
+        "name": "inverse local aliases",
+        "ms160": 0.05428751111111111,
+        "ms256": 0.056888433333333335,
+        "delta_ms": 0.0026009222222222288
+      },
+      "18": {
+        "name": "inverse MPI post/self copy",
+        "ms160": 1.5647596666666668,
+        "ms256": 1.413486,
+        "delta_ms": -0.1512736666666667
+      },
+      "19": {
+        "name": "inverse MPI wait",
+        "ms160": 38.76101111111111,
+        "ms256": 58.731433333333335,
+        "delta_ms": 19.970422222222222
+      },
+      "20": {
+        "name": "inverse install",
+        "ms160": 4.3414866666666665,
+        "ms256": 3.280369222222222,
+        "delta_ms": -1.0611174444444447
+      },
+      "21": {
+        "name": "outer inverse arithmetic",
+        "ms160": 2.8228506666666666,
+        "ms256": 0.6961536244444444,
+        "delta_ms": -2.1266970422222227
+      },
+      "22": {
+        "name": "22",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "23": {
+        "name": "23",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "24": {
+        "name": "24",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "25": {
+        "name": "25",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "26": {
+        "name": "26",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "27": {
+        "name": "27",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "28": {
+        "name": "Domain boundary interface",
+        "ms160": 0.1987087777777778,
+        "ms256": 0.18532277777777778,
+        "delta_ms": -0.013385999999999997
+      },
+      "29": {
+        "name": "29",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "30": {
+        "name": "30",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "31": {
+        "name": "31",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "32": {
+        "name": "Domain writeback",
+        "ms160": 1.3114455555555555,
+        "ms256": 0.8612912222222222,
+        "delta_ms": -0.4501543333333334
+      },
+      "33": {
+        "name": "block ghost pack/install",
+        "ms160": 4.705281111111111,
+        "ms256": 4.883624444444444,
+        "delta_ms": 0.17834333333333324
+      },
+      "34": {
+        "name": "block ghost MPI",
+        "ms160": 10.83892111111111,
+        "ms256": 8.328604444444444,
+        "delta_ms": -2.5103166666666668
+      },
+      "35": {
+        "name": "catalog construction",
+        "ms160": 4.698353666666667,
+        "ms256": 12.212354444444445,
+        "delta_ms": 7.5140007777777775
+      },
+      "36": {
+        "name": "scalar/inner inverse kernels",
+        "ms160": 0.05951114444444444,
+        "ms256": 0.057778388888888886,
+        "delta_ms": -0.0017327555555555559
+      },
+      "37": {
+        "name": "37",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "38": {
+        "name": "Domain boundary MPI wait",
+        "ms160": 27.034133333333337,
+        "ms256": 13.374522222222222,
+        "delta_ms": -13.659611111111113
+      },
+      "39": {
+        "name": "39",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "40": {
+        "name": "Domain writeback MPI",
+        "ms160": 13.020561111111112,
+        "ms256": 16.84333111111111,
+        "delta_ms": 3.822769999999998
+      },
+      "41": {
+        "name": "41",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "42": {
+        "name": "inverse scaffold staging",
+        "ms160": 4.151273333333334,
+        "ms256": 2.0007045555555556,
+        "delta_ms": -2.150568777777778
+      },
+      "43": {
+        "name": "native wavelet work",
+        "ms160": 25.526411111111113,
+        "ms256": 37.15721111111111,
+        "delta_ms": 11.630799999999997
+      },
+      "44": {
+        "name": "native compression",
+        "ms160": 6.091928888888889,
+        "ms256": 7.644472222222222,
+        "delta_ms": 1.552543333333334
+      },
+      "45": {
+        "name": "native RK assembly",
+        "ms160": 0.48785826666666665,
+        "ms256": 0.48336233333333334,
+        "delta_ms": -0.004495933333333285
+      },
+      "46": {
+        "name": "RK retention/publication",
+        "ms160": 0.010066044444444444,
+        "ms256": 0.00869509,
+        "delta_ms": -0.0013709544444444437
+      },
+      "47": {
+        "name": "tendency assembly residual",
+        "ms160": 0.31419773333333334,
+        "ms256": 0.37924984444444443,
+        "delta_ms": 0.0650521111111111
+      },
+      "48": {
+        "name": "grid-change synchronization",
+        "ms160": 0.1970353333333333,
+        "ms256": 0.08525375555555556,
+        "delta_ms": -0.11178157777777777
+      },
+      "49": {
+        "name": "trend state refresh",
+        "ms160": 3.9054333333333333,
+        "ms256": 4.546124444444445,
+        "delta_ms": 0.6406911111111109
+      },
+      "50": {
+        "name": "prognostic state refresh",
+        "ms160": 0.15551852222222223,
+        "ms256": 0.1610742,
+        "delta_ms": 0.005555677777777774
+      },
+      "51": {
+        "name": "51",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "52": {
+        "name": "52",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "53": {
+        "name": "53",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "54": {
+        "name": "split physics consumers",
+        "ms160": 6.857819999999999,
+        "ms256": 2.2795221188888886,
+        "delta_ms": -4.578297881111111
+      },
+      "55": {
+        "name": "vertical remap",
+        "ms160": 0.6374522222222222,
+        "ms256": 1.710668888888889,
+        "delta_ms": 1.073216666666667
+      },
+      "56": {
+        "name": "restart bootstrap",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "57": {
+        "name": "57",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "58": {
+        "name": "boundary scan and pack",
+        "ms160": 2.4240955555555552,
+        "ms256": 1.0398489,
+        "delta_ms": -1.3842466555555553
+      },
+      "59": {
+        "name": "boundary receive route scan",
+        "ms160": 0.01750488888888889,
+        "ms256": 0.018485533333333335,
+        "delta_ms": 0.0009806444444444445
+      },
+      "60": {
+        "name": "boundary MPI posting",
+        "ms160": 0.37420966666666666,
+        "ms256": 0.17584813333333332,
+        "delta_ms": -0.19836153333333334
+      },
+      "61": {
+        "name": "boundary scan and install",
+        "ms160": 1.724108888888889,
+        "ms256": 0.7189864555555555,
+        "delta_ms": -1.0051224333333335
+      },
+      "62": {
+        "name": "boundary local copies",
+        "ms160": 0.029266955555555554,
+        "ms256": 0.025178611111111113,
+        "delta_ms": -0.004088344444444442
+      },
+      "63": {
+        "name": "boundary buffer allocation/zero",
+        "ms160": 0.01879827777777778,
+        "ms256": 0.0195837,
+        "delta_ms": 0.0007854222222222221
+      },
+      "64": {
+        "name": "64",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "65": {
+        "name": "wavelet driver residual",
+        "ms160": 11.207044444444444,
+        "ms256": 6.8484388888888885,
+        "delta_ms": -4.358605555555555
+      },
+      "66": {
+        "name": "scalar inverse kernels",
+        "ms160": 0.5773582222222222,
+        "ms256": 0.14014692222222222,
+        "delta_ms": -0.4372113
+      },
+      "67": {
+        "name": "inner-vector inverse kernel",
+        "ms160": 0.622788,
+        "ms256": 0.15915143444444443,
+        "delta_ms": -0.46363656555555555
+      },
+      "68": {
+        "name": "RHS preparation residual",
+        "ms160": 3.4943444444444443,
+        "ms256": 5.184327777777778,
+        "delta_ms": 1.6899833333333336
+      },
+      "69": {
+        "name": "RHS geometry compilation",
+        "ms160": 0.6668158888888889,
+        "ms256": 0.33763343333333334,
+        "delta_ms": -0.32918245555555553
+      },
+      "70": {
+        "name": "RHS geometry distribution",
+        "ms160": 2.038528888888889,
+        "ms256": 2.0682633333333333,
+        "delta_ms": 0.029734444444444365
+      },
+      "71": {
+        "name": "RHS route construction",
+        "ms160": 33.57341111111111,
+        "ms256": 40.7242,
+        "delta_ms": 7.150788888888891
+      },
+      "72": {
+        "name": "RHS input plan construction",
+        "ms160": 14.69651111111111,
+        "ms256": 19.147955555555555,
+        "delta_ms": 4.451444444444443
+      },
+      "73": {
+        "name": "RHS retention plan",
+        "ms160": 1.3409127777777778,
+        "ms256": 1.3424588888888889,
+        "delta_ms": 0.0015461111111110364
+      },
+      "74": {
+        "name": "RHS resident input",
+        "ms160": 4.393533333333333,
+        "ms256": 3.722208888888889,
+        "delta_ms": -0.671324444444444
+      },
+      "75": {
+        "name": "RHS arithmetic residual",
+        "ms160": 22.67438888888889,
+        "ms256": 26.034755555555556,
+        "delta_ms": 3.3603666666666663
+      },
+      "76": {
+        "name": "RHS tendency retention",
+        "ms160": 2.356590888888889,
+        "ms256": 3.157614777777778,
+        "delta_ms": 0.8010238888888892
+      },
+      "77": {
+        "name": "RHS RK adapter residual",
+        "ms160": 4.8499677777777785,
+        "ms256": 3.1332648888888888,
+        "delta_ms": -1.7167028888888891
+      },
+      "78": {
+        "name": "RHS exchange residual",
+        "ms160": 130.66055555555556,
+        "ms256": 145.05066666666667,
+        "delta_ms": 14.390111111111104
+      },
+      "79": {
+        "name": "79",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "80": {
+        "name": "80",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "81": {
+        "name": "81",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "82": {
+        "name": "82",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "83": {
+        "name": "83",
+        "ms160": 0.0,
+        "ms256": 0.0,
+        "delta_ms": 0.0
+      },
+      "84": {
+        "name": "RHS transform preparation",
+        "ms160": 2.754218888888889,
+        "ms256": 3.71153,
+        "delta_ms": 0.9573111111111113
+      }
+    }
+  }
+}

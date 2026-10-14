@@ -10,7 +10,7 @@ module parallel_block_rhs_backend_mod
   use domain_mod, only : grid,Float_Field
   use parallel_block_rhs_compile_mod, only : Rhs_Domain_Operators
   use parallel_block_rhs_placement_mod, only : compile_rhs_owner_map
-  use parallel_block_rhs_distribute_mod, only : deliver_rhs_metadata
+  use parallel_block_rhs_distribute_mod, only : deliver_rhs_metadata,Rhs_Geometry_Directory,prepare_rhs_geometry_directory
   use parallel_block_rhs_distributed_mod
   use parallel_block_rhs_exchange_mod
   use parallel_block_rhs_state_mod
@@ -77,19 +77,21 @@ contains
     integer,allocatable :: physical(:,:),key(:,:),owner(:),definition(:,:),request(:,:),source(:), &
          target(:),order(:,:),orientation(:),rk_key(:,:),domains(:),nodes(:),adapter_index(:),rk_index(:)
     real(dp),allocatable :: delivered(:,:)
+    type(Rhs_Geometry_Directory) :: directory
     real(dp) :: started
     logical,allocatable :: reader(:),is_adapter(:),is_reader(:),footprint(:)
     integer :: d,b,n,ng,nd,i,g,p,np,na,nr,a
     started=MPI_Wtime()
     call release_rhs_exchange(adapter_route)
     mask_epoch=mask_epoch+1;generation=topology
-    call prepare_rhs_distributed(plan,base,topology,mask_epoch,zlevels,executor)
+    call prepare_rhs_geometry_directory(base,topology,directory)
+    call prepare_rhs_distributed(plan,base,topology,mask_epoch,zlevels,executor,directory)
     call state_footprint(executor%placement%program,footprint)
     call detail_enter(DP_RHS_INPUT_PLAN)
-    call prepare_rhs_resident_input(executor%placement%key,base,topology,mask_epoch,input,required=footprint)
+    call prepare_rhs_resident_input(executor%placement%key,base,topology,mask_epoch,input,required=footprint,directory=directory)
     call detail_leave(DP_RHS_INPUT_PLAN)
     call detail_enter(DP_RHS_RETAIN_PLAN)
-    call prepare_rhs_retention(executor,base,topology,retention)
+    call prepare_rhs_retention(executor,base,topology,retention,directory)
     call detail_leave(DP_RHS_RETAIN_PLAN)
     if(allocated(masks)) deallocate(masks)
     allocate(masks(size(grid)))
@@ -102,7 +104,7 @@ contains
           physical(:,b+i)=[glo_id(rank+1,d)+1,i,1,1]
        end do
     end do
-    call deliver_rhs_metadata(physical,reshape(geometry_surface,[ng,1]),executor%placement%key,delivered,topology,8501)
+    call deliver_rhs_metadata(physical,reshape(geometry_surface,[ng,1]),executor%placement%key,delivered,topology,8501,directory,1)
     if(allocated(scalar)) deallocate(scalar,mean,velocity,surface)
     allocate(scalar(nd,2,zlevels),mean(nd,2,zlevels),velocity(3*nd,zlevels))
     surface=delivered(:,1)
@@ -154,7 +156,8 @@ contains
     allocate(rk_scalar(nr,2,zlevels),rk_mean(nr,0,zlevels),rk_velocity(3*nr,zlevels))
     adapter_value=0;rk_value=0
     call detail_enter(DP_RHS_INPUT_PLAN)
-    call prepare_rhs_resident_input(rk_key,base,topology,mask_epoch,rk_input,apply_boundary=.false.,with_means=.false.)
+    call prepare_rhs_resident_input(rk_key,base,topology,mask_epoch,rk_input,apply_boundary=.false., &
+         with_means=.false.,directory=directory)
     call detail_leave(DP_RHS_INPUT_PLAN)
     completed=.false.;rk_prepared=.false.
     call audit_plan(MPI_Wtime()-started)

@@ -1,0 +1,434 @@
+--- a/Makefile
++++ b/Makefile
+@@ -307,6 +307,12 @@
+       parallel_block.f90 \
+       parallel_block_velocity.f90 \
+       parallel_block_mass.f90 \
++      parallel_block_rhs.f90 \
++      parallel_block_rhs_diffusion.f90 \
++      parallel_block_primitive_walk.f90 \
++      parallel_block_rhs_compile.f90 \
++      parallel_block_rhs_exchange.f90 \
++      parallel_block_rhs_boundary.f90 \
+       parallel_block_inverse.f90 \
+       parallel_block_mpi.f90 \
+       spline.f90 \
+@@ -482,3 +488,13 @@
+ ifeq ($(PHYSICS),true)
+ 	$(MAKE) -C $(SRC_DIR)/physics/simple_physics/phyparam clean
+ endif
++
++$(BUILD_DIR)/parallel_block_rhs.o: $(BUILD_DIR)/parallel_block_velocity.o
++$(BUILD_DIR)/parallel_block_rhs_diffusion.o: $(BUILD_DIR)/parallel_block_rhs.o $(BUILD_DIR)/parallel_block_mass.o
++$(BUILD_DIR)/parallel_block_primitive_walk.o: $(BUILD_DIR)/domain.o
++$(BUILD_DIR)/parallel_block_rhs_compile.o: $(BUILD_DIR)/parallel_block_rhs_diffusion.o $(BUILD_DIR)/parallel_block_primitive_walk.o $(BUILD_DIR)/domain_ops.o
++$(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_rhs_compile.o
++
++$(BUILD_DIR)/parallel_block_rhs_exchange.o: $(BUILD_DIR)/kind.o
++$(BUILD_DIR)/parallel_block_rhs_boundary.o: $(BUILD_DIR)/parallel_block_rhs_exchange.o $(BUILD_DIR)/domain.o
++$(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_rhs_boundary.o
+--- a/src/multi_level.f90
++++ b/src/multi_level.f90
+@@ -1,4 +1,11 @@
+ module multi_level_mod
++  use parallel_block_rhs_mod, only : rhs_column_start,rhs_pressure_patch
++  use shared_mod, only : grav_accel,c_p,p_0,kappa,p_top
++  use init_mod, only : surf_geopot
++  use parallel_block_rhs_boundary_mod
++  use parallel_block_rhs_exchange_mod
++  use parallel_block_rhs_compile_mod
++  use parallel_block_rhs_diffusion_mod
+   use parallel_block_profile_mod
+   use mpi_f08
+   use arch_mod, only : comm, MPI_DP, rank, n_process, glo_id
+@@ -94,6 +101,18 @@
+   integer, save :: mass_plan_domain=0,mass_plan_level=0,mass_plan_pass=0,mass_plan_count=0
+ 
+   
++  real(dp),allocatable,save :: pressure_mass(:,:),pressure_temp(:,:),pressure_mean_m(:,:),pressure_mean_t(:,:)
++  real(dp),allocatable,save :: pressure_lower(:),pressure_phi(:),pressure_value(:),pressure_exner(:),pressure_mid(:)
++  logical,save :: pressure_check=.false.,diff_replace=.false.,diff_option_read=.false.
++  integer(int64),save :: pressure_checked=0
++  type(Rhs_Exchange), allocatable,save :: diff_routes(:,:,:)
++  logical,allocatable,save :: diff_bound(:,:,:)
++  integer(int64),save :: diff_state=0
++  type(Rhs_Domain_Operators), save :: diff_plan
++  integer, allocatable, save :: diff_base(:)
++  integer(int64), save :: diff_generation=-1, diff_counts(4)=0
++  real(dp), allocatable, save :: diff_x(:,:),diff_flux(:,:),diff_y(:,:)
++  type(Float_Field), allocatable, save :: diff_edge(:),diff_node(:)
+ contains
+ 
+ 
+@@ -273,6 +292,7 @@
+     profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS_PLAN)
+     call prepare_native_mass
+     call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS_PLAN,profile_start)
++    call pressure_start(q)
+     native_velocity_transaction = .true.
+     native_velocity_oracle = validate_velocity_source
+     mass_transaction=.true.
+@@ -465,6 +485,7 @@
+     if (present(dq)) dq%bdry_uptodate = .false.
+     call detail_leave(DP_SHARED)
+ 
++    pressure_check=.false.
+   end subroutine block_tendency_compatibility_ml
+ 
+ 
+@@ -1065,7 +1086,9 @@
+        
+        ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case) etc
+        do j = 1, grid(d)%lev(l)%length
++          if(pressure_check) call pressure_patch_before(d,j,k,l)
+           call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
++          if(pressure_check) call pressure_patch_after(d,j,k,l)
+           if (capture_scalar_physics) then
+              call step1(q=q,dom=grid(d),p=grid(d)%lev(l)%elts(j),zlev=k,itype=0, &
+                   scalar_physics=scalar_physics,native_temperature=mass_only_compatibility)
+@@ -1600,6 +1623,11 @@
+     integer :: d, j, l, v
+ 
+     call update_bdry (q(scalars(1):scalars(2),k), NONE, 970)
++    call diff_begin(1,q(scalars(1):scalars(2),k))
++    if(diff_replace.and.pressure_check) then
++       call diff_install(1)
++       return
++    end if
+     
+     do l = level_end, level_start, -1
+        ! Compute scalar fluxes
+@@ -1639,6 +1667,7 @@
+        Laplacian_scalar%bdry_uptodate = .false.
+        call update_bdry (Laplacian_scalar, l, 972)
+     end do
++    call diff_end(1)
+   end subroutine cal_Laplacian_scalars
+ 
+   
+@@ -1651,6 +1680,11 @@
+     
+     integer :: d, j
+ 
++    call diff_begin(4,lev=l)
++    if(diff_replace.and.pressure_check) then
++       call diff_install(4)
++       return
++    end if
+     ! Compute rot(vorticity)
+     do d = 1, size(grid)
+        vort      => grid(d)%vort%elts
+@@ -1674,6 +1708,7 @@
+        call apply_to_penta_d (post_vort, grid(d), l, z_null)
+        nullify (velo, vort)
+     end do
++    call diff_end(4)
+   end subroutine cal_Laplacian_vector_rot
+ 
+   
+@@ -1684,6 +1719,11 @@
+     
+     integer :: d, j, l
+ 
++    call diff_begin(3)
++    if(diff_replace.and.pressure_check) then
++       call diff_install(3)
++       return
++    end if
+     do l = level_end, level_start, -1
+        ! Compute scalar fluxes
+        do d = 1, size(grid)
+@@ -1716,6 +1756,7 @@
+        Laplacian_vector(S_DIVU)%bdry_uptodate = .false.
+        call update_bdry (Laplacian_vector(S_DIVU), l, 975)
+     end do
++    call diff_end(3)
+   end subroutine cal_Laplacian_divu
+ 
+ 
+@@ -2075,6 +2116,11 @@
+     integer :: d, j, l
+ 
+     call update_bdry (q, NONE, 976)
++    call diff_begin(2,[q])
++    if(diff_replace.and.pressure_check) then
++       call diff_install(2)
++       return
++    end if
+ 
+     do l = level_end, level_start, -1
+        ! Calculate velocity flux
+@@ -2105,6 +2151,7 @@
+           nullify (dscalar, h_flux)
+        end do
+     end do
++    call diff_end(2)
+   end subroutine cal_divu_ml
+ 
+   
+@@ -2153,4 +2200,265 @@
+   end subroutine get_indices
+ 
+   
++  subroutine diff_prepare
++    type(Rhs_Domain_Operators),allocatable::single(:)
++    integer::a,l,c,d
++    character(len=8)::option
++    if(.not.diff_option_read) then
++       call get_environment_variable('WAVETRISK_RHS278_DIFFUSION_REPLACE',option)
++       diff_replace=trim(option)=='1';diff_option_read=.true.
++    end if
++    call prepare_native_velocity_programs
++    call prepare_native_mass
++    if (diff_generation/=native_velocity_plan_generation()) then
++       if(allocated(diff_routes)) then
++          do a=1,2
++             do l=level_start,level_end
++                do c=1,2
++                   call release_rhs_exchange(diff_routes(a,l,c))
++                end do
++             end do
++          end do
++          deallocate(diff_routes,diff_bound)
++       end if
++       allocate(diff_routes(2,level_start:level_end,2),diff_bound(2,level_start:level_end,2))
++       diff_bound=.false.
++       allocate(single(size(grid)))
++       do d=1,size(grid)
++          call compile_rhs_domain_operators(grid(d),native_mass(d)%level,single(d))
++       end do
++       if(allocated(diff_base)) deallocate(diff_base)
++       allocate(diff_base(size(grid)+1))
++       call merge_rhs_domain_operators(single,diff_base,diff_plan)
++       diff_generation=native_velocity_plan_generation()
++    end if
++  end subroutine
++
++  subroutine diff_begin(mode,q,lev)
++    integer,intent(in)::mode
++    type(Float_Field),intent(in),optional::q(:)
++    integer,intent(in),optional::lev
++    integer::d,n,b,v,nv,context
++    call diff_prepare
++    nv=1
++    if(mode==1) nv=size(q)
++    if(allocated(diff_x)) deallocate(diff_x,diff_flux,diff_y,diff_edge,diff_node)
++    n=diff_plan%nnode
++    allocate(diff_x(n*merge(3,1,mode==2),nv),diff_flux(3*n,nv),diff_y(n*merge(2,1,mode==4),nv))
++    allocate(diff_edge(nv),diff_node(nv))
++    do v=1,nv
++       diff_edge(v)=horiz_flux(scalars(1)+v-1)
++       diff_node(v)=Laplacian_scalar(scalars(1)+v-1)
++       do d=1,size(grid)
++          n=grid(d)%node%length;b=diff_base(d)
++          diff_flux(3*b+1:3*(b+n),v)=horiz_flux(scalars(1)+v-1)%data(d)%elts(:3*n)
++          select case(mode)
++          case(1)
++             diff_x(b+1:b+n,v)=q(v)%data(d)%elts(:n)
++             diff_y(b+1:b+n,v)=Laplacian_scalar(scalars(1)+v-1)%data(d)%elts(:n)
++          case(2)
++             diff_x(3*b+1:3*(b+n),v)=q(1)%data(d)%elts(:3*n)
++             diff_y(b+1:b+n,v)=grid(d)%divu%elts(:n)
++          case(3)
++             diff_x(b+1:b+n,v)=grid(d)%divu%elts(:n)
++             diff_y(b+1:b+n,v)=Laplacian_vector(S_DIVU)%data(d)%elts(:n)
++          case(4)
++             diff_y(2*b+1:2*(b+n),v)=grid(d)%vort%elts(:2*n)
++             diff_flux(3*b+1:3*(b+n),v)=Laplacian_vector(S_ROTU)%data(d)%elts(:3*n)
++          end select
++       end do
++    end do
++    context=0
++    select case(mode)
++    case(1,3)
++       call rhs_laplacian_sweep(diff_plan%diffusion,diff_x,diff_flux,diff_y,diff_halo,context)
++    case(2)
++       call rhs_divergence_sweep(diff_plan%diffusion,diff_x,diff_flux,diff_y,diff_halo,context)
++    case(4)
++       call rhs_rotational_laplacian(lev,diff_plan%rotation(lev)%curl,diff_plan%diffusion(lev)%producer, &
++            diff_plan%rotation(lev)%pentagon,diff_y,diff_flux,diff_halo,context)
++    end select
++  end subroutine
++
++  subroutine diff_halo(phase,lev,values,context)
++    integer,intent(in)::phase,lev
++    real(dp),intent(inout)::values(:,:)
++    class(*),intent(inout)::context
++    type(Rhs_Boundary_Map)::map
++    integer::pos,c,tag
++    if(phase>=RHS_ROTATION_TRIANGLES) return
++    pos=AT_EDGE
++    if(phase==RHS_DIFFUSION_NODES) pos=AT_NODE
++    c=size(values,2);tag=100*pos+10*lev+c
++    if(.not.diff_bound(pos,lev,c)) then
++       call compile_rhs_boundary_map(pos,lev,diff_base,map)
++       call bind_rhs_boundary_exchange(map,diff_routes(pos,lev,c),diff_generation,0_int64,tag,c)
++       diff_bound(pos,lev,c)=.true.
++    end if
++    diff_state=diff_state+1
++    call exchange_rhs_values(diff_routes(pos,lev,c),diff_generation,0_int64,tag,diff_state,values)
++  end subroutine
++
++  subroutine diff_install(mode)
++    ! Validation-only authoritative diffusion substitution: all existing
++    ! physics consumers read these outputs. Not a block-owner RHS cutover.
++    integer,intent(in)::mode
++    integer::d,n,b,v,u
++    character(len=80)::path
++    do v=1,size(diff_y,2)
++       do d=1,size(grid)
++          n=grid(d)%node%length;b=diff_base(d)
++          select case(mode)
++          case(1)
++             Laplacian_scalar(scalars(1)+v-1)%data(d)%elts(:n)=diff_y(b+1:b+n,v)
++          case(2)
++             grid(d)%divu%elts(:n)=diff_y(b+1:b+n,v)
++          case(3)
++             Laplacian_vector(S_DIVU)%data(d)%elts(:n)=diff_y(b+1:b+n,v)
++          case(4)
++             grid(d)%vort%elts(:2*n)=diff_y(2*b+1:2*(b+n),v)
++          end select
++          if(mode==4) then
++             Laplacian_vector(S_ROTU)%data(d)%elts(:3*n)=diff_flux(3*b+1:3*(b+n),v)
++          else
++             horiz_flux(scalars(1)+v-1)%data(d)%elts(:3*n)=diff_flux(3*b+1:3*(b+n),v)
++          end if
++       end do
++    end do
++    ! Match the completed legacy halo metadata as well as numerical storage.
++    select case(mode)
++    case(1)
++       horiz_flux%bdry_uptodate=.false.;horiz_flux%bdry_tag=-1
++       Laplacian_scalar%bdry_uptodate=.false.;Laplacian_scalar%bdry_tag=-1
++    case(2)
++       horiz_flux(S_MASS)%bdry_uptodate=.false.;horiz_flux(S_MASS)%bdry_tag=-1
++    case(3)
++       horiz_flux(S_MASS)%bdry_uptodate=.false.;horiz_flux(S_MASS)%bdry_tag=-1
++       Laplacian_vector(S_DIVU)%bdry_uptodate=.false.;Laplacian_vector(S_DIVU)%bdry_tag=-1
++    case(4)
++       Laplacian_vector(S_ROTU)%bdry_uptodate=.false.;Laplacian_vector(S_ROTU)%bdry_tag=-1
++    end select
++    diff_counts(mode)=diff_counts(mode)+1
++    write(path,'(a,i0,a)') 'diffusion278-installed-rank-',rank,'.txt'
++    open(newunit=u,file=trim(path),status='unknown',position='append')
++    write(u,*) mode,diff_generation,diff_counts
++    close(u)
++  end subroutine
++
++  subroutine diff_end(mode)
++    integer,intent(in)::mode
++    integer::d,n,b,v,u
++    character(len=80)::path
++    do v=1,size(diff_y,2)
++       do d=1,size(grid)
++          n=grid(d)%node%length;b=diff_base(d)
++          select case(mode)
++          case(1)
++             call diff_equal(diff_y(b+1:b+n,v),Laplacian_scalar(scalars(1)+v-1)%data(d)%elts(:n),mode,d,1)
++          case(2)
++             call diff_equal(diff_y(b+1:b+n,v),grid(d)%divu%elts(:n),mode,d,1)
++          case(3)
++             call diff_equal(diff_y(b+1:b+n,v),Laplacian_vector(S_DIVU)%data(d)%elts(:n),mode,d,1)
++          case(4)
++             call diff_equal(diff_y(2*b+1:2*(b+n),v),grid(d)%vort%elts(:2*n),mode,d,1)
++          end select
++          if(mode==4) then
++             call diff_equal(diff_flux(3*b+1:3*(b+n),v),Laplacian_vector(S_ROTU)%data(d)%elts(:3*n),mode,d,2)
++          else
++             call diff_equal(diff_flux(3*b+1:3*(b+n),v),horiz_flux(scalars(1)+v-1)%data(d)%elts(:3*n),mode,d,2)
++          end if
++       end do
++    end do
++    diff_counts(mode)=diff_counts(mode)+1
++    write(path,'(a,i0,a)') 'diffusion278-rank-',rank,'.txt'
++    open(newunit=u,file=trim(path),status='unknown',position='append')
++    write(u,*) mode,diff_generation,diff_counts
++    close(u)
++  end subroutine
++
++  subroutine diff_equal(x,y,mode,d,field)
++    real(dp),intent(in)::x(:),y(:)
++    integer,intent(in)::mode,d,field
++    integer::j
++    do j=1,size(x)
++       if(transfer(x(j),0_int64)==transfer(y(j),0_int64)) cycle
++       if(ieee_is_nan(x(j)).and.ieee_is_nan(y(j))) cycle
++       write(*,*) 'DIFFUSION MISMATCH',rank,mode,d,field,j,x(j),y(j),x(j)-y(j)
++       error stop 'compact diffusion differs from accepted oracle'
++    end do
++  end subroutine
++
++  subroutine pressure_start(q)
++    type(Float_Field),intent(in)::q(N_VARIABLE,zlevels)
++    real(dp),allocatable::surface(:)
++    integer::d,n,b,k,j
++    call diff_prepare
++    n=diff_plan%nnode
++    if(allocated(pressure_mass)) deallocate(pressure_mass,pressure_temp,pressure_mean_m,pressure_mean_t, &
++         pressure_lower,pressure_phi,pressure_value,pressure_exner,pressure_mid)
++    allocate(pressure_mass(n,zlevels),pressure_temp(n,zlevels),pressure_mean_m(n,zlevels),pressure_mean_t(n,zlevels))
++    allocate(pressure_lower(n),pressure_phi(n),pressure_value(n),pressure_exner(n),pressure_mid(n),surface(n))
++    surface=0.0_dp;pressure_phi=0.0_dp;pressure_value=0.0_dp;pressure_exner=0.0_dp;pressure_mid=0.0_dp
++    do d=1,size(grid)
++       b=diff_base(d);n=grid(d)%node%length
++       do j=1,n
++          if(diff_plan%surface_visits(b+j)>0) surface(b+j)=surf_geopot(d,j)
++       end do
++       do k=1,zlevels
++          pressure_mass(b+1:b+n,k)=q(S_MASS,k)%data(d)%elts(:n)
++          pressure_temp(b+1:b+n,k)=q(S_TEMP,k)%data(d)%elts(:n)
++          pressure_mean_m(b+1:b+n,k)=sol_mean(S_MASS,k)%data(d)%elts(:n)
++          pressure_mean_t(b+1:b+n,k)=sol_mean(S_TEMP,k)%data(d)%elts(:n)
++       end do
++    end do
++    call rhs_column_start(diff_plan%surface_visits,pressure_mass,pressure_mean_m,surface, &
++         grav_accel,p_top,pressure_lower,pressure_phi)
++    do d=1,size(grid)
++       b=diff_base(d);n=grid(d)%node%length
++       call diff_equal(pressure_lower(b+1:b+n),grid(d)%press_lower%elts(:n),5,d,1)
++    end do
++    pressure_check=.true.
++  end subroutine
++
++  subroutine pressure_patch_before(d,j,k,l)
++    integer,intent(in)::d,j,k,l
++    integer::p,a
++    p=j
++    do a=1,d-1
++       p=p+grid(a)%lev(l)%length
++    end do
++    associate(ph=>diff_plan%pressure(l)%patch(p))
++    call rhs_pressure_patch(diff_plan%pressure(l)%node(ph%first_pressure:ph%last_pressure), &
++         pressure_mass(:,k),pressure_temp(:,k),pressure_mean_m(:,k),pressure_mean_t(:,k), &
++         grav_accel,c_p,p_0,kappa,pressure_lower,pressure_phi,pressure_value,pressure_exner,pressure_mid)
++    end associate
++  end subroutine
++
++  subroutine pressure_patch_after(d,j,k,l)
++    integer,intent(in)::d,j,k,l
++    integer::p,a,u
++    integer,allocatable::local(:),global(:)
++    character(len=80)::path
++    p=j
++    do a=1,d-1
++       p=p+grid(a)%lev(l)%length
++    end do
++    associate(ph=>diff_plan%pressure(l)%patch(p))
++    global=diff_plan%pressure(l)%node(ph%first_pressure:ph%last_pressure)
++    local=global-diff_base(d)
++    call diff_equal(pressure_lower(global),grid(d)%press_lower%elts(local),5,d,2)
++    call diff_equal(pressure_value(global),grid(d)%press%elts(local),5,d,3)
++    call diff_equal(pressure_phi(global),grid(d)%geopot%elts(local),5,d,4)
++    call diff_equal(pressure_exner(global),exner_fun(k)%data(d)%elts(local),5,d,5)
++    call diff_equal(pressure_mid(global),0.5_dp*(grid(d)%geopot%elts(local)+grid(d)%geopot_lower%elts(local)),5,d,6)
++    pressure_checked=pressure_checked+size(local)
++    end associate
++    if(d==size(grid).and.j==grid(d)%lev(l)%length.and.k==zlevels.and.l==level_start) then
++       write(path,'(a,i0,a)') 'pressure278-rank-',rank,'.txt'
++       open(newunit=u,file=trim(path),status='unknown',position='append')
++       write(u,*) diff_generation,pressure_checked,maxval(diff_plan%surface_visits)
++       close(u)
++    end if
++  end subroutine
++
+ end module multi_level_mod

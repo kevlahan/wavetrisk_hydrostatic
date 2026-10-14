@@ -5,14 +5,24 @@ module parallel_block_rhs_distribute_mod
   use kind_mod, only : dp
   use mpi_f08
   use arch_mod, only : comm,rank,n_process,glo_id
+  use shared_mod, only : n_domain,N_GLO_DOMAIN
   use domain_mod, only : grid
   use parallel_block_rhs_compile_mod, only : Rhs_Domain_Operators,merge_rhs_domain_operators
   use parallel_block_rhs_placement_mod, only : compile_rhs_owner_map,select_rhs_placement
   use parallel_block_rhs_wire_mod, only : pack_rhs_placement,unpack_rhs_placement
-  use parallel_block_rhs_exchange_mod, only : Rhs_Exchange,compile_rhs_exchange,exchange_rhs_values,release_rhs_exchange
+  use parallel_block_rhs_exchange_mod, only : Rhs_Exchange,compile_rhs_exchange,exchange_rhs_values,release_rhs_exchange, &
+       deliver_rhs_indexed_metadata
   implicit none
   private
   public :: Rhs_Placement,distribute_rhs_geometry,deliver_rhs_metadata
+  public :: Rhs_Geometry_Directory,prepare_rhs_geometry_directory
+  type :: Rhs_Geometry_Directory
+     ! A preparation-local snapshot, rebuilt from current geometry every time.
+     ! It owns no communicator and is never reused across an invalidation.
+     private
+     integer(int64) :: topology=-1
+     integer,allocatable :: owner(:),offset(:),extent(:)
+  end type
   type :: Rhs_Placement
      type(Rhs_Domain_Operators) :: program
      integer,allocatable :: key(:,:),base(:)
@@ -23,6 +33,75 @@ module parallel_block_rhs_distribute_mod
      integer(int8),allocatable :: value(:)
   end type
 contains
+  subroutine prepare_rhs_geometry_directory(base,topology,directory)
+    integer,intent(in) :: base(:)
+    integer(int64),intent(in) :: topology
+    type(Rhs_Geometry_Directory),intent(out) :: directory
+    integer :: local(2,N_GLO_DOMAIN),global(2,N_GLO_DOMAIN),d,g,r,ierr,n
+    if(size(base)/=size(grid)+1) error stop 'RHS geometry directory base extent'
+    allocate(directory%owner(N_GLO_DOMAIN));directory%owner=-1;local=0;n=0
+    do r=1,n_process
+       do d=1,n_domain(r)
+          g=glo_id(r,d)+1
+          if(g<1.or.g>N_GLO_DOMAIN) error stop 'RHS geometry directory namespace'
+          if(directory%owner(g)/=-1) error stop 'RHS geometry directory duplicate Domain'
+          directory%owner(g)=r-1
+       end do
+    end do
+    if(any(directory%owner<0)) error stop 'RHS geometry directory missing Domain'
+    do d=1,size(grid)
+       if(base(d)/=n) error stop 'RHS geometry directory noncontiguous base'
+       g=glo_id(rank+1,d)+1
+       local(:,g)=[n,grid(d)%node%length];n=n+grid(d)%node%length
+    end do
+    if(base(size(base))/=n) error stop 'RHS geometry directory total extent'
+    call MPI_Allreduce(local,global,size(local),MPI_INTEGER,MPI_SUM,comm,ierr)
+    if(ierr/=MPI_SUCCESS) error stop 'RHS geometry directory layout consensus'
+    directory%offset=global(1,:);directory%extent=global(2,:);directory%topology=topology
+  end subroutine
+
+  subroutine deliver_geometry_metadata(directory,source_key,source_values,request_key,values,topology,phase,mult)
+    type(Rhs_Geometry_Directory),intent(in) :: directory
+    integer,intent(in) :: source_key(:,:),request_key(:,:),phase,mult
+    real(dp),intent(in) :: source_values(:,:)
+    real(dp),allocatable,intent(out) :: values(:,:)
+    integer(int64),intent(in) :: topology
+    integer,allocatable :: home(:,:)
+    integer :: d,g,j,c,i,n
+    if(directory%topology/=topology.or..not.allocated(directory%owner)) error stop 'RHS stale geometry directory'
+    if(mult/=1.and.mult/=3) error stop 'RHS geometry directory components'
+    if(size(source_key,1)/=4.or.size(request_key,1)/=4.or.size(source_values,1)/=size(source_key,2)) &
+         error stop 'RHS geometry directory key extent'
+    n=0
+    do d=1,size(grid)
+       g=glo_id(rank+1,d)+1
+       if(directory%owner(g)/=rank.or.directory%offset(g)/=n.or.directory%extent(g)/=grid(d)%node%length) &
+            error stop 'RHS changed geometry directory layout'
+       n=n+grid(d)%node%length
+    end do
+    if(size(source_key,2)/=mult*n) error stop 'RHS geometry directory source extent'
+    ! The address shortcut is allowed only for this exact dense physical key
+    ! namespace. Catalogue/provider identities keep the independent compiler.
+    do d=1,size(grid)
+       g=glo_id(rank+1,d)+1
+       do j=1,directory%extent(g)
+          do c=1,mult
+             i=mult*(directory%offset(g)+j-1)+c
+             if(any(source_key(:,i)/=[g,j,c,1])) error stop 'RHS geometry directory source identity'
+          end do
+       end do
+    end do
+    allocate(home(2,size(request_key,2)))
+    do i=1,size(request_key,2)
+       g=request_key(1,i);j=request_key(2,i);c=request_key(3,i)
+       if(g<1.or.g>size(directory%owner)) error stop 'RHS geometry request Domain'
+       if(j<1.or.j>directory%extent(g).or.c<1.or.c>mult.or.request_key(4,i)/=1) &
+            error stop 'RHS geometry request identity'
+       home(:,i)=[directory%owner(g),mult*(directory%offset(g)+j-1)+c]
+    end do
+    call deliver_rhs_indexed_metadata(comm,source_values,home,values,topology,phase)
+  end subroutine
+
   subroutine distribute_rhs_geometry(input,result)
     type(Rhs_Domain_Operators),intent(in) :: input(:)
     type(Rhs_Placement),intent(out) :: result
@@ -125,17 +204,25 @@ contains
     result%received_metadata_bytes=int(sum(rc)-rc(rank+1),int64)
   end subroutine
 
-  subroutine deliver_rhs_metadata(source_key,source_values,request_key,values,topology,phase)
+  subroutine deliver_rhs_metadata(source_key,source_values,request_key,values,topology,phase,directory,components)
     ! Topology-only keyed transfer. Integer metadata are exactly representable
     ! in binary64; callers validate round trips before converting back.
     integer,intent(in) :: source_key(:,:),request_key(:,:),phase
     real(dp),intent(in) :: source_values(:,:)
     real(dp),allocatable,intent(out) :: values(:,:)
     integer(int64),intent(in) :: topology
+    type(Rhs_Geometry_Directory),optional,intent(in) :: directory
+    integer,optional,intent(in) :: components
     type(Rhs_Exchange) :: route
     integer,allocatable :: order(:,:),source(:),target(:),sign(:)
     real(dp),allocatable :: work(:,:)
     integer :: ns,nq,nc,i
+    if(present(directory)) then
+       if(.not.present(components)) error stop 'RHS geometry metadata missing component width'
+       call deliver_geometry_metadata(directory,source_key,source_values,request_key,values,topology,phase,components)
+       return
+    end if
+    if(present(components)) error stop 'RHS geometry metadata missing directory'
     ns=size(source_key,2);nq=size(request_key,2);nc=size(source_values,2)
     if(size(source_values,1)/=ns) error stop 'RHS metadata source extent'
     allocate(order(2,ns),source(ns),target(nq),sign(nq),work(ns+nq,nc))

@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "status": "sealed_for_user_submission",
+  "accepted_source": "ff740744608731a05d53771c32a3055309f3a586",
+  "main_source": "6a245db7f1632b0205c2bebe95e5f0cd535c2582",
+  "main_overlay": "established checkpoint I/O hardening",
+  "candidate_scope": "complete connected resident RHS and real RK consumers with paired Domain computation/transfer retirement",
+  "excluded_overlays": [
+    "Stage273 partition",
+    "Stage277 geometry-owner cache"
+  ],
+  "allocation": {
+    "partition": "nk",
+    "nodes": 1,
+    "host": "bb13",
+    "tasks": 256,
+    "exclusive": true,
+    "mem": "0",
+    "wall_limit": "01:00:00"
+  },
+  "builds": [
+    "main-optimized",
+    "stage266-optimized",
+    "candidate-optimized",
+    "candidate-checked"
+  ],
+  "serial_execution": true,
+  "runs": [
+    {
+      "phase": "validation",
+      "ranks": 16,
+      "kind": "main",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "validation",
+      "ranks": 16,
+      "kind": "stage266",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "validation",
+      "ranks": 16,
+      "kind": "candidate",
+      "oracle": false,
+      "ownership_checks": true
+    },
+    {
+      "phase": "validation",
+      "ranks": 16,
+      "kind": "checked",
+      "oracle": false,
+      "ownership_checks": true
+    },
+    {
+      "phase": "validation",
+      "ranks": 16,
+      "kind": "candidate",
+      "oracle": true,
+      "ownership_checks": true
+    },
+    {
+      "phase": "validation",
+      "ranks": 83,
+      "kind": "candidate",
+      "oracle": false,
+      "ownership_checks": true
+    },
+    {
+      "phase": "validation",
+      "ranks": 160,
+      "kind": "candidate",
+      "oracle": false,
+      "ownership_checks": true
+    },
+    {
+      "phase": "validation",
+      "ranks": 256,
+      "kind": "candidate",
+      "oracle": true,
+      "ownership_checks": true
+    },
+    {
+      "phase": "timing",
+      "ranks": 83,
+      "kind": "main",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "timing",
+      "ranks": 83,
+      "kind": "stage266",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "timing",
+      "ranks": 83,
+      "kind": "candidate",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "timing",
+      "ranks": 160,
+      "kind": "main",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "timing",
+      "ranks": 160,
+      "kind": "stage266",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "timing",
+      "ranks": 160,
+      "kind": "candidate",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "timing",
+      "ranks": 256,
+      "kind": "stage266",
+      "oracle": false,
+      "ownership_checks": false
+    },
+    {
+      "phase": "timing",
+      "ranks": 256,
+      "kind": "candidate",
+      "oracle": false,
+      "ownership_checks": false
+    }
+  ],
+  "optional_repeat": {
+    "maximum_extra_runs": 8,
+    "trigger": "timing ambiguity changes acceptance",
+    "order": "reverse affected control group"
+  },
+  "required_gates": [
+    "exact accepted-family science",
+    "established main-relative science",
+    "all-call/layer authoritative ownership",
+    "actual zero-Domain production at256",
+    "displaced computation and transport absent",
+    "replacement cost accounting",
+    "no duplicate references in bare timings",
+    "no repeatable full-step regression",
+    "remaining legacy gap and scaling reported"
+  ],
+  "local_scope": "serial builds; no more than4 MPI ranks; not cluster performance evidence",
+  "launch_ready": true,
+  "sealed": true,
+  "submitted": false,
+  "fixture_sha256": {
+    "simple.in": "ed173774b8400630657243fa67b4065faff1faf409ba93c1712bb80174d6ae8d",
+    "test_checkpoint_0003.bin.zst": "8c7b651c2d6bc6f481838163591565771e1f9a95fd54ec9adf0ce9b74a117e2d",
+    "grids/HR95JT_WT_004": "d4d8393bf53d6275432f6f954ef3178a3ae2e3447a17160f5a3aa029ac39098d"
+  },
+  "repair": "kit-v5: once-bound canonical ownership, shared width routes, reused boundary maps, bounded placement copies and linear geometry assembly"
+}

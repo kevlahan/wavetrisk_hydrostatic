@@ -1,0 +1,282 @@
+{
+  "status": "passed",
+  "sources": {
+    "/private/tmp/rk278-structural-repair/source/src/kind.f90": "8370452d9259c3bc0e2e6588f42c5eb5eb6f78996656b398641300935c86af41",
+    "/private/tmp/rk278-structural-repair/source/src/parallel_block_profile.f90": "804bcb0586b8527ce1bd8789e5cd140106c86f1ed4d3442997d78ec0580b669b",
+    "/private/tmp/rk278-structural-repair/source/src/parallel_block_rhs_exchange.f90": "bd69437a1f39cde4304817032909260d5269c306b6af0d2a460de165e9f7ecdf",
+    "/private/tmp/rk278-structural-repair/tests/indexed_metadata_unit.f90": "2d0f42ef95b62355215beb47828985bebc2240df30866a2522d805b556b1b437"
+  },
+  "modes": {
+    "optimized": {
+      "build": [
+        "mpifort",
+        "-ffree-line-length-132",
+        "-ffp-contract=off",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-J/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized",
+        "-I/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized",
+        "-O2",
+        "/private/tmp/rk278-structural-repair/source/src/kind.f90",
+        "/private/tmp/rk278-structural-repair/source/src/parallel_block_profile.f90",
+        "/private/tmp/rk278-structural-repair/source/src/parallel_block_rhs_exchange.f90",
+        "/private/tmp/rk278-structural-repair/tests/indexed_metadata_unit.f90",
+        "-o",
+        "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized/unit"
+      ],
+      "binary_sha256": "5343982c71ef78d3227e3208172e3e314e6ce5bbf2ebcd75a5591296e1ea0aea",
+      "runs": [
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "1",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized/unit",
+            "normal"
+          ],
+          "case": "normal",
+          "passed": true,
+          "returncode": 0,
+          "log_sha256": "7f535fd9c27e81b9977d781e0b2150ce9119cc09a4ef36375731c96259c45efb"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized/unit",
+            "normal"
+          ],
+          "case": "normal",
+          "passed": true,
+          "returncode": 0,
+          "log_sha256": "7f535fd9c27e81b9977d781e0b2150ce9119cc09a4ef36375731c96259c45efb"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized/unit",
+            "bad-rank"
+          ],
+          "case": "bad-rank",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "34d90cd10a371db777a5614325cfabf392e5b45739a750aaae3d4a62830436fa"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized/unit",
+            "bad-slot"
+          ],
+          "case": "bad-slot",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "a4baec6d7cfa6d1127a54a6bfef68a9f2a2d3def5354e1b87cabf28273c6b627"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized/unit",
+            "epoch"
+          ],
+          "case": "epoch",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "ee6cd8e1977541bda0e8da6add0772e1cf21580da68834c967c8d53074cd736e"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized/unit",
+            "phase"
+          ],
+          "case": "phase",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "12bce61694bff93c1c7e93c636e09b775c5637223ba60cb998b78c998c6d2bef"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/optimized/unit",
+            "columns"
+          ],
+          "case": "columns",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "bdf1abc84bec3853b6d9c7fe827c27052ab7d411aab2857a6e7d08d4b52feee1"
+        }
+      ]
+    },
+    "checked": {
+      "build": [
+        "mpifort",
+        "-ffree-line-length-132",
+        "-ffp-contract=off",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-J/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked",
+        "-I/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked",
+        "-O0",
+        "-g",
+        "-fcheck=all",
+        "-ffpe-trap=invalid,zero,overflow",
+        "/private/tmp/rk278-structural-repair/source/src/kind.f90",
+        "/private/tmp/rk278-structural-repair/source/src/parallel_block_profile.f90",
+        "/private/tmp/rk278-structural-repair/source/src/parallel_block_rhs_exchange.f90",
+        "/private/tmp/rk278-structural-repair/tests/indexed_metadata_unit.f90",
+        "-o",
+        "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked/unit"
+      ],
+      "binary_sha256": "55c2950c60c241fef2721b407e028cc5dbd802a98a9d0b716bcca345e555470d",
+      "runs": [
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "1",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked/unit",
+            "normal"
+          ],
+          "case": "normal",
+          "passed": true,
+          "returncode": 0,
+          "log_sha256": "7f535fd9c27e81b9977d781e0b2150ce9119cc09a4ef36375731c96259c45efb"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked/unit",
+            "normal"
+          ],
+          "case": "normal",
+          "passed": true,
+          "returncode": 0,
+          "log_sha256": "7f535fd9c27e81b9977d781e0b2150ce9119cc09a4ef36375731c96259c45efb"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked/unit",
+            "bad-rank"
+          ],
+          "case": "bad-rank",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "2370ab1e8436f926a002e31325084d5907ea84c341d62100e858807114615a7c"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked/unit",
+            "bad-slot"
+          ],
+          "case": "bad-slot",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "40833d4ad50c4a98c630c36a3aaa56a07d5ef881ec144bc5637f5cb1c887f024"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked/unit",
+            "epoch"
+          ],
+          "case": "epoch",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "5793d792d3f55aae86adffeecff22333850304100b65733c819c4abebe4aed00"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked/unit",
+            "phase"
+          ],
+          "case": "phase",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "168bf471bce8ff955a7dc7ac98b0d104dabefaa2da66189b3583d7956102e44e"
+        },
+        {
+          "command": [
+            "mpirun",
+            "--oversubscribe",
+            "--bind-to",
+            "none",
+            "-n",
+            "4",
+            "/private/tmp/rk278-structural-repair/indexed-final/indexed-units/checked/unit",
+            "columns"
+          ],
+          "case": "columns",
+          "passed": true,
+          "returncode": 1,
+          "log_sha256": "5ff723086d9b6dd4ea7dca3667a9e5a7d1c6e16971b63933b0f2e003de7c674f"
+        }
+      ]
+    }
+  }
+}

@@ -12,7 +12,7 @@ module parallel_block_rhs_state_mod
        compile_local_block_inverse_routes,gather_local_block_rhs_state
   use parallel_block_rhs_placement_mod, only : compile_rhs_owner_map
   use parallel_block_rhs_boundary_mod, only : Rhs_Boundary_Map,compile_rhs_boundary_map
-  use parallel_block_rhs_distribute_mod, only : deliver_rhs_metadata
+  use parallel_block_rhs_distribute_mod, only : deliver_rhs_metadata,Rhs_Geometry_Directory
   use parallel_block_rhs_exchange_mod
   implicit none
   private
@@ -56,12 +56,13 @@ contains
     input=Rhs_Resident_Input()
   end subroutine
 
-  subroutine prepare_rhs_resident_input(physical_key,base,topology,masks,input,apply_boundary,required,with_means)
+  subroutine prepare_rhs_resident_input(physical_key,base,topology,masks,input,apply_boundary,required,with_means,directory)
     integer,intent(in) :: physical_key(:,:),base(:)
     integer(int64),intent(in) :: topology,masks
     type(Rhs_Resident_Input),intent(inout) :: input
     logical,intent(in),optional :: apply_boundary,with_means
     logical,intent(in),optional :: required(:)
+    type(Rhs_Geometry_Directory),optional,intent(in) :: directory
     logical :: with_halo
     type(Provider_Inventory) :: inventory
     type(Rhs_Boundary_Map) :: mapping
@@ -141,14 +142,22 @@ contains
              metadata(mapping%target(i),:4)=real(mapping%source(:,i),dp)
              metadata(mapping%target(i),5)=real(mapping%orientation(i),dp)
           end do
-          call deliver_rhs_metadata(mapping%key,metadata,query,aliases,topology,8100+mode)
+          if(present(directory)) then
+             call deliver_rhs_metadata(mapping%key,metadata,query,aliases,topology,8100+mode,directory,m)
+          else
+             call deliver_rhs_metadata(mapping%key,metadata,query,aliases,topology,8100+mode)
+          end if
           if(any(abs(real(nint(aliases),dp)-aliases)>0.0_dp)) error stop 'RHS state alias identity'
           query=transpose(nint(aliases(:,:4)));sign=nint(aliases(:,5))
        end if
        ! Resolve every physical source to either a resident catalogue node or
        ! an explicitly uncatalogued compatibility slot on its geometry host.
        index=query(3,:);query(3,:)=1
-       call deliver_rhs_metadata(geo_key,real(transpose(geo_state),dp),query,resolved,topology,8200+mode)
+       if(present(directory)) then
+          call deliver_rhs_metadata(geo_key,real(transpose(geo_state),dp),query,resolved,topology,8200+mode,directory,1)
+       else
+          call deliver_rhs_metadata(geo_key,real(transpose(geo_state),dp),query,resolved,topology,8200+mode)
+       end if
        if(any(abs(real(nint(resolved),dp)-resolved)>0.0_dp)) error stop 'RHS state provider identity'
        request=transpose(nint(resolved))
        request(4,:)=m*(request(4,:)-1)+index

@@ -11,7 +11,7 @@ module parallel_block_rhs_exchange_mod
   implicit none
   private
   public :: Rhs_Exchange, compile_rhs_exchange, exchange_rhs_values, release_rhs_exchange
-  public :: rhs_exchange_cost,rhs_exchange_source_slots
+  public :: rhs_exchange_cost,rhs_exchange_source_slots,deliver_rhs_indexed_metadata
   public :: Rhs_Owner_Directory,compile_rhs_owner_directory,lookup_rhs_owner_directory
   integer, parameter :: KEY_SIZE=4, DEFINITION_SIZE=8
   type :: Rhs_Owner_Directory
@@ -98,6 +98,93 @@ contains
     allocate(received(width,sum(rc)))
     call MPI_Alltoallv(packed,width*sc,width*sd,MPI_INTEGER,received,width*rc,width*rd,MPI_INTEGER,comm,ierr)
     call mpi_check(comm,ierr,'metadata delivery')
+  end subroutine
+
+  integer function rank_slot_bucket(key,n) result(h)
+    integer,intent(in) :: key(2),n
+    integer(int64) :: bits
+    ! A rank prefix plus an unmodified dense slot creates overlapping linear
+    ! probe clusters. Mix the slot before reduction to the local table size.
+    ! All intermediates stay below 2**49 for nonnegative default integers.
+    bits=modulo(int(key(2),int64)*104729_int64+int(key(1),int64)*65599_int64,2147483647_int64)
+    bits=ieor(bits,shiftr(bits,16))
+    bits=modulo(bits*104729_int64,2147483647_int64)
+    h=int(modulo(bits,int(n,int64)))+1
+  end function
+
+  subroutine deliver_rhs_indexed_metadata(comm,source,home,values,topology,phase,remote_values)
+    ! Preparation-only pull from an already proved rank/slot directory. There
+    ! is one producer per slot: no writer election or persistent halo is needed.
+    ! Buffers and requests expire on return; all four collectives are blocking.
+    type(MPI_Comm),intent(in) :: comm
+    real(dp),intent(in) :: source(:,:)
+    integer,intent(in) :: home(:,:)
+    real(dp),allocatable,intent(out) :: values(:,:)
+    integer(int64),intent(in) :: topology
+    integer,intent(in) :: phase
+    integer(int64),optional,intent(out) :: remote_values(2)
+    integer(int64) :: signature(6),checked(6)
+    integer,allocatable :: sc(:),sd(:),rc(:),rd(:),cursor(:),request(:),incoming(:),index(:)
+    real(dp),allocatable :: reply(:,:),received(:,:)
+    integer,allocatable :: table(:),unique(:,:),mapping(:),packed_index(:)
+    integer :: nr,nq,nc,i,r,a,ierr,h,j,u,me
+    call MPI_Comm_size(comm,nr,ierr);call mpi_check(comm,ierr,'indexed metadata communicator')
+    if(size(home,1)/=2) call die(comm,'indexed metadata home extent')
+    if(any(home(1,:)<0).or.any(home(1,:)>=nr).or.any(home(2,:)<1)) &
+         call die(comm,'indexed metadata home address')
+    nq=size(home,2);nc=size(source,2)
+    if(nc<1.or.topology<0.or.phase<1) call die(comm,'indexed metadata epoch or extent')
+    signature(:3)=[topology,int(phase,int64),int(nc,int64)];signature(4:)=-signature(:3)
+    call MPI_Allreduce(signature,checked,6,MPI_INTEGER8,MPI_MIN,comm,ierr)
+    call mpi_check(comm,ierr,'indexed metadata signature')
+    if(any(checked(:3)/=-checked(4:))) call die(comm,'inconsistent indexed metadata epoch')
+    ! Match the original halo compiler's wire-volume bound: repeated aliases
+    ! request one record per producer rank/slot, then expand locally in order.
+    allocate(table(max(1,2*nq+1)),unique(2,nq),mapping(nq));table=0;u=0
+    do i=1,nq
+       h=rank_slot_bucket(home(:,i),size(table))
+       do
+          j=table(h)
+          if(j==0) then
+             u=u+1;j=u;table(h)=j;unique(:,j)=home(:,i);exit
+          end if
+          if(all(unique(:,j)==home(:,i))) exit
+          h=modulo(h,size(table))+1
+       end do
+       mapping(i)=j
+    end do
+    deallocate(table)
+    allocate(sc(nr),sd(nr),rc(nr),rd(nr),cursor(nr),request(u),index(u),packed_index(nq));sc=0
+    do i=1,u
+       r=unique(1,i)+1;sc(r)=sc(r)+1
+    end do
+    call MPI_Alltoall(sc,1,MPI_INTEGER,rc,1,MPI_INTEGER,comm,ierr)
+    call mpi_check(comm,ierr,'indexed metadata request counts')
+    call prefix(sc,sd);call prefix(rc,rd);cursor=sd
+    do i=1,u
+       r=unique(1,i)+1;cursor(r)=cursor(r)+1;a=cursor(r)
+       request(a)=unique(2,i);index(i)=a
+    end do
+    packed_index=index(mapping)
+    deallocate(unique,mapping,index)
+    allocate(incoming(sum(rc)))
+    call MPI_Alltoallv(request,sc,sd,MPI_INTEGER,incoming,rc,rd,MPI_INTEGER,comm,ierr)
+    call mpi_check(comm,ierr,'indexed metadata request slots')
+    if(any(incoming<1).or.any(incoming>size(source,1))) call die(comm,'indexed metadata source address')
+    allocate(reply(nc,size(incoming)),received(nc,u),values(nq,nc))
+    do i=1,size(incoming)
+       reply(:,i)=source(incoming(i),:)
+    end do
+    call MPI_Alltoallv(reply,nc*rc,nc*rd,MPI_DOUBLE_PRECISION,received,nc*sc,nc*sd, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call mpi_check(comm,ierr,'indexed metadata reply')
+    if(present(remote_values)) then
+       call MPI_Comm_rank(comm,me,ierr);call mpi_check(comm,ierr,'indexed metadata rank')
+       remote_values=int(nc,int64)*[int(sum(rc)-rc(me+1),int64),int(sum(sc)-sc(me+1),int64)]
+    end if
+    do i=1,nq
+       values(i,:)=received(:,packed_index(i))
+    end do
   end subroutine
 
   subroutine compile_rhs_owner_directory(directory,comm,key,slot)
@@ -423,7 +510,7 @@ contains
     allocate(table(max(1,2*nc+1)),unique(2,nc),mapping(nc),order(nc))
     table=0;u=0
     do i=1,nc
-       h=bucket(answer(:,i),size(table))
+       h=rank_slot_bucket(answer(:,i),size(table))
        do
           j=table(h)
           if (j==0) then

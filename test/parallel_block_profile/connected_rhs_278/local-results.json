@@ -1,0 +1,116 @@
+{
+  "accepted_source": "ff740744608731a05d53771c32a3055309f3a586",
+  "production_active": false,
+  "ownership_qualified": false,
+  "source_sha256": {
+    "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/kind.f90": "8370452d9259c3bc0e2e6588f42c5eb5eb6f78996656b398641300935c86af41",
+    "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_mass.f90": "0e2efb96ee8f69e225dfd387a5f6639af073d177d866f0a70b88b506b57aefcb",
+    "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_velocity.f90": "9765b09eaad8624fb03697d06d44ba214316630b19e025a9740a6dd64ba73137",
+    "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_rhs.f90": "05b3cfc6b2b10d83d87a1168f78db80fa102e33d257eddb760e9e019ce2288e7",
+    "/private/tmp/connected-rhs-278-boundary-units/legacy_primitive.f90": "a1a7a18117776523f5ff03fb20caff114a7a25ad8663ae676485085e0109231f",
+    "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/test/parallel_block_profile/connected_rhs_278/unit.f90": "75cbb95463f5754d4ea4331c82b309f81e937ab6f5a429e7483189beab7fc647"
+  },
+  "modes": {
+    "optimized": {
+      "command": [
+        "gfortran",
+        "-ffp-contract=off",
+        "-ffree-line-length-132",
+        "-O3",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/kind.f90",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_mass.f90",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_velocity.f90",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_rhs.f90",
+        "/private/tmp/connected-rhs-278-boundary-units/legacy_primitive.f90",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/test/parallel_block_profile/connected_rhs_278/unit.f90",
+        "-o",
+        "unit"
+      ],
+      "tests": {
+        "normal": {
+          "exit_code": 0,
+          "log_sha256": "317238f9f3a807af8a64ee183074815f90551ac27678764ed359727378397d85"
+        },
+        "bad_column": {
+          "exit_code": 1,
+          "log_sha256": "9a865b7341ac82f91c5467fc26e061c3debd47631b2085d13e19cd334a882520"
+        },
+        "bad_stencil": {
+          "exit_code": 1,
+          "log_sha256": "2324aba428b9d9a68d7a6b31daa8857b91a4e2641072bb9cb9021ca59bcd82af"
+        },
+        "bad_rk": {
+          "exit_code": 1,
+          "log_sha256": "9258342ffcaea6bbccb19555de04eeacbe50b753fb26aa8a65a96c20a8ccf58d"
+        },
+        "missing_sw": {
+          "exit_code": 1,
+          "log_sha256": "79df248b1631760af1c5d5b94531a90d818d3f0dfa3ba47673fd8e067b53fef7"
+        },
+        "bad_sw": {
+          "exit_code": 1,
+          "log_sha256": "16bd55b6dbf8c794eff0ef3d3cb7a286b0b967024fe4542e52452acb48679e69"
+        },
+        "bad_pentagon": {
+          "exit_code": 1,
+          "log_sha256": "c38c7dec56a7a630a7557b9655ad49f05078d64418e8c787ef60ff54351d1f8a"
+        }
+      },
+      "elapsed_seconds": 3.3692957079038024,
+      "binary_sha256": "8ba56fa90dc35a3a6acb9c11cbb7fb3cb138d44c0c097217398b09d160450d1f"
+    },
+    "checked": {
+      "command": [
+        "gfortran",
+        "-ffp-contract=off",
+        "-ffree-line-length-132",
+        "-O0",
+        "-g",
+        "-fcheck=all",
+        "-ffpe-trap=invalid,zero,overflow",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/kind.f90",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_mass.f90",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_velocity.f90",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/src/parallel_block_rhs.f90",
+        "/private/tmp/connected-rhs-278-boundary-units/legacy_primitive.f90",
+        "/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/test/parallel_block_profile/connected_rhs_278/unit.f90",
+        "-o",
+        "unit"
+      ],
+      "tests": {
+        "normal": {
+          "exit_code": 0,
+          "log_sha256": "317238f9f3a807af8a64ee183074815f90551ac27678764ed359727378397d85"
+        },
+        "bad_column": {
+          "exit_code": 1,
+          "log_sha256": "a30f32d33379ec23ce47074eb31c68b2cf30513c0f41b6b25eab8190018e4022"
+        },
+        "bad_stencil": {
+          "exit_code": 1,
+          "log_sha256": "6e2be31b30d04656492e2037a766b4f7ec13419835efc02fd20f7b2676329b98"
+        },
+        "bad_rk": {
+          "exit_code": 1,
+          "log_sha256": "d25183fdf1d1fff2cf839d924372c32ee2978c68686098ce009cf1ea2ba91926"
+        },
+        "missing_sw": {
+          "exit_code": 1,
+          "log_sha256": "33a160912b9d635b2120d22d2ac82972e10aa528fa6e47aeb9164e5af1921a1e"
+        },
+        "bad_sw": {
+          "exit_code": 1,
+          "log_sha256": "1aab6dda2557a370dbcffc619bdfcd361428405fa92596d2b29ca532d599736e"
+        },
+        "bad_pentagon": {
+          "exit_code": 1,
+          "log_sha256": "e2794ee479d4c9a5c354b1d966c567b3179357469f962045d4485255d2fab9dc"
+        }
+      },
+      "elapsed_seconds": 1.3207889581099153,
+      "binary_sha256": "6e21c1000c8e08f14a790ced8f082b4ffc35d1dab2beae67699d94ad41b4c39f"
+    }
+  },
+  "status": "passed",
+  "scope": "Numerical draft only. Original accepted step1 direct/comp_SW and all four post_step1 pentagon oracles; pressure/injection/diffusion formula checks and reused source/gradient/RK connectivity. No MPI routes, production cutover, adaptive science, full-step timing or scaling qualification."
+}

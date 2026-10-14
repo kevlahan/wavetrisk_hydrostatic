@@ -1,0 +1,55 @@
+{
+  "status": "passed",
+  "files": [
+    {
+      "file": "rhs278-cost-rank-0.txt",
+      "rows": 12,
+      "integer_fields": 17,
+      "exact": true
+    },
+    {
+      "file": "rhs278-cost-rank-1.txt",
+      "rows": 12,
+      "integer_fields": 17,
+      "exact": true
+    },
+    {
+      "file": "rhs278-cost-rank-2.txt",
+      "rows": 12,
+      "integer_fields": 17,
+      "exact": true
+    },
+    {
+      "file": "rhs278-cost-rank-3.txt",
+      "rows": 12,
+      "integer_fields": 17,
+      "exact": true
+    },
+    {
+      "file": "rhs278-production-rank-0.txt",
+      "rows": 48,
+      "integer_fields": 16,
+      "exact": true
+    },
+    {
+      "file": "rhs278-production-rank-1.txt",
+      "rows": 48,
+      "integer_fields": 16,
+      "exact": true
+    },
+    {
+      "file": "rhs278-production-rank-2.txt",
+      "rows": 48,
+      "integer_fields": 16,
+      "exact": true
+    },
+    {
+      "file": "rhs278-production-rank-3.txt",
+      "rows": 48,
+      "integer_fields": 16,
+      "exact": true
+    }
+  ],
+  "control": "/private/tmp/rk278-attribution-kit-validation/optimized-oracle",
+  "scope": "Existing numerical ownership/work/traffic/narrow-storage counters; temporary metadata volume is tested separately against the generic compiler."
+}

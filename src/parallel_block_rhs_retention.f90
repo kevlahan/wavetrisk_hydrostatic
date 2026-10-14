@@ -11,7 +11,7 @@ module parallel_block_rhs_retention_mod
        apply_local_block_tendency_kernel,retain_local_block_tendency_in_accumulator, &
        n_local_blocks,local_block_catalog,local_block_patch_count,catalog_local_block
   use parallel_block_rhs_placement_mod, only : compile_rhs_owner_map
-  use parallel_block_rhs_distribute_mod, only : deliver_rhs_metadata
+  use parallel_block_rhs_distribute_mod, only : deliver_rhs_metadata,Rhs_Geometry_Directory
   use parallel_block_rhs_distributed_mod, only : Rhs_Distributed_Executor
   implicit none
   private
@@ -32,11 +32,12 @@ module parallel_block_rhs_retention_mod
      integer(int64) :: retained_values=0,retained_stages=0
   end type
 contains
-  subroutine prepare_rhs_retention(executor,base,topology,retention)
+  subroutine prepare_rhs_retention(executor,base,topology,retention,directory)
     type(Rhs_Distributed_Executor),intent(in) :: executor
     integer,intent(in) :: base(:)
     integer(int64),intent(in) :: topology
     type(Rhs_Retention),intent(out) :: retention
+    type(Rhs_Geometry_Directory),optional,intent(in) :: directory
     integer,allocatable :: physical(:,:),state(:,:),owner(:),key(:,:)
     real(dp),allocatable :: resolved(:,:),lengths(:,:),physical_lengths(:,:)
     integer :: d,b,n,i,c,p,j,local
@@ -49,7 +50,11 @@ contains
        end do
        state(:,b+1:b+size(key,2))=key
     end do
-    call deliver_rhs_metadata(physical,real(transpose(state),dp),executor%placement%key,resolved,topology,8401)
+    if(present(directory)) then
+       call deliver_rhs_metadata(physical,real(transpose(state),dp),executor%placement%key,resolved,topology,8401,directory,1)
+    else
+       call deliver_rhs_metadata(physical,real(transpose(state),dp),executor%placement%key,resolved,topology,8401)
+    end if
     if(any(abs(real(nint(resolved),dp)-resolved)>0.0_dp)) error stop 'RHS retention identity'
     state=transpose(nint(resolved))
     allocate(physical_lengths(n,3))
@@ -58,7 +63,11 @@ contains
           physical_lengths(base(d)+i,:)=grid(d)%len%elts(3*i-2:3*i)
        end do
     end do
-    call deliver_rhs_metadata(physical,physical_lengths,executor%placement%key,resolved,topology,8402)
+    if(present(directory)) then
+       call deliver_rhs_metadata(physical,physical_lengths,executor%placement%key,resolved,topology,8402,directory,1)
+    else
+       call deliver_rhs_metadata(physical,physical_lengths,executor%placement%key,resolved,topology,8402)
+    end if
     allocate(lengths(size(resolved,2),size(resolved,1)))
     lengths(:,:)=transpose(resolved)
     allocate(retention%block(n_local_blocks()))

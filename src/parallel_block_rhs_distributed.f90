@@ -49,11 +49,12 @@ contains
     executor=Rhs_Distributed_Executor()
   end subroutine
 
-  subroutine prepare_rhs_distributed(input,base,topology,masks,nlayer,executor)
+  subroutine prepare_rhs_distributed(input,base,topology,masks,nlayer,executor,directory)
     type(Rhs_Domain_Operators),intent(in) :: input(:)
     integer,intent(in) :: base(:),nlayer
     integer(int64),intent(in) :: topology,masks
     type(Rhs_Distributed_Executor),intent(inout) :: executor
+    type(Rhs_Geometry_Directory),optional,intent(in) :: directory
     type(Rhs_Boundary_Map) :: mapping
     type :: Route_Keys
        integer,allocatable :: key(:,:),orientation(:),home(:,:)
@@ -111,7 +112,11 @@ contains
              metadata(mapping%target(j),:4)=real(mapping%source(:,j),dp)
              metadata(mapping%target(j),5)=real(mapping%orientation(j),dp)
           end do
-          call deliver_rhs_metadata(mapping%key,metadata,direct(m)%key,received,topology,9900+10*l+i)
+          if(present(directory)) then
+             call deliver_rhs_metadata(mapping%key,metadata,direct(m)%key,received,topology,9900+10*l+i,directory,m)
+          else
+             call deliver_rhs_metadata(mapping%key,metadata,direct(m)%key,received,topology,9900+10*l+i)
+          end if
           if(any(abs(real(nint(received),dp)-received)>0.0_dp)) error stop 'RHS alias metadata lost integer identity'
           boundary(i)%key=transpose(nint(received(:,:4)));boundary(i)%orientation=nint(received(:,5))
           boundary(i)%home=direct(m)%home
