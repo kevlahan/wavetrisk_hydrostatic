@@ -27,6 +27,7 @@ module parallel_block_mod
   integer, parameter, public :: BLOCK_PAYLOAD_SOL = 1
   integer, parameter, public :: BLOCK_PAYLOAD_WAV_COEFF = 2
 
+  public :: gather_local_block_rhs_state
   public :: transfer_local_block_inverse_node
   public :: compile_local_block_inverse_routes, transfer_local_block_inverse_routes
 
@@ -954,6 +955,71 @@ subroutine compile_local_block_inverse_routes(key,address)
      end associate
   end do
 end subroutine compile_local_block_inverse_routes
+
+subroutine gather_local_block_rhs_state(address,component,values)
+  ! Read precompiled resident node routes. Component 1 is perturbation scalars,
+  ! 2 is velocity, and 3 is scalar means. No Domain numerical payload is read.
+  integer,intent(in) :: address(:,:),component
+  real(dp),intent(out) :: values(:,:)
+  integer :: p,b,nv,base,step,scalar_step,k,v
+  if(size(address,1)/=6.or.size(values,1)/=size(address,2)) error stop 'RHS resident gather extent'
+  if(component<1.or.component>3) error stop 'RHS resident gather component'
+  nv=merge(EDGE,scalars(2)-scalars(1)+1,component==2)
+  if(size(values,2)/=nv*zlevels) error stop 'RHS resident gather columns'
+  do p=1,size(address,2)
+     b=address(1,p)
+     if(b<1.or.b>size(block_local)) error stop 'RHS resident gather owner'
+     associate(block=>block_local(b))
+     if(address(5,p)/=1-block%field_level.or.address(6,p)/=block%n_field_level) &
+          error stop 'RHS resident gather stale layer layout'
+     if(address(2,p)==STORE_PATCH) then
+        if(address(4,p)/=size(block%node)) error stop 'RHS resident gather stale interior layout'
+     else if(address(2,p)==STORE_BDRY) then
+        if(address(4,p)/=size(block%bdry_node)) error stop 'RHS resident gather stale boundary layout'
+     end if
+     if(component==2) then
+        base=EDGE*(address(5,p)*address(4,p)+address(3,p))+1
+        step=EDGE*address(4,p);scalar_step=1
+     else
+        if(block%scalar_variable/=scalars(1).or.block%n_scalar_variable/=nv) &
+             error stop 'RHS resident gather scalar family'
+        base=address(5,p)*address(4,p)+address(3,p)+1
+        step=address(4,p);scalar_step=address(6,p)*step
+     end if
+     select case(address(2,p))
+     case(STORE_PATCH)
+        select case(component)
+        case(1)
+           call read_values(block%scalar)
+        case(2)
+           call read_values(block%vector)
+        case(3)
+           call read_values(block%scalar_mean)
+        end select
+     case(STORE_BDRY)
+        select case(component)
+        case(1)
+           call read_values(block%bdry_scalar)
+        case(2)
+           call read_values(block%bdry_vector)
+        case(3)
+           call read_values(block%bdry_scalar_mean)
+        end select
+     case default
+        error stop 'RHS resident gather storage'
+     end select
+     end associate
+  end do
+contains
+  subroutine read_values(field)
+    real(dp),intent(in) :: field(:)
+    do k=0,zlevels-1
+       do v=0,nv-1
+          values(p,nv*k+v+1)=field(base+k*step+v*scalar_step)
+       end do
+    end do
+  end subroutine
+end subroutine gather_local_block_rhs_state
 
 subroutine transfer_local_block_inverse_routes(address,family,component,install,buffer,selected_edge, &
      workspace,local_first,local_slots)

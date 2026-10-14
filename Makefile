@@ -307,6 +307,23 @@ SRC = kind.f90 \
       parallel_block.f90 \
       parallel_block_velocity.f90 \
       parallel_block_mass.f90 \
+      parallel_block_rhs.f90 \
+      parallel_block_rhs_diffusion.f90 \
+      parallel_block_primitive_walk.f90 \
+      parallel_block_rhs_compile.f90 \
+      parallel_block_rhs_dynamics.f90 \
+      parallel_block_rhs_placement.f90 \
+      parallel_block_rhs_wire.f90 \
+      parallel_block_rhs_routes.f90 \
+      parallel_block_rhs_distribute.f90 \
+      parallel_block_rhs_distributed.f90 \
+      parallel_block_rhs_state.f90 \
+      parallel_block_rhs_retention.f90 \
+      parallel_block_rhs_backend.f90 \
+      parallel_block_rhs_layout.f90 \
+      parallel_block_rhs_schedule.f90 \
+      parallel_block_rhs_exchange.f90 \
+      parallel_block_rhs_boundary.f90 \
       parallel_block_inverse.f90 \
       parallel_block_mpi.f90 \
       spline.f90 \
@@ -421,6 +438,7 @@ $(BUILD_DIR)/parallel_block_scalar_storage.o: $(BUILD_DIR)/kind.o
 $(BUILD_DIR)/parallel_block_velocity.o: $(BUILD_DIR)/kind.o
 $(BUILD_DIR)/comm_mpi.o: $(BUILD_DIR)/parallel_block_profile.o
 $(BUILD_DIR)/adapt.o $(BUILD_DIR)/time_integr.o: $(BUILD_DIR)/parallel_block_profile.o
+$(BUILD_DIR)/parallel_block_rhs.o: $(BUILD_DIR)/parallel_block_mass.o $(BUILD_DIR)/parallel_block_velocity.o
 $(BUILD_DIR)/parallel_block_mass.o: $(BUILD_DIR)/kind.o
 
 $(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_velocity.o
@@ -482,3 +500,38 @@ clean:
 ifeq ($(PHYSICS),true)
 	$(MAKE) -C $(SRC_DIR)/physics/simple_physics/phyparam clean
 endif
+
+$(BUILD_DIR)/parallel_block_rhs_layout.o: $(BUILD_DIR)/parallel_block.o
+
+$(BUILD_DIR)/parallel_block_rhs_schedule.o: $(BUILD_DIR)/parallel_block_rhs_layout.o
+
+$(BUILD_DIR)/parallel_block_rhs_exchange.o: $(BUILD_DIR)/kind.o $(BUILD_DIR)/parallel_block_profile.o
+
+$(BUILD_DIR)/parallel_block_rhs_diffusion.o: $(BUILD_DIR)/parallel_block_rhs.o
+
+$(BUILD_DIR)/parallel_block_primitive_walk.o: $(BUILD_DIR)/domain.o
+$(BUILD_DIR)/parallel_block_rhs_compile.o: $(BUILD_DIR)/parallel_block_rhs_diffusion.o $(BUILD_DIR)/domain_ops.o $(BUILD_DIR)/parallel_block_primitive_walk.o
+
+$(BUILD_DIR)/parallel_block_rhs_boundary.o: $(BUILD_DIR)/parallel_block_rhs_exchange.o $(BUILD_DIR)/domain.o
+
+$(BUILD_DIR)/parallel_block_rhs_dynamics.o: $(BUILD_DIR)/parallel_block_rhs_compile.o
+
+$(BUILD_DIR)/parallel_block_rhs_placement.o: $(BUILD_DIR)/parallel_block_rhs_compile.o
+
+$(BUILD_DIR)/parallel_block_rhs_wire.o: $(BUILD_DIR)/parallel_block_rhs_compile.o
+
+$(BUILD_DIR)/parallel_block_rhs_routes.o: $(BUILD_DIR)/parallel_block_rhs_dynamics.o $(BUILD_DIR)/parallel_block_rhs_exchange.o
+
+$(BUILD_DIR)/parallel_block_rhs_distribute.o: $(BUILD_DIR)/parallel_block_rhs_placement.o $(BUILD_DIR)/parallel_block_rhs_wire.o $(BUILD_DIR)/parallel_block_rhs_exchange.o
+
+$(BUILD_DIR)/parallel_block_rhs_distributed.o: $(BUILD_DIR)/parallel_block_rhs_distribute.o $(BUILD_DIR)/parallel_block_rhs_routes.o $(BUILD_DIR)/parallel_block_rhs_boundary.o
+
+$(BUILD_DIR)/parallel_block_rhs_state.o: $(BUILD_DIR)/parallel_block_rhs_distribute.o $(BUILD_DIR)/parallel_block_rhs_boundary.o
+
+$(BUILD_DIR)/parallel_block_rhs_retention.o: $(BUILD_DIR)/parallel_block_rhs_distributed.o
+
+$(BUILD_DIR)/parallel_block_rhs_backend.o: $(BUILD_DIR)/parallel_block_rhs_retention.o $(BUILD_DIR)/parallel_block_rhs_state.o
+
+$(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_rhs_backend.o
+$(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_rhs_backend.o
+$(BUILD_DIR)/time_integr.o: $(BUILD_DIR)/parallel_block_rhs_backend.o

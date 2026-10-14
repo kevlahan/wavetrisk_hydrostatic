@@ -1,4 +1,5 @@
 module parallel_block_mpi_mod
+  use parallel_block_rhs_backend_mod, only : connected_rhs_enabled,retain_connected_rhs
   use arch_mod, only : check_parallel_task_capacity
   use parallel_block_scalar_storage_mod
   use parallel_block_profile_mod
@@ -195,6 +196,12 @@ module parallel_block_mpi_mod
        BLOCK_SCALAR_FULL_SHARED_COUNT) = [7,8,12,13,14, &
        21,22,23,24,25,26,27,28,29,30,31,32,33, &
        36,37,38,39,40,41,42,43,44,45,46,47,48,49,50]
+  integer,parameter :: BLOCK_TRANSFORM_SLOT(50) = [ &
+       0,0,0,0,0,0,1,2,0,0, &
+       0,3,4,5,0,0,0,0,0,0, &
+       6,7,8,9,10,11,12,13,14,15, &
+       16,17,18,0,0,19,20,21,22,23, &
+       24,25,26,27,28,29,30,31,32,33]
   ! Production wire contracts are independent of the 50-slot kernel/oracle
   ! workspace. Boundary streams carry geometry once per node and the live
   ! mass flux / temperature closure per field. Ghost streams carry geometry
@@ -787,11 +794,18 @@ module parallel_block_mpi_mod
        block_velocity_remainder(:)
   integer(int64), save :: block_velocity_remainder_allocations = 0_int64
 
+  type :: Transform_Geometry_Context
+     integer :: pass=0,used=0
+     integer,allocatable :: key(:,:),start(:,:)
+  end type
+  public :: prepare_connected_transform_geometry
   type :: Block_Scalar_Tendency_Storage
      integer :: catalog_index = 0
      integer :: installed_patch_count = 0
      logical :: ready = .false.
      type(Scalar_Record_Storage) :: patch,bdry,ghost
+     logical :: transform_ready=.false.
+     real(dp),allocatable :: transform_patch(:,:),transform_bdry(:,:),transform_ghost(:,:)
      logical, allocatable :: covered(:)
   end type Block_Scalar_Tendency_Storage
 
@@ -3209,9 +3223,7 @@ contains
          mask_level_slot > block%n_field_level) then
        call fail("block adaptation significance layout is invalid")
     end if
-    if (.not. block_scalar_tendency(local_index)%ready .or. &
-         block_scalar_tendency(local_index)%catalog_index /= &
-         catalog_index) then
+    if (.not. scalar_geometry_block_ready(local_index,catalog_index)) then
        call fail("block adaptation significance mask is stale")
     end if
     if (.not. allocated(block_adaptation_decision) .or. &
@@ -11631,7 +11643,7 @@ end subroutine build_parallel_block_catalog
     if (.not. state_ready .or. .not. checkpoint_ready) then
        call fail("velocity restriction transaction is not ready")
     end if
-    if (.not. block_scalar_divergence_plan%ready .or. &
+    if (.not. scalar_geometry_ready() .or. &
          .not. allocated(block_scalar_tendency)) then
        call fail("velocity restriction geometry is not ready")
     end if
@@ -11979,9 +11991,7 @@ end subroutine build_parallel_block_catalog
          local_index > size(block_scalar_tendency)) then
        call fail("velocity restriction block is invalid")
     end if
-    if (.not. block_scalar_tendency(local_index)%ready .or. &
-         block_scalar_tendency(local_index)%catalog_index /= &
-         catalog_index) then
+    if (.not. scalar_geometry_block_ready(local_index,catalog_index)) then
        call fail("velocity restriction geometry block is stale")
     end if
 
@@ -14237,7 +14247,7 @@ end subroutine build_parallel_block_catalog
          .not. production_multistage_provisional_snapshot_consumed) then
        call fail("provisional scalar-wavelet snapshot boundary is invalid")
     end if
-    if (.not. block_scalar_divergence_plan%ready .or. &
+    if (.not. scalar_geometry_ready() .or. &
          .not. allocated(block_scalar_tendency)) then
        call fail("scalar-wavelet geometry shadow is not ready")
     end if
@@ -14544,7 +14554,7 @@ end subroutine build_parallel_block_catalog
           .not. production_native_wavelet_output_activated)) then
        call fail("native wavelet compression stage boundary is invalid")
     end if
-    if (.not. block_scalar_divergence_plan%ready .or. &
+    if (.not. scalar_geometry_ready() .or. &
          .not. allocated(block_scalar_tendency)) then
        call fail("native wavelet compression masks are unavailable")
     end if
@@ -15505,9 +15515,7 @@ end subroutine build_parallel_block_catalog
          local_index > size(block_scalar_tendency)) then
        call fail("scalar inverse block index is invalid")
     end if
-    if (.not. block_scalar_tendency(local_index)%ready .or. &
-         block_scalar_tendency(local_index)%catalog_index /= &
-         catalog_index) then
+    if (.not. scalar_geometry_block_ready(local_index,catalog_index)) then
        call fail("scalar inverse geometry block is stale")
     end if
 
@@ -15686,8 +15694,7 @@ end subroutine build_parallel_block_catalog
 
     local_index=catalog_local_block(catalog_index)
     if (local_index<1.or.local_index>size(block_scalar_tendency)) call fail("scalar inverse block index is invalid")
-    if (.not.block_scalar_tendency(local_index)%ready.or. &
-         block_scalar_tendency(local_index)%catalog_index/=catalog_index) call fail("scalar inverse geometry block is stale")
+    if (.not.scalar_geometry_block_ready(local_index,catalog_index)) call fail("scalar inverse geometry block is stale")
     first=max(1,2-block%field_level)
     last=min(block%n_field_level,zlevels-block%field_level+1)
     count=max(0,last-first+1)
@@ -15887,9 +15894,7 @@ end subroutine build_parallel_block_catalog
          local_index > size(block_scalar_tendency)) then
        call fail("vector inverse block index is invalid")
     end if
-    if (.not. block_scalar_tendency(local_index)%ready .or. &
-         block_scalar_tendency(local_index)%catalog_index /= &
-         catalog_index) then
+    if (.not. scalar_geometry_block_ready(local_index,catalog_index)) then
        call fail("vector inverse geometry block is stale")
     end if
 
@@ -16233,9 +16238,7 @@ end subroutine build_parallel_block_catalog
          local_index > size(block_scalar_tendency)) then
        call fail("wavelet compression block index is invalid")
     end if
-    if (.not. block_scalar_tendency(local_index)%ready .or. &
-         block_scalar_tendency(local_index)%catalog_index /= &
-         catalog_index) then
+    if (.not. scalar_geometry_block_ready(local_index,catalog_index)) then
        call fail("wavelet compression mask block is stale")
     end if
 
@@ -16371,9 +16374,7 @@ end subroutine build_parallel_block_catalog
          local_index > size(block_scalar_tendency)) then
        call fail("scalar-wavelet production block is invalid")
     end if
-    if (.not. block_scalar_tendency(local_index)%ready .or. &
-         block_scalar_tendency(local_index)%catalog_index /= &
-         catalog_index) then
+    if (.not. scalar_geometry_block_ready(local_index,catalog_index)) then
        call fail("scalar-wavelet geometry block is stale")
     end if
 
@@ -17246,7 +17247,7 @@ end subroutine build_parallel_block_catalog
           call refresh_candidate_block_velocity_remainder(domain_sol,.false.)
        end if
     end if
-    if (.not. block_scalar_divergence_plan%ready) then
+    if (.not. scalar_geometry_ready()) then
        call fail("block-native scalar divergence input is not ready")
     end if
     call evaluate_candidate_block_scalar_restriction
@@ -17722,6 +17723,7 @@ end subroutine build_parallel_block_catalog
     type(Float_Field), intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
 
+    if(connected_rhs_enabled()) call fail('retired velocity remainder capture entered')
     call refresh_candidate_block_velocity_remainder(domain_sol,.true.)
     if (block_dynamics_validation_enabled()) &
          call refresh_candidate_block_velocity_remainder(domain_sol,.true.,reference_only=.true.)
@@ -18070,6 +18072,127 @@ end subroutine build_parallel_block_catalog
   end subroutine refresh_candidate_block_velocity_remainder
 
 
+  logical function scalar_geometry_ready() result(ready)
+    ready=block_scalar_divergence_plan%ready
+    if(connected_rhs_enabled()) then
+       ready=.false.
+       if(allocated(block_scalar_tendency)) ready=all(block_scalar_tendency%transform_ready)
+    end if
+  end function
+
+  logical function scalar_geometry_block_ready(index,catalog) result(ready)
+    integer,intent(in) :: index,catalog
+    ready=block_scalar_tendency(index)%ready
+    if(connected_rhs_enabled()) ready=block_scalar_tendency(index)%transform_ready
+    ready=ready.and.block_scalar_tendency(index)%catalog_index==catalog
+  end function
+
+  subroutine prepare_connected_transform_geometry
+    ! Mask/geometry-only adapter for the existing inverse/wavelet readers.
+    ! No state, RHS, physics or reference field is transported or allocated.
+    use parallel_block_rhs_placement_mod, only : compile_rhs_owner_map
+    use parallel_block_rhs_distribute_mod, only : deliver_rhs_metadata
+    integer,allocatable :: owner(:),keys(:,:),definition(:,:)
+    real(dp),allocatable :: values(:,:),received(:,:)
+    type(Transform_Geometry_Context) :: context
+    integer :: d,n,i,b,c,np,pass
+    real(dp) :: record(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+    np=0
+    do d=1,size(grid)
+       call compile_rhs_owner_map(grid(d),glo_id(rank+1,d),owner,keys)
+       np=np+grid(d)%node%length+count(keys(1,:)>0)
+    end do
+    allocate(definition(4,np),values(np,BLOCK_SCALAR_FULL_SHARED_COUNT));np=0
+    do d=1,size(grid)
+       call compile_rhs_owner_map(grid(d),glo_id(rank+1,d),owner,keys)
+       do i=1,grid(d)%node%length
+          record=0
+          record(BLOCK_SCALAR_AREA_INDEX)=grid(d)%areas%elts(i)%hex_inv
+          record(BLOCK_SCALAR_ACTIVE_INDEX)=merge(1.0_dp,0.0_dp,grid(d)%mask_n%elts(i)>=TRSK)
+          record(BLOCK_SCALAR_PEDLEN_START:BLOCK_SCALAR_PEDLEN_START+2)=grid(d)%pedlen%elts(3*i-2:3*i)
+          record(BLOCK_SCALAR_EDGE_MASK_START:BLOCK_SCALAR_EDGE_MASK_START+2)=real(grid(d)%mask_e%elts(3*i-2:3*i),dp)
+          record(BLOCK_SCALAR_RESTRICTION_WEIGHT_START:BLOCK_SCALAR_RESTRICTION_WEIGHT_START+2)=grid(d)%R_F_wgt%elts(i)%enc
+          record(BLOCK_SCALAR_OVERLAP_START:BLOCK_SCALAR_OVERLAP_START+3)=grid(d)%overl_areas%elts(i)%a
+          record(BLOCK_SCALAR_OVERLAP_START+4:BLOCK_SCALAR_OVERLAP_START+5)=grid(d)%overl_areas%elts(i)%split
+          record(BLOCK_SCALAR_SOURCE_INDEX)=real(i-1,dp)
+          record(BLOCK_SCALAR_WAVELET_MASK_INDEX)=real(grid(d)%mask_n%elts(i),dp)
+          record(BLOCK_VECTOR_WAVELET_WEIGHT_START:BLOCK_VECTOR_WAVELET_WEIGHT_START+8)=real(grid(d)%I_u_wgt%elts(i)%enc,dp)
+          record(BLOCK_SCALAR_EDGE_LENGTH_START:BLOCK_SCALAR_EDGE_LENGTH_START+2)=grid(d)%len%elts(3*i-2:3*i)
+          record(BLOCK_SCALAR_TRIANGLE_AREA_START:BLOCK_SCALAR_TRIANGLE_AREA_START+1)=grid(d)%triarea%elts(2*i-1:2*i)
+          np=np+1
+          definition(:,np)=[size(block_catalog)+glo_id(rank+1,d)+1,4,i,1]
+          values(np,:)=record(BLOCK_SCALAR_FULL_SHARED_INDEX)
+          if(keys(1,i)>0) then
+             np=np+1;definition(:,np)=keys(:,i);definition(4,np)=definition(4,np)+1
+             values(np,:)=record(BLOCK_SCALAR_FULL_SHARED_INDEX)
+          end if
+       end do
+    end do
+    if(allocated(block_scalar_tendency)) deallocate(block_scalar_tendency)
+    allocate(block_scalar_tendency(n_local_blocks()))
+    allocate(context%start(3,n_local_blocks()))
+    do pass=1,2
+       context%pass=pass;context%used=0
+       call apply_local_block_field_consumer(transform_geometry_requests,context)
+       if(pass==1) allocate(context%key(4,context%used))
+    end do
+    call deliver_rhs_metadata(definition,values,context%key,received,block_writeback_plan_generation,8601)
+    do b=1,size(block_scalar_tendency)
+       n=size(block_scalar_tendency(b)%transform_patch,2);c=context%start(1,b)
+       block_scalar_tendency(b)%transform_patch=transpose(received(c+1:c+n,:))
+       n=size(block_scalar_tendency(b)%transform_bdry,2);c=context%start(2,b)
+       block_scalar_tendency(b)%transform_bdry=transpose(received(c+1:c+n,:))
+       n=size(block_scalar_tendency(b)%transform_ghost,2);c=context%start(3,b)
+       block_scalar_tendency(b)%transform_ghost=transpose(received(c+1:c+n,:))
+       block_scalar_tendency(b)%transform_ready=.true.
+    end do
+    block_scalar_tendency_allocations=block_scalar_tendency_allocations+1+3*n_local_blocks()
+  end subroutine
+
+  subroutine transform_geometry_requests(catalog,block,context)
+    integer,intent(in) :: catalog
+    type(Block_Data),intent(in) :: block
+    class(*),intent(inout) :: context
+    integer :: local,p,q,n,g,i
+    select type(c=>context)
+    type is(Transform_Geometry_Context)
+       local=catalog_local_block(catalog)
+       if(c%pass==1) then
+          block_scalar_tendency(local)%catalog_index=catalog
+          allocate(block_scalar_tendency(local)%transform_patch(BLOCK_SCALAR_FULL_SHARED_COUNT,size(block%node)))
+          allocate(block_scalar_tendency(local)%transform_bdry(BLOCK_SCALAR_FULL_SHARED_COUNT,size(block%bdry_node)))
+          allocate(block_scalar_tendency(local)%transform_ghost(BLOCK_SCALAR_FULL_SHARED_COUNT,size(block%ghost_node)))
+       end if
+       c%start(1,local)=c%used
+       do p=1,size(block%patch)
+          do q=1,PATCH_SIZE**2
+             i=c%start(1,local)+block%patch(p)%elts_start+q
+             if(c%pass==2) c%key(:,i)=[catalog,STORE_PATCH,p,q]
+          end do
+       end do
+       c%used=c%used+size(block%node);c%start(2,local)=c%used
+       do p=1,size(block%bdry_storage)
+          do q=1,block%bdry_storage(p)%n_node
+             i=c%start(2,local)+block%bdry_storage(p)%local_start+q
+             n=block%bdry_storage(p)%elts_start+q
+             if(c%pass==2) c%key(:,i)=[size(block_catalog)+block%root_domain+1,4,n,1]
+          end do
+       end do
+       c%used=c%used+size(block%bdry_node);c%start(3,local)=c%used
+       do p=1,size(block%ghost_storage)
+          g=block%ghost_storage(p)%source_domain
+          do q=1,block%ghost_storage(p)%n_node
+             i=c%start(3,local)+block%ghost_storage(p)%local_start+q
+             n=block%ghost_storage(p)%elts_start+q
+             if(c%pass==2) c%key(:,i)=[size(block_catalog)+g+1,4,n,1]
+          end do
+       end do
+       c%used=c%used+size(block%ghost_node)
+    class default
+       error stop 'transform geometry context'
+    end select
+  end subroutine
+
   subroutine begin_block_scalar_divergence_capture
     ! Prepare one persistent Domain-owner to block-owner transport for the
     ! validation flux stencil, immutable metric inputs, and non-advective
@@ -18094,6 +18217,7 @@ end subroutine build_parallel_block_catalog
     logical :: storage_rebuilt
     logical :: validate_oracle
 
+    if(connected_rhs_enabled()) call fail('retired scalar tendency capture entered')
     call detail_enter(DP_SCALAR_SETUP)
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
     validate_oracle = block_dynamics_validation_enabled()
@@ -26415,6 +26539,7 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: record_slot
     logical, optional, intent(in) :: allow_uninitialized
 
+    integer :: geometry_slot
     integer :: data_start
     integer :: node
     integer :: record
@@ -26438,6 +26563,23 @@ end subroutine build_parallel_block_catalog
          record_slot < 1 .or. &
          record_slot > BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT) then
        call fail("scalar-restriction record field is invalid")
+    end if
+    if(connected_rhs_enabled()) then
+       geometry_slot=BLOCK_TRANSFORM_SLOT(record_slot)
+       if(geometry_slot==0) call fail('connected transform reader requested an obsolete RHS record')
+       if(.not.block_scalar_tendency(local_index)%transform_ready) call fail('connected transform geometry stale')
+       select case(storage_class)
+       case(STORE_PATCH)
+          value=block_scalar_tendency(local_index)%transform_patch(geometry_slot, &
+               block%patch(record+1)%elts_start+node+1)
+       case(STORE_BDRY)
+          value=block_scalar_tendency(local_index)%transform_bdry(geometry_slot,node+1)
+       case(STORE_GHOST)
+          value=block_scalar_tendency(local_index)%transform_ghost(geometry_slot,node+1)
+       case default
+          call fail('connected transform geometry storage')
+       end select
+       return
     end if
     select case (storage_class)
     case (STORE_PATCH)
@@ -26893,6 +27035,14 @@ end subroutine build_parallel_block_catalog
     source_start = -1
     if (p < 1 .or. p > size(block%patch)) then
        call fail("scalar-restriction source patch is invalid")
+    end if
+    if(connected_rhs_enabled()) then
+       if(.not.scalar_geometry_block_ready(local_index,block%id+1)) call fail('transform source geometry stale')
+       source_value=block_scalar_tendency(local_index)%transform_patch( &
+            BLOCK_TRANSFORM_SLOT(BLOCK_SCALAR_SOURCE_INDEX),block%patch(p)%elts_start+1)
+       source_start=nint(source_value)
+       if(source_start<0.or.abs(real(source_start,dp)-source_value)>0.0_dp) call fail('transform source identity')
+       return
     end if
     level_slot = 1-block%field_level+1
     if (level_slot < 1 .or. level_slot > block%n_field_level) then
@@ -29723,10 +29873,14 @@ end subroutine build_parallel_block_catalog
        production_multistage_writeback_before = &
             block_domain_production_writeback_count()
        production_multistage_native_transform_writeback_count = 0_int64
+       if(connected_rhs_enabled()) then
+          call retain_connected_rhs
+       else
        call evaluate_candidate_block_velocity_recomposition( &
             domain_sol,.false.,use_compatibility_remainder, &
             retained_compatibility_remainder= &
             use_compatibility_remainder)
+       end if
     else
        if (production_multistage_candidate_stage_count /= stage_count) then
           call fail("multistage tendency capture method changed")
@@ -29739,10 +29893,14 @@ end subroutine build_parallel_block_catalog
        if (.not. checkpoint_ready) then
           call fail("multistage tendency capture has no checkpoint")
        end if
+       if(connected_rhs_enabled()) then
+          call retain_connected_rhs
+       else
        call evaluate_candidate_block_velocity_recomposition( &
             domain_sol,.true.,use_compatibility_remainder, &
             retained_compatibility_remainder= &
             use_compatibility_remainder)
+       end if
        call complete_block_domain_trend_step(.false.)
     end if
 
@@ -30004,10 +30162,12 @@ end subroutine build_parallel_block_catalog
     ! The compatibility RK update no longer computes temperature. Publish its
     ! native stage before the wavelet/halo consumers read Domain-shaped input.
     ! The oracle comparison above remains independent and precedes publication.
+    if(.not.connected_rhs_enabled()) then
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_SOL,domain_sol,BLOCK_WRITEBACK_TEMPERATURE)
     production_multistage_native_transform_writeback_count = &
          production_multistage_native_transform_writeback_count+1_int64
+    end if
     call retain_native_multistage_candidate_snapshot(stage,stage_count)
 
     trial_active = local_block_tendency_trial_is_active()
@@ -30035,7 +30195,7 @@ end subroutine build_parallel_block_catalog
        call fail("native multistage retention reallocated snapshot storage")
     end if
     if (block_domain_production_writeback_count() /= &
-         production_writeback_before+1_int64) then
+         production_writeback_before+int(merge(0,1,connected_rhs_enabled()),int64)) then
        call fail("native temperature stage publication count differs")
     end if
 

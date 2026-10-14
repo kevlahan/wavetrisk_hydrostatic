@@ -19,7 +19,13 @@ module parallel_block_profile_mod
        DP_RK_COMPAT=53, DP_PHYSICS=54, DP_REMAP=55, DP_RESTART=56, DP_ORACLE=57, &
        DP_BDRY_PACK=58, DP_BDRY_ROUTE=59, DP_BDRY_POST=60, DP_BDRY_INSTALL=61, DP_BDRY_LOCAL=62, &
        DP_BDRY_STORAGE=63, DP_OUTSIDE=64, DP_WT_DRIVER=65, &
-       DP_SCALAR_INVERSE_KERNEL=66, DP_INNER_VECTOR_KERNEL=67, DP_COUNT=67
+       DP_SCALAR_INVERSE_KERNEL=66, DP_INNER_VECTOR_KERNEL=67, &
+       DP_RHS_PREP=68, DP_RHS_COMPILE=69, DP_RHS_GEOMETRY=70, &
+       DP_RHS_ROUTES=71, DP_RHS_INPUT_PLAN=72, DP_RHS_RETAIN_PLAN=73, &
+       DP_RHS_INPUT=74, DP_RHS_KERNEL=75, DP_RHS_RETAIN=76, &
+       DP_RHS_RK=77, DP_RHS_EXCHANGE=78, DP_RHS_PACK=79, &
+       DP_RHS_POST=80, DP_RHS_WAIT=81, DP_RHS_INSTALL=82, &
+       DP_RHS_COST=83, DP_RHS_TRANSFORM=84, DP_COUNT=84
   character(32), parameter, public :: detail_name(DP_COUNT)=[character(32) :: &
        'timestep residual', 'dynamics residual', 'adaptation residual', 'output/checkpoint', &
        'source extraction', 'source serialization proof', 'receive serialization proof', &
@@ -41,8 +47,16 @@ module parallel_block_profile_mod
        'validation oracle', 'boundary scan and pack', 'boundary receive route scan', &
        'boundary MPI posting', 'boundary scan and install', 'boundary local copies', &
        'boundary buffer allocation/zero', 'outside instrumented context', 'wavelet driver residual', &
-       'scalar inverse kernels', 'inner-vector inverse kernel']
+       'scalar inverse kernels', 'inner-vector inverse kernel', &
+       'RHS preparation residual', 'RHS geometry compilation', 'RHS geometry distribution', &
+       'RHS route construction', 'RHS input plan construction', 'RHS retention plan', &
+       'RHS resident input', 'RHS arithmetic residual', 'RHS tendency retention', &
+       'RHS RK adapter residual', 'RHS exchange residual', 'RHS exchange packing', &
+       'RHS MPI post and local copy', 'RHS MPI completion wait', 'RHS exchange installation', &
+       'RHS traffic accounting', 'RHS transform preparation']
   logical, public, save :: detail_enabled=.false.
+  logical, save :: rhs_detail_option_read=.false.,rhs_detail_fine=.false.
+  public :: rhs_detail_enter,rhs_detail_leave
   ! self wall, self process CPU, inclusive wall, inclusive process CPU.
   real(real64), public, save :: detail_time(4,DP_COUNT)=0.0_real64
   integer(int64), public, save :: detail_calls(DP_COUNT)=0_int64
@@ -105,6 +119,35 @@ contains
     end if
     last_wall=w
     last_cpu=c
+  end subroutine
+
+  subroutine rhs_detail_enter(p)
+    ! Fine exchange attribution is an explicit second diagnostic level. The
+    ! default coarse profile avoids ten extra wall/CPU stamps per transaction.
+    integer,intent(in) :: p
+    character(len=8) :: option
+    integer :: length,status
+    if(.not.detail_enabled) return
+    if(.not.rhs_detail_option_read) then
+       call get_environment_variable('WAVETRISK_PROFILE_RHS_FINE',option,length=length,status=status)
+       if(status==-1.or.length>len(option)) error stop 'invalid RHS fine profile option'
+       select case(trim(option))
+       case('','0')
+          rhs_detail_fine=.false.
+       case('1')
+          rhs_detail_fine=.true.
+       case default
+          error stop 'invalid RHS fine profile option'
+       end select
+       rhs_detail_option_read=.true.
+    end if
+    if(rhs_detail_fine) call detail_enter(p)
+  end subroutine
+
+  subroutine rhs_detail_leave(p)
+    integer,intent(in) :: p
+    if(.not.detail_enabled) return
+    if(rhs_detail_fine) call detail_leave(p)
   end subroutine
 
   subroutine detail_enter(p)

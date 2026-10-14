@@ -1,4 +1,5 @@
 module time_integr_mod
+  use parallel_block_rhs_backend_mod, only : connected_rhs_enabled,prepare_connected_rhs_rk,install_connected_rhs_rk
   use parallel_block_profile_mod, only : detail_enter, detail_leave, DP_CAPTURE, DP_VELOCITY_PREP
 
   use, intrinsic :: iso_fortran_env, only : int64
@@ -14,7 +15,7 @@ module time_integr_mod
   use comm_mpi_mod,      only : update_bdry
   use dyn_arrays,        only : extend, init
   use domain_mod,        only : Float_Field, init_Field, grid, sol, trend, wav_coeff
-  use multi_level_mod,   only : trend_ml, block_tendency_compatibility_ml
+  use multi_level_mod,   only : trend_ml, block_tendency_compatibility_ml,block_connected_tendency_ml
   use parallel_block_mpi_mod, only : &
        prepare_temperature_boundary_stage, apply_temperature_boundary_stage, &
        BLOCK_PROFILE_DOMAIN_TENDENCY, &
@@ -155,6 +156,16 @@ contains
 
     real(dp) :: profile_start
 
+    if(connected_rhs_enabled()) then
+       if(stage_count/=4) error stop 'connected RHS requires qualified RK4 transaction'
+       call block_connected_tendency_ml(domain_stage)
+       if(validate_oracle) call call_domain_tendency_consumer(domain_stage,routine)
+       call capture_block_domain_multistage_candidate_tendency(stage,stage_count,domain_stage, &
+            compatibility_remainder=.true.)
+       call begin_block_domain_multistage_candidate_stage(scale,stage,stage_count)
+       return
+    end if
+
     call detail_enter(DP_CAPTURE)
     call begin_block_scalar_divergence_capture
     call detail_leave(DP_CAPTURE)
@@ -291,6 +302,7 @@ contains
     call manage_q1_mem
 
     block_candidate = multistage_block_candidate_enabled
+    if(connected_rhs_enabled().and..not.block_candidate) error stop 'connected RHS requires active block candidate'
     validate_oracle = .false.
     legacy_call_count_before = legacy_domain_tendency_call_count
     if (block_candidate) then
@@ -403,6 +415,7 @@ contains
     call manage_q1_mem
 
     block_candidate = multistage_block_candidate_enabled
+    if(connected_rhs_enabled().and..not.block_candidate) error stop 'connected RHS requires active block candidate'
     validate_oracle = .false.
     legacy_call_count_before = legacy_domain_tendency_call_count
     if (block_candidate) then
@@ -529,6 +542,13 @@ contains
     real(dp) :: profile_start
     type(Float_Field), allocatable :: temperature_reference(:,:)
     integer :: d,k,ibeg,iend
+
+    if(connected_rhs_enabled()) then
+       call prepare_connected_rhs_rk(sols,h)
+       if(block_dynamics_validation_enabled()) call RK_sub_step(sols,trend,h,dest)
+       call install_connected_rhs_rk(dest,block_dynamics_validation_enabled())
+       return
+    end if
 
     profile_start = parallel_block_profile_begin( &
          BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY)

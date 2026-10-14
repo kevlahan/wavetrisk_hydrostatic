@@ -34,12 +34,16 @@ module parallel_block_mass_mod
   ! plan builds, restricted edges, divergences, boundary values, published RHS, RK values
   integer(int64), save :: mass_work(6)=0_int64
 contains
-  subroutine execute_mass_restriction(program,flux,rhs)
+  subroutine execute_mass_restriction(program,flux,rhs,record_work)
     type(Mass_Restriction), intent(in) :: program(:)
     real(dp), intent(inout) :: flux(:)
     real(dp), intent(in) :: rhs(:)
+    logical, optional, intent(in) :: record_work
+    logical :: record
     real(dp) :: small(4),partial,coarse
     integer :: s,e,n
+    record=.true.
+    if (present(record_work)) record=record_work
     do s=1,size(program)
        associate(p=>program(s))
        do n=1,4
@@ -61,16 +65,20 @@ contains
                +p%coarse(5,e)*0.5_dp*(rhs(p%coarse_node(2,e))-rhs(p%coarse_node(6,e)))
           flux(3*(p%target-1)+e)=partial+coarse+small(e)+small(e+1)
        end do
-       mass_work(2)=mass_work(2)+count(p%edge)
+       if (record) mass_work(2)=mass_work(2)+count(p%edge)
        end associate
     end do
   end subroutine
 
-  subroutine execute_mass_divergence(program,flux,rhs)
+  subroutine execute_mass_divergence(program,flux,rhs,record_work)
     type(Mass_Divergence), intent(in) :: program(:)
     real(dp), intent(in) :: flux(:)
     real(dp), intent(inout) :: rhs(:)
     integer :: s
+    logical, optional, intent(in) :: record_work
+    logical :: record
+    record=.true.
+    if(present(record_work)) record=record_work
     do s=1,size(program)
        associate(p=>program(s))
        rhs(p%target)=0.0_dp
@@ -78,6 +86,6 @@ contains
             +flux(p%edge(5))-flux(p%edge(6)))*p%inverse_area
        end associate
     end do
-    mass_work(3)=mass_work(3)+size(program)
+    if(record) mass_work(3)=mass_work(3)+size(program)
   end subroutine
 end module parallel_block_mass_mod

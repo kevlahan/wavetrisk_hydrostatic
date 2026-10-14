@@ -1,4 +1,10 @@
 module multi_level_mod
+  use parallel_block_rhs_backend_mod, only : connected_rhs_enabled,connected_rhs_needs_prepare, &
+       prepare_connected_rhs,evaluate_connected_rhs
+  use parallel_block_rhs_compile_mod, only : Rhs_Domain_Operators,compile_rhs_dynamics
+  use init_mod, only : surf_geopot
+  use utils_mod, only : nu_scale
+  use shared_mod, only : compressible,mode_split,NCAR_topo,sso,test_case,C_visc,physics_type
   use parallel_block_profile_mod
   use mpi_f08
   use arch_mod, only : comm, MPI_DP, rank, n_process, glo_id
@@ -39,7 +45,7 @@ module multi_level_mod
        BLOCK_PROFILE_NATIVE_VELOCITY_PLAN, BLOCK_PROFILE_NATIVE_VELOCITY_SOURCE, BLOCK_PROFILE_NATIVE_VELOCITY_GRADIENT, &
        begin_block_velocity_source_transport, &
        block_dynamics_validation_enabled, block_stage191_option, &
-       native_velocity_plan_generation, &
+       native_velocity_plan_generation,prepare_connected_transform_geometry, &
        block_scalar_capture_active, capture_block_scalar_physics_patch, &
        capture_block_scalar_divergence_level, &
        capture_block_velocity_source_level, &
@@ -58,6 +64,7 @@ module multi_level_mod
   implicit none
 
   private
+  public :: block_connected_tendency_ml
   public :: cpt_or_restr_flux, trend_ml, &
        block_tendency_compatibility_ml, cal_divu_ml
 
@@ -255,6 +262,7 @@ contains
 
     real(dp) :: profile_start
 
+    if(connected_rhs_enabled()) error stop 'retired Domain RHS entered with connected selector'
     call detail_enter(DP_SHARED)
     call detail_enter(DP_PRIMITIVE)
     call update_bdry(q,NONE,1067)
@@ -467,6 +475,56 @@ contains
 
   end subroutine block_tendency_compatibility_ml
 
+
+  subroutine block_connected_tendency_ml(q)
+    type(Float_Field),intent(in) :: q(N_VARIABLE,zlevels)
+    type(Rhs_Domain_Operators),allocatable :: plan(:)
+    integer,allocatable :: base(:)
+    real(dp),allocatable :: surface(:)
+    real(dp) :: nu(4,zlevels),pentagon(zlevels),saved(zlevels)
+    integer :: d,k,j,n
+    integer(int64) :: generation
+    if(.not.compressible.or.mode_split.or.NCAR_topo.or.sso.or.trim(test_case)/='climate'.or. &
+         trim(physics_type)/='Simple') &
+         error stop 'connected RHS unsupported model configuration'
+    generation=native_velocity_plan_generation()
+    if(connected_rhs_needs_prepare(generation)) then
+       call detail_enter(DP_RHS_PREP)
+       call detail_enter(DP_RHS_COMPILE)
+       call prepare_native_velocity_programs
+       call prepare_native_mass
+       allocate(plan(size(grid)),base(size(grid)+1));base(1)=0
+       do d=1,size(grid)
+          call compile_rhs_dynamics(grid(d),native_mass(d)%level,native_velocity(d),plan(d))
+          base(d+1)=base(d)+grid(d)%node%length
+       end do
+       allocate(surface(base(size(base))));surface=0
+       do d=1,size(grid)
+          n=grid(d)%node%length
+          do j=1,n
+             if(plan(d)%surface_visits(j)>0) surface(base(d)+j)=surf_geopot(d,j)
+          end do
+       end do
+       call detail_leave(DP_RHS_COMPILE)
+       call prepare_connected_rhs(plan,base,generation,surface)
+    call detail_enter(DP_RHS_TRANSFORM)
+       call prepare_connected_transform_geometry
+    call detail_leave(DP_RHS_TRANSFORM)
+       call detail_leave(DP_RHS_PREP)
+    end if
+    do k=1,zlevels
+       nu(:,k)=[nu_scale(S_MASS,k),nu_scale(S_TEMP,k),nu_scale(S_DIVU,k),nu_scale(S_ROTU,k)]
+    end do
+    pentagon=0
+    if(Laplace_divu==1) then
+       saved=C_visc(S_DIVU,:);C_visc(S_DIVU,:)=0.05_dp
+       do k=1,zlevels
+          pentagon(k)=nu_scale(S_DIVU,k)
+       end do
+       C_visc(S_DIVU,:)=saved
+    end if
+    call evaluate_connected_rhs(q,nu,pentagon)
+  end subroutine
 
   subroutine prepare_native_mass
     integer :: d,l,p,c,s,pass,n
