@@ -1,0 +1,147 @@
+{
+  "schema": "stage325-adversarial-resume-review-v1",
+  "reviewer": "independent design adversary subagent",
+  "decision": "ACCEPT_OFFLINE_CHANGES_WITH_NATIVE_DEPLOYMENT_PRECONDITIONS",
+  "initial_design_challenge_preceded_implementation": true,
+  "scope": "Read-only source review, independent local tests and checker evidence inspection; no native replay or solver qualification.",
+  "offline_implementation_findings_open": [],
+  "resolved_findings": [
+    {
+      "id": "R1",
+      "issue": "Partial SQLite merges cannot be trusted after interruption.",
+      "resolution": "Adopted closed database certification and atomic phase-directory publication. Interrupted cache builds are explicitly discarded and rebuilt; completed hashes and dependencies are revalidated.",
+      "status": "resolved"
+    },
+    {
+      "id": "R2",
+      "issue": "Provider progress callback had the wrong signature.",
+      "resolution": "Uses the full original six-argument route callback and exercises the real reconciler in composed tests.",
+      "status": "resolved"
+    },
+    {
+      "id": "R3",
+      "issue": "Cache wrapper replaced a failed backend verdict with passed=True.",
+      "resolution": "Requires backend passed=True plus exact stream/actual-read counts before certificate publication; failure cases are tested.",
+      "status": "resolved"
+    },
+    {
+      "id": "R4",
+      "issue": "Equal missing features in both arms can pass equality alone.",
+      "resolution": "Exact native row census is required before cache certification; equal missing feature fixtures fail before the pair gate.",
+      "status": "resolved"
+    },
+    {
+      "id": "R5",
+      "issue": "Native checker override paths did not necessarily identify executed code.",
+      "resolution": "Native overrides are forbidden. Actual imported module paths and bytes are bound; frozen reader lookup is independently pinned.",
+      "status": "resolved"
+    },
+    {
+      "id": "R6",
+      "issue": "Plain ValueError from native/accounting invariants did not create a semantic failure latch.",
+      "resolution": "Native semantic phases translate invariant failures to the shared failure type. Real accounting failure and failure-latch behavior are tested.",
+      "status": "resolved"
+    },
+    {
+      "id": "R7",
+      "issue": "Signals before store ownership lacked durable diagnostics; child exit status was omitted.",
+      "resolution": "Pre-ownership termination emits bounded stderr JSON. Owned attempts retain exact signal and phase history. Actual Pool worker exit codes are retained after cleanup.",
+      "status": "resolved"
+    },
+    {
+      "id": "R8",
+      "issue": "Qualified find_spec could execute an unexpected package initializer before validation.",
+      "resolution": "PathFinder validates the namespace without executing an initializer; fresh-process marker and reader-corruption tests establish rejection before code execution.",
+      "status": "resolved"
+    },
+    {
+      "id": "R9",
+      "issue": "A custom binding file was not part of protected input paths.",
+      "resolution": "The alternate binding file is protected explicitly; exact-copy protection is tested.",
+      "status": "resolved"
+    },
+    {
+      "id": "R10",
+      "issue": "Worker source attestations were executed but omitted from the bounded receipt.",
+      "resolution": "All worker proofs are validated for count, source, manifest and reader identity, then retained in the cache receipt.",
+      "status": "resolved"
+    },
+    {
+      "id": "R11",
+      "issue": "Real saved route family keys contain suffix syntax not accepted by the initial extractor.",
+      "resolution": "The retained saved-capture probe first failed and then passed after preserving authenticated route key strings and parsing only the tuple-encoded families.",
+      "status": "resolved"
+    },
+    {
+      "id": "R12",
+      "issue": "Export overhead was asserted more strongly than the evidence permits.",
+      "resolution": "Design/reporting describes removal of unnecessary materialization; it does not assign the old termination cause or claim target runtime sufficiency.",
+      "status": "resolved"
+    }
+  ],
+  "independent_tests": {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-B",
+      "-m",
+      "unittest",
+      "test_resume_state325",
+      "test_stream_compare325",
+      "test_resume_workflow325",
+      "test_resume_native325"
+    ],
+    "passed": true,
+    "tests": 75,
+    "seconds": 24.263,
+    "code_unchanged_during_tests": true,
+    "log": "adversarial-resume325-tests.log",
+    "log_sha256": "cf2259525fd2fadeac7374b4bca61654a79c20e1133275ca3b28091730260339",
+    "run_certificate": "adversarial-resume325-test-run.json"
+  },
+  "reviewed_code_sha256": {
+    "resume_state325.py": "fde514758e8afa855d0e0395e11e64542741449e2ab57976bd41ef74415b7a9b",
+    "stream_compare325.py": "007745b7002c6e14cc767326d3a8cc10e3546efc487533b2d6d5ab23e0ba9f15",
+    "resume_workflow325.py": "737d08f4dcb6b4059fa165fafb0428f069fff92fbc4eea2eab7d6e439d35b479",
+    "resume_native325.py": "3a6fa568244248f9bcd4b12d5b00ae598642be15af9e9c1beb5b1b217fd4d3f3",
+    "test_resume_state325.py": "96521d4c9422ec22d35bf65464030ee3a7c8591cf81ce67a2d990569eab55b97",
+    "test_stream_compare325.py": "a314e30bb28b8d5b7d4fdeff37a3be3dfba4eac16403edc256832a0ae9e71c82",
+    "test_resume_workflow325.py": "6de281348f43a47ef0875c1b7958afa3e6f749f451d33d4a782221e565ed9d96",
+    "test_resume_native325.py": "8195fc01cebf4606ac56989b39e2cce99f788594d3f649481a416e499ca8095a"
+  },
+  "saved_capture_scope_probe": {
+    "path": "resume325-saved-family-key-probe.json",
+    "sha256": "22f66c7d95d3e0dd84061a6cbf4d2164c6141fc80717565388e80727ca0a88b2",
+    "passed": true,
+    "source_job": 55569,
+    "rank": 0,
+    "families": 254,
+    "native_qualification": false
+  },
+  "safety_conclusions": [
+    "Progress counters and partial phase files have no qualification authority.",
+    "Completed state is hash-bound to exact source, executed checker, configuration, inputs and prerequisite certificates.",
+    "Direct sorted SQLite feature comparison and one bridge pair at a time preserve coverage and the actual inverse bridge checker without full feature/bridge exports.",
+    "Only explicit resume can reuse complete phases; semantic failure prevents ordinary resumption.",
+    "Existing source, sealed packages and native inputs are read-only; git diff reports no src changes."
+  ],
+  "native_deployment_preconditions": [
+    "A new sealed native runner must reinstate allocation/CPU, per-process and aggregate 16 GiB memory guards.",
+    "A new native allocation needs explicit authorization and complete cumulative budget/history accounting; only 44 seconds of the original budget remains.",
+    "Native end-to-end semantic/provider/value/work/preservation qualification is still incomplete and requires independent review before any conditional commit.",
+    "Fixture timings do not establish a sufficient target-hardware time allowance."
+  ],
+  "limitations": [
+    "No new target job, compiler, solver, performance measurement, automatic retry or budget extension was performed.",
+    "PhaseStore reservations are logical byte admission controls, not an operating-system filesystem quota. Native cache page allowances and bounded account writes must remain active.",
+    "The deleted databases from job55574 cannot be reconstructed by resume metadata; a future authorized replay must rebuild them once.",
+    "The process cannot record a signal after SIGKILL. Tests verify surviving complete certificates and avoid fabricating a signal event.",
+    "Changing checker/configuration/input bindings invalidates reusable state conservatively.",
+    "No solver performance benefit, cause of negative scaling or production promotion follows from these offline workflow tests."
+  ],
+  "native_qualification": false,
+  "performance_qualified": false,
+  "compiler_runs": 0,
+  "solver_runs": 0,
+  "native_jobs_submitted": 0,
+  "commit_authorized_by_this_review": false
+}

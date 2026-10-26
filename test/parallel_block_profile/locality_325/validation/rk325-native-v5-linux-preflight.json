@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/python-venv-1.0-bj2eoat2m3cvhwjbgauezeqbcp5puwdj/bin/python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-v"
+  ],
+  "elapsed_seconds": 47.45946268923581,
+  "log_bytes": 42688,
+  "log_sha256": "a83b5a1c886a8474c00df3c7fa03c77a02793873e5607931f6fcd682058f7a3c",
+  "new_jobs": 0,
+  "package_manifest_sha256": "e62059e17e54e4454396f5a21e8f6b789b2e286262888a6ff38dfc4da97403fb",
+  "passed": true,
+  "returncode": 0,
+  "skipped": 0,
+  "solver_runs": 0,
+  "tests": 288
+}

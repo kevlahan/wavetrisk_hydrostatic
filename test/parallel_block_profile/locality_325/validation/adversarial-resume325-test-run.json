@@ -1,0 +1,39 @@
+{
+  "returncode": 0,
+  "tests": 75,
+  "test_seconds": 24.263,
+  "wall_seconds": 24.43742237519473,
+  "command": [
+    "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "-B",
+    "-m",
+    "unittest",
+    "test_resume_state325",
+    "test_stream_compare325",
+    "test_resume_workflow325",
+    "test_resume_native325"
+  ],
+  "files_before": {
+    "resume_state325.py": "fde514758e8afa855d0e0395e11e64542741449e2ab57976bd41ef74415b7a9b",
+    "stream_compare325.py": "007745b7002c6e14cc767326d3a8cc10e3546efc487533b2d6d5ab23e0ba9f15",
+    "resume_workflow325.py": "737d08f4dcb6b4059fa165fafb0428f069fff92fbc4eea2eab7d6e439d35b479",
+    "resume_native325.py": "3a6fa568244248f9bcd4b12d5b00ae598642be15af9e9c1beb5b1b217fd4d3f3",
+    "test_resume_state325.py": "96521d4c9422ec22d35bf65464030ee3a7c8591cf81ce67a2d990569eab55b97",
+    "test_stream_compare325.py": "a314e30bb28b8d5b7d4fdeff37a3be3dfba4eac16403edc256832a0ae9e71c82",
+    "test_resume_workflow325.py": "6de281348f43a47ef0875c1b7958afa3e6f749f451d33d4a782221e565ed9d96",
+    "test_resume_native325.py": "8195fc01cebf4606ac56989b39e2cce99f788594d3f649481a416e499ca8095a"
+  },
+  "files_after": {
+    "resume_state325.py": "fde514758e8afa855d0e0395e11e64542741449e2ab57976bd41ef74415b7a9b",
+    "stream_compare325.py": "007745b7002c6e14cc767326d3a8cc10e3546efc487533b2d6d5ab23e0ba9f15",
+    "resume_workflow325.py": "737d08f4dcb6b4059fa165fafb0428f069fff92fbc4eea2eab7d6e439d35b479",
+    "resume_native325.py": "3a6fa568244248f9bcd4b12d5b00ae598642be15af9e9c1beb5b1b217fd4d3f3",
+    "test_resume_state325.py": "96521d4c9422ec22d35bf65464030ee3a7c8591cf81ce67a2d990569eab55b97",
+    "test_stream_compare325.py": "a314e30bb28b8d5b7d4fdeff37a3be3dfba4eac16403edc256832a0ae9e71c82",
+    "test_resume_workflow325.py": "6de281348f43a47ef0875c1b7958afa3e6f749f451d33d4a782221e565ed9d96",
+    "test_resume_native325.py": "8195fc01cebf4606ac56989b39e2cce99f788594d3f649481a416e499ca8095a"
+  },
+  "code_unchanged": true,
+  "log_sha256": "cf2259525fd2fadeac7374b4bca61654a79c20e1133275ca3b28091730260339",
+  "passed": true
+}

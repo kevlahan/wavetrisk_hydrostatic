@@ -1,0 +1,562 @@
+{
+  "scope": "Failure inspection of fixed rank101 only, not requalification or a full mismatch census",
+  "bindings": {
+    "qual-C0": {
+      "sha256": "d42e3fbd1f71c4ae609dae3bc59a3c0ba75d65366366ef5eec82fd4afa791d57",
+      "bytes": 5208359
+    },
+    "qual-L256": {
+      "sha256": "94b5535eec292f8eac017d3b9f8a193d42c9abb218f1b2c0c07bb38e1245876a",
+      "bytes": 5070640
+    }
+  },
+  "scopes": [
+    {
+      "scope": "((('step', 1), ('step322', 1), ('rk.final322', 1)), 'inverse.plan', 1)",
+      "fields_differing": [
+        {
+          "name": "node_id",
+          "a_count": 308,
+          "b_count": 308,
+          "same_multiset": true,
+          "different_positions": 6,
+          "sample": [
+            {
+              "offset": 296,
+              "control": 210,
+              "locality": 258
+            },
+            {
+              "offset": 297,
+              "control": 211,
+              "locality": 259
+            },
+            {
+              "offset": 298,
+              "control": 212,
+              "locality": 260
+            },
+            {
+              "offset": 299,
+              "control": 258,
+              "locality": 210
+            },
+            {
+              "offset": 300,
+              "control": 259,
+              "locality": 211
+            },
+            {
+              "offset": 301,
+              "control": 260,
+              "locality": 212
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "((('step', 1), ('step322', 1), ('rk.final322', 1), ('inverse.plan', 1)), 'inverse.node_map', 102)",
+      "fields_differing": [
+        {
+          "name": "slot",
+          "a_count": 321,
+          "b_count": 321,
+          "same_multiset": true,
+          "different_positions": 6,
+          "sample": [
+            {
+              "offset": 210,
+              "control": 297,
+              "locality": 300
+            },
+            {
+              "offset": 211,
+              "control": 298,
+              "locality": 301
+            },
+            {
+              "offset": 212,
+              "control": 299,
+              "locality": 302
+            },
+            {
+              "offset": 258,
+              "control": 300,
+              "locality": 297
+            },
+            {
+              "offset": 259,
+              "control": 301,
+              "locality": 298
+            },
+            {
+              "offset": 260,
+              "control": 302,
+              "locality": 299
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "((('step', 2), ('step322', 2), ('rk.final322', 2)), 'inverse.plan', 2)",
+      "fields_differing": [
+        {
+          "name": "node_id",
+          "a_count": 308,
+          "b_count": 308,
+          "same_multiset": true,
+          "different_positions": 6,
+          "sample": [
+            {
+              "offset": 296,
+              "control": 210,
+              "locality": 258
+            },
+            {
+              "offset": 297,
+              "control": 211,
+              "locality": 259
+            },
+            {
+              "offset": 298,
+              "control": 212,
+              "locality": 260
+            },
+            {
+              "offset": 299,
+              "control": 258,
+              "locality": 210
+            },
+            {
+              "offset": 300,
+              "control": 259,
+              "locality": 211
+            },
+            {
+              "offset": 301,
+              "control": 260,
+              "locality": 212
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "((('step', 2), ('step322', 2), ('rk.final322', 2), ('inverse.plan', 2)), 'inverse.node_map', 102)",
+      "fields_differing": [
+        {
+          "name": "slot",
+          "a_count": 321,
+          "b_count": 321,
+          "same_multiset": true,
+          "different_positions": 6,
+          "sample": [
+            {
+              "offset": 210,
+              "control": 297,
+              "locality": 300
+            },
+            {
+              "offset": 211,
+              "control": 298,
+              "locality": 301
+            },
+            {
+              "offset": 212,
+              "control": 299,
+              "locality": 302
+            },
+            {
+              "offset": 258,
+              "control": 300,
+              "locality": 297
+            },
+            {
+              "offset": 259,
+              "control": 301,
+              "locality": 298
+            },
+            {
+              "offset": 260,
+              "control": 302,
+              "locality": 299
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "((('step', 3), ('step322', 3), ('rk.final322', 3)), 'inverse.plan', 3)",
+      "fields_differing": [
+        {
+          "name": "node_id",
+          "a_count": 308,
+          "b_count": 308,
+          "same_multiset": true,
+          "different_positions": 6,
+          "sample": [
+            {
+              "offset": 296,
+              "control": 210,
+              "locality": 258
+            },
+            {
+              "offset": 297,
+              "control": 211,
+              "locality": 259
+            },
+            {
+              "offset": 298,
+              "control": 212,
+              "locality": 260
+            },
+            {
+              "offset": 299,
+              "control": 258,
+              "locality": 210
+            },
+            {
+              "offset": 300,
+              "control": 259,
+              "locality": 211
+            },
+            {
+              "offset": 301,
+              "control": 260,
+              "locality": 212
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "((('step', 3), ('step322', 3), ('rk.final322', 3), ('inverse.plan', 3)), 'inverse.node_map', 102)",
+      "fields_differing": [
+        {
+          "name": "slot",
+          "a_count": 321,
+          "b_count": 321,
+          "same_multiset": true,
+          "different_positions": 6,
+          "sample": [
+            {
+              "offset": 210,
+              "control": 297,
+              "locality": 300
+            },
+            {
+              "offset": 211,
+              "control": 298,
+              "locality": 301
+            },
+            {
+              "offset": 212,
+              "control": 299,
+              "locality": 302
+            },
+            {
+              "offset": 258,
+              "control": 300,
+              "locality": 297
+            },
+            {
+              "offset": 259,
+              "control": 301,
+              "locality": 298
+            },
+            {
+              "offset": 260,
+              "control": 302,
+              "locality": 299
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "((('step', 4), ('step322', 4), ('rk.final322', 4)), 'inverse.plan', 4)",
+      "fields_differing": [
+        {
+          "name": "node_id",
+          "a_count": 308,
+          "b_count": 308,
+          "same_multiset": true,
+          "different_positions": 6,
+          "sample": [
+            {
+              "offset": 296,
+              "control": 210,
+              "locality": 258
+            },
+            {
+              "offset": 297,
+              "control": 211,
+              "locality": 259
+            },
+            {
+              "offset": 298,
+              "control": 212,
+              "locality": 260
+            },
+            {
+              "offset": 299,
+              "control": 258,
+              "locality": 210
+            },
+            {
+              "offset": 300,
+              "control": 259,
+              "locality": 211
+            },
+            {
+              "offset": 301,
+              "control": 260,
+              "locality": 212
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "((('step', 4), ('step322', 4), ('rk.final322', 4), ('inverse.plan', 4)), 'inverse.node_map', 102)",
+      "fields_differing": [
+        {
+          "name": "slot",
+          "a_count": 321,
+          "b_count": 321,
+          "same_multiset": true,
+          "different_positions": 6,
+          "sample": [
+            {
+              "offset": 210,
+              "control": 297,
+              "locality": 300
+            },
+            {
+              "offset": 211,
+              "control": 298,
+              "locality": 301
+            },
+            {
+              "offset": 212,
+              "control": 299,
+              "locality": 302
+            },
+            {
+              "offset": 258,
+              "control": 300,
+              "locality": 297
+            },
+            {
+              "offset": 259,
+              "control": 301,
+              "locality": 298
+            },
+            {
+              "offset": 260,
+              "control": 302,
+              "locality": 299
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "common_feature_count": 1596,
+  "common_feature_differences": [
+    "(('fixed', (101, ((('step', 1), ('step322', 1), ('rk.final322', 1)), 'inverse.plan', 1))), 1)",
+    "(('fixed', (101, ((('step', 1), ('step322', 1), ('rk.final322', 1), ('inverse.plan', 1)), 'inverse.node_map', 102))), 1)",
+    "(('fixed', (101, ((('step', 2), ('step322', 2), ('rk.final322', 2)), 'inverse.plan', 2))), 1)",
+    "(('fixed', (101, ((('step', 2), ('step322', 2), ('rk.final322', 2), ('inverse.plan', 2)), 'inverse.node_map', 102))), 1)",
+    "(('fixed', (101, ((('step', 3), ('step322', 3), ('rk.final322', 3)), 'inverse.plan', 3))), 1)",
+    "(('fixed', (101, ((('step', 3), ('step322', 3), ('rk.final322', 3), ('inverse.plan', 3)), 'inverse.node_map', 102))), 1)",
+    "(('fixed', (101, ((('step', 4), ('step322', 4), ('rk.final322', 4)), 'inverse.plan', 4))), 1)",
+    "(('fixed', (101, ((('step', 4), ('step322', 4), ('rk.final322', 4), ('inverse.plan', 4)), 'inverse.node_map', 102))), 1)"
+  ],
+  "slot_checks": [
+    {
+      "epoch": 1,
+      "node_count": 308,
+      "same_unique_physical_nodes": true,
+      "reciprocal_slot_maps": true,
+      "identical_physical_keys": true,
+      "moved_slots": [
+        {
+          "control_slot": 297,
+          "locality_slot": 300,
+          "domain": 1,
+          "node": 210
+        },
+        {
+          "control_slot": 298,
+          "locality_slot": 301,
+          "domain": 1,
+          "node": 211
+        },
+        {
+          "control_slot": 299,
+          "locality_slot": 302,
+          "domain": 1,
+          "node": 212
+        },
+        {
+          "control_slot": 300,
+          "locality_slot": 297,
+          "domain": 1,
+          "node": 258
+        },
+        {
+          "control_slot": 301,
+          "locality_slot": 298,
+          "domain": 1,
+          "node": 259
+        },
+        {
+          "control_slot": 302,
+          "locality_slot": 299,
+          "domain": 1,
+          "node": 260
+        }
+      ]
+    },
+    {
+      "epoch": 2,
+      "node_count": 308,
+      "same_unique_physical_nodes": true,
+      "reciprocal_slot_maps": true,
+      "identical_physical_keys": true,
+      "moved_slots": [
+        {
+          "control_slot": 297,
+          "locality_slot": 300,
+          "domain": 1,
+          "node": 210
+        },
+        {
+          "control_slot": 298,
+          "locality_slot": 301,
+          "domain": 1,
+          "node": 211
+        },
+        {
+          "control_slot": 299,
+          "locality_slot": 302,
+          "domain": 1,
+          "node": 212
+        },
+        {
+          "control_slot": 300,
+          "locality_slot": 297,
+          "domain": 1,
+          "node": 258
+        },
+        {
+          "control_slot": 301,
+          "locality_slot": 298,
+          "domain": 1,
+          "node": 259
+        },
+        {
+          "control_slot": 302,
+          "locality_slot": 299,
+          "domain": 1,
+          "node": 260
+        }
+      ]
+    },
+    {
+      "epoch": 3,
+      "node_count": 308,
+      "same_unique_physical_nodes": true,
+      "reciprocal_slot_maps": true,
+      "identical_physical_keys": true,
+      "moved_slots": [
+        {
+          "control_slot": 297,
+          "locality_slot": 300,
+          "domain": 1,
+          "node": 210
+        },
+        {
+          "control_slot": 298,
+          "locality_slot": 301,
+          "domain": 1,
+          "node": 211
+        },
+        {
+          "control_slot": 299,
+          "locality_slot": 302,
+          "domain": 1,
+          "node": 212
+        },
+        {
+          "control_slot": 300,
+          "locality_slot": 297,
+          "domain": 1,
+          "node": 258
+        },
+        {
+          "control_slot": 301,
+          "locality_slot": 298,
+          "domain": 1,
+          "node": 259
+        },
+        {
+          "control_slot": 302,
+          "locality_slot": 299,
+          "domain": 1,
+          "node": 260
+        }
+      ]
+    },
+    {
+      "epoch": 4,
+      "node_count": 308,
+      "same_unique_physical_nodes": true,
+      "reciprocal_slot_maps": true,
+      "identical_physical_keys": true,
+      "moved_slots": [
+        {
+          "control_slot": 297,
+          "locality_slot": 300,
+          "domain": 1,
+          "node": 210
+        },
+        {
+          "control_slot": 298,
+          "locality_slot": 301,
+          "domain": 1,
+          "node": 211
+        },
+        {
+          "control_slot": 299,
+          "locality_slot": 302,
+          "domain": 1,
+          "node": 212
+        },
+        {
+          "control_slot": 300,
+          "locality_slot": 297,
+          "domain": 1,
+          "node": 258
+        },
+        {
+          "control_slot": 301,
+          "locality_slot": 298,
+          "domain": 1,
+          "node": 259
+        },
+        {
+          "control_slot": 302,
+          "locality_slot": 299,
+          "domain": 1,
+          "node": 260
+        }
+      ]
+    }
+  ],
+  "limitation": "This establishes six renumbered storage slots at fixed rank101, not equivalence of every live inverse consumer, other ranks, or cross-arm provider certificates. No checker changes or qualification retry.",
+  "elapsed_seconds": 2.2844985839910805
+}

@@ -1,0 +1,363 @@
+{
+  "passed": true,
+  "scope": "nine selected saved native captures; not world qualification",
+  "ranks": [
+    {
+      "arm": "checked-L256",
+      "rank": 1,
+      "reader": {
+        "rank": 1,
+        "records": 195182,
+        "physical_bytes": 15923761,
+        "logical_payload_bytes": 226471224,
+        "real_digest_records": 146206,
+        "stream_sha256": "07e799f7143179c8bad8ffcfdeade3f60d45c9f1e0a8ef6c555d20d0d8afd458",
+        "file": "execution316-rank-1.bin.gz",
+        "storage_orders": [
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "arm": "qual-C0",
+      "rank": 1,
+      "reader": {
+        "rank": 1,
+        "records": 186116,
+        "physical_bytes": 15353323,
+        "logical_payload_bytes": 180195984,
+        "real_digest_records": 144262,
+        "stream_sha256": "4f1983cd3827d2ce8d79104056426435e52a21474fcb98a38a3d0e81336e3c87",
+        "file": "execution316-rank-1.bin.gz",
+        "storage_orders": [
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "arm": "qual-C0",
+      "rank": 2,
+      "reader": {
+        "rank": 2,
+        "records": 186116,
+        "physical_bytes": 15391555,
+        "logical_payload_bytes": 184702728,
+        "real_digest_records": 144262,
+        "stream_sha256": "3a2bbd59541975c1561dfd6692eb0f69cbd281c8ef8e49e459a9aef36779fd8a",
+        "file": "execution316-rank-2.bin.gz",
+        "storage_orders": [
+          [
+            9,
+            7,
+            8
+          ],
+          [
+            9,
+            7,
+            8
+          ],
+          [
+            9,
+            7,
+            8
+          ],
+          [
+            9,
+            7,
+            8
+          ],
+          [
+            9,
+            7,
+            8
+          ]
+        ]
+      }
+    },
+    {
+      "arm": "qual-C0",
+      "rank": 69,
+      "reader": {
+        "rank": 69,
+        "records": 186116,
+        "physical_bytes": 15435187,
+        "logical_payload_bytes": 195124248,
+        "real_digest_records": 144262,
+        "stream_sha256": "6131032057b0943303946f4b33f002fa33c94fdfd283d1f31e96b346a871349a",
+        "file": "execution316-rank-69.bin.gz",
+        "storage_orders": [
+          [
+            208,
+            209,
+            210
+          ],
+          [
+            208,
+            209,
+            210
+          ],
+          [
+            208,
+            209,
+            210
+          ],
+          [
+            208,
+            209,
+            210
+          ],
+          [
+            208,
+            209,
+            210
+          ]
+        ]
+      }
+    },
+    {
+      "arm": "qual-C0",
+      "rank": 255,
+      "reader": {
+        "rank": 255,
+        "records": 11225,
+        "physical_bytes": 2297901,
+        "logical_payload_bytes": 15126490,
+        "real_digest_records": 844,
+        "stream_sha256": "3473ed5d84ff57ac355186756b872cd1f809e2368012023e7811bed671754fa6",
+        "file": "execution316-rank-255.bin.gz",
+        "storage_orders": [
+          [
+            640
+          ],
+          [
+            640
+          ],
+          [
+            640
+          ],
+          [
+            640
+          ],
+          [
+            640
+          ]
+        ]
+      }
+    },
+    {
+      "arm": "qual-L256",
+      "rank": 1,
+      "reader": {
+        "rank": 1,
+        "records": 186116,
+        "physical_bytes": 15353323,
+        "logical_payload_bytes": 180195984,
+        "real_digest_records": 144262,
+        "stream_sha256": "ee0e91e4cb66c587fce293af49fa39b86ed6581bfad5a1b29d5b52fa365ba295",
+        "file": "execution316-rank-1.bin.gz",
+        "storage_orders": [
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ],
+          [
+            5,
+            6,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "arm": "qual-L256",
+      "rank": 52,
+      "reader": {
+        "rank": 52,
+        "records": 186116,
+        "physical_bytes": 15361195,
+        "logical_payload_bytes": 180247056,
+        "real_digest_records": 144262,
+        "stream_sha256": "31ccdc04620bfb532dbc48c58f69ffb7b38112f5868edddc3700192a4de32f36",
+        "file": "execution316-rank-52.bin.gz",
+        "storage_orders": [
+          [
+            209,
+            210,
+            208
+          ],
+          [
+            209,
+            210,
+            208
+          ],
+          [
+            209,
+            210,
+            208
+          ],
+          [
+            209,
+            210,
+            208
+          ],
+          [
+            209,
+            210,
+            208
+          ]
+        ]
+      }
+    },
+    {
+      "arm": "qual-L256",
+      "rank": 160,
+      "reader": {
+        "rank": 160,
+        "records": 12017,
+        "physical_bytes": 3461659,
+        "logical_payload_bytes": 100769962,
+        "real_digest_records": 946,
+        "stream_sha256": "7cc58b536f5fa38658499dcf0323e740f9cdb23a522b64685b62f716373bd72b",
+        "file": "execution316-rank-160.bin.gz",
+        "storage_orders": [
+          [
+            7,
+            8,
+            9
+          ],
+          [
+            7,
+            8,
+            9
+          ],
+          [
+            7,
+            8,
+            9
+          ],
+          [
+            7,
+            8,
+            9
+          ],
+          [
+            7,
+            8,
+            9
+          ]
+        ]
+      }
+    },
+    {
+      "arm": "qual-L256",
+      "rank": 255,
+      "reader": {
+        "rank": 255,
+        "records": 11225,
+        "physical_bytes": 2297885,
+        "logical_payload_bytes": 15126474,
+        "real_digest_records": 844,
+        "stream_sha256": "6c58840ba9e96f934537951d5180e059a48df8b983eb4eb78d18bf0f2911565c",
+        "file": "execution316-rank-255.bin.gz",
+        "storage_orders": [
+          [
+            640
+          ],
+          [
+            640
+          ],
+          [
+            640
+          ],
+          [
+            640
+          ],
+          [
+            640
+          ]
+        ]
+      }
+    }
+  ],
+  "common_features": {
+    "count": 5450,
+    "roles": {
+      "publication-demand": 3716,
+      "numerical": 592,
+      "fixed": 876,
+      "retained": 160,
+      "numeric-owners": 16,
+      "block-retention-plan": 40,
+      "block": 50
+    },
+    "differences": [],
+    "control_only": 3192,
+    "candidate_only": 1904
+  },
+  "database_bytes": 40501248,
+  "elapsed_seconds": 8.625568124931306
+}

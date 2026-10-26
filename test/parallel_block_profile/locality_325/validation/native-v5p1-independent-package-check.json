@@ -1,0 +1,27 @@
+{
+  "archive": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/native-v5p1-build-v2/rk325-native-qualification-kit-v5p1.tar.gz",
+  "archive_sha256": "99fe77316934f2991f65ecf2e0c22ee15051f490ccb8f38a27c9fb78bc9f86b7",
+  "manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+  "payload_files": 196,
+  "logical_bytes_including_manifest": 9218067,
+  "critical_source_snapshot_matches": true,
+  "frozen_v4p1_manifest_sha256": "ff430542d8ab81078d522a2468a1ce1baa22bac501f922e534c839c7c47ee1bb",
+  "frozen_payload_files": 62,
+  "frozen_payload_verified": true,
+  "source_sha256": {
+    "native_runner325.py": "ded99578d86f3385986c531d30ecb5863eebcc6f935970e0035a6db9a9b11602",
+    "test_native_runner325.py": "ab52bea5bb29537fd1ca9cb4f8a36e81ad8745f45cb74a58f80d80e72079f569",
+    "resume_state325.py": "fde514758e8afa855d0e0395e11e64542741449e2ab57976bd41ef74415b7a9b",
+    "stream_compare325.py": "007745b7002c6e14cc767326d3a8cc10e3546efc487533b2d6d5ab23e0ba9f15",
+    "resume_workflow325.py": "737d08f4dcb6b4059fa165fafb0428f069fff92fbc4eea2eab7d6e439d35b479",
+    "resume_native325.py": "dcaefd6e0599177669bf9f2095ddaf270f96c26940c7ff5e06c4910b6434c3bf",
+    "build_native325.py": "730aff8f822d8712267f6bc5959861a7fb2317349fd955642ce300210b8a8d47",
+    "control_native325.py": "2c3dcfb12118d728056b6818cf7eccc4890f658fbe66ea94971dd51379c60e53",
+    "verification.sbatch": "2c9446c9c5368dcfac8c6ddd13a89eec747779a446d36c81e9900ca88bfc7639",
+    "launch.sh": "48b8835e24d9a761b0fa5d8885b36d9566e88e838c14bff592f0028b2c44a1a9",
+    "status.sh": "7e4ba15f8f671c1596fc9a44d58d752c2c44c66c293ce97345ffd7c299b18d85",
+    "collect.sh": "26442e1c9b8fbe3eebce98a621cdd98c6aef8e3bb08edaa39a6930835d9fd951",
+    "README.md": "abb1acf7433482d6d5bb452b3ffc8cb8bbe462010daf5a839933a249d37da3e4",
+    "test_native_campaign325.py": "93f9e70af96c5ae29f870f8dd74563740902d536db0f02a94c5916836b13770b"
+  }
+}

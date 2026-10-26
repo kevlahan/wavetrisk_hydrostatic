@@ -1,0 +1,213 @@
+{
+  "binding_scope": "Fresh original metadata/source/checker/config plus1536 input hashes and2 intrinsic saved rank0 family-inventory parses; no full semantic/provider comparison or solver rerun.",
+  "checked_reuse": {
+    "actual_read_hashes": 256,
+    "families": 254,
+    "passed": true,
+    "scope": "Earlier checked closure only; optimized proof recomputed.",
+    "semantic_sha256": "06f1f9ddfdcf7f4df9abc1b4c3078483e98827ca978bce8a9a6678560b09ce4a",
+    "source_job": 55573,
+    "streams": 256
+  },
+  "databases": {
+    "left_db": {
+      "bytes": 1228595200,
+      "canonical_path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/left.sqlite",
+      "expected_bytes": 1228595200,
+      "expected_sha256": "7e809511ed6ffd3ebaf994865679d6e05eef2a2eaaf8b9f44bd07bf1cb463508",
+      "lexical_path": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/left.sqlite",
+      "path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/left.sqlite",
+      "samefile": true,
+      "sha256": "7e809511ed6ffd3ebaf994865679d6e05eef2a2eaaf8b9f44bd07bf1cb463508",
+      "stat_after": {
+        "bytes": 1228595200,
+        "ctime_ns": 1793049040407887454,
+        "device": 49,
+        "inode": 21884093,
+        "links": 1,
+        "mtime_ns": 1793049010287033271,
+        "owner": 5318
+      },
+      "stat_before": {
+        "bytes": 1228595200,
+        "ctime_ns": 1793049040407887454,
+        "device": 49,
+        "inode": 21884093,
+        "links": 1,
+        "mtime_ns": 1793049010287033271,
+        "owner": 5318
+      }
+    },
+    "right_db": {
+      "bytes": 1162719232,
+      "canonical_path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/right.sqlite",
+      "expected_bytes": 1162719232,
+      "expected_sha256": "a789e3ed7c5dd48381d8e1955ac1e34e0ad0d11aafe9b56b38cb4048130af744",
+      "lexical_path": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/right.sqlite",
+      "path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/right.sqlite",
+      "samefile": true,
+      "sha256": "a789e3ed7c5dd48381d8e1955ac1e34e0ad0d11aafe9b56b38cb4048130af744",
+      "stat_after": {
+        "bytes": 1162719232,
+        "ctime_ns": 1793049043598872007,
+        "device": 49,
+        "inode": 21882414,
+        "links": 1,
+        "mtime_ns": 1793049035402911684,
+        "owner": 5318
+      },
+      "stat_before": {
+        "bytes": 1162719232,
+        "ctime_ns": 1793049043598872007,
+        "device": 49,
+        "inode": 21882414,
+        "links": 1,
+        "mtime_ns": 1793049035402911684,
+        "owner": 5318
+      }
+    }
+  },
+  "elapsed_seconds": 12.216976019088179,
+  "fresh_binding": {
+    "captures": "dd7aa26334a3d9b3a6d2aaa747cbb246f7c1f43691207d2fe4efec958f835fbb",
+    "checker": "edb8640ddf091ab72afca56497f6ff994c4097fa59b1697973b612ce9ca4ba63",
+    "config": "805d3955fa7902ccbe469ce753044c0810afefd83d0c0e3b70fca46d2f485294",
+    "source": "0dc5c160e154d0959719f03b6460a436fe0a2847dbd06b79e533bd496f3af031"
+  },
+  "full_input_hashes_matched": 1536,
+  "independent_review_required": true,
+  "job": 55576,
+  "metadata": {
+    "binaries": [
+      {
+        "kind": "checked",
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/sources/candidate/bin-rk325-checked/climate",
+        "sha256": "ad427c4fd890297d762cccb60427044158e1709ea464bcb079a0bbc1bfdec667"
+      },
+      {
+        "kind": "candidate",
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/sources/candidate/bin-rk325-candidate/climate",
+        "sha256": "b690e340b3878c58c1f8e29cb804c9a13fcaa152cc639a8f7ed4dc6aa2e6c473"
+      }
+    ],
+    "checkpoints": [
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/checked-L256/test_checkpoint_9900.bin.zst",
+        "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/checked-L256/test_checkpoint_9901.bin.zst",
+        "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-C0/test_checkpoint_9900.bin.zst",
+        "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-C0/test_checkpoint_9901.bin.zst",
+        "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-L256/test_checkpoint_9900.bin.zst",
+        "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-L256/test_checkpoint_9901.bin.zst",
+        "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      }
+    ],
+    "metadata_files": 3889,
+    "original_kit_files": 79,
+    "passed": true,
+    "science_policy": "Reuses byte-bound original native decoded science/placement checks; no new solver or independent checkpoint decode.",
+    "source_files": 258
+  },
+  "mutations": "None: no PhaseStore lock/session/reserve/commit APIs; stdout only.",
+  "native_qualification": false,
+  "output_identity": {
+    "canonical_path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out",
+    "canonical_stat": {
+      "device": 49,
+      "inode": 21883374
+    },
+    "lexical_path": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out",
+    "lexical_stat": {
+      "device": 49,
+      "inode": 21883374
+    },
+    "samefile": true
+  },
+  "package_manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+  "passed": true,
+  "performance_qualified": false,
+  "phase_certificate_sha256": {
+    "cache": "e684dd7f5d9017cb0599f26ed136dc656dfe618f50c3c2d89546f59dcb4b30a5",
+    "pair": "0c23696cc6ea19b5a50ef933ffe2faf4d75e2a3f84ed025f94c24f07c5e248e6",
+    "preservation": "6c5d6c1282a43f4138496a48d321429bee01618d45b4445c4d8c81b3bed75927",
+    "providers-C0": "0122e6d2b7e62874b988ff34d5217339f136d7ad2aed713b5f964989aefac6ea",
+    "providers-L256": "53a96675f51deb4b0162d7c3677b124310698d467b1c5d279626787f121fd6a4",
+    "work": "bc636c40e126df3d5f38cdc37ff078e8e856b091c91ce992fe116c41fd209fcb"
+  },
+  "scheduler": {
+    "clean_completion": true,
+    "command": [
+      "sacct",
+      "-n",
+      "-P",
+      "-X",
+      "-j",
+      "55576",
+      "-o",
+      "JobIDRaw,State,ExitCode,ElapsedRaw,Start,End,NodeList"
+    ],
+    "returncode": 0,
+    "row": [
+      "55576",
+      "COMPLETED",
+      "0:0",
+      "441",
+      "2026-10-26T17:08:26",
+      "2026-10-26T17:15:47",
+      "bb13"
+    ],
+    "stderr": "",
+    "stdout": "55576|COMPLETED|0:0|441|2026-10-26T17:08:26|2026-10-26T17:15:47|bb13\n",
+    "terminal": true
+  },
+  "scheduler_after": {
+    "clean_completion": true,
+    "command": [
+      "sacct",
+      "-n",
+      "-P",
+      "-X",
+      "-j",
+      "55576",
+      "-o",
+      "JobIDRaw,State,ExitCode,ElapsedRaw,Start,End,NodeList"
+    ],
+    "returncode": 0,
+    "row": [
+      "55576",
+      "COMPLETED",
+      "0:0",
+      "441",
+      "2026-10-26T17:08:26",
+      "2026-10-26T17:15:47",
+      "bb13"
+    ],
+    "stderr": "",
+    "stdout": "55576|COMPLETED|0:0|441|2026-10-26T17:08:26|2026-10-26T17:15:47|bb13\n",
+    "terminal": true
+  },
+  "source_binding": {
+    "passed": true,
+    "sources": {
+      "src/domain.f90": "54a09b07a979ba54d9695ea23d1b6ea76096893cf1106f9c73acc49f05f27ecd",
+      "src/parallel_block_inverse.f90": "65b936677196c97fabf0f4ec8363132c3e48e9e4ff1f17ba4e789d7781d60db0",
+      "src/parallel_block_mpi.f90": "c915cc2b6529b38ec7a74d41afb74bdb5caddd8c7731cb15ed76c8ea89755027",
+      "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84"
+    }
+  },
+  "state_file_sha256": "972aaa690d59e75e53b84e3367f933e4e1d586263d43eb6161fcdfa43001a21d"
+}

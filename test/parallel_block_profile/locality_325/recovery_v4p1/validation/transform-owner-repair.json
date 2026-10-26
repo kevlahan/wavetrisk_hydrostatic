@@ -1,0 +1,55 @@
+{
+  "status": "source-derived verifier correction; full-world native replay pending",
+  "source_evidence": {
+    "parallel_block_transform_placement.f90:237-248": "Initial owned=false,owner=-1,state_key=0,level=-1,mask=0. Only canonical Node_Record overwrites this complete tuple.",
+    "parallel_block_transform_placement.f90:82-87": "Each Node_Record emitted to node%owner, so owned rows must name the physical receiving rank.",
+    "parallel_block_rhs_placement.f90:86-99": "Uncatalogued scaffold nodes remain state_key=0 and are assigned to the Domain first block numerical owner; owned does not imply a positive catalogue key.",
+    "parallel_block_transform_backend.f90:827-829": "Actual provider directory registers owned physical keys; unowned placement owner=-1 is not a numerical rank or provider identity.",
+    "parallel_block_rhs_backend.f90:159-168": "Adapter sources are packed owned numerical prefix; appended fixed Domain rows are destinations, never sources."
+  },
+  "correction": [
+    "Validate complete dependency sentinel tuple and owner==physicalrank for owned rows.",
+    "Preserve -1 verbatim in numerical-owner feature identity; permute only actual owned rank labels.",
+    "Guard rank permutation against negative and out-of-range inputs.",
+    "Require backend.adapter_route sources to be owned numerical prefix rows; fixed consumer role remains unchanged."
+  ],
+  "broader_audit": [
+    {
+      "path": "feature_rows fixed Domain records/publication",
+      "proof": "coverage322 validates domain.local_glo_id == [rank] below160 and [] above; fixed records remain keyed by physicalrank."
+    },
+    {
+      "path": "feature_rows numerical/scaffold records",
+      "proof": "Placement transfers canonical nodes and complete ordered programs to owner; logical numerical group follows permutation even above160 and when statekey is zero."
+    },
+    {
+      "path": "route_map input routes",
+      "proof": "Physical block state providers bind actual installed addresses and catalogueowner; Domain adapter providers use fixed Domain key namespace."
+    },
+    {
+      "path": "route_map transform fixed-input routes",
+      "proof": "Explicit fixed prefix is Domain source storage. Destination slots are compact moving numerical rows; zero-Domain rank can own scaffold without acquiring a Domain source prefix."
+    },
+    {
+      "path": "route_map transform halos/publication",
+      "proof": "Actual provider wire closure retained. No generic owned-only rule for transform sources; alias writers can be nonowned. Publication separately requires canonical owned source."
+    },
+    {
+      "path": "_provenance",
+      "proof": "Fixed source prefix preserves physicalrank, numerical source uses inverseownerpermutation, physical state keys preserve catalogueidentity, and consumer identity remains separate."
+    }
+  ],
+  "tests": {
+    "methods": 71,
+    "transform_owner_and_adapter_methods": 15
+  },
+  "native_preflight": "native-matrix-owner-replay.json",
+  "limitations": "Selected nine captures validate per-rank gates and common feature identities; they cannot establish complete world route reconciliation or performance.",
+  "changed_files": {
+    "verify325.py": "dca208bed81d93109a77122461ae80f2857d6d71fb03eb5629a8f449cfc2d3a2",
+    "test_transform_owner325.py": "7da5b255bf2f16cc8e0862f347b25c9cbc17fdc8d2247026a89f7008a44276d3",
+    "probe_saved_matrix325.py": "8e2e59ef219d4cf7b39767b232e5fdfd8e3837edab3c46f407f05e738b8db13b"
+  },
+  "solver_source_changes": false,
+  "solver_reruns_required": false
+}

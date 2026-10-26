@@ -1,0 +1,165 @@
+{
+  "stage": 325,
+  "status": "fixed_case_native_qualification_passed_independently_reviewed",
+  "source_job": 55569,
+  "predecessor_replay_job": 55571,
+  "solver_source_changed": false,
+  "performance_qualified": false,
+  "tests": {
+    "complete_locality_suite_before_explicit_probe_tests": 101,
+    "additional_explicit_probe_tests": 8,
+    "recovery_package_tests": 91,
+    "fresh_recovery_extraction_tests": 91
+  },
+  "actual_saved_capture_probe": {
+    "captures": 9,
+    "shared_features_matched": 5450,
+    "scope": "Selected rank preflight; does not replace complete native provider proof"
+  },
+  "recovery_deployed_archive_sha256": "126c1c525f01c6a91bcd21474c6f97908e6c24d2d1ae5ebdc75bb8aaa760b3a9",
+  "reproduced_payload_manifest_sha256": "8635a4b2841e2b969390b9302bd167bd7fd5ab49e557e95127209810b87c4bfc",
+  "last_replay_job": 55576,
+  "native_qualification": true,
+  "full_provider_preflight_missing": false,
+  "failed_replay_verifier_sha256": "dca208bed81d93109a77122461ae80f2857d6d71fb03eb5629a8f449cfc2d3a2",
+  "file_hashes_at_failed_replay": {
+    "verify325.py": "dca208bed81d93109a77122461ae80f2857d6d71fb03eb5629a8f449cfc2d3a2",
+    "test_rhs_contract325.py": "b13384bbc36741d933b48f1a8a81470637d02c14bc7613222769ec8e26d76fa1",
+    "test_replay325.py": "8ec78a2608c1c65f9f350f4b1f708679617488c283db2a0afa85ddf74176f4d0",
+    "test_transform_owner325.py": "7da5b255bf2f16cc8e0862f347b25c9cbc17fdc8d2247026a89f7008a44276d3",
+    "probe_saved_matrix325.py": "768aa4d2a00481dd4a87806101b98978056b66d28611f9d1cfe8df58136d1faf",
+    "test_saved_probe325.py": "f56df39f12a8e89e50c21771fff09fa4a8cd277a205b94df4353f06e26ebd3a0"
+  },
+  "offline_repair": {
+    "report": "PROVIDER_PREFLIGHT.json",
+    "sha256": "762f79cbbd9c26bd010f7bc894ab356d91917e66e250bd45e3c02b6d7d3879f2",
+    "verifier_sha256": "7adce8a70ebf6b923f06414a3650dac5344337d5511bc2bd48c4f0dc8411314d",
+    "tests_passed": 128,
+    "native_qualification": false,
+    "new_native_job_submitted": false
+  },
+  "full_native_provider_proof_pending": false,
+  "resumable_offline_repair": {
+    "status": "offline_resumable_workflow_validated_native_gate_pending",
+    "report": "RESUME_VALIDATION.json",
+    "tests_passed": 258,
+    "new_target_jobs": 0,
+    "native_qualification": false,
+    "conditional_commit_done": false
+  },
+  "native_v5_terminal_review": {
+    "job": 55575,
+    "elapsed_raw_seconds": 0,
+    "status": "failed_preverification_address_space_guard",
+    "report": "NATIVE_V5_TERMINAL_REVIEW.json",
+    "capture_reads": 0,
+    "full_semantic_qualification": false,
+    "original_hashes_after": 1536,
+    "conditional_commit_done": false
+  },
+  "recovery_v4p1_terminal_review": {
+    "job": 55574,
+    "scheduler_status": "FAILED",
+    "start": "2026-10-26T14:59:47",
+    "end": "2026-10-26T15:04:11",
+    "elapsed_seconds": 264,
+    "cancellation_logged": "2026-10-26T15:04:02",
+    "seconds_to_logged_cancellation": 255,
+    "runner_elapsed_seconds": 262.6917078876868,
+    "failure_type": "bounded_verification_interrupted_by_handled_signal",
+    "error": "TimeoutError('Bounded five-minute continuation ending; no retry or budget extension')",
+    "signal_number_not_recorded": true,
+    "termination_cause_limit": "Installed handler catches SIGTERM and SIGALRM. Cancellation logged before270secondalarm and300secondlimit; exact delivered signal/source was not retained. Do not claim the270secondalarm or300secondallocation elapsed.",
+    "archive_sha256": "1257a2739076fd39046122314e6a232398b622ec6d3b91b812737a4762b44dc8",
+    "archive_bytes": 976591,
+    "verified_files": 75,
+    "sealed_payload_files": 62,
+    "package_manifest_sha256": "ff430542d8ab81078d522a2468a1ce1baa22bac501f922e534c839c7c47ee1bb",
+    "verifier_sha256": "d1a8f47e35a251dfe19a25c33b8bcbbb2d23c36124005d657521b74d0c472402",
+    "inverse_helper_sha256": "922fb34c70ab5110a6004a2a60534abf674c6549198e20f8e2009adfb821debe",
+    "parallel_worker_sha256": "e9537e41ca41f7c385b0f8c5aaab8dc222e75276884d3ff44fa01c92320733c4",
+    "completed_optimized_streams": 512,
+    "actual_read_hashes_matched": 512,
+    "worker_source_bindings_verified": 16,
+    "verified_shards": 16,
+    "merged_row_counts": {
+      "qual-C0": {
+        "route": 65024,
+        "domain": 256,
+        "context": 66048,
+        "feature": 508840
+      },
+      "qual-L256": {
+        "route": 65024,
+        "domain": 256,
+        "context": 66048,
+        "feature": 508840
+      }
+    },
+    "per_arm_provider_progress": {
+      "qual_C0": 254,
+      "qual_L256": 254
+    },
+    "families_per_arm": 254,
+    "final_provider_payloads_retained": false,
+    "optimized_pair_reconciled": false,
+    "inverse_cross_arm_bridges_compared": false,
+    "full_semantic_qualification": false,
+    "work_replay_completed": false,
+    "new_semantic_or_provider_assertion_failure_recorded": false,
+    "checked_arm_reused_job": 55573,
+    "checked_arm_reused_streams": 256,
+    "builds": 0,
+    "solver_runs": 0,
+    "performance_runs": 0,
+    "solver_source_changed": false,
+    "conditional_commit_done": false,
+    "native_unit_preflight": {
+      "tests": 183,
+      "passed": true,
+      "log_sha256": "d01b6b866af3b8a298088a623836bc011d7cd48ab4fb934441de2a2b36a02cf8"
+    },
+    "preceding_native_preflight": {
+      "submitted": false,
+      "tests": 183,
+      "errors": 4,
+      "log_sha256": "baa304393638150f0e7f483edcbd7c50ca7d94d153c9ac5410810fc922c8d9d8",
+      "reason": "SQLite URI compatibility; corrected and all183native tests passed before55574"
+    },
+    "historical_input_hashes_before": 1536,
+    "historical_input_hashes_after": 1536,
+    "postfailure_preservation": {
+      "check": "postfailure_preservation55574",
+      "passed": true,
+      "source_job": 55569,
+      "verification_job": 55574,
+      "metadata_files": 3889,
+      "source_files": 258,
+      "original_kit_files": 79,
+      "native_input_hashes": 1536,
+      "package_manifest_sha256": "ff430542d8ab81078d522a2468a1ce1baa22bac501f922e534c839c7c47ee1bb",
+      "elapsed_seconds": 5.058329847175628,
+      "solver_runs": 0,
+      "method": "Independent read-only post-terminal metadata/source/binary/checkpoint and all1536historical input hashes recheck; no semantic replay."
+    },
+    "sampled_peak_scratch_bytes": 2665915616,
+    "sampled_peak_aggregate_rss_bytes": 2405793792,
+    "sampled_peak_aggregate_virtual_bytes": 3378491392,
+    "resource_limit_violation_recorded": false,
+    "cumulative_target_elapsed_seconds": 2656,
+    "original_budget_seconds": 2700,
+    "remaining_original_budget_seconds": 44,
+    "automatic_retry": false,
+    "decision": "HOLD_QUALIFICATION_AND_CONDITIONAL_COMMIT; terminal review complete; no retry, solver, performance or budget extension.",
+    "independent_agent_review_sha256": "87ffdd36e95926e4b705bc2ab1e26f4bba9c9c504b27904b25e78c67008e3718"
+  },
+  "conditional_commit_supported": true,
+  "latest_terminal_review": {
+    "job": 55576,
+    "report": "NATIVE_V5P1_TERMINAL_REVIEW.json",
+    "report_sha256": "f42a81d861c4cb5037b49d6fd424563e58bd949f5e1cf289c724070f276defad",
+    "native_qualification": true,
+    "scope": "Saved fixedlevel5/tol0/256rank/fourstep source55569 only; no performance qualification",
+    "independent_review_sha256": "4fd21f847217b8efca55e866de3423db6998e0b108c07e697e66e3cbd30ea61c"
+  }
+}

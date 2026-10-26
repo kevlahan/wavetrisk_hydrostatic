@@ -1,0 +1,344 @@
+{
+  "stage": 325,
+  "date": "2026-10-26",
+  "status": "offline_provider_checker_preflight_passed_native_qualification_incomplete",
+  "verifier_sha256": "7adce8a70ebf6b923f06414a3650dac5344337d5511bc2bd48c4f0dc8411314d",
+  "source_bindings": {
+    "src/parallel_block_mpi.f90": "c915cc2b6529b38ec7a74d41afb74bdb5caddd8c7731cb15ed76c8ea89755027",
+    "src/parallel_block_inverse.f90": "65b936677196c97fabf0f4ec8363132c3e48e9e4ff1f17ba4e789d7781d60db0",
+    "src/parallel_block_rhs_exchange.f90": "2d970052e7cb9980f0a2df1919c1a441715a2f7a08f2f3783ed29aaf1145a33c",
+    "src/parallel_block_transform_adapter.f90": "24cecd477fc87bcab211453557693b6a8f2c753f2759b069ca236cf162523e26",
+    "src/parallel_block_transform_backend.f90": "8437f0924a84ed10f5e044646dfa74544dbedad4b264a32508ab31694d82386a"
+  },
+  "source_manifest_matches": true,
+  "configuration": {
+    "WAVETRISK_SHARED_GHOST_SOURCE": "0",
+    "WAVETRISK_STAGE192_SPARSE_OUTER": "0"
+  },
+  "tests": {
+    "passed": true,
+    "tests_run": 128,
+    "failures": 0,
+    "errors": 0,
+    "elapsed_seconds": 31.821272457949817,
+    "verifier_sha256": "7adce8a70ebf6b923f06414a3650dac5344337d5511bc2bd48c4f0dc8411314d",
+    "coverage": {
+      "route_certificates": {
+        "statement_lines": 75,
+        "executed_statement_lines": 74,
+        "unexecuted_statement_lines": [
+          594
+        ],
+        "executed_lines": [
+          589,
+          590,
+          591,
+          592,
+          593,
+          595,
+          596,
+          597,
+          598,
+          599,
+          600,
+          601,
+          602,
+          603,
+          604,
+          605,
+          609,
+          610,
+          611,
+          612,
+          613,
+          614,
+          615,
+          619,
+          620,
+          621,
+          622,
+          623,
+          624,
+          625,
+          626,
+          627,
+          629,
+          630,
+          631,
+          632,
+          633,
+          634,
+          635,
+          636,
+          639,
+          641,
+          642,
+          643,
+          644,
+          645,
+          646,
+          647,
+          648,
+          649,
+          650,
+          651,
+          654,
+          655,
+          656,
+          657,
+          658,
+          659,
+          660,
+          661,
+          662,
+          663,
+          664,
+          665,
+          667,
+          669,
+          670,
+          671,
+          674,
+          675,
+          676,
+          677,
+          678,
+          679
+        ]
+      },
+      "ghost_local_order325": {
+        "statement_lines": 23,
+        "executed_statement_lines": 23,
+        "unexecuted_statement_lines": [],
+        "executed_lines": [
+          558,
+          559,
+          560,
+          561,
+          562,
+          563,
+          564,
+          565,
+          566,
+          567,
+          568,
+          569,
+          570,
+          571,
+          572,
+          573,
+          574,
+          575,
+          576,
+          579,
+          580,
+          581,
+          582,
+          583,
+          584,
+          585,
+          586
+        ]
+      },
+      "inverse_transfer_contract325": {
+        "statement_lines": 11,
+        "executed_statement_lines": 11,
+        "unexecuted_statement_lines": [],
+        "executed_lines": [
+          532,
+          533,
+          534,
+          535,
+          536,
+          537,
+          538,
+          539,
+          540,
+          541,
+          542,
+          543,
+          544,
+          546,
+          547,
+          548
+        ]
+      }
+    },
+    "scope": "Checker tests only. Actual reconciler and SQLite used in provider-path tests; no provider reconciler mocks in those tests. Line execution does not prove every boolean combination or native correctness."
+  },
+  "actual_saved_capture_preflight": {
+    "passed": true,
+    "captures": 9,
+    "common_features": 5450,
+    "elapsed_seconds": 8.625568124931306,
+    "report_sha256": "1ad742a8ee89fe734154646ee3f5d25bed04a8bac9bd22bc0a2baa46104cd274",
+    "verifier_sha256": "7adce8a70ebf6b923f06414a3650dac5344337d5511bc2bd48c4f0dc8411314d"
+  },
+  "provider_inventory": {
+    "capture_sha256": "2c35cde979b2b9cb86cf5f430b33fcb7b775604c7f2516c67733daf1af99a4c7",
+    "arm": "checked-L256",
+    "rank": 0,
+    "total_provider_families": 254,
+    "scopes": [
+      {
+        "kind": "adapters",
+        "scope": "transform.scalar_adapter",
+        "families": 4
+      },
+      {
+        "kind": "adapters",
+        "scope": "transform.vector_adapter",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "backend.adapter_route",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "input.mean_route",
+        "families": 8
+      },
+      {
+        "kind": "routes",
+        "scope": "input.scalar_route",
+        "families": 8
+      },
+      {
+        "kind": "routes",
+        "scope": "input.vector_route",
+        "families": 8
+      },
+      {
+        "kind": "routes",
+        "scope": "rhs.prepare",
+        "families": 56
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.fixed_scalar_route",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.fixed_vector_route",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.scalar_halo",
+        "families": 12
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.scalar_initial",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.scalar_publication",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.scalar_wave_halo",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.vector_halo",
+        "families": 12
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.vector_initial",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.vector_publication",
+        "families": 4
+      },
+      {
+        "kind": "routes",
+        "scope": "transform.vector_wave_halo",
+        "families": 4
+      },
+      {
+        "kind": "static",
+        "scope": "ghost.plan",
+        "families": 5
+      },
+      {
+        "kind": "static",
+        "scope": "inverse.alias",
+        "families": 16
+      },
+      {
+        "kind": "static",
+        "scope": "inverse.boundary",
+        "families": 4
+      },
+      {
+        "kind": "static",
+        "scope": "inverse.interior",
+        "families": 4
+      },
+      {
+        "kind": "static",
+        "scope": "inverse.level_boundary",
+        "families": 24
+      },
+      {
+        "kind": "static",
+        "scope": "inverse.level_interior",
+        "families": 24
+      },
+      {
+        "kind": "static",
+        "scope": "inverse.outer_install",
+        "families": 8
+      },
+      {
+        "kind": "static",
+        "scope": "inverse.range_alias",
+        "families": 16
+      },
+      {
+        "kind": "static",
+        "scope": "writeback.plan",
+        "families": 5
+      }
+    ]
+  },
+  "same_input_old_new_comparison": {
+    "passed": true,
+    "same_input_database": true,
+    "original_verifier_sha256": "dca208bed81d93109a77122461ae80f2857d6d71fb03eb5629a8f449cfc2d3a2",
+    "original_failure": "'ghost_exchange_plan%local_order297'",
+    "repaired_verifier_sha256": "7adce8a70ebf6b923f06414a3650dac5344337d5511bc2bd48c4f0dc8411314d",
+    "repaired_counts": {
+      "families": 1,
+      "resolved_consumers": 3,
+      "publication_imported_consumers": 0
+    },
+    "scope": "Constructed complete256-rank ghost world, including real failed allocation state. Not native world qualification."
+  },
+  "native_fixture": {
+    "path": "fixture/native-ghost55569-rank0.json.gz",
+    "bytes": 961,
+    "sha256": "2ff0dadecc9064a2cc4b70b2e49945e6f634a5eee419eaaca8047f827c93e714"
+  },
+  "original_v2_payload_manifest_preserved": "8635a4b2841e2b969390b9302bd167bd7fd5ab49e557e95127209810b87c4bfc",
+  "no_new_solver_runs": true,
+  "no_new_native_replay": true,
+  "performance_qualified": false,
+  "remaining_original_target_budget_seconds": 1819,
+  "limitations": [
+    "Constructed whole-world cases establish checker behavior, not full native identity.",
+    "Selected actual captures do not include every rank or close all actual provider edges.",
+    "Line coverage does not establish every boolean condition combination.",
+    "No net performance gain or slowdown attribution is established."
+  ]
+}

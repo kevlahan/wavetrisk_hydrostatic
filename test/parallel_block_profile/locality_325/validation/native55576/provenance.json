@@ -1,0 +1,165 @@
+{
+  "approved_package_manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+  "approved_source_archive_sha256": "99fe77316934f2991f65ecf2e0c22ee15051f490ccb8f38a27c9fb78bc9f86b7",
+  "copied_original_bytes": 834065,
+  "copied_original_files": 24,
+  "copy_policy": "All original bytes are unchanged. Only work/out JSON phase proofs, state/environment/completion/supervisor records, native preflight log and original accounting/submission are copied. No kit code, SQLite, captures, checkpoint, TSV, vectors or compressed review archive is included.",
+  "exact_original_subset": [
+    {
+      "bytes": 297,
+      "path": "accounting.json",
+      "sha256": "ae34d03566bd81ecd7b6aa150988a194ab07d7be41a1755cfe6d84cda40a041e"
+    },
+    {
+      "bytes": 1297,
+      "path": "submission.json",
+      "sha256": "972aaa690d59e75e53b84e3367f933e4e1d586263d43eb6161fcdfa43001a21d"
+    },
+    {
+      "bytes": 311,
+      "path": "work/out/environment.json",
+      "sha256": "8bf97537c0f971c71afcda226d451dc4784c32009649b0dd9b5794d132f2b32e"
+    },
+    {
+      "bytes": 6234,
+      "path": "work/out/state.attempt.json",
+      "sha256": "e47b0f1e375f98a164aff6dc99cb40468bb95df98ddde8a45ec1bb5bbc342ed7"
+    },
+    {
+      "bytes": 569,
+      "path": "work/out/state/identity.json",
+      "sha256": "17bbb1c305fae9e2864543b54cd4df470604665560d3f324b21f9a0946b31b8a"
+    },
+    {
+      "bytes": 108618,
+      "path": "work/out/state/phases/cache/cache-receipt.json",
+      "sha256": "35ba1ba5f332b57618a5def23df05ee72b9c50b40067cd3453ed91e87d753588"
+    },
+    {
+      "bytes": 2177,
+      "path": "work/out/state/phases/cache/certificate.json",
+      "sha256": "e684dd7f5d9017cb0599f26ed136dc656dfe618f50c3c2d89546f59dcb4b30a5"
+    },
+    {
+      "bytes": 785,
+      "path": "work/out/state/phases/pair/certificate.json",
+      "sha256": "0c23696cc6ea19b5a50ef933ffe2faf4d75e2a3f84ed025f94c24f07c5e248e6"
+    },
+    {
+      "bytes": 2200,
+      "path": "work/out/state/phases/pair/pair.json",
+      "sha256": "95e848b6b1696817cf116621dc8735d5ed1d68442f14e0443da49e82c840d59c"
+    },
+    {
+      "bytes": 440,
+      "path": "work/out/state/phases/preservation/certificate.json",
+      "sha256": "6c5d6c1282a43f4138496a48d321429bee01618d45b4445c4d8c81b3bed75927"
+    },
+    {
+      "bytes": 2991,
+      "path": "work/out/state/phases/preservation/preservation.json",
+      "sha256": "25084b7a7b000ff5fc997e22ada8df4339a3688e957e14e19fca2390240b5fbd"
+    },
+    {
+      "bytes": 485,
+      "path": "work/out/state/phases/providers-C0/certificate.json",
+      "sha256": "0122e6d2b7e62874b988ff34d5217339f136d7ad2aed713b5f964989aefac6ea"
+    },
+    {
+      "bytes": 50612,
+      "path": "work/out/state/phases/providers-C0/providers.json",
+      "sha256": "da737f412c418a01c36cd93bdaf206bb4969d01f4118a73e14db68d7ef5cabca"
+    },
+    {
+      "bytes": 487,
+      "path": "work/out/state/phases/providers-L256/certificate.json",
+      "sha256": "53a96675f51deb4b0162d7c3677b124310698d467b1c5d279626787f121fd6a4"
+    },
+    {
+      "bytes": 50615,
+      "path": "work/out/state/phases/providers-L256/providers.json",
+      "sha256": "d925d224b8e172646e9dccf693a80d6db87e1cb2179935987e53f81106a3876e"
+    },
+    {
+      "bytes": 625,
+      "path": "work/out/state/phases/work/certificate.json",
+      "sha256": "bc636c40e126df3d5f38cdc37ff078e8e856b091c91ce992fe116c41fd209fcb"
+    },
+    {
+      "bytes": 108216,
+      "path": "work/out/state/phases/work/work-read-checks.json",
+      "sha256": "d3b7f4e7d0f7f419db172e45f7876aeda6979f768a3be179b282abf22e639504"
+    },
+    {
+      "bytes": 449566,
+      "path": "work/out/state/phases/work/work-report.json",
+      "sha256": "47872708d18d32f69ea987ca49aae42bf3db051ab04601a9bdb9b1bdeaaa37a9"
+    },
+    {
+      "bytes": 222,
+      "path": "work/out/state/reservations.json",
+      "sha256": "c212eabedf3202ca245db29db94df06d0e6078042bc0b20c0d245f5d34a85d38"
+    },
+    {
+      "bytes": 154,
+      "path": "work/out/state/session.json",
+      "sha256": "79e8e94dcb18538135faa7156260ad1662657e2e5c544c8a2b502dbdd742ec0a"
+    },
+    {
+      "bytes": 2418,
+      "path": "work/out/supervisor-report.json",
+      "sha256": "b7b7768a6c8a4582411b19f154a802a5ad314f01dcdac536222ae79c82286af1"
+    },
+    {
+      "bytes": 648,
+      "path": "work/out/worker-complete.json",
+      "sha256": "6b3d504187534acdd494b46c8bee6e980dd9e95bbd018fef666f42fcfc75ec78"
+    },
+    {
+      "bytes": 496,
+      "path": "work/out/worker-environment.json",
+      "sha256": "1b0b0abd2e13c807712de7fe7f55d1314761e060a8f3617c13d5e711d985c0f1"
+    },
+    {
+      "bytes": 43602,
+      "path": "work/preflight-tests.log",
+      "sha256": "c1eff70a01f691f1e06f5ea025ee373300c62b8c5f4826fa34c6557f3fd1afab"
+    }
+  ],
+  "independent_review_receipt_sha256": "4fd21f847217b8efca55e866de3423db6998e0b108c07e697e66e3cbd30ea61c",
+  "job": 55576,
+  "limitations": [
+    "The compact capsule preserves the exact bounded evidence chain, not raw captures or derived databases.",
+    "Full replay remains dependent on separately preserved original inputs, sealed code and hash-bound native databases; those are not copied into Git.",
+    "Qualification and counted traffic changes do not establish a solver speedup, performance promotion or the primary cause of negative scaling."
+  ],
+  "postterminal_source_and_database_receipt_sha256": "8916e2f5878d5b6e1797b27e31ee601e73c63d316e164712f628f1cb4d61cce1",
+  "proof_scope": {
+    "actual_work_reads": 768,
+    "features_per_arm": 508840,
+    "final_original_input_hashes": 1536,
+    "optimized_capture_reads": 512,
+    "physical_bridges": 1024,
+    "provider_families_per_arm": 254
+  },
+  "reproduction_scripts": [
+    {
+      "bytes": 29548,
+      "destination": "test/parallel_block_profile/locality_325/validation/review_native_v5_independent.py",
+      "sha256": "05d86fe2dc5688401ff000cd866f11de91fd1aa80ae923622f52245cb52bc64f",
+      "source": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/review-native-v5-independent.py"
+    },
+    {
+      "bytes": 14260,
+      "destination": "test/parallel_block_profile/locality_325/validation/postterminal55576.py",
+      "sha256": "c8e39a7732f3ef6a0b6e3710ef15df1227041caa49e415d47856c894dd2cc058",
+      "source": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/postterminal55576.py"
+    }
+  ],
+  "schema": "stage325-native55576-bounded-provenance-capsule-v1",
+  "source_job": 55569,
+  "source_review_archive_bytes": 1864493,
+  "source_review_archive_sha256": "67e5823b502e5c40d36b37144f71fc7752b2b5132f3d82ef59ae1b5a8864ecd0",
+  "source_review_manifest_payload_files": 227,
+  "source_review_manifest_sha256": "64bcfa84feb3db878a027fcf889f93a20ee31b816bac8414920f99eb1fad7933"
+}

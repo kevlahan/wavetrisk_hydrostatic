@@ -1,5 +1,12 @@
 # Stage325: exact 256-owner locality qualification
 
+Current status: job55576 and independent review passed the complete saved-capture
+qualification for fixed level5, tol0, 256ranks and four steps. See
+`NATIVE_V5P1_TERMINAL_REVIEW.json` and
+`docs/parallel-blocks-stage325-native-v5-qualification.md` at the repository root.
+Performance remains unqualified. The original campaign recipe below is retained
+for reproduction; it is not authorization to submit another campaign.
+
 This is a correctness and changed-work gate. It schedules **two serial full solver builds and three 256-rank solver launches**, each initialization plus four steps. It schedules **zero performance runs**. The optimized control and candidate share the same binary. The checked candidate enables the existing numerical/reference checks.
 
 The exact GCC 13.2.0 C/Fortran and MVAPICH 4.0 identities, native runtime/linkage and physics-object checks pass before the first solver. Two small gate executables are also compiled; 17 callback cases, one MPI identity launch and one 256-rank placement probe precede the three solver launches. The chosen placement must equal the source-bound prior bb13 placement.

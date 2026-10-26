@@ -1,0 +1,39 @@
+{
+  "automatic_retry": false,
+  "builds": 0,
+  "independent_review_required": true,
+  "job": 55576,
+  "kit": "/1/home/kevlahan/rk325-native-qualification-kit-v5p1",
+  "log": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i/slurm.log",
+  "new_budget_remaining_seconds": 1800,
+  "original_budget_used_seconds": 2656,
+  "out": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out",
+  "package_manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+  "performance_runs": 0,
+  "predecessor_elapsed_seconds": 0,
+  "predecessor_job": 55575,
+  "preflight": {
+    "command": [
+      "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/python-venv-1.0-bj2eoat2m3cvhwjbgauezeqbcp5puwdj/bin/python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-v"
+    ],
+    "elapsed_seconds": 47.6771706501022,
+    "log_bytes": 43602,
+    "log_sha256": "c1eff70a01f691f1e06f5ea025ee373300c62b8c5f4826fa34c6557f3fd1afab",
+    "passed": true,
+    "returncode": 0
+  },
+  "preflight_log": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i/preflight-tests.log",
+  "revision": "native-qualification-v5p1",
+  "schema": 1,
+  "solver_runs": 0,
+  "source_job": 55569,
+  "stage": 325,
+  "status": "submitted",
+  "walltime_seconds": 1800,
+  "work": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i"
+}

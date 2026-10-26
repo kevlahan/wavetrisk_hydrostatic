@@ -1,0 +1,89 @@
+{
+  "stage": 325,
+  "date": "2026-10-26",
+  "status": "offline_resumable_workflow_validated_native_gate_pending",
+  "adversarial_review_before_implementation": true,
+  "tests": {
+    "total": 258,
+    "existing": 183,
+    "new": 75,
+    "store": 19,
+    "stream_compare": 30,
+    "workflow": 12,
+    "native_adapter": 14,
+    "elapsed_seconds": 34.739,
+    "log": "validation/resume325-complete-tests.log",
+    "log_sha256": "ce243861799d800668655d009352072fc0c99ddde6999988d136393bf14cd514"
+  },
+  "code_sha256": {
+    "resume_state325.py": "fde514758e8afa855d0e0395e11e64542741449e2ab57976bd41ef74415b7a9b",
+    "stream_compare325.py": "007745b7002c6e14cc767326d3a8cc10e3546efc487533b2d6d5ab23e0ba9f15",
+    "resume_workflow325.py": "737d08f4dcb6b4059fa165fafb0428f069fff92fbc4eea2eab7d6e439d35b479",
+    "resume_native325.py": "3a6fa568244248f9bcd4b12d5b00ae598642be15af9e9c1beb5b1b217fd4d3f3",
+    "test_resume_state325.py": "96521d4c9422ec22d35bf65464030ee3a7c8591cf81ce67a2d990569eab55b97",
+    "test_stream_compare325.py": "a314e30bb28b8d5b7d4fdeff37a3be3dfba4eac16403edc256832a0ae9e71c82",
+    "test_resume_workflow325.py": "6de281348f43a47ef0875c1b7958afa3e6f749f451d33d4a782221e565ed9d96",
+    "test_resume_native325.py": "8195fc01cebf4606ac56989b39e2cce99f788594d3f649481a416e499ca8095a"
+  },
+  "evidence": {
+    "resume325-saved-family-key-initial-failure.json": {
+      "path": "validation/resume325-saved-family-key-initial-failure.json",
+      "sha256": "907dac883382f28272fdee541aca40587099d0aa8e736b47460b2cc244e55f41"
+    },
+    "resume325-saved-family-key-probe.json": {
+      "path": "validation/resume325-saved-family-key-probe.json",
+      "sha256": "22f66c7d95d3e0dd84061a6cbf4d2164c6141fc80717565388e80727ca0a88b2"
+    },
+    "resume325-composed-fixture-report.json": {
+      "path": "validation/resume325-composed-fixture-report.json",
+      "sha256": "a12bd4ddee66917ebc7a2d952ded990fdcb2445fbf78c90d36715ffbc57481ca"
+    },
+    "resume325-historical-preservation.json": {
+      "path": "validation/resume325-historical-preservation.json",
+      "sha256": "4da7beb139693df8d609c2fe08a4c86bd73458c7691f796d5f98f93f94c41c61"
+    },
+    "adversarial-resume325.json": {
+      "path": "validation/adversarial-resume325.json",
+      "sha256": "0b960088a41e8d39719a2726b809ad77374b762781dd0ca4c53b98211fe1ee05"
+    },
+    "adversarial-resume325-test-run.json": {
+      "path": "validation/adversarial-resume325-test-run.json",
+      "sha256": "f0ee081c26d0d363bf40108fd02fc4edb5f12ed31468afaf2d349bb5f8d78ed7"
+    },
+    "adversarial-resume325-tests.log": {
+      "path": "validation/adversarial-resume325-tests.log",
+      "sha256": "cf2259525fd2fadeac7374b4bca61654a79c20e1133275ca3b28091730260339"
+    }
+  },
+  "native_qualification": false,
+  "performance_qualified": false,
+  "source_job": 55569,
+  "last_native_job": 55574,
+  "new_target_jobs": 0,
+  "solver_runs": 0,
+  "compiler_runs": 0,
+  "performance_runs": 0,
+  "conditional_commit_done": false,
+  "monitor": "remains paused after55574terminal review",
+  "original_budget": {
+    "total_seconds": 2700,
+    "used_seconds": 2656,
+    "remaining_seconds": 44,
+    "extended": false
+  },
+  "limitations": [
+    "Deleted55574derived caches cannot be recovered; next native gate needs a fresh derived rebuild from preserved captures",
+    "Fixture timings are not target runtime estimates",
+    "Native deployment still needs separately authorized time budget, allocation guards and16GiB aggregate process-memory enforcement",
+    "Full optimized pair/1024bridges/work/source-preservation native validation and independent review remain required before conditional commit"
+  ],
+  "documentation": "docs/parallel-blocks-stage325-resumable-verification.md",
+  "independent_review": {
+    "status": "accepted_offline_changes_only",
+    "tests": 75,
+    "elapsed_seconds": 24.263,
+    "code_hashes_unchanged": true,
+    "open_offline_findings": 0,
+    "report": "validation/adversarial-resume325.json"
+  }
+}

@@ -1,0 +1,1844 @@
+{
+  "status": "original_premises_passed_full_native_gate_still_required",
+  "date": "2026-10-26",
+  "source_job": 55569,
+  "scope": "Independent local review of original bounded archive metadata, source payloads and current candidate commit; no new checkpoint decode, native replay, solver, SSH or job.",
+  "review_integrity": {
+    "files": 3975,
+    "manifest_sha256": "10894e8a35b18ac748e301e1affaab7f7af8b637d9b867e6e8d3a88c3762df04"
+  },
+  "original_review_archive_sha256": "a9df88afe7f9fce4d8421bf60e6facfee8103fb9242c33331fc38276761481e6",
+  "original_kit": {
+    "files": 79,
+    "manifest_sha256": "b9e71b552ffc91d41b26d7416479f6fa8b2c3eb6af431560472cb1b9258692cb"
+  },
+  "original_ledger": {
+    "status": "failed",
+    "error": "AuditError('physical.rhs_components')",
+    "qualification": null,
+    "performance_measurement": false,
+    "performance_qualified": false
+  },
+  "sources": {
+    "candidate_files": 258,
+    "source_manifest_sha256": "853e141ba0262a3aa54966bd8f3d2e8bed0454b6c6084585f25d63d46392cbdd",
+    "tar_payloads_match_manifest": true,
+    "current_worktree_files_match_all258": true,
+    "HEAD_files_match_all258": true,
+    "no_tracked_solver_delta_since": "981bf2291df9ea7395d776064e7b45f228135871"
+  },
+  "configuration": {
+    "max_level": "5",
+    "tol": "0",
+    "zlevels": "30",
+    "resume": "3",
+    "physics_type": "Simple",
+    "NCAR_topo": "F",
+    "sso": "F"
+  },
+  "toolchain": {
+    "status": "passed",
+    "gcc": "13.2.0",
+    "mvapich": "4.0",
+    "both_serial_builds_passed": true
+  },
+  "runs": {
+    "checked-L256": {
+      "passed": true,
+      "kind": "checked",
+      "owner": "L256",
+      "ranks": 256,
+      "steps": 4,
+      "input_sha256": "6206c21a085f96a223873b67faf6f8d91723d71a3973a0a153840ac4256828a9",
+      "binary_sha256": "ad427c4fd890297d762cccb60427044158e1709ea464bcb079a0bbc1bfdec667",
+      "seed_sha256": "5735cc8e6e43ef76d7b2ec0b311e5980ad9a08a784794122eb70525fad9c538c",
+      "science_checks": {
+        "initial-legacy-exact": {
+          "passed": true,
+          "sha256_exact": true
+        },
+        "final-legacy-tolerance": {
+          "passed": true,
+          "sha256_exact": false
+        }
+      },
+      "legacy_max_abs_by_variable": {
+        "velocity": 1.2678746941219288e-13,
+        "mass": 3.410605131648481e-13,
+        "temperature": 1.1641532182693481e-10
+      },
+      "checkpoints": {
+        "9900": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406",
+        "9901": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      },
+      "activation": {
+        "tol": 0.0,
+        "iterations": 2,
+        "missing": 0,
+        "level_start": 5,
+        "level_end": 5,
+        "max_level": 5,
+        "atmospheric_threshold_bounds": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "subdivision": "2",
+      "solver_placement_passed": true,
+      "original_work_passed": true
+    },
+    "qual-C0": {
+      "passed": true,
+      "kind": "candidate",
+      "owner": "off",
+      "ranks": 256,
+      "steps": 4,
+      "input_sha256": "6206c21a085f96a223873b67faf6f8d91723d71a3973a0a153840ac4256828a9",
+      "binary_sha256": "b690e340b3878c58c1f8e29cb804c9a13fcaa152cc639a8f7ed4dc6aa2e6c473",
+      "seed_sha256": "5735cc8e6e43ef76d7b2ec0b311e5980ad9a08a784794122eb70525fad9c538c",
+      "science_checks": {
+        "initial-legacy-exact": {
+          "passed": true,
+          "sha256_exact": true
+        },
+        "final-legacy-tolerance": {
+          "passed": true,
+          "sha256_exact": false
+        },
+        "control-prior-exact": {
+          "passed": true,
+          "sha256_exact": true
+        }
+      },
+      "legacy_max_abs_by_variable": {
+        "velocity": 1.2678746941219288e-13,
+        "mass": 3.410605131648481e-13,
+        "temperature": 1.1641532182693481e-10
+      },
+      "checkpoints": {
+        "9900": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406",
+        "9901": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      },
+      "activation": {
+        "tol": 0.0,
+        "iterations": 2,
+        "missing": 0,
+        "level_start": 5,
+        "level_end": 5,
+        "max_level": 5,
+        "atmospheric_threshold_bounds": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "subdivision": "2",
+      "solver_placement_passed": true,
+      "original_work_passed": true
+    },
+    "qual-L256": {
+      "passed": true,
+      "kind": "candidate",
+      "owner": "L256",
+      "ranks": 256,
+      "steps": 4,
+      "input_sha256": "6206c21a085f96a223873b67faf6f8d91723d71a3973a0a153840ac4256828a9",
+      "binary_sha256": "b690e340b3878c58c1f8e29cb804c9a13fcaa152cc639a8f7ed4dc6aa2e6c473",
+      "seed_sha256": "5735cc8e6e43ef76d7b2ec0b311e5980ad9a08a784794122eb70525fad9c538c",
+      "science_checks": {
+        "initial-legacy-exact": {
+          "passed": true,
+          "sha256_exact": true
+        },
+        "final-legacy-tolerance": {
+          "passed": true,
+          "sha256_exact": false
+        },
+        "paired-9900-exact": {
+          "passed": true,
+          "sha256_exact": true
+        },
+        "paired-9901-exact": {
+          "passed": true,
+          "sha256_exact": true
+        }
+      },
+      "legacy_max_abs_by_variable": {
+        "velocity": 1.2678746941219288e-13,
+        "mass": 3.410605131648481e-13,
+        "temperature": 1.1641532182693481e-10
+      },
+      "checkpoints": {
+        "9900": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406",
+        "9901": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      },
+      "activation": {
+        "tol": 0.0,
+        "iterations": 2,
+        "missing": 0,
+        "level_start": 5,
+        "level_end": 5,
+        "max_level": 5,
+        "atmospheric_threshold_bounds": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "subdivision": "2",
+      "solver_placement_passed": true,
+      "original_work_passed": true
+    }
+  },
+  "paired_checkpoint_hashes_exact_all_three_runs": true,
+  "acceptance_premises_not_proved_by_native_replay": [
+    "Performance benefit, negative-scaling cause, scaling160to256 or efficient>=640execution: no performance trials in this gate.",
+    "Adaptive max_level7/tol0.025, other physics/RK/configurations or restart modes: gate boundsto fixed5/5level,tol0,30layers,Simplephysics,RK4,256ranks,foursteps,resume3.",
+    "New independent checkpoint decoding/oracle run: native gate reuses original decoded science checks after fresh bytehash preservation.",
+    "Accepted baseline promotion: successful conditional commit records qualification/tooling on candidate branch; performance acceptance remains separate.",
+    "Global architecture retirement or lower numerical peak work: map is a label bijection; retained computation and replacement/migration work remain explicitly accounted.",
+    "Independent review of newnative six-phase certificates, cachehashes, provider/pair/work closure and terminal signals/resources must finish before commit."
+  ],
+  "conditional_commit": {
+    "permission": "Only after complete newnativegate and independent terminal review support validation.",
+    "tracked_modified": [
+      "AGENTS.md",
+      "docs/parallel-blocks-campaign-runtimes.json",
+      "docs/parallel-blocks-scorecard.md",
+      "docs/parallel-blocks-stage325-locality-qualification.md",
+      "test/parallel_block_profile/locality_325/verify325.py"
+    ],
+    "untracked_required": [
+      "docs/parallel-blocks-stage325-corrected-inverse-gate.md",
+      "docs/parallel-blocks-stage325-job55569-review.md",
+      "docs/parallel-blocks-stage325-native-v5-qualification.md",
+      "docs/parallel-blocks-stage325-provider-preflight.md",
+      "docs/parallel-blocks-stage325-resumable-verification.md",
+      "test/parallel_block_profile/locality_325/NATIVE_REPLAY_VALIDATION.json",
+      "test/parallel_block_profile/locality_325/NATIVE_V5_DESIGN_REVIEW.json",
+      "test/parallel_block_profile/locality_325/PROVIDER_PREFLIGHT.json",
+      "test/parallel_block_profile/locality_325/RESUME_VALIDATION.json",
+      "test/parallel_block_profile/locality_325/fixture/native-ghost55569-rank0.json.gz",
+      "test/parallel_block_profile/locality_325/inverse_identity325.py",
+      "test/parallel_block_profile/locality_325/native_runner325.py",
+      "test/parallel_block_profile/locality_325/parallel_replay325.py",
+      "test/parallel_block_profile/locality_325/probe_saved_matrix325.py",
+      "test/parallel_block_profile/locality_325/recovery_v2/README.md",
+      "test/parallel_block_profile/locality_325/recovery_v2/REPRODUCTION.md",
+      "test/parallel_block_profile/locality_325/recovery_v2/binding325.json",
+      "test/parallel_block_profile/locality_325/recovery_v2/build_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v2/collect.sh",
+      "test/parallel_block_profile/locality_325/recovery_v2/control_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v2/files-sha256.json",
+      "test/parallel_block_profile/locality_325/recovery_v2/launch.sh",
+      "test/parallel_block_profile/locality_325/recovery_v2/package_recipe325.json",
+      "test/parallel_block_profile/locality_325/recovery_v2/prior-native-input-anchors.json",
+      "test/parallel_block_profile/locality_325/recovery_v2/recover325.py",
+      "test/parallel_block_profile/locality_325/recovery_v2/recovery-history325.json",
+      "test/parallel_block_profile/locality_325/recovery_v2/status.sh",
+      "test/parallel_block_profile/locality_325/recovery_v2/test_boundary325.py",
+      "test/parallel_block_profile/locality_325/recovery_v2/test_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v2/validation/native-matrix-owner-replay.json",
+      "test/parallel_block_profile/locality_325/recovery_v2/validation/offline-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v2/validation/transform-owner-repair.json",
+      "test/parallel_block_profile/locality_325/recovery_v2/verification.sbatch",
+      "test/parallel_block_profile/locality_325/recovery_v2/verify325.py",
+      "test/parallel_block_profile/locality_325/recovery_v3/README.md",
+      "test/parallel_block_profile/locality_325/recovery_v3/binding325.json",
+      "test/parallel_block_profile/locality_325/recovery_v3/build_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v3/collect.sh",
+      "test/parallel_block_profile/locality_325/recovery_v3/control_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v3/files-sha256.json",
+      "test/parallel_block_profile/locality_325/recovery_v3/launch.sh",
+      "test/parallel_block_profile/locality_325/recovery_v3/package_recipe325.json",
+      "test/parallel_block_profile/locality_325/recovery_v3/prior-native-input-anchors.json",
+      "test/parallel_block_profile/locality_325/recovery_v3/recover325.py",
+      "test/parallel_block_profile/locality_325/recovery_v3/recovery-history325.json",
+      "test/parallel_block_profile/locality_325/recovery_v3/status.sh",
+      "test/parallel_block_profile/locality_325/recovery_v3/test_boundary325.py",
+      "test/parallel_block_profile/locality_325/recovery_v3/test_provider_paths325.py",
+      "test/parallel_block_profile/locality_325/recovery_v3/test_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v3/validation/native-matrix-owner-replay.json",
+      "test/parallel_block_profile/locality_325/recovery_v3/validation/offline-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v3/validation/recovery-v3-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v3/validation/transform-owner-repair.json",
+      "test/parallel_block_profile/locality_325/recovery_v3/verification.sbatch",
+      "test/parallel_block_profile/locality_325/recovery_v3/verify325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/INVERSE_PREFLIGHT325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/README.md",
+      "test/parallel_block_profile/locality_325/recovery_v4/binding325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/build_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/collect.sh",
+      "test/parallel_block_profile/locality_325/recovery_v4/control_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/files-sha256.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/fixture/source-binding/src/domain.f90",
+      "test/parallel_block_profile/locality_325/recovery_v4/fixture/source-binding/src/parallel_block_inverse.f90",
+      "test/parallel_block_profile/locality_325/recovery_v4/fixture/source-binding/src/parallel_block_mpi.f90",
+      "test/parallel_block_profile/locality_325/recovery_v4/fixture/source-binding/src/shared.f90",
+      "test/parallel_block_profile/locality_325/recovery_v4/launch.sh",
+      "test/parallel_block_profile/locality_325/recovery_v4/package_recipe325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/parallel-history325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/parallel_gate325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/parallel_replay325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/parallel_streams325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/predecessor-v3/accounting.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/predecessor-v3/capture-read-checks-partial.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/predecessor-v3/recovery-report.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/predecessor-v3/semantic-replay.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/prior-native-input-anchors.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/recover325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/recover_parallel325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/recovery-history325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/status.sh",
+      "test/parallel_block_profile/locality_325/recovery_v4/test_boundary325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/test_parallel_gate325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/test_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/test_recovery_parallel325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4/validation/final-worker-probe325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/validation/inverse326-native-rank101-audit.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/validation/native-matrix-owner-replay.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/validation/offline-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v4/validation/recovery-v3-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v4/validation/transform-owner-repair.json",
+      "test/parallel_block_profile/locality_325/recovery_v4/validation/v4-final-package-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v4/verification.sbatch",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/INVERSE_PREFLIGHT325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/README.md",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/binding325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/build_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/collect.sh",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/control_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/files-sha256.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/fixture/source-binding/src/domain.f90",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/fixture/source-binding/src/parallel_block_inverse.f90",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/fixture/source-binding/src/parallel_block_mpi.f90",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/fixture/source-binding/src/shared.f90",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/launch.sh",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/package_recipe325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/parallel-history325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/parallel_gate325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/parallel_streams325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/predecessor-v3/accounting.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/predecessor-v3/capture-read-checks-partial.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/predecessor-v3/recovery-report.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/predecessor-v3/semantic-replay.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/prior-native-input-anchors.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/recover325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/recover_parallel325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/recovery-history325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/status.sh",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/test_boundary325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/test_parallel_gate325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/test_recovery325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/test_recovery_parallel325.py",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/final-worker-probe-v4p1.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/final-worker-probe325.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/inverse326-native-rank101-audit.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/native-matrix-owner-replay.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/offline-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/recovery-v3-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/transform-owner-repair.json",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/v4-final-package-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/validation/v4p1-final-package-tests.log",
+      "test/parallel_block_profile/locality_325/recovery_v4p1/verification.sbatch",
+      "test/parallel_block_profile/locality_325/recovery_v5/README.md",
+      "test/parallel_block_profile/locality_325/recovery_v5/build_native325.py",
+      "test/parallel_block_profile/locality_325/recovery_v5/collect.sh",
+      "test/parallel_block_profile/locality_325/recovery_v5/control_native325.py",
+      "test/parallel_block_profile/locality_325/recovery_v5/launch.sh",
+      "test/parallel_block_profile/locality_325/recovery_v5/status.sh",
+      "test/parallel_block_profile/locality_325/recovery_v5/test_native_campaign325.py",
+      "test/parallel_block_profile/locality_325/recovery_v5/verification.sbatch",
+      "test/parallel_block_profile/locality_325/resume_native325.py",
+      "test/parallel_block_profile/locality_325/resume_state325.py",
+      "test/parallel_block_profile/locality_325/resume_workflow325.py",
+      "test/parallel_block_profile/locality_325/stream_compare325.py",
+      "test/parallel_block_profile/locality_325/test_inverse_bridge_adversary325.py",
+      "test/parallel_block_profile/locality_325/test_inverse_identity325.py",
+      "test/parallel_block_profile/locality_325/test_native_runner325.py",
+      "test/parallel_block_profile/locality_325/test_parallel_replay325.py",
+      "test/parallel_block_profile/locality_325/test_provider_paths325.py",
+      "test/parallel_block_profile/locality_325/test_replay325.py",
+      "test/parallel_block_profile/locality_325/test_resume_native325.py",
+      "test/parallel_block_profile/locality_325/test_resume_state325.py",
+      "test/parallel_block_profile/locality_325/test_resume_workflow325.py",
+      "test/parallel_block_profile/locality_325/test_rhs_contract325.py",
+      "test/parallel_block_profile/locality_325/test_saved_probe325.py",
+      "test/parallel_block_profile/locality_325/test_stream_compare325.py",
+      "test/parallel_block_profile/locality_325/test_transform_owner325.py",
+      "test/parallel_block_profile/locality_325/validation/adversarial-resume325-test-run.json",
+      "test/parallel_block_profile/locality_325/validation/adversarial-resume325-tests.log",
+      "test/parallel_block_profile/locality_325/validation/adversarial-resume325.json",
+      "test/parallel_block_profile/locality_325/validation/agent-review55574.json",
+      "test/parallel_block_profile/locality_325/validation/final-worker-probe-v4p1.json",
+      "test/parallel_block_profile/locality_325/validation/independent-review55573.json",
+      "test/parallel_block_profile/locality_325/validation/independent-review55574.json",
+      "test/parallel_block_profile/locality_325/validation/inverse-failure55573.json",
+      "test/parallel_block_profile/locality_325/validation/inverse326-native-rank101-audit.json",
+      "test/parallel_block_profile/locality_325/validation/native-v5-family-preflight.json",
+      "test/parallel_block_profile/locality_325/validation/native-v5-independent-package-check.json",
+      "test/parallel_block_profile/locality_325/validation/postfailure-preservation55573.json",
+      "test/parallel_block_profile/locality_325/validation/postfailure-preservation55574.json",
+      "test/parallel_block_profile/locality_325/validation/provider-complete-tests325.log",
+      "test/parallel_block_profile/locality_325/validation/provider-family-inventory325.json",
+      "test/parallel_block_profile/locality_325/validation/provider-preflight-selected325.json",
+      "test/parallel_block_profile/locality_325/validation/provider-regression-ab325.json",
+      "test/parallel_block_profile/locality_325/validation/resume325-complete-tests.log",
+      "test/parallel_block_profile/locality_325/validation/resume325-composed-fixture-report.json",
+      "test/parallel_block_profile/locality_325/validation/resume325-historical-preservation.json",
+      "test/parallel_block_profile/locality_325/validation/resume325-saved-family-key-initial-failure.json",
+      "test/parallel_block_profile/locality_325/validation/resume325-saved-family-key-probe.json",
+      "test/parallel_block_profile/locality_325/validation/rk325-v4-offline-preflight.log",
+      "test/parallel_block_profile/locality_325/validation/rk325-v4p1-offline-preflight.log",
+      "test/parallel_block_profile/locality_325/validation/v4p1-final-package-tests.log",
+      "test/parallel_block_profile/locality_325/validation/v4p1-fresh-tests.log"
+    ],
+    "allowlist": [
+      {
+        "path": "AGENTS.md",
+        "status": "tracked modified",
+        "bytes": 27714,
+        "sha256": "20234f7da0d80b3015c393265254c684e09d7881cee50962d862f31e4ee783db"
+      },
+      {
+        "path": "docs/parallel-blocks-campaign-runtimes.json",
+        "status": "tracked modified",
+        "bytes": 44880,
+        "sha256": "5e9695e3ffad4f77c48c02392d06c24480360551b41dbb5017e66e3921d21763"
+      },
+      {
+        "path": "docs/parallel-blocks-scorecard.md",
+        "status": "tracked modified",
+        "bytes": 34714,
+        "sha256": "132aa9037a112e7855b4d0d6f3650c968aeca2a232cac972977250d19075a25a"
+      },
+      {
+        "path": "docs/parallel-blocks-stage325-locality-qualification.md",
+        "status": "tracked modified",
+        "bytes": 7768,
+        "sha256": "cf01532328bea0da92a14eb76b43575b337f45347f47c2ee5f865277912dd87b"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/verify325.py",
+        "status": "tracked modified",
+        "bytes": 51634,
+        "sha256": "d1a8f47e35a251dfe19a25c33b8bcbbb2d23c36124005d657521b74d0c472402"
+      },
+      {
+        "path": "docs/parallel-blocks-stage325-corrected-inverse-gate.md",
+        "status": "untracked",
+        "bytes": 10738,
+        "sha256": "e77999a2e35176b4b52df908046769619705694b1749b3933cd9eb53f23a2d97"
+      },
+      {
+        "path": "docs/parallel-blocks-stage325-job55569-review.md",
+        "status": "untracked",
+        "bytes": 19430,
+        "sha256": "22c4fe5193aa70374e99792d21026c135bace86fecf458236e7acde00abd306e"
+      },
+      {
+        "path": "docs/parallel-blocks-stage325-native-v5-qualification.md",
+        "status": "untracked",
+        "bytes": 3837,
+        "sha256": "7ab08d81cb12616daf8cdc98c54952f09626f7f1de4b0ab84a4de93e965fded5"
+      },
+      {
+        "path": "docs/parallel-blocks-stage325-provider-preflight.md",
+        "status": "untracked",
+        "bytes": 6986,
+        "sha256": "c846bd22af2fd2a2909cb2b6ba11e89424bd44f9167e8916f044bda22d8934f6"
+      },
+      {
+        "path": "docs/parallel-blocks-stage325-resumable-verification.md",
+        "status": "untracked",
+        "bytes": 6786,
+        "sha256": "95dfe0318017fb59c5703b8bc49013d14a5e5df3d9b0a341c49ac15e7befd185"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/NATIVE_REPLAY_VALIDATION.json",
+        "status": "untracked",
+        "bytes": 6474,
+        "sha256": "8292499bc21b198bf9033f386392e1ad4761d289ed819df908f6a2abe1ddc20a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/NATIVE_V5_DESIGN_REVIEW.json",
+        "status": "untracked",
+        "bytes": 5736,
+        "sha256": "f6e2132ecef773e76c3d0fccdc1c51bb36c8478d6ba1541eba913056f857de71"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/PROVIDER_PREFLIGHT.json",
+        "status": "untracked",
+        "bytes": 8522,
+        "sha256": "762f79cbbd9c26bd010f7bc894ab356d91917e66e250bd45e3c02b6d7d3879f2"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/RESUME_VALIDATION.json",
+        "status": "untracked",
+        "bytes": 3979,
+        "sha256": "752cc91fe23e977b1c07d0c854a5d08e5b0938eddf83158cbff0bcde0ebf987e"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/fixture/native-ghost55569-rank0.json.gz",
+        "status": "untracked",
+        "bytes": 961,
+        "sha256": "2ff0dadecc9064a2cc4b70b2e49945e6f634a5eee419eaaca8047f827c93e714"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/inverse_identity325.py",
+        "status": "untracked",
+        "bytes": 33534,
+        "sha256": "922fb34c70ab5110a6004a2a60534abf674c6549198e20f8e2009adfb821debe"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/native_runner325.py",
+        "status": "untracked",
+        "bytes": 15803,
+        "sha256": "a6524cee55b54bc399164e82e78b96276f783ad91ee023e87770a99f28869af1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/parallel_replay325.py",
+        "status": "untracked",
+        "bytes": 12948,
+        "sha256": "e9537e41ca41f7c385b0f8c5aaab8dc222e75276884d3ff44fa01c92320733c4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/probe_saved_matrix325.py",
+        "status": "untracked",
+        "bytes": 3156,
+        "sha256": "768aa4d2a00481dd4a87806101b98978056b66d28611f9d1cfe8df58136d1faf"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/README.md",
+        "status": "untracked",
+        "bytes": 3925,
+        "sha256": "6f7c5f0a13dab79bbc12079b1f98fc1d2b431f94f9a3914ab3e75446903f1607"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/REPRODUCTION.md",
+        "status": "untracked",
+        "bytes": 1646,
+        "sha256": "deeae4621962c7d1d39a98f56857cdf60b21310c81f978ec61dd849a79d734f4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/binding325.json",
+        "status": "untracked",
+        "bytes": 663992,
+        "sha256": "f76036ce9035f64c2c60f221fc0e9049a675f5a12b4744dd55dab937a09d98b5"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/build_recovery325.py",
+        "status": "untracked",
+        "bytes": 4200,
+        "sha256": "4984c38de425d6afcfe850d58fcda051c6997def8c1b2271e490d85e8389a455"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/collect.sh",
+        "status": "untracked",
+        "bytes": 146,
+        "sha256": "1f0073f5351b75fe5a11f030a5eddba7ef95646e86a490853f2971cf624efbe4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/control_recovery325.py",
+        "status": "untracked",
+        "bytes": 7857,
+        "sha256": "46556f08a1a6780f6b50116e1f0eb950166d625f87a4cafa9f74d38b81070070"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/files-sha256.json",
+        "status": "untracked",
+        "bytes": 2704,
+        "sha256": "8635a4b2841e2b969390b9302bd167bd7fd5ab49e557e95127209810b87c4bfc"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/launch.sh",
+        "status": "untracked",
+        "bytes": 145,
+        "sha256": "078b59ad28b65fb0cc29731c92e96c6a4de2feb31b184369b40153b992af0119"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/package_recipe325.json",
+        "status": "untracked",
+        "bytes": 4529,
+        "sha256": "8c15bf4c7428c77efb72c948c7534b97b4b34f48459149aad36bc913dfbd60fa"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/prior-native-input-anchors.json",
+        "status": "untracked",
+        "bytes": 430267,
+        "sha256": "f1a3b67af02f8a70c25e420027b9c3b3a4c2527278940cfc7301ff655593deb7"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/recover325.py",
+        "status": "untracked",
+        "bytes": 14830,
+        "sha256": "86dd7702bda45fad60cfd3b7097c6bb0bb46e6f8d37b7b595a7aa3f1fc126c55"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/recovery-history325.json",
+        "status": "untracked",
+        "bytes": 6153,
+        "sha256": "46fd84b4394e506d34b78a24a6f8ac80c693c86a803a4d36648ebd9800a6e69d"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/status.sh",
+        "status": "untracked",
+        "bytes": 145,
+        "sha256": "f3e9d70e7a89a0566464bf69c33f612a626a3f943ac83072b4672ed1ce020567"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/test_boundary325.py",
+        "status": "untracked",
+        "bytes": 4416,
+        "sha256": "24357b5b4b10ec5f4829f168ae50748a66c38cf60d398c4dc11c374c7d12166a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/test_recovery325.py",
+        "status": "untracked",
+        "bytes": 7733,
+        "sha256": "e1e11957640c7117af764fca06ab273ce8d92b79128a3460e69a504f142de9af"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/validation/native-matrix-owner-replay.json",
+        "status": "untracked",
+        "bytes": 7202,
+        "sha256": "bbd34b042a4ae3f541742cfe1d511aca24448363a41521f3180f88d643670adc"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/validation/offline-tests.log",
+        "status": "untracked",
+        "bytes": 11164,
+        "sha256": "9122addc7f4428633b6e3cf2c5a9dbac7d85585f1ea98693a7fe8b73039e4e8e"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/validation/transform-owner-repair.json",
+        "status": "untracked",
+        "bytes": 3545,
+        "sha256": "42a2bde85b94de0bd86d0605952ac4667eb9cb3374b692eb550d3208aa88840b"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/verification.sbatch",
+        "status": "untracked",
+        "bytes": 613,
+        "sha256": "077746734d98ed4f74e78d11ea68c8088916a232f747ab7ef7b58425257dea2d"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v2/verify325.py",
+        "status": "untracked",
+        "bytes": 44846,
+        "sha256": "dca208bed81d93109a77122461ae80f2857d6d71fb03eb5629a8f449cfc2d3a2"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/README.md",
+        "status": "untracked",
+        "bytes": 4555,
+        "sha256": "ca2c1391dd370d7d13950c0a969ee53da7e2c5540e9ab4f5d9862a5ab150f950"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/binding325.json",
+        "status": "untracked",
+        "bytes": 663992,
+        "sha256": "f76036ce9035f64c2c60f221fc0e9049a675f5a12b4744dd55dab937a09d98b5"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/build_recovery325.py",
+        "status": "untracked",
+        "bytes": 4200,
+        "sha256": "4984c38de425d6afcfe850d58fcda051c6997def8c1b2271e490d85e8389a455"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/collect.sh",
+        "status": "untracked",
+        "bytes": 146,
+        "sha256": "1f0073f5351b75fe5a11f030a5eddba7ef95646e86a490853f2971cf624efbe4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/control_recovery325.py",
+        "status": "untracked",
+        "bytes": 7922,
+        "sha256": "2fb4c281b9501b8b3b68f370f3470708b2f5c07645a5798d3b7a016dd2f1ea77"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/files-sha256.json",
+        "status": "untracked",
+        "bytes": 3587,
+        "sha256": "386333bfa0bb686f4dbec9cdc8f940df50d8c020dc02c76ff5d2a8e7003d70ad"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/launch.sh",
+        "status": "untracked",
+        "bytes": 145,
+        "sha256": "078b59ad28b65fb0cc29731c92e96c6a4de2feb31b184369b40153b992af0119"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/package_recipe325.json",
+        "status": "untracked",
+        "bytes": 5832,
+        "sha256": "4da38868d3c1fd11124d0da47b27ec2fa0f8610f137a28152b58b4b0f51e7a12"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/prior-native-input-anchors.json",
+        "status": "untracked",
+        "bytes": 430267,
+        "sha256": "f1a3b67af02f8a70c25e420027b9c3b3a4c2527278940cfc7301ff655593deb7"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/recover325.py",
+        "status": "untracked",
+        "bytes": 16149,
+        "sha256": "5feaf0dca377947d78e7840dfb3b167eb95e03234ba59cb9175ba0a503179ae1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/recovery-history325.json",
+        "status": "untracked",
+        "bytes": 223465,
+        "sha256": "e7d2d5671dd361cbc71c7520e73e4570c40b495ed2ef3c3e3b6819d8ff6274d3"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/status.sh",
+        "status": "untracked",
+        "bytes": 145,
+        "sha256": "f3e9d70e7a89a0566464bf69c33f612a626a3f943ac83072b4672ed1ce020567"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/test_boundary325.py",
+        "status": "untracked",
+        "bytes": 4416,
+        "sha256": "24357b5b4b10ec5f4829f168ae50748a66c38cf60d398c4dc11c374c7d12166a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/test_provider_paths325.py",
+        "status": "untracked",
+        "bytes": 17442,
+        "sha256": "ab0e8600e5c4f1304bc52afc40f3f78969e802b97be7711ca395e4e0a55151e1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/test_recovery325.py",
+        "status": "untracked",
+        "bytes": 9150,
+        "sha256": "286a12dec2dba4f53890c987ce919dba4ec2e5c095c27cb43e33fac33d8cfe9f"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/validation/native-matrix-owner-replay.json",
+        "status": "untracked",
+        "bytes": 7202,
+        "sha256": "bbd34b042a4ae3f541742cfe1d511aca24448363a41521f3180f88d643670adc"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/validation/offline-tests.log",
+        "status": "untracked",
+        "bytes": 11164,
+        "sha256": "9122addc7f4428633b6e3cf2c5a9dbac7d85585f1ea98693a7fe8b73039e4e8e"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/validation/recovery-v3-tests.log",
+        "status": "untracked",
+        "bytes": 212,
+        "sha256": "ff8b070a2f70723daa9834eb27d1e6ee1471a6d19ca6f9e3e1d8ccdfad1dc40a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/validation/transform-owner-repair.json",
+        "status": "untracked",
+        "bytes": 3545,
+        "sha256": "42a2bde85b94de0bd86d0605952ac4667eb9cb3374b692eb550d3208aa88840b"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/verification.sbatch",
+        "status": "untracked",
+        "bytes": 613,
+        "sha256": "59ad3f589d869377610b1e2b871c50f57dcd07ccb5995aca7c4823d7b5f267da"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v3/verify325.py",
+        "status": "untracked",
+        "bytes": 48277,
+        "sha256": "7adce8a70ebf6b923f06414a3650dac5344337d5511bc2bd48c4f0dc8411314d"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/INVERSE_PREFLIGHT325.json",
+        "status": "untracked",
+        "bytes": 1258,
+        "sha256": "7cb391ed7c6a5d995efbc8492e71317b2333b496584315bf6fc84a326b7662cd"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/README.md",
+        "status": "untracked",
+        "bytes": 2806,
+        "sha256": "8fcb19ed245e36296706e9eed42c7161550a7f6726616b42532d45da2d146633"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/binding325.json",
+        "status": "untracked",
+        "bytes": 663992,
+        "sha256": "f76036ce9035f64c2c60f221fc0e9049a675f5a12b4744dd55dab937a09d98b5"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/build_recovery325.py",
+        "status": "untracked",
+        "bytes": 4200,
+        "sha256": "4984c38de425d6afcfe850d58fcda051c6997def8c1b2271e490d85e8389a455"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/collect.sh",
+        "status": "untracked",
+        "bytes": 146,
+        "sha256": "1f0073f5351b75fe5a11f030a5eddba7ef95646e86a490853f2971cf624efbe4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/control_recovery325.py",
+        "status": "untracked",
+        "bytes": 8054,
+        "sha256": "4eda761292ea1372aa911163e5e8680119ab096303df9d45f84d2993ec319e89"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/files-sha256.json",
+        "status": "untracked",
+        "bytes": 6028,
+        "sha256": "0c5b5b0d5a1046d51539474a4232da83d556e66bdfd9e5c4aa005f6d7c87d030"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/fixture/source-binding/src/domain.f90",
+        "status": "untracked",
+        "bytes": 39962,
+        "sha256": "54a09b07a979ba54d9695ea23d1b6ea76096893cf1106f9c73acc49f05f27ecd"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/fixture/source-binding/src/parallel_block_inverse.f90",
+        "status": "untracked",
+        "bytes": 105614,
+        "sha256": "65b936677196c97fabf0f4ec8363132c3e48e9e4ff1f17ba4e789d7781d60db0"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/fixture/source-binding/src/parallel_block_mpi.f90",
+        "status": "untracked",
+        "bytes": 1685417,
+        "sha256": "c915cc2b6529b38ec7a74d41afb74bdb5caddd8c7731cb15ed76c8ea89755027"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/fixture/source-binding/src/shared.f90",
+        "status": "untracked",
+        "bytes": 26733,
+        "sha256": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/launch.sh",
+        "status": "untracked",
+        "bytes": 145,
+        "sha256": "078b59ad28b65fb0cc29731c92e96c6a4de2feb31b184369b40153b992af0119"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/package_recipe325.json",
+        "status": "untracked",
+        "bytes": 9503,
+        "sha256": "6ed66ad6ea40995d17adcbc7f59461ae6297733eb1d7372077123c2444ccae27"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/parallel-history325.json",
+        "status": "untracked",
+        "bytes": 1497,
+        "sha256": "47ea2f4df9d39d3cbcada411bbb07614f6ba897d351e519b8940071cfc4dee43"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/parallel_gate325.py",
+        "status": "untracked",
+        "bytes": 7256,
+        "sha256": "e0eb52953c7fafecaf47700fba5a07813242f925703b827d4a43f4f9573da834"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/parallel_replay325.py",
+        "status": "untracked",
+        "bytes": 12609,
+        "sha256": "316e3141294afeb58e822c64cf7c789b13e5a0770f0e199bc8c09051aed0170e"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/parallel_streams325.py",
+        "status": "untracked",
+        "bytes": 781,
+        "sha256": "aefeb9bd1c3e7a7e439be975b8b1d11230e7989b6fcc04d605ecda0303044793"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/predecessor-v3/accounting.json",
+        "status": "untracked",
+        "bytes": 398,
+        "sha256": "f38dabda15bf5676fb1208b4d1ea687e2eb94f3b90832dd0c97df3d12c87282d"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/predecessor-v3/capture-read-checks-partial.json",
+        "status": "untracked",
+        "bytes": 148633,
+        "sha256": "783328f1d87e045a9a2898a1db5f914cb9e340920e5c4f5dfb1af21434977f12"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/predecessor-v3/recovery-report.json",
+        "status": "untracked",
+        "bytes": 4322,
+        "sha256": "1224b6a6e23a01973e5a0ad1b2ac2b90862bba022e2190f272d357922c7c42d1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/predecessor-v3/semantic-replay.json",
+        "status": "untracked",
+        "bytes": 582927,
+        "sha256": "06f1f9ddfdcf7f4df9abc1b4c3078483e98827ca978bce8a9a6678560b09ce4a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/prior-native-input-anchors.json",
+        "status": "untracked",
+        "bytes": 430267,
+        "sha256": "f1a3b67af02f8a70c25e420027b9c3b3a4c2527278940cfc7301ff655593deb7"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/recover325.py",
+        "status": "untracked",
+        "bytes": 16149,
+        "sha256": "5feaf0dca377947d78e7840dfb3b167eb95e03234ba59cb9175ba0a503179ae1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/recover_parallel325.py",
+        "status": "untracked",
+        "bytes": 10776,
+        "sha256": "458b3d79072fa9236e5a650d32210b8b8a02ad01aa57a6f9ebf29669759c70df"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/recovery-history325.json",
+        "status": "untracked",
+        "bytes": 223465,
+        "sha256": "e7d2d5671dd361cbc71c7520e73e4570c40b495ed2ef3c3e3b6819d8ff6274d3"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/status.sh",
+        "status": "untracked",
+        "bytes": 145,
+        "sha256": "f3e9d70e7a89a0566464bf69c33f612a626a3f943ac83072b4672ed1ce020567"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/test_boundary325.py",
+        "status": "untracked",
+        "bytes": 4416,
+        "sha256": "24357b5b4b10ec5f4829f168ae50748a66c38cf60d398c4dc11c374c7d12166a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/test_parallel_gate325.py",
+        "status": "untracked",
+        "bytes": 6152,
+        "sha256": "3741c5269fb05bb0b0373319f82bf28f8f61a0e42ac873b3b67a9dff1d69155c"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/test_recovery325.py",
+        "status": "untracked",
+        "bytes": 9157,
+        "sha256": "f4850f1614d524437569184d0f1148b625dc1f787495e3fb0838f0a733388d43"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/test_recovery_parallel325.py",
+        "status": "untracked",
+        "bytes": 3662,
+        "sha256": "e37b8862878b3c94609602aa5e389a9b499e8fada47c59fce558616d4361a759"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/validation/final-worker-probe325.json",
+        "status": "untracked",
+        "bytes": 1681,
+        "sha256": "e5592917e4374ca81113aa307c18257ed5dcb286690ec9c7ebef81222e83c981"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/validation/inverse326-native-rank101-audit.json",
+        "status": "untracked",
+        "bytes": 221743,
+        "sha256": "5ccc0eb5a7702e1664da01eb5adcd2f9d4e59cfaf6e2c5364b8602573066c5d4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/validation/native-matrix-owner-replay.json",
+        "status": "untracked",
+        "bytes": 7202,
+        "sha256": "bbd34b042a4ae3f541742cfe1d511aca24448363a41521f3180f88d643670adc"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/validation/offline-tests.log",
+        "status": "untracked",
+        "bytes": 11164,
+        "sha256": "9122addc7f4428633b6e3cf2c5a9dbac7d85585f1ea98693a7fe8b73039e4e8e"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/validation/recovery-v3-tests.log",
+        "status": "untracked",
+        "bytes": 212,
+        "sha256": "ff8b070a2f70723daa9834eb27d1e6ee1471a6d19ca6f9e3e1d8ccdfad1dc40a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/validation/transform-owner-repair.json",
+        "status": "untracked",
+        "bytes": 3545,
+        "sha256": "42a2bde85b94de0bd86d0605952ac4667eb9cb3374b692eb550d3208aa88840b"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/validation/v4-final-package-tests.log",
+        "status": "untracked",
+        "bytes": 296,
+        "sha256": "ec6c4a738e506d7ca39361203532b0e23fac2210a2a6ae8bf7acabcf47819bcc"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4/verification.sbatch",
+        "status": "untracked",
+        "bytes": 623,
+        "sha256": "c3bcc5b7294f29312ec9ce300767e129152a85b0885c0d89d47cb6ec92172a46"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/INVERSE_PREFLIGHT325.json",
+        "status": "untracked",
+        "bytes": 1271,
+        "sha256": "386cb70feec06ef4382eecd0e8af835882b0ce8264ba2c69e0db834e9920606f"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/README.md",
+        "status": "untracked",
+        "bytes": 3123,
+        "sha256": "44b6bf77095911b903af883f82ea5b3e6c6387ce9281cc28de6feb1caa79bb16"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/binding325.json",
+        "status": "untracked",
+        "bytes": 663992,
+        "sha256": "f76036ce9035f64c2c60f221fc0e9049a675f5a12b4744dd55dab937a09d98b5"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/build_recovery325.py",
+        "status": "untracked",
+        "bytes": 4200,
+        "sha256": "4984c38de425d6afcfe850d58fcda051c6997def8c1b2271e490d85e8389a455"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/collect.sh",
+        "status": "untracked",
+        "bytes": 146,
+        "sha256": "1f0073f5351b75fe5a11f030a5eddba7ef95646e86a490853f2971cf624efbe4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/control_recovery325.py",
+        "status": "untracked",
+        "bytes": 8072,
+        "sha256": "9a5d267fa59ea87874331cda267ab60d23599a7f8c474e0ba7b013dbc4dc4d9a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/files-sha256.json",
+        "status": "untracked",
+        "bytes": 6254,
+        "sha256": "ff430542d8ab81078d522a2468a1ce1baa22bac501f922e534c839c7c47ee1bb"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/fixture/source-binding/src/domain.f90",
+        "status": "untracked",
+        "bytes": 39962,
+        "sha256": "54a09b07a979ba54d9695ea23d1b6ea76096893cf1106f9c73acc49f05f27ecd"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/fixture/source-binding/src/parallel_block_inverse.f90",
+        "status": "untracked",
+        "bytes": 105614,
+        "sha256": "65b936677196c97fabf0f4ec8363132c3e48e9e4ff1f17ba4e789d7781d60db0"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/fixture/source-binding/src/parallel_block_mpi.f90",
+        "status": "untracked",
+        "bytes": 1685417,
+        "sha256": "c915cc2b6529b38ec7a74d41afb74bdb5caddd8c7731cb15ed76c8ea89755027"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/fixture/source-binding/src/shared.f90",
+        "status": "untracked",
+        "bytes": 26733,
+        "sha256": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/launch.sh",
+        "status": "untracked",
+        "bytes": 145,
+        "sha256": "078b59ad28b65fb0cc29731c92e96c6a4de2feb31b184369b40153b992af0119"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/package_recipe325.json",
+        "status": "untracked",
+        "bytes": 9837,
+        "sha256": "83e42e6981724c39b12f1334ce9685184e542828e96b49bf2ecb8818bc46b677"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/parallel-history325.json",
+        "status": "untracked",
+        "bytes": 1497,
+        "sha256": "47ea2f4df9d39d3cbcada411bbb07614f6ba897d351e519b8940071cfc4dee43"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/parallel_gate325.py",
+        "status": "untracked",
+        "bytes": 7256,
+        "sha256": "e0eb52953c7fafecaf47700fba5a07813242f925703b827d4a43f4f9573da834"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/parallel_streams325.py",
+        "status": "untracked",
+        "bytes": 781,
+        "sha256": "aefeb9bd1c3e7a7e439be975b8b1d11230e7989b6fcc04d605ecda0303044793"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/predecessor-v3/accounting.json",
+        "status": "untracked",
+        "bytes": 398,
+        "sha256": "f38dabda15bf5676fb1208b4d1ea687e2eb94f3b90832dd0c97df3d12c87282d"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/predecessor-v3/capture-read-checks-partial.json",
+        "status": "untracked",
+        "bytes": 148633,
+        "sha256": "783328f1d87e045a9a2898a1db5f914cb9e340920e5c4f5dfb1af21434977f12"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/predecessor-v3/recovery-report.json",
+        "status": "untracked",
+        "bytes": 4322,
+        "sha256": "1224b6a6e23a01973e5a0ad1b2ac2b90862bba022e2190f272d357922c7c42d1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/predecessor-v3/semantic-replay.json",
+        "status": "untracked",
+        "bytes": 582927,
+        "sha256": "06f1f9ddfdcf7f4df9abc1b4c3078483e98827ca978bce8a9a6678560b09ce4a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/prior-native-input-anchors.json",
+        "status": "untracked",
+        "bytes": 430267,
+        "sha256": "f1a3b67af02f8a70c25e420027b9c3b3a4c2527278940cfc7301ff655593deb7"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/recover325.py",
+        "status": "untracked",
+        "bytes": 16149,
+        "sha256": "5feaf0dca377947d78e7840dfb3b167eb95e03234ba59cb9175ba0a503179ae1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/recover_parallel325.py",
+        "status": "untracked",
+        "bytes": 10778,
+        "sha256": "85133b6ae716598fc2e879346e8224ce602ebbb3485c2e71512cac5bfa9f6ea0"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/recovery-history325.json",
+        "status": "untracked",
+        "bytes": 223465,
+        "sha256": "e7d2d5671dd361cbc71c7520e73e4570c40b495ed2ef3c3e3b6819d8ff6274d3"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/status.sh",
+        "status": "untracked",
+        "bytes": 145,
+        "sha256": "f3e9d70e7a89a0566464bf69c33f612a626a3f943ac83072b4672ed1ce020567"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/test_boundary325.py",
+        "status": "untracked",
+        "bytes": 4416,
+        "sha256": "24357b5b4b10ec5f4829f168ae50748a66c38cf60d398c4dc11c374c7d12166a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/test_parallel_gate325.py",
+        "status": "untracked",
+        "bytes": 6152,
+        "sha256": "3741c5269fb05bb0b0373319f82bf28f8f61a0e42ac873b3b67a9dff1d69155c"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/test_recovery325.py",
+        "status": "untracked",
+        "bytes": 9157,
+        "sha256": "f4850f1614d524437569184d0f1148b625dc1f787495e3fb0838f0a733388d43"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/test_recovery_parallel325.py",
+        "status": "untracked",
+        "bytes": 3662,
+        "sha256": "e37b8862878b3c94609602aa5e389a9b499e8fada47c59fce558616d4361a759"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/final-worker-probe-v4p1.json",
+        "status": "untracked",
+        "bytes": 1681,
+        "sha256": "0f621522655c1b0a22040e597bc42569fc723130737ef527165f6b7307e57104"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/final-worker-probe325.json",
+        "status": "untracked",
+        "bytes": 1681,
+        "sha256": "e5592917e4374ca81113aa307c18257ed5dcb286690ec9c7ebef81222e83c981"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/inverse326-native-rank101-audit.json",
+        "status": "untracked",
+        "bytes": 221743,
+        "sha256": "5ccc0eb5a7702e1664da01eb5adcd2f9d4e59cfaf6e2c5364b8602573066c5d4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/native-matrix-owner-replay.json",
+        "status": "untracked",
+        "bytes": 7202,
+        "sha256": "bbd34b042a4ae3f541742cfe1d511aca24448363a41521f3180f88d643670adc"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/offline-tests.log",
+        "status": "untracked",
+        "bytes": 11164,
+        "sha256": "9122addc7f4428633b6e3cf2c5a9dbac7d85585f1ea98693a7fe8b73039e4e8e"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/recovery-v3-tests.log",
+        "status": "untracked",
+        "bytes": 212,
+        "sha256": "ff8b070a2f70723daa9834eb27d1e6ee1471a6d19ca6f9e3e1d8ccdfad1dc40a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/transform-owner-repair.json",
+        "status": "untracked",
+        "bytes": 3545,
+        "sha256": "42a2bde85b94de0bd86d0605952ac4667eb9cb3374b692eb550d3208aa88840b"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/v4-final-package-tests.log",
+        "status": "untracked",
+        "bytes": 296,
+        "sha256": "ec6c4a738e506d7ca39361203532b0e23fac2210a2a6ae8bf7acabcf47819bcc"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/validation/v4p1-final-package-tests.log",
+        "status": "untracked",
+        "bytes": 296,
+        "sha256": "ccee80f041dbe41f2eb0b04e1a2efc18728550e1f184c6f12191ff9734026198"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v4p1/verification.sbatch",
+        "status": "untracked",
+        "bytes": 625,
+        "sha256": "79d48eda3380c7432bb390e9c1a5be725565ee2d5b1051676d7b48e3ee457117"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v5/README.md",
+        "status": "untracked",
+        "bytes": 1638,
+        "sha256": "ce64293e6a99fb1021976d93236ceafa9dac9845f25d3e5986d3face3cc67738"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v5/build_native325.py",
+        "status": "untracked",
+        "bytes": 9210,
+        "sha256": "6577c898da6915a95ab538af909343bee79deeb02fb3b6a4d1896147067ee36e"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v5/collect.sh",
+        "status": "untracked",
+        "bytes": 152,
+        "sha256": "26442e1c9b8fbe3eebce98a621cdd98c6aef8e3bb08edaa39a6930835d9fd951"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v5/control_native325.py",
+        "status": "untracked",
+        "bytes": 18356,
+        "sha256": "d6dda1b0d44df4b79399754f09db73ddfb9b6da1c9dcf111e6d2271bbe610328"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v5/launch.sh",
+        "status": "untracked",
+        "bytes": 151,
+        "sha256": "48b8835e24d9a761b0fa5d8885b36d9566e88e838c14bff592f0028b2c44a1a9"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v5/status.sh",
+        "status": "untracked",
+        "bytes": 151,
+        "sha256": "7e4ba15f8f671c1596fc9a44d58d752c2c44c66c293ce97345ffd7c299b18d85"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v5/test_native_campaign325.py",
+        "status": "untracked",
+        "bytes": 12789,
+        "sha256": "61b9ea9d430d02c135e810384e3311294a6d6d578baff7e77037177f748c17e0"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/recovery_v5/verification.sbatch",
+        "status": "untracked",
+        "bytes": 765,
+        "sha256": "169609d3ec284049e25e79d7d1cb8ef63241b7af19b638119c8ba24ac217e06a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/resume_native325.py",
+        "status": "untracked",
+        "bytes": 36124,
+        "sha256": "dcaefd6e0599177669bf9f2095ddaf270f96c26940c7ff5e06c4910b6434c3bf"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/resume_state325.py",
+        "status": "untracked",
+        "bytes": 24403,
+        "sha256": "fde514758e8afa855d0e0395e11e64542741449e2ab57976bd41ef74415b7a9b"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/resume_workflow325.py",
+        "status": "untracked",
+        "bytes": 18991,
+        "sha256": "737d08f4dcb6b4059fa165fafb0428f069fff92fbc4eea2eab7d6e439d35b479"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/stream_compare325.py",
+        "status": "untracked",
+        "bytes": 18120,
+        "sha256": "007745b7002c6e14cc767326d3a8cc10e3546efc487533b2d6d5ab23e0ba9f15"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_inverse_bridge_adversary325.py",
+        "status": "untracked",
+        "bytes": 11829,
+        "sha256": "a8ec669d3c36678db5a4a0f6126179bd8ba7495aff149e70f324c829922e33d2"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_inverse_identity325.py",
+        "status": "untracked",
+        "bytes": 8975,
+        "sha256": "13a1ec3d88be711f4df078858baf68e9987210422999ad2f510833f4d4ec99b3"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_native_runner325.py",
+        "status": "untracked",
+        "bytes": 10822,
+        "sha256": "9f897003c7047bb022680e64aec9933f83d5b3708323f59ce28e913d8ef89c3a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_parallel_replay325.py",
+        "status": "untracked",
+        "bytes": 11365,
+        "sha256": "a8a60b810a4a30c73d7f6f48e0dd901b12fa9182cea28e2934d8c5f5ae2eb200"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_provider_paths325.py",
+        "status": "untracked",
+        "bytes": 18522,
+        "sha256": "72f88b6c4bdfe0853631d7fa26671b5aa740d1ab4aeb2331c82a84aabdc8d871"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_replay325.py",
+        "status": "untracked",
+        "bytes": 6516,
+        "sha256": "8ec78a2608c1c65f9f350f4b1f708679617488c283db2a0afa85ddf74176f4d0"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_resume_native325.py",
+        "status": "untracked",
+        "bytes": 18444,
+        "sha256": "b8c2b7a17cb47b8626ae60b3a5b2d03f1ef5a4483a4cccfc7ee7b858626e221a"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_resume_state325.py",
+        "status": "untracked",
+        "bytes": 17580,
+        "sha256": "96521d4c9422ec22d35bf65464030ee3a7c8591cf81ce67a2d990569eab55b97"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_resume_workflow325.py",
+        "status": "untracked",
+        "bytes": 13481,
+        "sha256": "6de281348f43a47ef0875c1b7958afa3e6f749f451d33d4a782221e565ed9d96"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_rhs_contract325.py",
+        "status": "untracked",
+        "bytes": 7502,
+        "sha256": "b13384bbc36741d933b48f1a8a81470637d02c14bc7613222769ec8e26d76fa1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_saved_probe325.py",
+        "status": "untracked",
+        "bytes": 2579,
+        "sha256": "f56df39f12a8e89e50c21771fff09fa4a8cd277a205b94df4353f06e26ebd3a0"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_stream_compare325.py",
+        "status": "untracked",
+        "bytes": 21345,
+        "sha256": "a314e30bb28b8d5b7d4fdeff37a3be3dfba4eac16403edc256832a0ae9e71c82"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/test_transform_owner325.py",
+        "status": "untracked",
+        "bytes": 5585,
+        "sha256": "7da5b255bf2f16cc8e0862f347b25c9cbc17fdc8d2247026a89f7008a44276d3"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/adversarial-resume325-test-run.json",
+        "status": "untracked",
+        "bytes": 2068,
+        "sha256": "f0ee081c26d0d363bf40108fd02fc4edb5f12ed31468afaf2d349bb5f8d78ed7"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/adversarial-resume325-tests.log",
+        "status": "untracked",
+        "bytes": 529,
+        "sha256": "cf2259525fd2fadeac7374b4bca61654a79c20e1133275ca3b28091730260339"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/adversarial-resume325.json",
+        "status": "untracked",
+        "bytes": 8050,
+        "sha256": "0b960088a41e8d39719a2726b809ad77374b762781dd0ca4c53b98211fe1ee05"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/agent-review55574.json",
+        "status": "untracked",
+        "bytes": 5420,
+        "sha256": "87ffdd36e95926e4b705bc2ab1e26f4bba9c9c504b27904b25e78c67008e3718"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/final-worker-probe-v4p1.json",
+        "status": "untracked",
+        "bytes": 1681,
+        "sha256": "0f621522655c1b0a22040e597bc42569fc723130737ef527165f6b7307e57104"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/independent-review55573.json",
+        "status": "untracked",
+        "bytes": 3341,
+        "sha256": "09455ba372670853e22bb66abbae418d64b928155133ff702725536814f3656e"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/independent-review55574.json",
+        "status": "untracked",
+        "bytes": 3955,
+        "sha256": "3d2a9f674ee5ab9f8e0e870ae811473989f5cd778cb22b0fdc1058fba5d23fa6"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/inverse-failure55573.json",
+        "status": "untracked",
+        "bytes": 14076,
+        "sha256": "e57a03d2470d2d27bcc55b0776af29f17e5746fd2085afc498c7e7df297240d0"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/inverse326-native-rank101-audit.json",
+        "status": "untracked",
+        "bytes": 221743,
+        "sha256": "5ccc0eb5a7702e1664da01eb5adcd2f9d4e59cfaf6e2c5364b8602573066c5d4"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/native-v5-family-preflight.json",
+        "status": "untracked",
+        "bytes": 8021,
+        "sha256": "597c79ba4ea0945f18ac928de4e02145286983a0ac16686a46510c72cbb23515"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/native-v5-independent-package-check.json",
+        "status": "untracked",
+        "bytes": 1272,
+        "sha256": "cc5f67d47eef2dc8cdea91b5b00c3111a5e993b934d0f4ee5615297d9ff0c3a8"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/postfailure-preservation55573.json",
+        "status": "untracked",
+        "bytes": 526,
+        "sha256": "1d3d131f697ba346e6b9e33cb22b4afd7f4d3eb709212f27db1b9985085adcd5"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/postfailure-preservation55574.json",
+        "status": "untracked",
+        "bytes": 531,
+        "sha256": "807042dfef315ef5fa691fc0cb565ced93ce500e33039145507d31d62009752f"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/provider-complete-tests325.log",
+        "status": "untracked",
+        "bytes": 15494,
+        "sha256": "905d6bbd3e0dacebbd8ca33c14f1b5d8bc307f8dfcc99be6c58202c3ff5bf290"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/provider-family-inventory325.json",
+        "status": "untracked",
+        "bytes": 2707,
+        "sha256": "ca8690ea7c029f49c6acaebe98ef766b5a73742a2937dcfccb2dddfd7b102d21"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/provider-preflight-selected325.json",
+        "status": "untracked",
+        "bytes": 7203,
+        "sha256": "1ad742a8ee89fe734154646ee3f5d25bed04a8bac9bd22bc0a2baa46104cd274"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/provider-regression-ab325.json",
+        "status": "untracked",
+        "bytes": 554,
+        "sha256": "edff5da6fe18813fb0f58682a7b3762283232d7b8015523d8340e435834950b1"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/resume325-complete-tests.log",
+        "status": "untracked",
+        "bytes": 915,
+        "sha256": "ce243861799d800668655d009352072fc0c99ddde6999988d136393bf14cd514"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/resume325-composed-fixture-report.json",
+        "status": "untracked",
+        "bytes": 13942,
+        "sha256": "a12bd4ddee66917ebc7a2d952ded990fdcb2445fbf78c90d36715ffbc57481ca"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/resume325-historical-preservation.json",
+        "status": "untracked",
+        "bytes": 6746,
+        "sha256": "4da7beb139693df8d609c2fe08a4c86bd73458c7691f796d5f98f93f94c41c61"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/resume325-saved-family-key-initial-failure.json",
+        "status": "untracked",
+        "bytes": 667,
+        "sha256": "907dac883382f28272fdee541aca40587099d0aa8e736b47460b2cc244e55f41"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/resume325-saved-family-key-probe.json",
+        "status": "untracked",
+        "bytes": 923,
+        "sha256": "22f66c7d95d3e0dd84061a6cbf4d2164c6141fc80717565388e80727ca0a88b2"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/rk325-v4-offline-preflight.log",
+        "status": "untracked",
+        "bytes": 3647,
+        "sha256": "baa304393638150f0e7f483edcbd7c50ca7d94d153c9ac5410810fc922c8d9d8"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/rk325-v4p1-offline-preflight.log",
+        "status": "untracked",
+        "bytes": 284,
+        "sha256": "d01b6b866af3b8a298088a623836bc011d7cd48ab4fb934441de2a2b36a02cf8"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/v4p1-final-package-tests.log",
+        "status": "untracked",
+        "bytes": 296,
+        "sha256": "ccee80f041dbe41f2eb0b04e1a2efc18728550e1f184c6f12191ff9734026198"
+      },
+      {
+        "path": "test/parallel_block_profile/locality_325/validation/v4p1-fresh-tests.log",
+        "status": "untracked",
+        "bytes": 296,
+        "sha256": "73fb6dc50974e9f5f935747ff8e6846ad987d35e8783b226c91ebf2a4cd95143"
+      }
+    ],
+    "excluded_untracked": [
+      "bin-stage325-check/climate",
+      "build-stage325-check/NCAR_topo.o",
+      "build-stage325-check/adapt.o",
+      "build-stage325-check/arch.o",
+      "build-stage325-check/audit316.o",
+      "build-stage325-check/audit_compress322.o",
+      "build-stage325-check/barotropic_2d.o",
+      "build-stage325-check/boundary310.o",
+      "build-stage325-check/calendar.o",
+      "build-stage325-check/campaign312.o",
+      "build-stage325-check/checkpoint.o",
+      "build-stage325-check/coarse_grid.o",
+      "build-stage325-check/comm.o",
+      "build-stage325-check/comm_mpi.o",
+      "build-stage325-check/coord_arithmetic.o",
+      "build-stage325-check/diagnostics.o",
+      "build-stage325-check/domain.o",
+      "build-stage325-check/domain_ops.o",
+      "build-stage325-check/dyn_array.o",
+      "build-stage325-check/equation_of_state.o",
+      "build-stage325-check/geom.o",
+      "build-stage325-check/init.o",
+      "build-stage325-check/init_physics_module.o",
+      "build-stage325-check/integrate.o",
+      "build-stage325-check/io_vtk.o",
+      "build-stage325-check/kind.o",
+      "build-stage325-check/lin_solve.o",
+      "build-stage325-check/lnorms.o",
+      "build-stage325-check/main.o",
+      "build-stage325-check/mask.o",
+      "build-stage325-check/mod/adapt_mod.mod",
+      "build-stage325-check/mod/arch_mod.mod",
+      "build-stage325-check/mod/audit316_mod.mod",
+      "build-stage325-check/mod/barotropic_2d_mod.mod",
+      "build-stage325-check/mod/boundary310_mod.mod",
+      "build-stage325-check/mod/calendar_mod.mod",
+      "build-stage325-check/mod/campaign312_mod.mod",
+      "build-stage325-check/mod/checkpoint_mod.mod",
+      "build-stage325-check/mod/coarse_grid_mod.mod",
+      "build-stage325-check/mod/comm_mod.mod",
+      "build-stage325-check/mod/comm_mpi_mod.mod",
+      "build-stage325-check/mod/coord_arithmetic_mod.mod",
+      "build-stage325-check/mod/diagnostics_mod.mod",
+      "build-stage325-check/mod/domain_mod.mod",
+      "build-stage325-check/mod/domain_ops_mod.mod",
+      "build-stage325-check/mod/dyn_arrays.mod",
+      "build-stage325-check/mod/equation_of_state_mod.mod",
+      "build-stage325-check/mod/geom_mod.mod",
+      "build-stage325-check/mod/init_mod.mod",
+      "build-stage325-check/mod/init_physics_mod.mod",
+      "build-stage325-check/mod/integrate_mod.mod",
+      "build-stage325-check/mod/io_vtk_mod.mod",
+      "build-stage325-check/mod/kind_mod.mod",
+      "build-stage325-check/mod/lin_solve_mod.mod",
+      "build-stage325-check/mod/lnorms_mod.mod",
+      "build-stage325-check/mod/main_mod.mod",
+      "build-stage325-check/mod/mask_mod.mod",
+      "build-stage325-check/mod/multi_level_mod.mod",
+      "build-stage325-check/mod/ncar_topo_mod.mod",
+      "build-stage325-check/mod/ops_mod.mod",
+      "build-stage325-check/mod/parallel_block_build_mod.mod",
+      "build-stage325-check/mod/parallel_block_inverse_mod.mod",
+      "build-stage325-check/mod/parallel_block_mass_mod.mod",
+      "build-stage325-check/mod/parallel_block_mod.mod",
+      "build-stage325-check/mod/parallel_block_mpi_mod.mod",
+      "build-stage325-check/mod/parallel_block_primitive_walk_mod.mod",
+      "build-stage325-check/mod/parallel_block_profile_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_backend_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_boundary_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_compile_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_diffusion_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_distribute_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_distributed_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_dynamics_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_exchange_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_layout_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_placement_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_retention_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_routes_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_schedule_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_state_mod.mod",
+      "build-stage325-check/mod/parallel_block_rhs_wire_mod.mod",
+      "build-stage325-check/mod/parallel_block_scalar_storage_mod.mod",
+      "build-stage325-check/mod/parallel_block_transform_adapter_mod.mod",
+      "build-stage325-check/mod/parallel_block_transform_backend_mod.mod",
+      "build-stage325-check/mod/parallel_block_transform_kernels_mod.mod",
+      "build-stage325-check/mod/parallel_block_transform_placement_mod.mod",
+      "build-stage325-check/mod/parallel_block_velocity_mod.mod",
+      "build-stage325-check/mod/param_mod.mod",
+      "build-stage325-check/mod/patch_mod.mod",
+      "build-stage325-check/mod/phys_processing_mod.mod",
+      "build-stage325-check/mod/physics_held_suarez_mod.mod",
+      "build-stage325-check/mod/physics_simple_mod.mod",
+      "build-stage325-check/mod/physics_trend_mod.mod",
+      "build-stage325-check/mod/ppr_1d.mod",
+      "build-stage325-check/mod/projection_mod.mod",
+      "build-stage325-check/mod/refine_patch_mod.mod",
+      "build-stage325-check/mod/remap_mod.mod",
+      "build-stage325-check/mod/runtime322_mod.mod",
+      "build-stage325-check/mod/shared_mod.mod",
+      "build-stage325-check/mod/spline_mod.mod",
+      "build-stage325-check/mod/sso_mod.mod",
+      "build-stage325-check/mod/std_atm_profile_mod.mod",
+      "build-stage325-check/mod/test_case_mod.mod",
+      "build-stage325-check/mod/time_integr_mod.mod",
+      "build-stage325-check/mod/topo_grid_descriptor_mod.mod",
+      "build-stage325-check/mod/utils_mod.mod",
+      "build-stage325-check/mod/vert_diffusion_mod.mod",
+      "build-stage325-check/mod/wavelet_mod.mod",
+      "build-stage325-check/multi_level.o",
+      "build-stage325-check/ops.o",
+      "build-stage325-check/parallel_block.o",
+      "build-stage325-check/parallel_block_build.o",
+      "build-stage325-check/parallel_block_inverse.o",
+      "build-stage325-check/parallel_block_mass.o",
+      "build-stage325-check/parallel_block_mpi.o",
+      "build-stage325-check/parallel_block_primitive_walk.o",
+      "build-stage325-check/parallel_block_profile.o",
+      "build-stage325-check/parallel_block_rhs.o",
+      "build-stage325-check/parallel_block_rhs_backend.o",
+      "build-stage325-check/parallel_block_rhs_boundary.o",
+      "build-stage325-check/parallel_block_rhs_compile.o",
+      "build-stage325-check/parallel_block_rhs_diffusion.o",
+      "build-stage325-check/parallel_block_rhs_distribute.o",
+      "build-stage325-check/parallel_block_rhs_distributed.o",
+      "build-stage325-check/parallel_block_rhs_dynamics.o",
+      "build-stage325-check/parallel_block_rhs_exchange.o",
+      "build-stage325-check/parallel_block_rhs_layout.o",
+      "build-stage325-check/parallel_block_rhs_placement.o",
+      "build-stage325-check/parallel_block_rhs_retention.o",
+      "build-stage325-check/parallel_block_rhs_routes.o",
+      "build-stage325-check/parallel_block_rhs_schedule.o",
+      "build-stage325-check/parallel_block_rhs_state.o",
+      "build-stage325-check/parallel_block_rhs_wire.o",
+      "build-stage325-check/parallel_block_scalar_storage.o",
+      "build-stage325-check/parallel_block_transform_adapter.o",
+      "build-stage325-check/parallel_block_transform_backend.o",
+      "build-stage325-check/parallel_block_transform_kernels.o",
+      "build-stage325-check/parallel_block_transform_placement.o",
+      "build-stage325-check/parallel_block_velocity.o",
+      "build-stage325-check/param_J5.o",
+      "build-stage325-check/patch.o",
+      "build-stage325-check/phys_processing.o",
+      "build-stage325-check/physics_Held_Suarez.o",
+      "build-stage325-check/physics_simple.o",
+      "build-stage325-check/physics_trend.o",
+      "build-stage325-check/projection.o",
+      "build-stage325-check/refine_patch.o",
+      "build-stage325-check/remap.o",
+      "build-stage325-check/runtime322.o",
+      "build-stage325-check/runtime322_c.o",
+      "build-stage325-check/shared.o",
+      "build-stage325-check/spline.o",
+      "build-stage325-check/sso.o",
+      "build-stage325-check/std_atm_profile.o",
+      "build-stage325-check/test.o",
+      "build-stage325-check/test_case_module.o",
+      "build-stage325-check/time_integr.o",
+      "build-stage325-check/topo_grid_descriptor.o",
+      "build-stage325-check/utils.o",
+      "build-stage325-check/vert_diffusion.o",
+      "build-stage325-check/wavelet.o",
+      "src/physics/simple_physics/phyparam/Makefile.inc",
+      "src/physics/simple_physics/phyparam/driver/driver",
+      "src/physics/simple_physics/phyparam/driver/libphyparam.a",
+      "src/physics/simple_physics/phyparam/driver/plugins_mod.mod",
+      "src/physics/simple_physics/phyparam/include/accelerator.mod",
+      "src/physics/simple_physics/phyparam/include/astronomy.mod",
+      "src/physics/simple_physics/phyparam/include/callkeys.mod",
+      "src/physics/simple_physics/phyparam/include/comgeomfi.mod",
+      "src/physics/simple_physics/phyparam/include/convection.mod",
+      "src/physics/simple_physics/phyparam/include/error_mod.mod",
+      "src/physics/simple_physics/phyparam/include/iniphyparam_mod.mod",
+      "src/physics/simple_physics/phyparam/include/logging.mod",
+      "src/physics/simple_physics/phyparam/include/mellor_yamada.mod",
+      "src/physics/simple_physics/phyparam/include/phyparam_mod.mod",
+      "src/physics/simple_physics/phyparam/include/phys_const.mod",
+      "src/physics/simple_physics/phyparam/include/planet.mod",
+      "src/physics/simple_physics/phyparam/include/profiling.mod",
+      "src/physics/simple_physics/phyparam/include/radiative_lw.mod",
+      "src/physics/simple_physics/phyparam/include/radiative_mod.mod",
+      "src/physics/simple_physics/phyparam/include/radiative_sw.mod",
+      "src/physics/simple_physics/phyparam/include/read_param_mod.mod",
+      "src/physics/simple_physics/phyparam/include/restart.mod",
+      "src/physics/simple_physics/phyparam/include/single_column_mod.mod",
+      "src/physics/simple_physics/phyparam/include/soil_mod.mod",
+      "src/physics/simple_physics/phyparam/include/solar.mod",
+      "src/physics/simple_physics/phyparam/include/turbulence.mod",
+      "src/physics/simple_physics/phyparam/include/writefield_mod.mod",
+      "src/physics/simple_physics/phyparam/lib/libphyparam.so",
+      "src/physics/simple_physics/phyparam/obj/accelerator.o",
+      "src/physics/simple_physics/phyparam/obj/astronomy.o",
+      "src/physics/simple_physics/phyparam/obj/callkeys.o",
+      "src/physics/simple_physics/phyparam/obj/comgeomfi.o",
+      "src/physics/simple_physics/phyparam/obj/convection.o",
+      "src/physics/simple_physics/phyparam/obj/error_mod.o",
+      "src/physics/simple_physics/phyparam/obj/iniphyparam_mod.o",
+      "src/physics/simple_physics/phyparam/obj/logging.o",
+      "src/physics/simple_physics/phyparam/obj/mellor_yamada.o",
+      "src/physics/simple_physics/phyparam/obj/phyparam_mod.o",
+      "src/physics/simple_physics/phyparam/obj/phys_const.o",
+      "src/physics/simple_physics/phyparam/obj/planet.o",
+      "src/physics/simple_physics/phyparam/obj/profiling.o",
+      "src/physics/simple_physics/phyparam/obj/radiative_lw.o",
+      "src/physics/simple_physics/phyparam/obj/radiative_mod.o",
+      "src/physics/simple_physics/phyparam/obj/radiative_sw.o",
+      "src/physics/simple_physics/phyparam/obj/read_param_mod.o",
+      "src/physics/simple_physics/phyparam/obj/restart.o",
+      "src/physics/simple_physics/phyparam/obj/single_column_mod.o",
+      "src/physics/simple_physics/phyparam/obj/soil_mod.o",
+      "src/physics/simple_physics/phyparam/obj/solar.o",
+      "src/physics/simple_physics/phyparam/obj/turbulence.o",
+      "src/physics/simple_physics/phyparam/obj/writefield_mod.o",
+      "src/physics/simple_physics/phyparam/tmp/accelerator.f90",
+      "src/physics/simple_physics/phyparam/tmp/astronomy.f90",
+      "src/physics/simple_physics/phyparam/tmp/callkeys.f90",
+      "src/physics/simple_physics/phyparam/tmp/comgeomfi.f90",
+      "src/physics/simple_physics/phyparam/tmp/convection.f90",
+      "src/physics/simple_physics/phyparam/tmp/error_mod.f90",
+      "src/physics/simple_physics/phyparam/tmp/iniphyparam_mod.f90",
+      "src/physics/simple_physics/phyparam/tmp/logging.f90",
+      "src/physics/simple_physics/phyparam/tmp/mellor_yamada.f90",
+      "src/physics/simple_physics/phyparam/tmp/phyparam_mod.f90",
+      "src/physics/simple_physics/phyparam/tmp/phys_const.f90",
+      "src/physics/simple_physics/phyparam/tmp/planet.f90",
+      "src/physics/simple_physics/phyparam/tmp/profiling.f90",
+      "src/physics/simple_physics/phyparam/tmp/radiative_lw.f90",
+      "src/physics/simple_physics/phyparam/tmp/radiative_mod.f90",
+      "src/physics/simple_physics/phyparam/tmp/radiative_sw.f90",
+      "src/physics/simple_physics/phyparam/tmp/read_param_mod.f90",
+      "src/physics/simple_physics/phyparam/tmp/restart.f90",
+      "src/physics/simple_physics/phyparam/tmp/single_column_mod.f90",
+      "src/physics/simple_physics/phyparam/tmp/soil_mod.f90",
+      "src/physics/simple_physics/phyparam/tmp/solar.f90",
+      "src/physics/simple_physics/phyparam/tmp/turbulence.f90",
+      "src/physics/simple_physics/phyparam/tmp/writefield_mod.f90",
+      "src/physics/simple_physics/phyparam/xml/accelerator.xml",
+      "src/physics/simple_physics/phyparam/xml/astronomy.xml",
+      "src/physics/simple_physics/phyparam/xml/callkeys.xml",
+      "src/physics/simple_physics/phyparam/xml/comgeomfi.xml",
+      "src/physics/simple_physics/phyparam/xml/convection.xml",
+      "src/physics/simple_physics/phyparam/xml/error_mod.xml",
+      "src/physics/simple_physics/phyparam/xml/iniphyparam_mod.xml",
+      "src/physics/simple_physics/phyparam/xml/logging.xml",
+      "src/physics/simple_physics/phyparam/xml/mellor_yamada.xml",
+      "src/physics/simple_physics/phyparam/xml/phyparam_mod.xml",
+      "src/physics/simple_physics/phyparam/xml/phys_const.xml",
+      "src/physics/simple_physics/phyparam/xml/planet.xml",
+      "src/physics/simple_physics/phyparam/xml/profiling.xml",
+      "src/physics/simple_physics/phyparam/xml/radiative_lw.xml",
+      "src/physics/simple_physics/phyparam/xml/radiative_mod.xml",
+      "src/physics/simple_physics/phyparam/xml/radiative_sw.xml",
+      "src/physics/simple_physics/phyparam/xml/read_param_mod.xml",
+      "src/physics/simple_physics/phyparam/xml/restart.xml",
+      "src/physics/simple_physics/phyparam/xml/single_column_mod.xml",
+      "src/physics/simple_physics/phyparam/xml/soil_mod.xml",
+      "src/physics/simple_physics/phyparam/xml/solar.xml",
+      "src/physics/simple_physics/phyparam/xml/turbulence.xml",
+      "src/physics/simple_physics/phyparam/xml/writefield_mod.xml",
+      "src/test.f90",
+      "src/test_case_module.f90",
+      "work325-schema.json"
+    ],
+    "excluded_categories": [
+      "bin-stage325-check/",
+      "build-stage325-check/",
+      "src/physics/simple_physics/phyparam/generatedbuildproducts",
+      "src/test.f90",
+      "src/test_case_module.f90",
+      "work325-schema.json atworktreeroot"
+    ],
+    "source_delta": "No new scientificsolverfiles are needed in this commit; Stage325candidate source already committed981bf229.",
+    "future_changes": "Terminal review/docs may add or update explicit evidence paths; refresh hashes/review selected diff before git add."
+  },
+  "new_jobs": 0,
+  "solver_runs": 0,
+  "original_work_premises": {
+    "source": "hash-bound original per-run ledger summaries; new full768TSV accounting replay still required",
+    "calls_per_rank": 5,
+    "retained_blocks_per_reconstruction": [
+      6,
+      400
+    ],
+    "remote_blocks_per_reconstruction": [
+      634,
+      240
+    ],
+    "remote_send_bytes_per_reconstruction": [
+      408995792,
+      155278016
+    ],
+    "peak_send_bytes_per_call": [
+      2580040,
+      1964756
+    ],
+    "peak_receive_bytes_per_call": [
+      1964756,
+      1905304
+    ],
+    "direct_collectives_per_rank_per_reconstruction": [
+      17,
+      17
+    ],
+    "source_blocks_per_reconstruction": 640,
+    "interpretation": "Substantial counted migration-byte reduction; no elapsed-time attribution or measured speedup follows."
+  }
+}

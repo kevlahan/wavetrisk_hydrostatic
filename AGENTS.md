@@ -1,5 +1,161 @@
 # Block refactoring: current objectives and operating rules
 
+## bbserv execution and monitoring — user preference, 2026-10-26
+
+Launch authorized campaigns directly on bbserv using the established SSH access.
+Monitor each submitted run through a terminal scheduler state, then collect the
+bounded review and analyze the result. Do not default to asking the user to copy,
+launch, poll or collect. If the active turn must end while a job is running,
+establish a supported monitoring follow-up and clearly report its scope; never
+imply background monitoring that is not active. Preserve agreed run counts,
+time/data caps, checkpoint protections and no-automatic-retry rules. A failure
+requires review before another solver run. Prefer verification of existing
+captures when they contain the evidence needed.
+
+## Current Stage325 qualification — job 55576, 2026-10-26
+
+Full native verification and independent terminal review passed for the saved
+job 55569 candidate: fixed level 5, tol=0, 256 ranks, 30 layers, Simple physics,
+four steps. All six closed phases, 512 optimized capture reads, 254 providers per
+arm, 508840 features per arm, 1024 physical bridges, 768 work reads and fresh
+1536 input hashes passed. Original source, binaries, science/checkpoints and
+earlier failure evidence remain preserved. No scientific source changed during
+verification. The authorized conditional verification commit is supported.
+
+Job 55576 completed on bb13 in 441 seconds with 292 native preflight tests and
+zero skips. The new total is 3097 scheduler seconds, including the earlier 2656;
+its separately approved 1800-second allowance has 1359 unused seconds. Unused
+budget is not authorization for another submission. Monitoring and collection
+are complete; the old heartbeat remains paused. No retry, solver, performance
+campaign or accepted-solver promotion is automatic. This qualification supplies
+no elapsed speedup, adaptive-case qualification or primary negative-scaling cause.
+See docs/parallel-blocks-stage325-native-v5-qualification.md and
+test/parallel_block_profile/locality_325/NATIVE_V5P1_TERMINAL_REVIEW.json.
+
+The following Stage325 entries retain historical decisions and running states.
+The result above supersedes their qualification/conditional-commit holds only;
+performance and generalization remain open.
+
+## Stage325 corrected continuation terminal review — job55574
+
+Job55574endedFAILED after264seconds (4:24), with a handled termination signal
+while awaiting final provider outputs. All512optimized streams,16source-bound
+shards and16exact merges completed. Both provider loops recorded254/254 without
+a new semantic assertion failure. Final proof exports, cross-arm feature/provider
+comparison,1024physical-value bridge comparisons and work replay did not finish.
+This is interrupted verification, not a demonstrated new numerical mismatch.
+
+The976,591-byte review has75verified entries and the sealed62filepayload matches.
+Independent post-terminal checks confirm258sources,79originalkitfiles,3889metadata,
+binaries/checkpoints and all1536capture/work hashes unchanged. All183native unit
+tests passed before submission. Resource peaks are sampled and below declared
+caps. Slurm logged cancellation at255seconds, before the270secondalarm; the exact
+signal number was not recorded. Do not claim the270secondalarm/300secondlimit elapsed.
+
+Hold full qualification, conditional commit, performance and promotion. The
+original total now uses2656seconds (44:16), leaving44seconds. No retry or budget
+extension is authorized automatically. Terminal review is complete; stop monitoring.
+See docs/parallel-blocks-stage325-corrected-inverse-gate.md and
+ test/parallel_block_profile/locality_325/validation/independent-review55574.json.
+
+## Stage325 corrected inverse continuation — job55574,2026-10-26
+
+The user authorized the corrected campaign. Source review and adversarial tests
+establish a physical-value bridge using existing fixed-Domain publication records,
+exact raw array hashes and the closed5/5optimized inverse schedule. This avoids
+weakening the value requirement or requiring a new solver capture. The saved
+rank101pair now passes all1596commonfeatures and four physical bridges.
+
+Recovery-v4p1 is RUNNING from14:59:47 onbb13/nk withone16CPUtask,300secondcap,
+270secondalarm and zero compiler/solver/performance runs. All183tests pass both
+in fresh extraction and onbbserv. The initialv4unitpreflightcaught aSQLiteURI
+compatibility issue and stopped before submission; that package/log is preserved.
+V4p1 explicitly enablesURIhandling. Earlier allocation elapsed2392seconds plus
+this300secondcap remains2692seconds within the original2700secondbudget.
+
+Monitor55574to terminal, collect the bounded review and independently inspect all
+optimized feature/provider/physical bridge, work and preservation evidence. The
+checked native closure is reused from55573; both optimized worlds are recomputed.
+Commit only if the completegatepasses. No retry, budget extension, solver or
+performance campaign is automatic. See docs/parallel-blocks-stage325-corrected-inverse-gate.md.
+
+## Stage325 terminal replay review — job55573,2026-10-26
+
+Job55573 FAILED at the cross-arm feature comparison after1,511seconds (25:11).
+All768streams and254providerfamilies per arm completed their individual checks.
+The first reported fixed inverse mismatch was inspected locally in two hash-bound
+rank101captures: six buffer slots are renumbered across the same308physical nodes
+in each of four steps; reciprocal node/slot maps and physical keys agree. This
+explains that sampled mismatch, not every mismatch or every live consumer.
+The full cross-arm provider comparison and work replay were not reached. Hold
+qualification, promotion, performance and the validation-conditional commit.
+
+The592,618-byte review has46verified manifest entries. Original source, binaries,
+checkpoints, metadata and all1,536capture/work hashes were independently rechecked
+unchanged after failure. Combined target elapsed2,392seconds leaves308seconds
+(5:08) in the original2,700-second budget; another full replay would not fit.
+No retry, budget extension or new solver was launched. Terminal review is complete
+and the heartbeat monitor is stopped. See docs/parallel-blocks-stage325-job55569-review.md
+and test/parallel_block_profile/locality_325/validation/independent-review55573.json.
+The next proposed work is an offline physical-identity audit of inverse-slot
+readers/writers, not removing unequal fields or weakening the comparator.
+
+## Stage325 corrected native provider gate — job55573,2026-10-26
+
+The user authorized the next gate after the completed offline provider audit.
+At submission, recovery-v3 was RUNNING on bb13/nk from13:56:07
+(scheduler timestamp, no offset supplied). It reuses the three original capture
+sets: zero builds, solver runs or performance measurements. All112 packaged tests
+pass both before sealing and after fresh archive extraction. The package verifies
+both failed-replay histories and the original1,536 input hashes. Its30-minute
+allocation and29-minute runner alarm bound cumulative target time to2,681seconds
+within the original2,700-second budget;881seconds were already consumed.
+
+Full native semantic/provider and work qualification remains pending. The terminal review above supersedes the initial monitoring state. Commit only if the full gate supports it. Never automatically retry, extend
+the budget, modify original evidence or submit a performance run.
+Reproducer: test/parallel_block_profile/locality_325/recovery_v3/build_recovery325.py.
+ArchiveSHA256: `39750bf8db0ac8f71a56673724adc554efa744bb74f5e47bc38177ce1374fc21`.
+ManifestSHA256: `386333bfa0bb686f4dbec9cdc8f940df50d8c020dc02c76ff5d2a8e7003d70ad`.
+
+## Stage325 offline provider preflight — 2026-10-26
+
+The user authorized the offline audit and checker repair after job55572.
+The repaired ghost contract follows the actual disabled-grouping request order,
+with strict allocation checks. Early inverse layout/metadata guards are also
+source-bound. All 128 tests pass, including 19 tests of real provider reconciliation
+on constructed 256-rank worlds; nine saved captures and 5,450 shared features pass.
+See docs/parallel-blocks-stage325-provider-preflight.md and
+ test/parallel_block_profile/locality_325/PROVIDER_PREFLIGHT.json.
+This completes the offline prerequisite; full native verification remains open.
+No new target job was submitted in this step. A future separately sealed replay
+must fit within the remaining 1,819 seconds; do not reuse the 35-minute wrapper.
+Original sealed packages, solver source and evidence remain unchanged. The v2
+verifier is frozen in recovery_v2 so the historical payload remains reproducible.
+
+## Stage325 native verification recovery — terminal review 2026-10-26
+
+Job 55569 completed both exact GCC 13.2/MVAPICH 4 builds and all three 256-rank
+qualification solvers; science, placement and per-run work checks passed. Its
+final checker and replay 55571 exposed source-bound RHS-component and transform
+sentinel defects. Both corrections passed their focused tests.
+
+Replay 55572 ended FAILED after 476 seconds: all 256 checked streams passed,
+then provider family 149 accessed optional grouped ghost-order arrays although
+WAVETRISK_SHARED_GHOST_SOURCE=0. The source correctly leaves these unallocated;
+ordinary request order must be verified instead. The selected-stream preflight
+did not execute this provider-consumption branch. Full semantic/provider
+qualification remains incomplete, and no performance claim or promotion follows.
+
+The bounded review and all 38 hashes are verified. A post-failure read-only check
+confirms original source, binaries, checkpoints, metadata and all 1,536 native
+capture/work hashes unchanged. See docs/parallel-blocks-stage325-job55569-review.md.
+No replay retry, solver or performance run is scheduled. The monitoring heartbeat
+is stopped after terminal review. Combined elapsed 881 seconds leaves 1,819 seconds
+of the original 2,700-second budget; do not extend it automatically. Hold the
+validation-conditional commit. Offline full provider-path audit/preflight is the
+next proposed work before another replay. Parent .stage325-development retains
+CONTINUATION325.json and independent-review55572.json.
+
 ## Stage325 locality qualification implementation — 2026-10-26
 
 User authorized implementation and commit after validation. The exact Stage324
@@ -263,3 +419,17 @@ must not become a default. No additional campaign submission authorized.
   grid checksum. Verify packaged bytes and fresh extraction before delivery.
 - User commands must be fenced and copyable, without # comment lines or editable
   placeholders. Use the proven launch/status/collection structure.
+
+## Stage325 resumable verification repair — 2026-10-26
+
+The user authorized offline workflow changes after adversarial design review.
+The new resume_state325/stream_compare325/resume_workflow325/resume_native325
+modules preserve closed phase certificates and compare SQLite cursors without
+large feature/bridge JSON export. Explicit resume rehashes inputs and completed
+artifacts; partial phases require explicit discard and semantic failures latch.
+See docs/parallel-blocks-stage325-resumable-verification.md and
+test/parallel_block_profile/locality_325/RESUME_VALIDATION.json.
+This is offline software validation only. No new bbserv job, solver, compiler,
+budget extension, conditional commit or performance qualification occurred.
+The original44seconds remain; a future native wrapper needs separately agreed
+budget, allocation/memory supervision and independent terminal review.

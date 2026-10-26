@@ -1,0 +1,14 @@
+{
+  "check": "postfailure_preservation55573",
+  "passed": true,
+  "metadata_files": 3889,
+  "source_files": 258,
+  "kit_files": 79,
+  "native_input_hashes": 1536,
+  "recovery_package_manifest": "386333bfa0bb686f4dbec9cdc8f940df50d8c020dc02c76ff5d2a8e7003d70ad",
+  "elapsed_seconds": 4.841907575726509,
+  "solver_runs": 0,
+  "source_job": 55569,
+  "verification_job": 55573,
+  "method": "Read-only SSH metadata_check, load_history, all1536historical input hashes and package_check after terminal failure; no semantic replay"
+}

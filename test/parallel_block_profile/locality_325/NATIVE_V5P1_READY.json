@@ -1,0 +1,53 @@
+{
+  "stage": 325,
+  "status": "job55576_completed_full_gate_independently_reviewed",
+  "failed_job": 55575,
+  "failed_attempts_preserved": true,
+  "archive_sha256": "99fe77316934f2991f65ecf2e0c22ee15051f490ccb8f38a27c9fb78bc9f86b7",
+  "package_manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+  "native_preflight": {
+    "command": [
+      "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/python-venv-1.0-bj2eoat2m3cvhwjbgauezeqbcp5puwdj/bin/python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-v"
+    ],
+    "elapsed_seconds": 47.69290186883882,
+    "log_bytes": 43602,
+    "log_sha256": "0312cb53117cdb57a81378bb2081d97d04d67b65d2aa6e01c3175ebad46af907",
+    "new_jobs": 0,
+    "package_manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+    "passed": true,
+    "returncode": 0,
+    "skipped": 0,
+    "solver_runs": 0,
+    "submission_authorized": false,
+    "tests": 292
+  },
+  "independent_review": {
+    "path": "NATIVE_V5P1_DESIGN_REVIEW.json",
+    "sha256": "d7d3ab8ef6e57cf2ebfcb8f30fdf3cde77f22e324ed91e0263c5dc2c776f815e"
+  },
+  "remote_kit": "$HOME/rk325-native-qualification-kit-v5p1",
+  "remote_state": "$HOME/rk325-native-v5p1-latest.json",
+  "launch": "cd \"$HOME/rk325-native-qualification-kit-v5p1\" && bash launch.sh",
+  "walltime_cap_seconds": 1800,
+  "new_budget_remaining_accounted_seconds": 1359,
+  "original_elapsed_seconds": 2656,
+  "source_job": 55569,
+  "source_and_all1536input_hashes_unchanged": true,
+  "new_solver_runs": 0,
+  "native_qualification": true,
+  "submitted": true,
+  "approval_required": false,
+  "no_automatic_retry": true,
+  "user_approval": "Explicit user reply: Submit corrected job (Recommended)",
+  "job": 55576,
+  "conditional_commit_supported": true,
+  "new_budget_used_seconds": 441,
+  "new_budget_unused_seconds": 1359,
+  "terminal_review": "NATIVE_V5P1_TERMINAL_REVIEW.json",
+  "new_budget_available_at_preparation_seconds": 1800
+}

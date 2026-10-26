@@ -2,9 +2,14 @@
 
 2026-10-26. The audited 256-owner permutation is implemented as the separately
 guarded `WAVETRISK_OWNER_MAP322=L256` selector. Local compilation, initialization,
-codec and checker tests pass. **Native 256-rank qualification remains pending.
-No performance improvement, primary slowdown cause or accepted-solver promotion
-is established.**
+codec and checker tests pass. **Native qualification passed in job 55576 and
+independent review for the saved fixed level-5, tol=0, 256-rank, four-step case.**
+The original job 55569 supplied science, placement and exact compiler gates;
+the corrected replay completed semantic, provider, physical inverse and work
+verification without another solver run. No performance improvement, primary
+slowdown cause or accepted-solver promotion is established. See
+[full native review](parallel-blocks-stage325-native-v5-qualification.md) and the
+[original campaign review](parallel-blocks-stage325-job55569-review.md).
 
 The isolated branch is `codex/stage325-locality-qualification`. Commit
 `462600109b281af30e34e5f71832fe61cc2a51fb` first records the exact 258-file candidate

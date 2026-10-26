@@ -1,0 +1,14 @@
+{
+  "check": "postfailure_preservation55574",
+  "passed": true,
+  "source_job": 55569,
+  "verification_job": 55574,
+  "metadata_files": 3889,
+  "source_files": 258,
+  "original_kit_files": 79,
+  "native_input_hashes": 1536,
+  "package_manifest_sha256": "ff430542d8ab81078d522a2468a1ce1baa22bac501f922e534c839c7c47ee1bb",
+  "elapsed_seconds": 5.058329847175628,
+  "solver_runs": 0,
+  "method": "Independent read-only post-terminal metadata/source/binary/checkpoint and all1536historical input hashes recheck; no semantic replay."
+}

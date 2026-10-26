@@ -1,0 +1,1342 @@
+module domain_mod
+  use iso_fortran_env, only : int64
+  use shared_mod, only : POLE,NORTHWEST
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_r,audit316_l
+  use kind_mod,   only : dp
+
+  use shared_mod, only : AT_NODE, AT_EDGE, BDRY_THICKNESS, b_vert, b_vert_mass, compressible, &
+       EAST, EDGE, grav_accel, IMINUS, IJMINUS, IMINUSJPLUS, JMINUS, &
+       N_BDRY, N_CHDRN, N_DOMAIN, NORTH, NORTHEAST, ORIGIN, RT, DG, SOUTHEAST, S_VELO, TRIAG, UP, WEST, &
+       a_vert, a_vert_mass, coord, p_0, ref_density, max_level, max_depth, min_level, mode_split, &
+       split_mean_perturbation, scalars, zlevels, zmin
+
+  use patch_mod, only : BDRY_PATCH, Patch, PATCH_SIZE
+  use arch_mod,  only : n_glo_block, n_process, rank, glo_id, is_block_cut
+
+  use dyn_arrays, only : Areas_Array, Bdry_Patch_Array, Coord_Array, Float_Array, Int_Array, &
+       Iu_Wgt_Array, Logical_Array, Overl_Area_Array, Patch_Array, RF_Wgt_Array, Topo_Array, &
+       append, extend, init
+
+  implicit none
+
+  private
+  public :: audit_domain_fields322
+  public :: Domain, Float_Field, Int_Field, Logical_Field
+  public :: init_field, sides_dims, chd_offs
+  public :: grid, topography, topography_data, sso_param, exner_fun, horiz_flux, penal_node, penal_edge, Kv, Kt, tke
+  public :: wav_tke, Laplacian_scalar, Laplacian_vector, sol, sol_mean, trend, wav_coeff
+  public :: domain_tendency_storage_required
+  public :: diag, mass, mass1, h_flux, h_mflux, dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
+  public :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
+  public :: mean_m, mean_t, Laplacian,  bernoulli, divu, exner, ke, qe, vort,  wc_s, wc_u
+  public :: init_Domain, add_bdry_patch_Domain, add_patch_Domain, extend_Domain, set_neigh_Domain
+  public :: idx, idx2, idx__fast, idx_hex, idx_hex_LORT, idx_hex_LORT2, idx_hex_UPLT, idx_hex_UPLT2, ed_idx, id_edge, tri_idx
+  public :: nidx, is_penta, find_neigh_bdry_patch_domain, find_neigh_patch2_domain, find_neigh_patch_domain
+  public :: par_side, get_offs_Domain, get_offs_Domain5
+  
+  public :: count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, subtree_weight_Domain
+  public :: compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain, renumber_subtree_neigh_Domain
+  public :: block_child_Domain
+  public :: get_bdry_dims_Domain
+
+
+  integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
+       BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, PATCH_SIZE, &
+       BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, BDRY_THICKNESS, &
+       BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, &
+       BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS], [2, 9])
+
+  integer, parameter :: chd_offs(2,4) = reshape ([PATCH_SIZE/2, PATCH_SIZE/2, PATCH_SIZE/2, 0, 0, 0, 0, PATCH_SIZE/2], [2, 4])
+
+
+  interface init_field
+     procedure :: init_Float_Field, init_Int_Field, init_Logical_Field
+  end interface init_field
+
+  ! Objects same on all zlevels
+  type Domain
+     ! Geometry
+     integer, dimension(2)      :: neigh_over_pole
+     integer, dimension(N_BDRY) :: neigh, neigh_rot
+     logical, dimension(2)      :: pole_master
+     logical, dimension(N_BDRY) :: penta
+     type(Int_Array)            :: neigh_pa_over_pole
+     type(Coord_Array)          :: ccentre     ! circumcentres
+     type(Coord_Array)          :: midpt       ! midpoints of edges
+     type(Coord_Array)          :: node        ! coordinates of hexagon nodes
+     type(Areas_Array)          :: areas       ! hexagon areas
+     type(Float_Array)          :: len         ! primal edge lengths
+     type(Float_Array)          :: pedlen      ! dual edge lengths
+     type(Float_Array)          :: triarea     ! triangle areas
+     type(Overl_Area_Array)     :: overl_areas ! overlapping areas
+
+     ! Multiscale and data structure
+     integer                                    :: id
+     type(Int_Array)                            :: level
+     type(Int_Array)                            :: mask_n
+     type(Int_Array)                            :: mask_e
+     type(Int_Array), dimension(:), allocatable :: lev
+     type(Iu_Wgt_Array)                         :: I_u_wgt
+     type(RF_Wgt_Array)                         :: R_F_wgt
+     type(Patch_Array)                          :: patch
+     type(Bdry_Patch_Array)                     :: bdry_patch
+
+     ! Communication
+     type(Int_Array)              :: send_pa_all
+     type(Int_Array), allocatable :: recv_pa(:), send_conn(:)
+     type(Int_Array), allocatable :: pack(:,:), unpk(:,:)
+     type(Int_Array), allocatable :: src_patch(:,:)
+
+     ! Physical quantities
+     type(Float_Array) :: coriolis    ! Coriolis force
+     type(Float_Array) :: surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
+     type(Float_Array) :: press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)
+     type(Float_Array) :: geopot      ! geopotential
+     type(Float_Array) :: u_zonal     ! zonal velocity
+     type(Float_Array) :: v_merid     ! meridional velocity
+     type(Float_Array) :: press_lower ! mass in adjacent vertical cell
+     type(Float_Array) :: geopot_lower! geopotential in adjacent vertical cell
+     type(Float_Array) :: vort        ! vorticity on triangles
+     type(Float_Array) :: ke          ! kinetic energy
+     type(Float_Array) :: bernoulli   ! Bernoulli function
+     type(Float_Array) :: divu        ! divergence of velocity
+     type(Float_Array) :: qe          !
+  end type Domain
+
+  type Float_Field
+     integer                        :: pos
+     integer                        :: bdry_tag = -1
+     logical                        :: bdry_uptodate
+     type(Float_Array), allocatable :: data(:)
+  end type Float_Field
+
+  type Int_Field
+     integer                      :: pos
+     integer                      :: bdry_tag = -1
+     logical                      :: bdry_uptodate
+     type(Int_Array), allocatable :: data(:)
+  end type Int_Field
+
+  type Logical_Field
+     integer                          :: pos
+     integer                          :: bdry_tag = -1
+     logical                          :: bdry_uptodate
+     type(Logical_Array), allocatable :: data(:)
+  end type Logical_Field
+
+  type(Domain), allocatable, target :: grid(:)
+
+  type(Float_Field),                              target :: topography
+  type(Topo_Array),  dimension(:,:), allocatable         :: topography_data
+  type(Float_Field), dimension(4),                target :: sso_param
+  type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, penal_node, penal_edge
+  type(Float_Field), dimension(:),   allocatable, target :: Kv, Kt, tke, wav_tke
+  type(Float_Field), dimension(:),   allocatable, target :: Laplacian_scalar, Laplacian_vector
+  ! Legacy/oracle numerical tendencies; production block RK does not allocate them.
+  logical, save :: domain_tendency_storage_required = .true.
+  type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_mean, trend
+  type(Float_Field), dimension(:,:), allocatable, target :: wav_coeff
+
+  real(dp), dimension(:), pointer :: diag, mass, mass1, h_flux, h_mflux
+  real(dp), dimension(:), pointer :: dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
+  real(dp), dimension(:), pointer :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
+  real(dp), dimension(:), pointer :: mean_m, mean_t
+  real(dp), dimension(:), pointer :: Laplacian
+  real(dp), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
+  real(dp), dimension(:), pointer :: wc_s, wc_u
+
+
+contains
+
+  subroutine audit_domain_fields322(field,family,epoch)
+    ! Exact initialized Float_Array logical lengths, never spare capacity or
+    ! derived-type bytes. Includes boundaries/poles as well as interiors.
+    type(Float_Field),intent(in) :: field(:,:)
+    integer,intent(in) :: family
+    integer(int64),intent(in) :: epoch
+    integer :: d,v,k,n,p
+    if(.not.audit316_enabled()) return
+    call audit316_begin('domain.fields322',epoch)
+    call audit316_i('fields.header',[family,size(field,1),size(field,2),size(grid)])
+    do d=1,size(grid)
+       n=grid(d)%node%length
+       call audit316_i('fields.domain',[d,glo_id(rank+1,d),n,grid(d)%patch%length,grid(d)%bdry_patch%length])
+       call audit316_i('fields.node_level',grid(d)%level%elts(:n))
+       call audit316_i('fields.node_mask',grid(d)%mask_n%elts(:n))
+       call audit316_i('fields.edge_mask',grid(d)%mask_e%elts(:3*n))
+       call audit316_l('fields.poles',[grid(d)%penta(SOUTHEAST).and.grid(d)%neigh(SOUTHEAST)==POLE, &
+            grid(d)%penta(NORTHWEST).and.grid(d)%neigh(NORTHWEST)==POLE])
+       do p=1,grid(d)%patch%length
+          call audit316_i('fields.patch',[p-1,grid(d)%patch%elts(p)%level,grid(d)%patch%elts(p)%elts_start, &
+               merge(1,0,grid(d)%patch%elts(p)%deleted),grid(d)%patch%elts(p)%children])
+       end do
+       do k=1,size(field,2)
+          do v=1,size(field,1)
+             if(.not.allocated(field(v,k)%data)) error stop 'Stage322 field data is not allocated'
+             if(size(field(v,k)%data)/=size(grid)) error stop 'Stage322 field domain extent'
+             n=field(v,k)%data(d)%length
+             if(n<0.or.n>size(field(v,k)%data(d)%elts)) error stop 'Stage322 field logical length'
+             call audit316_i('fields.coordinate',[d,k,v,field(v,k)%pos,field(v,k)%bdry_tag,n])
+             call audit316_l('fields.boundary_current',[field(v,k)%bdry_uptodate])
+             call audit316_r('fields.values',field(v,k)%data(d)%elts(:n))
+          end do
+       end do
+    end do
+    call audit316_end()
+  end subroutine audit_domain_fields322
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! Initialization subroutines !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine init_Float_Field (self, pos)
+    implicit none
+    type(Float_Field), intent(out) :: self
+    integer,           intent(in) :: pos
+
+    self%bdry_uptodate = .false.
+    self%pos = pos
+
+    allocate (self%data(n_domain(rank+1)))
+  end subroutine init_Float_Field
+
+
+  subroutine init_Int_Field (self, pos)
+    implicit none
+    type(Int_Field), intent(out) :: self
+    integer,         intent(in)  :: pos
+
+    self%bdry_uptodate = .false.
+    self%pos = pos
+
+    allocate (self%data(n_domain(rank+1)))
+  end subroutine init_Int_Field
+
+
+  subroutine init_Logical_Field (self, pos)
+    implicit none
+    type(Logical_Field), intent(out) :: self
+    integer,             intent(in)  :: pos
+
+    self%bdry_uptodate = .false.
+    self%pos = pos
+
+    allocate (self%data(n_domain(rank+1)))
+  end subroutine init_Logical_Field
+
+
+  subroutine init_Domain (self)
+    implicit none
+    type(Domain), intent(out) :: self
+
+    integer :: i, k, l, r
+
+    call init (self%patch, 1)
+    call init (self%bdry_patch, 1)
+    call init (self%node, 1)
+
+    allocate (self%src_patch(n_process,min_level:max_level))
+
+    do l = min_level, max_level
+       do r = 1, n_process
+          call init (self%src_patch(r,l), 0)
+       end do
+    end do
+
+    allocate (self%lev(min_level-1:max_level))
+
+    do i = lbound(self%lev,1), ubound(self%lev,1)
+       call init (self%lev(i), 0)
+    end do
+
+    allocate (self%recv_pa(n_glo_block))
+    allocate (self%send_conn(n_glo_block))
+
+    allocate (self%pack(AT_NODE:AT_EDGE,n_glo_block))
+    allocate (self%unpk(AT_NODE:AT_EDGE,n_glo_block))
+
+    do i = 1, n_glo_block
+       call init (self%send_conn(i), 0)
+    end do
+
+    call init (self%send_pa_all, 0)
+
+    do i = 1, n_glo_block
+       call init (self%recv_pa(i), 0)
+    end do
+
+    do k = AT_NODE, AT_EDGE
+       do i = 1, n_glo_block
+          call init (self%pack(k,i), 0)
+          call init (self%unpk(k,i), 0)
+       end do
+    end do
+
+    self%pole_master = .false.
+  end subroutine init_Domain
+
+
+  subroutine renumber_subtree_neigh_Domain (dom, patch_out, old_to_new)
+    ! Renumber neighbour links that remain internal to an extracted
+    ! subtree. Links leaving the subtree are left unchanged.
+
+    implicit none
+
+    type(Domain), intent(in)    :: dom
+    type(Patch),  intent(inout) :: patch_out(:)
+    integer,      intent(in)    :: old_to_new(0:)
+
+    integer :: p_old, p_new
+    integer :: p_ngb_old
+    integer :: s
+
+    do p_old = 0, dom%patch%length-1
+
+       p_new = old_to_new(p_old)
+
+       if (p_new < 0) cycle
+
+       do s = 1, N_BDRY
+
+          p_ngb_old = dom%patch%elts(p_old+1)%neigh(s)
+
+          if (p_ngb_old < 0) cycle
+
+          if (p_ngb_old >= dom%patch%length) then
+             error stop &
+                  "renumber_subtree_neigh_Domain: invalid source neighbour"
+          end if
+
+          if (old_to_new(p_ngb_old) >= 0) then
+             patch_out(p_new+1)%neigh(s) = old_to_new(p_ngb_old)
+          end if
+
+       end do
+
+    end do
+
+  end subroutine renumber_subtree_neigh_Domain
+
+  subroutine copy_subtree_field_Domain (patch_out, old_elts_start, mult, &
+       field_in, field_out)
+    ! Copy one field from a source Domain storage layout into the compact
+    ! storage layout of an extracted subtree.
+    !
+    ! mult is the number of field values associated with each node index:
+    !
+    !   mult = 1          for node-based scalar fields
+    !   mult = EDGE       for the edge-based velocity field
+    !
+    ! Patch field storage follows the WAVETRISK convention
+    !
+    !   start = mult * patch%elts_start
+    !   size  = mult * PATCH_SIZE**2
+
+    implicit none
+
+    type(Patch), intent(in) :: patch_out(:)
+
+    integer, intent(in) :: old_elts_start(:)
+    integer, intent(in) :: mult
+
+    real(dp), intent(in) :: field_in(:)
+
+    real(dp), allocatable, intent(out) :: field_out(:)
+
+    integer :: n_field
+    integer :: n_patch_field
+    integer :: p
+    integer :: old_start, new_start
+
+    if (size(old_elts_start) /= size(patch_out)) then
+       error stop &
+            "copy_subtree_field_Domain: inconsistent patch arrays"
+    end if
+
+    if (mult <= 0) then
+       error stop &
+            "copy_subtree_field_Domain: invalid multiplier"
+    end if
+
+    n_patch_field = mult * PATCH_SIZE**2
+    n_field       = mult * size(patch_out) * PATCH_SIZE**2
+
+    allocate(field_out(n_field))
+
+    do p = 1, size(patch_out)
+
+       old_start = mult * old_elts_start(p)
+       new_start = mult * patch_out(p)%elts_start
+
+       if (old_start < 0 .or. &
+            old_start + n_patch_field > size(field_in)) then
+          error stop &
+               "copy_subtree_field_Domain: source range out of bounds"
+       end if
+
+       if (new_start < 0 .or. &
+            new_start + n_patch_field > n_field) then
+          error stop &
+               "copy_subtree_field_Domain: destination range out of bounds"
+       end if
+
+       field_out(new_start+1:new_start+n_patch_field) = &
+            field_in(old_start+1:old_start+n_patch_field)
+
+    end do
+
+  end subroutine copy_subtree_field_Domain
+  
+
+  subroutine copy_subtree_nodes_Domain (dom, patch_out, old_elts_start, node_out)
+    ! Copy node-coordinate data from the source Domain into the compact
+    ! storage layout of an extracted subtree.
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+
+    type(Patch), intent(in) :: patch_out(:)
+    integer,     intent(in) :: old_elts_start(:)
+
+    type(Coord), allocatable, intent(out) :: node_out(:)
+
+    integer :: n_node
+    integer :: p
+    integer :: old_start, new_start
+
+    if (size(old_elts_start) /= size(patch_out)) then
+       error stop "copy_subtree_nodes_Domain: inconsistent patch arrays"
+    end if
+
+    n_node = size(patch_out) * PATCH_SIZE**2
+
+    allocate(node_out(n_node))
+
+    do p = 1, size(patch_out)
+
+       old_start = old_elts_start(p)
+       new_start = patch_out(p)%elts_start
+
+       if (old_start < 0 .or. &
+            old_start + PATCH_SIZE**2 > dom%node%length) then
+          error stop "copy_subtree_nodes_Domain: source range out of bounds"
+       end if
+
+       if (new_start < 0 .or. &
+            new_start + PATCH_SIZE**2 > n_node) then
+          error stop "copy_subtree_nodes_Domain: destination range out of bounds"
+       end if
+
+       node_out(new_start+1:new_start+PATCH_SIZE**2) = &
+            dom%node%elts(old_start+1:old_start+PATCH_SIZE**2)
+
+    end do
+
+  end subroutine copy_subtree_nodes_Domain
+
+  integer function block_child_Domain(dom,p,c) result(child)
+    type(Domain),intent(in) :: dom
+    integer,intent(in) :: p,c
+    child=dom%patch%elts(p+1)%children(c)
+    if(child<=0) return
+    if(is_block_cut(glo_id(rank+1,dom%id+1),child)) child=0
+  end function
+
+  recursive integer function subtree_depth_Domain (dom, p, respect_cuts) result(depth)
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p
+
+    logical,optional,intent(in) :: respect_cuts
+    integer :: c, p_chd
+
+    if (p < 0 .or. p >= dom%patch%length) then
+       error stop "subtree_depth_Domain: invalid patch index"
+    end if
+
+    if (dom%patch%elts(p+1)%deleted) then
+       depth = 0
+       return
+    end if
+
+    depth = 0
+
+    do c = 1, N_CHDRN
+       p_chd = dom%patch%elts(p+1)%children(c)
+       if(present(respect_cuts)) then
+          if(respect_cuts) p_chd=block_child_Domain(dom,p,c)
+       end if
+
+       if (p_chd > 0) then
+          depth = max(depth, 1 + subtree_depth_Domain(dom, p_chd, respect_cuts))
+       end if
+    end do
+
+  end function subtree_depth_Domain
+
+
+  recursive integer function subtree_weight_Domain (dom, p) result(weight)
+    ! Temporary parallel-block weight: number of leaf patches
+    ! contained in the subtree rooted at patch p.
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p
+
+    integer :: c, p_chd
+
+    weight = 0
+
+    if (p < 0 .or. p >= dom%patch%length) then
+       error stop "subtree_weight_Domain: invalid patch index"
+    end if
+
+    if (dom%patch%elts(p+1)%deleted) return
+
+    ! Leaf patch.
+    if (all(dom%patch%elts(p+1)%children == 0)) then
+       weight = PATCH_SIZE**2
+       return
+    end if
+
+    ! Sum descendant subtrees.
+    do c = 1, N_CHDRN
+       p_chd = dom%patch%elts(p+1)%children(c)
+
+       if (p_chd > 0) then
+          weight = weight + subtree_weight_Domain(dom, p_chd)
+       end if
+    end do
+
+  end function subtree_weight_Domain
+
+
+  recursive integer function count_subtree_patches_Domain (dom, p, respect_cuts) result(n_patch)
+    ! Number of non-deleted patches in the subtree rooted at p.
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p
+
+    logical,optional,intent(in) :: respect_cuts
+    integer :: c, p_chd
+
+    if (p < 0 .or. p >= dom%patch%length) then
+       error stop "count_subtree_patches_Domain: invalid patch index"
+    end if
+
+    if (dom%patch%elts(p+1)%deleted) then
+       n_patch = 0
+       return
+    end if
+
+    n_patch = 1
+
+    do c = 1, N_CHDRN
+       p_chd = dom%patch%elts(p+1)%children(c)
+       if(present(respect_cuts)) then
+          if(respect_cuts) p_chd=block_child_Domain(dom,p,c)
+       end if
+
+       if (p_chd > 0) then
+          n_patch = n_patch + &
+               count_subtree_patches_Domain(dom, p_chd, respect_cuts)
+       end if
+    end do
+
+  end function count_subtree_patches_Domain
+
+
+  subroutine extract_subtree_patches_Domain (dom, p_root, patch_out, old_to_new, respect_cuts)
+    ! Copy the patch hierarchy rooted at p_root into patch_out().
+    !
+    ! Original patch indices are mapped to new 0-based indices through
+    ! old_to_new().  Child links in patch_out are rewritten to use the
+    ! new local numbering.
+    !
+    ! Boundary/neighbour information is not reconstructed at this stage.
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p_root
+
+    type(Patch), allocatable, intent(out) :: patch_out(:)
+    integer,     allocatable, intent(out) :: old_to_new(:)
+
+    logical,optional,intent(in) :: respect_cuts
+    integer :: n_patch
+    integer :: next_patch
+
+    n_patch = count_subtree_patches_Domain(dom, p_root, respect_cuts)
+
+    if (n_patch <= 0) then
+       error stop "extract_subtree_patches_Domain: empty subtree"
+    end if
+
+    allocate(patch_out(n_patch))
+
+    !
+    ! Use original patch indices as bounds so that old_to_new(p)
+    ! can be addressed directly.
+    !
+    allocate(old_to_new(0:dom%patch%length-1))
+    old_to_new = -1
+
+    next_patch = 0
+
+    call copy_patch(p_root)
+
+    if (next_patch /= n_patch) then
+       error stop &
+            "extract_subtree_patches_Domain: copied patch count mismatch"
+    end if
+
+  contains
+
+    recursive subroutine copy_patch (p_old)
+
+      implicit none
+
+      integer, intent(in) :: p_old
+
+      integer :: c
+      integer :: p_chd_old
+      integer :: p_new
+
+      if (dom%patch%elts(p_old+1)%deleted) return
+
+      !
+      ! Assign new local patch number.
+      !
+      p_new = next_patch
+      next_patch = next_patch + 1
+
+      old_to_new(p_old) = p_new
+
+      !
+      ! Copy the patch record itself.
+      !
+      patch_out(p_new+1) = dom%patch%elts(p_old+1)
+
+      !
+      ! Child links are reconstructed after the descendants have
+      ! received their new local indices.
+      !
+      patch_out(p_new+1)%children = 0
+
+      do c = 1, N_CHDRN
+
+         p_chd_old = dom%patch%elts(p_old+1)%children(c)
+         if(present(respect_cuts)) then
+            if(respect_cuts) p_chd_old=block_child_Domain(dom,p_old,c)
+         end if
+
+         if (p_chd_old <= 0) cycle
+         if (dom%patch%elts(p_chd_old+1)%deleted) cycle
+
+         call copy_patch(p_chd_old)
+
+         patch_out(p_new+1)%children(c) = &
+              old_to_new(p_chd_old)
+
+      end do
+
+    end subroutine copy_patch
+
+  end subroutine extract_subtree_patches_Domain
+
+
+  subroutine compact_subtree_storage_Domain (patch_out)
+    ! Reassign elts_start for an extracted patch tree so that patch
+    ! storage is compact and local to the extracted subtree.
+
+    implicit none
+
+    type(Patch), intent(inout) :: patch_out(:)
+
+    integer :: p
+
+    do p = 1, size(patch_out)
+       patch_out(p)%elts_start = (p-1) * PATCH_SIZE**2
+    end do
+
+  end subroutine compact_subtree_storage_Domain
+
+
+  function add_patch_Domain (self, level) result(val)
+    ! Add new patch to the domain
+    implicit none
+    type(Domain), intent(inout) :: self
+    integer                     :: val
+
+    integer :: level, p
+
+    p = self%patch%length
+
+    call append (self%lev(level), p)
+    call append (self%patch, Patch (self%node%length, level, 0, 0, 0, .false.))
+
+    call extend_Domain (self, PATCH_SIZE**2)
+
+    val = p
+  end function add_patch_Domain
+
+
+  integer function add_bdry_patch_Domain (self, side)
+    ! Add boundary patch to the domain
+    implicit none
+    type(Domain), intent(inout) :: self
+    integer,      intent(in)    :: side
+
+    integer :: p
+
+    p = self%bdry_patch%length
+
+    call append (self%bdry_patch, Bdry_Patch (self%node%length, side, 0))
+
+    call extend_Domain (self, BDRY_THICKNESS * PATCH_SIZE)
+
+    add_bdry_patch_Domain = p
+  end function add_bdry_patch_Domain
+
+
+  subroutine extend_Domain (self, num)
+    implicit none
+    type(Domain), intent(inout) :: self
+    integer,      intent(in)    :: num
+
+    integer  :: d, k, v
+    real(dp) :: def_val, dz, z
+
+    d = self%id + 1
+
+    call extend (self%node, num, ORIGIN)
+
+    ! Atmosphere/ocean layers
+    do k = 1, zlevels
+       ! Set reasonable default values for new boundary patches to avoid NaN if variable undefined in boundary
+       if (compressible) then
+          def_val = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
+       else
+          dz     = b_vert_mass(k) * max_depth
+          z      = 0.5 * (b_vert(k) + b_vert(k-1)) * max_depth
+          def_val = ref_density * dz
+       end if
+
+       do v = scalars(1), scalars(2)
+          if (split_mean_perturbation) then 
+             call extend (sol(v,k)%data(d),      num, 0.0_dp)     
+             call extend (sol_mean(v,k)%data(d), num, def_val) 
+          else
+             call extend (sol(v,k)%data(d),      num, def_val) 
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp)     
+          end if
+       end do
+       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0.0_dp)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
+    end do
+
+    ! Free surface
+    if (mode_split) then
+       do v = scalars(1), scalars(2)
+          if (split_mean_perturbation) then 
+             call extend (sol(v,k)%data(d),      num, 0.0_dp)     
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp) 
+          else
+             call extend (sol(v,k)%data(d),      num, 0.0_dp) 
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp)     
+          end if
+       end do
+       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0.0_dp)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
+    end if
+
+    ! Soil layers
+    do k = zmin, 0
+       do v = scalars(1), scalars(2)
+          if (split_mean_perturbation) then 
+             call extend (sol(v,k)%data(d),      num, 0.0_dp)     
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp) 
+          else
+             call extend (sol(v,k)%data(d),      num, 0.0_dp) 
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp)     
+          end if
+       end do
+       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0.0_dp)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
+    end do
+  end subroutine extend_Domain
+
+
+  subroutine set_neigh_Domain (self, s, id, rot)
+    implicit none
+    type(Domain), intent(inout) :: self
+    integer,      intent(in)    :: id, rot, s
+
+    self%neigh(s)     = id
+    self%neigh_rot(s) = rot
+  end subroutine set_neigh_Domain
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! Index and neighbour routines !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  pure function idx (i0, j0, offs, dims) result(id)
+    ! Given regular-array coordinates (i0,j0), offset array offs,
+    ! and domain dimensions dims, return the corresponding grid index.
+    implicit none
+
+    integer, intent(in) :: i0, j0
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+    integer :: i, j
+
+    i = i0
+    j = j0
+
+    if (i < 0) then
+       if (j < 0) then
+          id = offs(IJMINUS+1)                                      &
+               + (j + dims(2,IJMINUS+1))*dims(1,IJMINUS+1)          &
+               + i + dims(1,IJMINUS+1)
+
+       else if (j >= PATCH_SIZE) then
+          id = offs(IMINUSJPLUS+1)                                 &
+               + (j - PATCH_SIZE)*dims(1,IMINUSJPLUS+1)            &
+               + i + dims(1,IMINUSJPLUS+1)
+
+       else
+          id = offs(WEST+1)                                        &
+               + j*dims(1,WEST+1)                                  &
+               + i + dims(1,WEST+1)
+       end if
+
+    else if (i >= PATCH_SIZE) then
+       i = i - PATCH_SIZE
+
+       if (j >= PATCH_SIZE) then
+          j = j - PATCH_SIZE
+
+          id = offs(NORTHEAST+1)                                   &
+               + j*dims(1,NORTHEAST+1)                             &
+               + i
+
+       else if (j < 0) then
+          id = offs(SOUTHEAST+1)                                   &
+               + (j + dims(2,SOUTHEAST+1))*dims(1,SOUTHEAST+1)     &
+               + i
+
+       else
+          id = offs(EAST+1)                                        &
+               + j*dims(1,EAST+1)                                  &
+               + i
+       end if
+
+    else
+       if (j < 0) then
+          id = offs(JMINUS+1)                                      &
+               + (j + dims(2,JMINUS+1))*dims(1,JMINUS+1)           &
+               + i
+
+       else if (j >= PATCH_SIZE) then
+          id = offs(NORTH+1)                                       &
+               + (j - PATCH_SIZE)*dims(1,NORTH+1)                  &
+               + i
+
+       else
+          id = offs(1) + PATCH_SIZE*j + i
+       end if
+    end if
+  end function idx
+
+
+  pure function idx__fast(i, j, offs) result(id)
+    implicit none
+
+    integer, intent(in) :: i, j, offs
+    integer             :: id
+
+    id = PATCH_SIZE*j + i + offs
+  end function idx__fast
+
+
+  pure function id_edge (id) result(edges)
+    ! Returns indices of the three edges associated with node id
+    implicit none
+
+    integer, intent(in) :: id
+    integer             :: edges(EDGE)        ! EDGE must be 3 here
+
+    edges = EDGE*id + [ RT, DG, UP ] + 1
+  end function id_edge
+
+
+  pure function idx_hex (i, j, offs, dims) result(hex_idx)
+    implicit none
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+    integer             :: hex_idx(2*EDGE+1)
+
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j,   offs, dims), &
+         idx(i+1, j+1, offs, dims), &
+         idx(i,   j+1, offs, dims), &
+         idx(i-1, j,   offs, dims), &
+         idx(i-1, j-1, offs, dims), &
+         idx(i,   j-1, offs, dims)  &
+         ]
+  end function idx_hex
+
+
+  pure function idx_hex_LORT (i, j, offs, dims) result(hex_idx)
+    ! Return the indices of the six child hexagons overlapping
+    ! the LORT parent triangle.
+    implicit none
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: hex_idx(2*EDGE)
+
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j,   offs, dims), &
+         idx(i+1, j+1, offs, dims), &
+         
+         idx(i+2, j,   offs, dims), &
+         idx(i+2, j+2, offs, dims), &
+         idx(i+2, j+1, offs, dims)  &
+         ]
+  end function idx_hex_LORT
+
+
+  pure function idx_hex_LORT2 (i, j, offs, dims) result(hex_idx)
+    ! Return the indices of the three hexagons overlapping the LORT triangle.
+    implicit none
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: hex_idx(EDGE)
+
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j,   offs, dims), &
+         idx(i+1, j+1, offs, dims)  &
+         ]
+  end function idx_hex_LORT2
+
+
+  pure function idx_hex_UPLT (i, j, offs, dims) result(hex_idx)
+    ! Return the indices of the six child hexagons overlapping
+    ! the LORT parent triangle.
+    implicit none
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: hex_idx(2*EDGE)
+
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j+1, offs, dims), &
+         idx(i,   j+1, offs, dims), &
+         idx(i,   j+2, offs, dims), &
+         idx(i+2, j+2, offs, dims), &
+         idx(i+1, j+2, offs, dims)  &
+         ]
+  end function idx_hex_UPLT
+
+
+  pure function idx_hex_UPLT2 (i, j, offs, dims) result(hex_idx)
+    ! Return the indices of the three hexagons overlapping the UPLT triangle.
+    implicit none
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: hex_idx(EDGE)
+
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j+1, offs, dims), &
+         idx(i,   j+1, offs, dims)  &
+         ]
+  end function idx_hex_UPLT2
+
+
+  pure function tri_idx (i, j, tri, offs, dims) result(id)
+    implicit none
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: tri(3)
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = TRIAG*idx(i + tri(1), j + tri(2), offs, dims) + tri(3)
+  end function tri_idx
+
+
+  pure function nidx (i, j, s, offs, dims) result(id)
+    implicit none
+
+    integer, intent(in) :: i, j, s
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = offs(s+1) + j*dims(1,s+1) + i
+  end function nidx
+
+
+  pure function idx2 (i, j, noffs, offs, dims) result(id)
+    ! Return the index of node (i+noffs(1), j+noffs(2)).
+    implicit none
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: noffs(2)
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = idx(i + noffs(1), j + noffs(2), offs, dims)
+  end function idx2
+
+
+  pure function ed_idx (i, j, ed, offs, dims) result(id)
+    ! Return the edge index.
+    implicit none
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: ed(3)
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
+  end function ed_idx
+
+
+  pure logical function is_penta (dom, p, s) result(penta)
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p, s
+
+    integer :: n, side
+
+    penta = .false.
+
+    n = dom%patch%elts(p+1)%neigh(s+1)
+
+    if (n < 0) then
+       n = -n
+       side = dom%bdry_patch%elts(n+1)%side
+
+       if (side > 0) penta = dom%penta(side)
+    end if
+  end function is_penta
+
+
+  pure function find_neigh_patch_Domain (self, p_par, c, s_chd) result(neigh)
+    ! Find the neighbour of the c-th child of parent patch p_par
+    ! across child side s_chd.
+    implicit none
+
+    type(Domain), intent(in) :: self
+    integer,      intent(in) :: p_par, c, s_chd
+
+    integer :: neigh
+    integer :: c1, n_par, p_par1
+    integer :: s_help, typ
+
+    neigh = 0
+
+    call find_neigh_patch2_Domain( &
+         self, p_par, c, s_chd, n_par, c1)
+
+    if (n_par > 0) then
+       neigh = self%patch%elts(n_par+1)%children(c1+1)
+
+    else if (n_par < 0) then
+       ! Boundary patch.
+       n_par = -n_par
+       typ = self%bdry_patch%elts(n_par+1)%side
+
+       if (typ < 1) return
+
+       if (s_chd+1 == typ) then
+          ! Domain side.
+          neigh = find_neigh_bdry_patch_Domain( &
+               self, p_par, c, s_chd)
+
+       else
+          ! Patch corner lying on a domain side.
+          if (s_chd+1 == typ+4) then
+             ! s_chd follows typ in the clockwise direction.
+             s_help = modulo(typ, 4)
+
+          else if (s_chd+1 == modulo(typ-2, 4)+5) then
+             ! s_chd precedes typ.
+             s_help = modulo(typ-2, 4)
+
+          else
+             ! No recognized corner relationship.
+             return
+          end if
+
+          call find_neigh_patch2_Domain( &
+               self, p_par, c, s_help, p_par1, c1)
+
+          neigh = find_neigh_bdry_patch_Domain( &
+               self, p_par1, c1, typ-1)
+       end if
+    end if
+  end function find_neigh_patch_Domain
+
+
+  pure function find_neigh_bdry_patch_Domain (self, p_par, c, s) result(neigh)
+    implicit none
+
+    type(Domain), intent(in) :: self
+    integer,      intent(in) :: p_par, c, s
+
+    integer :: neigh
+    integer :: p_chd, p_par1, c1
+
+    neigh = 0
+
+    if (p_par <= 0) return
+
+    p_chd = self%patch%elts(p_par+1)%children(c+1)
+
+    if (p_chd > 0) then
+       neigh = self%patch%elts(p_chd+1)%neigh(s+1)
+    end if
+
+    if (s >= 4) return
+
+    if (neigh == 0) then
+       call find_neigh_patch2_Domain ( &
+            self, p_par, c, modulo(s+1, 4), p_par1, c1)
+
+       if (p_par1 > 0) then
+          p_chd = self%patch%elts(p_par1+1)%children(c1+1)
+
+          if (p_chd > 0) then
+             neigh = self%patch%elts(p_chd+1)%neigh( &
+                  modulo(s-1, 4) + 5)
+          end if
+       end if
+    end if
+
+    if (neigh == 0) then
+       call find_neigh_patch2_Domain ( &
+            self, p_par, c, modulo(s-1, 4), p_par1, c1)
+
+       if (p_par1 > 0) then
+          p_chd = self%patch%elts(p_par1+1)%children(c1+1)
+
+          if (p_chd > 0) then
+             neigh = self%patch%elts(p_chd+1)%neigh(s+5)
+          end if
+       end if
+    end if
+  end function find_neigh_bdry_patch_Domain
+
+
+  pure subroutine find_neigh_patch2_Domain (self, p_par0, c0, s0, p_par, c)
+    ! For the patch given by the c0-th child of p_par0, find the
+    ! neighbour across side s0. Return it as the c-th child of p_par.
+    implicit none
+
+    type(Domain), intent(in)  :: self
+    integer,      intent(in)  :: p_par0, c0, s0
+    integer,      intent(out) :: p_par, c
+
+    integer :: s_par
+
+    s_par = par_side(c0, s0)
+
+    if (s0 == c0 .or.                            &
+         s0 == modulo(c0+1, 4) .or.               &
+         s0 == c0+4) then
+
+       p_par = self%patch%elts(p_par0+1)%neigh(s0+1)
+
+    else if (s0 == modulo(c0+1, 4)+4 .or.        &
+         s0 == modulo(c0-1, 4)+4) then
+
+       p_par = self%patch%elts(p_par0+1)%neigh(s_par+1)
+
+    else
+       ! Neighbour patch has the same parent.
+       p_par = p_par0
+    end if
+
+    c = ngb_chd_idx(c0, s0)
+
+  contains
+
+    pure integer function ngb_chd_idx(c0, s0) result(c_neigh)
+      implicit none
+
+      integer, intent(in) :: c0, s0
+
+      if (s0 < 4) then
+         c_neigh = modulo(-c0 + 2*s0 + 1, 4)
+      else
+         c_neigh = modulo(c0 + 2, 4)
+      end if
+    end function ngb_chd_idx
+
+  end subroutine find_neigh_patch2_Domain
+
+
+  pure function par_side(c, s) result(side)
+    implicit none
+
+    integer, intent(in) :: c, s
+    integer             :: side
+
+    if (s == modulo(c+1, 4) + 4) then
+       side = modulo(c+1, 4)
+    else if (s == modulo(c-1, 4) + 4) then
+       side = c
+    else
+       side = s
+    end if
+  end function par_side
+
+
+  pure subroutine get_offs_Domain5 (self, p, offs, dims, inner_patch)
+    implicit none
+
+    type(Domain), intent(in)            :: self
+    integer,      intent(in)            :: p
+    integer,      intent(out)           :: offs(N_BDRY+1)
+    integer,      intent(out)           :: dims(2,N_BDRY+1)
+    logical,      intent(out), optional :: inner_patch(4)
+
+    integer :: i, n
+    integer :: bdry, side
+
+    offs = -1
+    dims = 0
+
+    offs(1) = self%patch%elts(p+1)%elts_start
+
+    do i = 1, N_BDRY
+       n = self%patch%elts(p+1)%neigh(i)
+
+       if (n > 0) then
+          offs(i+1)   = self%patch%elts(n+1)%elts_start
+          dims(:,i+1) = PATCH_SIZE
+
+       else if (n < 0) then
+          bdry = -n
+          side = self%bdry_patch%elts(bdry+1)%side
+
+          offs(i+1)   = self%bdry_patch%elts(bdry+1)%elts_start
+          dims(:,i+1) = sides_dims(:,abs(side)+1)
+       end if
+    end do
+
+    if (present(inner_patch)) then
+       inner_patch = .false.
+
+       do i = 1, min(N_BDRY, size(inner_patch))
+          n = self%patch%elts(p+1)%neigh(i)
+          inner_patch(i) = n /= 0
+       end do
+    end if
+  end subroutine get_offs_Domain5
+
+
+  pure subroutine get_bdry_dims_Domain (self, b, dims)
+    ! Return the storage dimensions of boundary patch b.
+
+    implicit none
+
+    type(Domain), intent(in)  :: self
+    integer,      intent(in)  :: b
+    integer,      intent(out) :: dims(2)
+
+    integer :: side
+
+    side = self%bdry_patch%elts(b+1)%side
+
+    dims = sides_dims(:,abs(side)+1)
+
+  end subroutine get_bdry_dims_Domain
+
+  
+  pure subroutine get_offs_Domain (self, p, offs, dims, inner_bdry)
+    implicit none
+
+    type(Domain), intent(in)            :: self
+    integer,      intent(in)            :: p
+    integer,      intent(out)           :: offs(N_BDRY+1)
+    integer,      intent(out)           :: dims(2,N_BDRY+1)
+    logical,      intent(out), optional :: inner_bdry(4)
+
+    integer :: i, n
+    integer :: bdry, side
+
+    offs = -1
+    dims = 0
+    offs(1) = self%patch%elts(p+1)%elts_start
+
+    if (present(inner_bdry)) inner_bdry = .false.
+
+    do i = 1, N_BDRY
+       n = self%patch%elts(p+1)%neigh(i)
+
+       if (n > 0) then
+          offs(i+1)   = self%patch%elts(n+1)%elts_start
+          dims(:,i+1) = PATCH_SIZE
+
+       else if (n < 0) then
+          bdry = -n
+          side = self%bdry_patch%elts(bdry+1)%side
+
+          offs(i+1)   = self%bdry_patch%elts(bdry+1)%elts_start
+          dims(:,i+1) = sides_dims(:,abs(side)+1)
+       end if
+    end do
+
+    if (present(inner_bdry)) then
+       do i = 1, min(N_BDRY, size(inner_bdry))
+          n = self%patch%elts(p+1)%neigh(i)
+
+          if (n > 0) then
+             inner_bdry(i) = .true.
+          else if (n < 0) then
+             side = self%bdry_patch%elts(-n+1)%side
+             inner_bdry(i) = side < 0
+          end if
+       end do
+    end if
+  end subroutine get_offs_Domain
+
+
+end module domain_mod

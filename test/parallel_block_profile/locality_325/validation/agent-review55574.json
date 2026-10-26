@@ -1,0 +1,120 @@
+{
+  "reviewer": "independent orchestration/evidence audit by replay326_budget agent",
+  "job": 55574,
+  "source_job": 55569,
+  "predecessor_job": 55573,
+  "method": "Read-only local audit of complete bounded review, sealed source and orchestration; no native action or second semantic replay",
+  "manifest": {
+    "outer_entries_verified": 75,
+    "sealed_payload_entries_verified": 62,
+    "package_manifest_sha256": "ff430542d8ab81078d522a2468a1ce1baa22bac501f922e534c839c7c47ee1bb",
+    "verifier_sha256": "d1a8f47e35a251dfe19a25c33b8bcbbb2d23c36124005d657521b74d0c472402",
+    "parallel_streams_report_sha256": "c43905b626a2d1bc1f7092499fc8cca67da07ca0e76971312f9c2a439565b680"
+  },
+  "terminal": {
+    "scheduler_state": "FAILED",
+    "exit_code": "1:0",
+    "elapsed_seconds": 264,
+    "start": "2026-10-26T14:59:47",
+    "slurm_cancellation_message": "2026-10-26T15:04:02",
+    "end": "2026-10-26T15:04:11",
+    "cancellation_message_after_start_seconds": 255,
+    "parent_last_phase": "parallel_optimized_providers",
+    "parent_error": "TimeoutError('Bounded five-minute continuation ending; no retry or budget extension')",
+    "classification": "Scheduler/termination interruption while supervised providers had reached family254; no retained semantic mismatch or provider assertion failure"
+  },
+  "signal_attribution": {
+    "runner_alarm_seconds": 270,
+    "allocation_seconds": 300,
+    "wrapper_warning": "B:TERM@15",
+    "handler_handles_both": [
+      "SIGALRM",
+      "SIGTERM"
+    ],
+    "exact_signal_number_recorded": false,
+    "established": "The logged cancellation at255seconds and jobtermination at264seconds precede the270second runner alarm and300second allocation cap. Therefore the evidence does not support saying the runner alarm or the full300second walltime elapsed.",
+    "inference": "An earlier termination signal, consistent with the Slurm cancellation message and requested batch TERM warning, entered the common handler. The exact signal sender/reason is not recorded."
+  },
+  "completed_recomputed_stream_evidence": {
+    "passed": true,
+    "optimized_arms": 2,
+    "streams_per_arm": 256,
+    "total_streams": 512,
+    "actual_compressed_reads_independently_matched_to_historical_hashes": 512,
+    "source_pinned_worker_attestations": 16,
+    "source_files_per_worker": 4,
+    "verified_merge_shards": 16,
+    "merge_rows_per_arm": {
+      "route": 65024,
+      "domain": 256,
+      "context": 66048,
+      "feature": 508840
+    },
+    "inverse_bridge_contexts_constructed_per_arm": 1024,
+    "limit": "Context rowcensus and sealed cache code establish construction. The1024 cross-arm bridge comparisons were not reached."
+  },
+  "provider_progress": {
+    "per_arm": {
+      "qual-C0": {
+        "stage": "providers",
+        "arm": "qual-C0",
+        "completed": 254,
+        "total": 254,
+        "detail": null
+      },
+      "qual-L256": {
+        "stage": "providers",
+        "arm": "qual-L256",
+        "completed": 254,
+        "total": 254,
+        "detail": null
+      }
+    },
+    "safe_claim": "Both reconcilers persisted progress254/254 after their family loops; no provider assertion failure is retained.",
+    "unsafe_claim": "Both final provider proof files passed or were compared. No final provider certificate is retained; progress does not establish final result serialization or cross-arm equality."
+  },
+  "uncompleted_or_unretained_gates": {
+    "provider_final_payloads_retained": false,
+    "cross_arm_bridge_comparison_reached": false,
+    "feature_equality_proved": false,
+    "provider_pair_equality_proved": false,
+    "work_replay_completed": false,
+    "missing_expected_reports": [
+      "cross-arm.json",
+      "qual-C0-provider-certificates.json",
+      "qual-L256-provider-certificates.json",
+      "work-replay.json"
+    ],
+    "full_gate_passed": false,
+    "scratch_database_and_proof_payload_recovery_possible_from_bounded_review": false,
+    "cleanup": "Parent finally removed its fresh scratch tree. Existing original captures and predecessor evidence remain preserved."
+  },
+  "preservation": {
+    "historical_input_hashes_before": 1536,
+    "historical_input_hashes_after_failure": 1536,
+    "source_files_after_failure": 258,
+    "metadata_files_after_failure": 3889,
+    "original_kit_files_after_failure": 79,
+    "binary_and_checkpoint_hashes_unchanged": true,
+    "no_new_solver_build_or_performance_runs": true,
+    "limit": "This independently checks the retained preservation evidence and its hashes, not a second native filesystem scan."
+  },
+  "resources": {
+    "sampled_peak_scratch_bytes": 2665915616,
+    "scratch_cap_bytes": 4294967296,
+    "sampled_peak_aggregate_virtual_bytes": 3378491392,
+    "aggregate_virtual_cap_bytes": 17179869184,
+    "sampled_peak_aggregate_rss_bytes": 2405793792,
+    "observed_cap_exhaustion": false,
+    "sampling_limit": "Sampled peaks cannot establish exact transient maxima; no OOM/cap-exceeded failure is retained."
+  },
+  "budget": {
+    "prior_elapsed_seconds": 2392,
+    "job_elapsed_seconds": 264,
+    "cumulative_elapsed_seconds": 2656,
+    "original_cap_seconds": 2700,
+    "remaining_seconds": 44,
+    "another_full_replay_fits": false
+  },
+  "decision": "HOLD qualification, promotion, conditional commit and performance claim. Retain this as an interrupted verification attempt, not evidence of a new solver or semantic defect. No automatic retry or budget extension."
+}

@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "scope": "Two saved rank101captures in a private local binding fixture; exact final spawned worker paths, not native qualification",
+  "workers": 2,
+  "streams": 2,
+  "source_files_per_worker": 4,
+  "worker_sha256": "316e3141294afeb58e822c64cf7c789b13e5a0770f0e199bc8c09051aed0170e",
+  "verifier_sha256": "d1a8f47e35a251dfe19a25c33b8bcbbb2d23c36124005d657521b74d0c472402",
+  "helper_sha256": "922fb34c70ab5110a6004a2a60534abf674c6549198e20f8e2009adfb821debe",
+  "elapsed_seconds": 1.7998992083594203,
+  "source_bindings": [
+    {
+      "passed": true,
+      "sources": {
+        "src/parallel_block_inverse.f90": "65b936677196c97fabf0f4ec8363132c3e48e9e4ff1f17ba4e789d7781d60db0",
+        "src/parallel_block_mpi.f90": "c915cc2b6529b38ec7a74d41afb74bdb5caddd8c7731cb15ed76c8ea89755027",
+        "src/domain.f90": "54a09b07a979ba54d9695ea23d1b6ea76096893cf1106f9c73acc49f05f27ecd",
+        "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84"
+      },
+      "source_manifest_sha256": "9c06d9bfe9b3241f71159c3e9db72d6fc3985d8d0d01043fc80f9733073daf3b"
+    },
+    {
+      "passed": true,
+      "sources": {
+        "src/parallel_block_inverse.f90": "65b936677196c97fabf0f4ec8363132c3e48e9e4ff1f17ba4e789d7781d60db0",
+        "src/parallel_block_mpi.f90": "c915cc2b6529b38ec7a74d41afb74bdb5caddd8c7731cb15ed76c8ea89755027",
+        "src/domain.f90": "54a09b07a979ba54d9695ea23d1b6ea76096893cf1106f9c73acc49f05f27ecd",
+        "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84"
+      },
+      "source_manifest_sha256": "9c06d9bfe9b3241f71159c3e9db72d6fc3985d8d0d01043fc80f9733073daf3b"
+    }
+  ]
+}

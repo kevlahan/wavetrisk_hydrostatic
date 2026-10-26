@@ -1,0 +1,374 @@
+{
+  "passed": true,
+  "scope": "Constructed SQLite/real-provider/real-bridge fixture only; not native qualification or runtime estimate",
+  "temporary_fixture_artifacts_removed": true,
+  "callbacks": {
+    "cache": 1,
+    "work": 2,
+    "preservation": 1
+  },
+  "first_attempt": {
+    "attempt_history": [],
+    "binding": {
+      "captures": "7f7910caedb8fb6f9e5a0711ef1bcbd74f6c76a91e4445e9c687da778f6dcfd5",
+      "checker": "a4fe26e63ecc5d40ec1b2af8877d2eb28976d5443b6fc403a775bc3e5f6401c1",
+      "config": "f8b80d7d92144a61bd5d3173bed1f24328cf5d7b31a235a3920ca921ed7a2750",
+      "source": "99696d2d74bbbd075cdef86b3b26fddb96faab7e9308f5c0e9c92a8cb56ef19e"
+    },
+    "builds": 0,
+    "child_exit_statuses": [],
+    "completed_utc": "2026-10-26T19:44:47.970539+00:00",
+    "elapsed_seconds": 0.32942758314311504,
+    "error": {
+      "message": "SIGTERM",
+      "type": "ReplayInterrupted325"
+    },
+    "fresh_binding_seconds": 0.011147041339427233,
+    "logical_byte_cap": 134217728,
+    "max_seconds": 30,
+    "native": false,
+    "native_qualification": false,
+    "performance_qualified": false,
+    "performance_runs": 0,
+    "phase": "work",
+    "phases": [
+      {
+        "allowance_bytes": 83886080,
+        "callback_seconds": 0.025177292060106993,
+        "certificate_sha256": "977295e9150f6ded693ae03b2901ed0a3118bbfcd322e643ffe95f88b85d84a7",
+        "commit_and_full_rehash_seconds": 0.024984708055853844,
+        "elapsed_seconds": 0.05175383388996124,
+        "phase": "cache",
+        "reused": false,
+        "started_monotonic": 3445276.376344791,
+        "started_utc": "2026-10-26T19:44:47.654166+00:00"
+      },
+      {
+        "allowance_bytes": 2097152,
+        "callback_seconds": 0.009376292116940022,
+        "certificate_sha256": "9e075493690bd96d4175037b8eaf7be1b985830dca915b605f6d9ae4bedcccb5",
+        "commit_and_full_rehash_seconds": 0.013935790862888098,
+        "elapsed_seconds": 0.025146957952529192,
+        "phase": "providers-C0",
+        "reused": false,
+        "started_monotonic": 3445276.428530458,
+        "started_utc": "2026-10-26T19:44:47.706350+00:00"
+      },
+      {
+        "allowance_bytes": 2097152,
+        "callback_seconds": 0.008972624782472849,
+        "certificate_sha256": "be95ffb183d158454f10d930bedb69524d4f054cf7eef9a53c7552e4f75f2d97",
+        "commit_and_full_rehash_seconds": 0.014469292014837265,
+        "elapsed_seconds": 0.0252727922052145,
+        "phase": "providers-L256",
+        "reused": false,
+        "started_monotonic": 3445276.454148166,
+        "started_utc": "2026-10-26T19:44:47.731968+00:00"
+      },
+      {
+        "allowance_bytes": 2097152,
+        "callback_seconds": 0.1930172499269247,
+        "certificate_sha256": "05d0d23bb6a81e062d0ae31f5d1dcc247f10a029cb1d34b3b686c90b4258cbab",
+        "commit_and_full_rehash_seconds": 0.014777374919503927,
+        "elapsed_seconds": 0.20975625002756715,
+        "phase": "pair",
+        "reused": false,
+        "started_monotonic": 3445276.479882708,
+        "started_utc": "2026-10-26T19:44:47.757702+00:00"
+      },
+      {
+        "allowance_bytes": 2097152,
+        "elapsed_seconds": 0.002579000312834978,
+        "phase": "work",
+        "reused": false,
+        "started_monotonic": 3445276.690139583,
+        "started_utc": "2026-10-26T19:44:47.967957+00:00",
+        "status": "interrupted"
+      }
+    ],
+    "progress_only": {
+      "arm": "qual-L256",
+      "completed": 1,
+      "detail": null,
+      "stage": "providers",
+      "total": 1
+    },
+    "retained_validation_seconds": 0.0014538341201841831,
+    "retention": "closed_certificates_and_uncommitted_partial_retained",
+    "schema": 1,
+    "signal": {
+      "monotonic": 3445276.692440916,
+      "name": "SIGTERM",
+      "number": 15,
+      "phase": "work",
+      "utc": "2026-10-26T19:44:47.970263+00:00"
+    },
+    "solver_runs": 0,
+    "started_monotonic": 3445276.363292,
+    "started_utc": "2026-10-26T19:44:47.641125+00:00",
+    "status": "interrupted"
+  },
+  "resumed_attempt": {
+    "schema": 1,
+    "status": "passed",
+    "phase": "complete",
+    "started_utc": "2026-10-26T19:44:47.971147+00:00",
+    "started_monotonic": 3445276.6933205,
+    "max_seconds": 30,
+    "logical_byte_cap": 134217728,
+    "native": false,
+    "native_qualification": false,
+    "performance_qualified": false,
+    "builds": 0,
+    "solver_runs": 0,
+    "performance_runs": 0,
+    "signal": null,
+    "phases": [
+      {
+        "phase": "cache",
+        "started_utc": "2026-10-26T19:44:47.996514+00:00",
+        "started_monotonic": 3445276.718695833,
+        "reused": true,
+        "elapsed_seconds": 0.0004947921261191368
+      },
+      {
+        "phase": "providers-C0",
+        "started_utc": "2026-10-26T19:44:47.997301+00:00",
+        "started_monotonic": 3445276.719479125,
+        "reused": true,
+        "elapsed_seconds": 0.0002848329022526741
+      },
+      {
+        "phase": "providers-L256",
+        "started_utc": "2026-10-26T19:44:47.997861+00:00",
+        "started_monotonic": 3445276.720038541,
+        "reused": true,
+        "elapsed_seconds": 0.00027308380231261253
+      },
+      {
+        "phase": "pair",
+        "started_utc": "2026-10-26T19:44:47.998409+00:00",
+        "started_monotonic": 3445276.720586375,
+        "reused": true,
+        "elapsed_seconds": 0.00028729112818837166
+      },
+      {
+        "phase": "work",
+        "started_utc": "2026-10-26T19:44:47.999015+00:00",
+        "started_monotonic": 3445276.721191875,
+        "reused": false,
+        "allowance_bytes": 2097152,
+        "callback_seconds": 0.00011308304965496063,
+        "commit_and_full_rehash_seconds": 0.015093125402927399,
+        "elapsed_seconds": 0.017937500029802322,
+        "certificate_sha256": "93350f71b1f2b1b10a8770742f883ad0f01832bc643de438fd12bd066cd7c495"
+      },
+      {
+        "phase": "preservation",
+        "started_utc": "2026-10-26T19:44:48.017423+00:00",
+        "started_monotonic": 3445276.7396045,
+        "reused": false,
+        "allowance_bytes": 2097152,
+        "callback_seconds": 0.011192624922841787,
+        "commit_and_full_rehash_seconds": 0.015491375233978033,
+        "elapsed_seconds": 0.028925499878823757,
+        "certificate_sha256": "1a5cf5db933bfb685ebbd1b78eb6f4b860bab246e9a81589542e88217e8fc4b7"
+      }
+    ],
+    "child_exit_statuses": [],
+    "retention": "all_six_closed_phase_certificates_retained",
+    "fresh_binding_seconds": 0.011063707992434502,
+    "retained_validation_seconds": 0.013776792213320732,
+    "binding": {
+      "source": "99696d2d74bbbd075cdef86b3b26fddb96faab7e9308f5c0e9c92a8cb56ef19e",
+      "checker": "a4fe26e63ecc5d40ec1b2af8877d2eb28976d5443b6fc403a775bc3e5f6401c1",
+      "config": "f8b80d7d92144a61bd5d3173bed1f24328cf5d7b31a235a3920ca921ed7a2750",
+      "captures": "7f7910caedb8fb6f9e5a0711ef1bcbd74f6c76a91e4445e9c687da778f6dcfd5"
+    },
+    "attempt_history": [
+      {
+        "started_utc": "2026-10-26T19:44:47.641125+00:00",
+        "completed_utc": "2026-10-26T19:44:47.970539+00:00",
+        "status": "interrupted",
+        "phase": "work",
+        "signal": {
+          "monotonic": 3445276.692440916,
+          "name": "SIGTERM",
+          "number": 15,
+          "phase": "work",
+          "utc": "2026-10-26T19:44:47.970263+00:00"
+        },
+        "error": {
+          "message": "SIGTERM",
+          "type": "ReplayInterrupted325"
+        },
+        "elapsed_seconds": 0.32942758314311504,
+        "phases": [
+          {
+            "allowance_bytes": 83886080,
+            "callback_seconds": 0.025177292060106993,
+            "certificate_sha256": "977295e9150f6ded693ae03b2901ed0a3118bbfcd322e643ffe95f88b85d84a7",
+            "commit_and_full_rehash_seconds": 0.024984708055853844,
+            "elapsed_seconds": 0.05175383388996124,
+            "phase": "cache",
+            "reused": false,
+            "started_monotonic": 3445276.376344791,
+            "started_utc": "2026-10-26T19:44:47.654166+00:00"
+          },
+          {
+            "allowance_bytes": 2097152,
+            "callback_seconds": 0.009376292116940022,
+            "certificate_sha256": "9e075493690bd96d4175037b8eaf7be1b985830dca915b605f6d9ae4bedcccb5",
+            "commit_and_full_rehash_seconds": 0.013935790862888098,
+            "elapsed_seconds": 0.025146957952529192,
+            "phase": "providers-C0",
+            "reused": false,
+            "started_monotonic": 3445276.428530458,
+            "started_utc": "2026-10-26T19:44:47.706350+00:00"
+          },
+          {
+            "allowance_bytes": 2097152,
+            "callback_seconds": 0.008972624782472849,
+            "certificate_sha256": "be95ffb183d158454f10d930bedb69524d4f054cf7eef9a53c7552e4f75f2d97",
+            "commit_and_full_rehash_seconds": 0.014469292014837265,
+            "elapsed_seconds": 0.0252727922052145,
+            "phase": "providers-L256",
+            "reused": false,
+            "started_monotonic": 3445276.454148166,
+            "started_utc": "2026-10-26T19:44:47.731968+00:00"
+          },
+          {
+            "allowance_bytes": 2097152,
+            "callback_seconds": 0.1930172499269247,
+            "certificate_sha256": "05d0d23bb6a81e062d0ae31f5d1dcc247f10a029cb1d34b3b686c90b4258cbab",
+            "commit_and_full_rehash_seconds": 0.014777374919503927,
+            "elapsed_seconds": 0.20975625002756715,
+            "phase": "pair",
+            "reused": false,
+            "started_monotonic": 3445276.479882708,
+            "started_utc": "2026-10-26T19:44:47.757702+00:00"
+          },
+          {
+            "allowance_bytes": 2097152,
+            "elapsed_seconds": 0.002579000312834978,
+            "phase": "work",
+            "reused": false,
+            "started_monotonic": 3445276.690139583,
+            "started_utc": "2026-10-26T19:44:47.967957+00:00",
+            "status": "interrupted"
+          }
+        ],
+        "child_exit_statuses": []
+      }
+    ],
+    "elapsed_seconds": 0.07571262493729591,
+    "native_gate_passed": false,
+    "independent_review_required": false,
+    "completed_utc": "2026-10-26T19:44:48.046846+00:00",
+    "certificate_sha256": {
+      "cache": "977295e9150f6ded693ae03b2901ed0a3118bbfcd322e643ffe95f88b85d84a7",
+      "providers-C0": "9e075493690bd96d4175037b8eaf7be1b985830dca915b605f6d9ae4bedcccb5",
+      "providers-L256": "be95ffb183d158454f10d930bedb69524d4f054cf7eef9a53c7552e4f75f2d97",
+      "pair": "05d0d23bb6a81e062d0ae31f5d1dcc247f10a029cb1d34b3b686c90b4258cbab",
+      "work": "93350f71b1f2b1b10a8770742f883ad0f01832bc643de438fd12bd066cd7c495",
+      "preservation": "1a5cf5db933bfb685ebbd1b78eb6f4b860bab246e9a81589542e88217e8fc4b7"
+    }
+  },
+  "pair": {
+    "passed": true,
+    "physical": {
+      "arms": [
+        "qual-C0",
+        "qual-L256"
+      ],
+      "contract": "stage325-stream-comparison-v1",
+      "databases": [
+        {
+          "bytes": 10809344,
+          "ctime_ns": 1793043887658728218,
+          "device": 16777232,
+          "domain_rank_census_sha256": "032dfb378f5520b25f2644ad6794b00f668a277ca05edfa353e98c5342d8bb8c",
+          "inode": 312350517,
+          "mtime_ns": 1793043887658728218,
+          "path": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/resume325-composed-report-4foaiw7m/state/phases/cache/qual-C0.sqlite",
+          "schema_sha256": "b3490190a777811bad85063bf1c4cc927415c111c5ab0ae4377d0933c8b7ffcf"
+        },
+        {
+          "bytes": 10809344,
+          "ctime_ns": 1793043887662476765,
+          "device": 16777232,
+          "domain_rank_census_sha256": "032dfb378f5520b25f2644ad6794b00f668a277ca05edfa353e98c5342d8bb8c",
+          "inode": 312350518,
+          "mtime_ns": 1793043887662476765,
+          "path": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/resume325-composed-report-4foaiw7m/state/phases/cache/qual-L256.sqlite",
+          "schema_sha256": "b3490190a777811bad85063bf1c4cc927415c111c5ab0ae4377d0933c8b7ffcf"
+        }
+      ],
+      "expected_ranks": 256,
+      "failures": {
+        "count": 0,
+        "counts": {},
+        "examples": [],
+        "examples_limit": 32,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "features": {
+        "common": 8,
+        "comparison_sha256": "abaf55cf7ac802eca98abbf0377f158a31a92f64da7828f8074ebac3ce408cf0",
+        "equal": 8,
+        "sides": [
+          {
+            "rows": 8,
+            "sha256": "b4ddc151d16d3da387c58a41f86b907944f6713e9869cf94163b3d9a08e4ecaf",
+            "unique": 8
+          },
+          {
+            "rows": 8,
+            "sha256": "b4ddc151d16d3da387c58a41f86b907944f6713e9869cf94163b3d9a08e4ecaf",
+            "unique": 8
+          }
+        ]
+      },
+      "inverse_bridge": {
+        "comparison_sha256": "37444b4a5996ccf7f05ee83934b39c4dda54ff670be53c9bdb5b52d84cff622c",
+        "expected": 256,
+        "moved_physical_nodes": 512,
+        "paired": 256,
+        "proved": 256,
+        "sides": [
+          {
+            "rows": 256,
+            "sha256": "b2bc829f2c9b39a1a0dd0ac63ddd9c41724965d79cece3a476f7e4a9d2d7f8ac",
+            "unique": 256
+          },
+          {
+            "rows": 256,
+            "sha256": "d2afc1c70dac395f6fb35fc1e79af15539204d8492a7d408c35e5c503aaefa7b",
+            "unique": 256
+          }
+        ]
+      },
+      "passed": true,
+      "steps": 1
+    },
+    "providers": {
+      "contract": "stage325-stream-comparison-v1",
+      "failures": {
+        "count": 0,
+        "counts": {},
+        "examples": [],
+        "examples_limit": 32,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "families": 1,
+      "passed": true,
+      "proofs_sha256": [
+        "56fff4f4c2be1e4061efbe84174813e209f4f05eaeca3462f64cad228b97662b",
+        "56fff4f4c2be1e4061efbe84174813e209f4f05eaeca3462f64cad228b97662b"
+      ]
+    }
+  },
+  "derived_bytes_before_fixture_cleanup": 21632965,
+  "solver_runs": 0,
+  "native_qualification": false
+}

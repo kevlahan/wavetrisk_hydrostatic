@@ -1,0 +1,114 @@
+{
+  "schema": "stage325-independent-terminal-adversarial-review-v1",
+  "job": 55576,
+  "decision": "PASS_NATIVE_VERIFICATION_GATE_IN_SAVED_SIMPLIFIED_SCOPE; CONDITIONAL_VERIFICATION_COMMIT_SUPPORTED",
+  "scope": {
+    "source_job": 55569,
+    "max_level": 5,
+    "tol": 0,
+    "ranks": 256,
+    "steps": 4,
+    "arms": [
+      "qual-C0",
+      "qual-L256"
+    ],
+    "checked_reference": "checked-L256; checked closure reused narrowly from55573"
+  },
+  "base_review_sha256": "4fd21f847217b8efca55e866de3423db6998e0b108c07e697e66e3cbd30ea61c",
+  "reviewer_script_sha256": "05d86fe2dc5688401ff000cd866f11de91fd1aa80ae923622f52245cb52bc64f",
+  "blockers": [],
+  "resource_observations": {
+    "elapsed_seconds": 439.8355687740259,
+    "sampled_peak_derived_bytes": 2558805416,
+    "sampled_peak_virtual_bytes": 3402747904,
+    "sampled_peak_rss_bytes": 2324824064,
+    "stdout_bytes": 1026,
+    "address_limit_before_installation": [
+      17179869184,
+      -1
+    ],
+    "address_limit_installation": {
+      "after": [
+        17179869184,
+        17179869184
+      ],
+      "before": [
+        17179869184,
+        -1
+      ],
+      "installation": "inside Python verification step before allocation/capture checks"
+    }
+  },
+  "phase_seconds": {
+    "cache": 129.36822091415524,
+    "providers-C0": 129.3442155602388,
+    "providers-L256": 125.13838857971132,
+    "pair": 13.68390174722299,
+    "work": 14.82587214699015,
+    "preservation": 12.141334656160325
+  },
+  "normal_pool_cleanup_exit_codes": [
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15,
+    -15
+  ],
+  "pool_cleanup_interpretation": "All16statuses observed. -15is intentional PythonPoolcontext cleanup after complete shard consumption, not evidence of a solver/capture failure; read/source/hash certificates separately establish all512capture reads.",
+  "physical_evidence": {
+    "equal_features": 508840,
+    "feature_digest_equal": true,
+    "physical_bridges": 1024,
+    "moved_node_instances": 1380,
+    "raw_bridge_digest_equal": false,
+    "mismatch_census": 0
+  },
+  "replacement_work_retained": {
+    "active_ranks": 256,
+    "call_range": [
+      5,
+      5
+    ],
+    "fields": [
+      "catalogue_iterations",
+      "permutation_iterations"
+    ],
+    "max_rank_total": [
+      3200,
+      1280
+    ],
+    "max_single_call": [
+      640,
+      256
+    ],
+    "sum": [
+      819200,
+      327680
+    ]
+  },
+  "sealed_work_decision_retained": "AWAIT_SEMANTIC_AND_NATIVE_QUALIFICATION; NO_AUTOMATIC_PERFORMANCE_PROMOTION",
+  "qualification_interpretation": "External independent evidence review now closes this saved-capture semantic/science/source/work gate. Sealed runner and historical work reports correctly retain native_qualification=false or historical pending decisions; do not rewrite those records.",
+  "limits": [
+    "No new solver or performance run; original science gates are reused through exact source/binary/checkpoint/input hashes.",
+    "Compact evidence does not permit an independent second execution of all semantic comparisons. Source-reviewed checker completion and exact native cache hashes are explicit premises.",
+    "Communication/work changes are counters, not elapsed-time benefit or a cause of negative scaling.",
+    "Uniform level5/tol0four-step256rank qualification does not establish adaptive-case qualification, cross-rank scaling, primary slowdown cause or elapsed performance improvement.",
+    "The complete semantic checker was executed once natively, not independently executed again by this external reviewer. Its exact source, input/read receipts, complete artifacts and fresh stable database/source hashes are explicit evidence premises."
+  ],
+  "compiler_runs": 0,
+  "solver_runs": 0,
+  "performance_runs": 0,
+  "native_jobs_submitted_by_reviewer": 0,
+  "performance_qualified": false
+}

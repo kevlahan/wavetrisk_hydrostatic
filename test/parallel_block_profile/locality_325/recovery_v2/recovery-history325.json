@@ -1,0 +1,169 @@
+{
+  "source_job": 55569,
+  "predecessor_job": 55571,
+  "predecessor_elapsed_seconds": 13,
+  "predecessor_review_archive_sha256": "8e79441572322c0df6c170a55efc07ff10f555e5c0cdf01789f154e3d8b6d065",
+  "expected_failure": "AuditError('physical.transform_owner_range')",
+  "anchors_file": "prior-native-input-anchors.json",
+  "anchors_sha256": "f1a3b67af02f8a70c25e420027b9c3b3a4c2527278940cfc7301ff655593deb7",
+  "original_elapsed_seconds": 392,
+  "recovery_walltime_cap_seconds": 2100,
+  "cumulative_maximum_seconds": 2505,
+  "historical_anchor_policy": "All retained capture and raw-work input hashes must equal the hashes recorded before semantic verification by job55571; they are not claimed to predate job55569.",
+  "predecessor_report": {
+    "stage": 325,
+    "revision": "verification-recovery-v1",
+    "source_job": 55569,
+    "verification_job": "55571",
+    "status": "failed",
+    "builds": 0,
+    "solver_runs": 0,
+    "performance_runs": 0,
+    "performance_qualified": false,
+    "package_manifest_sha256": "76d66a018600e122cc81e70de231b455b9521a67ffa099c32c8e95a8dae23fe9",
+    "original_elapsed_seconds": 392,
+    "recovery_walltime_cap_seconds": 2100,
+    "verifier_environment": {
+      "python": "3.11.9",
+      "executable": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/python-3.11.9-qeb3nj2buhvtewrg6m46oasknsr57h7d/bin/python3.11",
+      "numpy": "2.1.2",
+      "hostname": "bb13.rhpcs.internal",
+      "allowed_cpus": [
+        0
+      ],
+      "requested_tasks": 1,
+      "requested_memory_gib": 16
+    },
+    "elapsed_seconds": 12.435387044213712,
+    "peak_rss_kib": 210836,
+    "phase": "corrected_semantic_replay",
+    "binding_before": {
+      "passed": true,
+      "original_kit_files": 79,
+      "source_files": 258,
+      "metadata_files": 3889,
+      "binaries": [
+        {
+          "kind": "checked",
+          "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/sources/candidate/bin-rk325-checked/climate",
+          "sha256": "ad427c4fd890297d762cccb60427044158e1709ea464bcb079a0bbc1bfdec667"
+        },
+        {
+          "kind": "candidate",
+          "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/sources/candidate/bin-rk325-candidate/climate",
+          "sha256": "b690e340b3878c58c1f8e29cb804c9a13fcaa152cc639a8f7ed4dc6aa2e6c473"
+        }
+      ],
+      "checkpoints": [
+        {
+          "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/checked-L256/test_checkpoint_9900.bin.zst",
+          "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+        },
+        {
+          "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/checked-L256/test_checkpoint_9901.bin.zst",
+          "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+        },
+        {
+          "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-C0/test_checkpoint_9900.bin.zst",
+          "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+        },
+        {
+          "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-C0/test_checkpoint_9901.bin.zst",
+          "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+        },
+        {
+          "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-L256/test_checkpoint_9900.bin.zst",
+          "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+        },
+        {
+          "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-L256/test_checkpoint_9901.bin.zst",
+          "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+        }
+      ],
+      "science_policy": "Reuses byte-bound original native decoded science/placement checks; no new solver or independent checkpoint decode."
+    },
+    "error": "AuditError('physical.transform_owner_range')",
+    "decision": "STOP_RETAIN_PARTIAL_EVIDENCE_NO_AUTOMATIC_RETRY"
+  },
+  "predecessor_semantic_report": {
+    "claim": "configured level5 four-step physical program/value/provider qualification; performance held",
+    "contract": "stage325-closed-rhs-physical-v2",
+    "elapsed_seconds": 4.166416115593165,
+    "failure": {
+      "message": "physical.transform_owner_range",
+      "type": "AuditError"
+    },
+    "passed": false,
+    "progress": {
+      "arm": "checked-L256",
+      "completed": 1,
+      "detail": {
+        "file": "execution316-rank-1.bin.gz",
+        "rank": 1
+      },
+      "stage": "streams",
+      "total": 256
+    },
+    "runs": {
+      "checked-L256": {
+        "status": "streams",
+        "streams": [
+          {
+            "file": "execution316-rank-0.bin.gz",
+            "logical_payload_bytes": 217137048,
+            "physical_bytes": 15796529,
+            "rank": 0,
+            "real_digest_records": 146206,
+            "records": 195182,
+            "storage_orders": [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                1,
+                2,
+                3
+              ]
+            ],
+            "stream_sha256": "c9b38bc0124611fb039206b14a4b6e8dbc4e2daeb4e643aca24649c313bb7b72"
+          }
+        ]
+      }
+    },
+    "sampled_peak_scratch_bytes": 5099520,
+    "scratch_limit_bytes": 4294967296,
+    "stage": 325,
+    "status": "failed"
+  },
+  "predecessor_accounting": {
+    "command": [
+      "sacct",
+      "-j",
+      "55571",
+      "-X",
+      "--parsable2",
+      "-o",
+      "JobID,JobName,State,ExitCode,Start,End,Elapsed,ElapsedRaw,NodeList"
+    ],
+    "returncode": 0,
+    "stdout": "JobID|JobName|State|ExitCode|Start|End|Elapsed|ElapsedRaw|NodeList\n55571|rk325-verification-recovery-v1|FAILED|1:0|2026-10-26T12:47:36|2026-10-26T12:47:49|00:00:13|13|bb13\n",
+    "stderr": ""
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "job": 55576,
+  "archive_sha256": "67e5823b502e5c40d36b37144f71fc7752b2b5132f3d82ef59ae1b5a8864ecd0",
+  "archive_bytes": 1864493,
+  "manifest_payload_files": 227,
+  "archive_entries": 228,
+  "logical_bytes": 10080450,
+  "extracted_root": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/native-v5p1-review-55576/review"
+}

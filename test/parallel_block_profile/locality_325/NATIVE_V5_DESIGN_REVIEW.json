@@ -1,0 +1,86 @@
+{
+  "schema": "stage325-native-v5-design-review-v1",
+  "reviewer": "independent adversarial agent",
+  "decision": "APPROVE_EXACT_SEALED_PACKAGE_FOR_ONE_NATIVE_VERIFICATION_JOB_CONDITIONAL_ON_FULL_LINUX_PREFLIGHT",
+  "scope": "One verification-only attempt on saved job55569 captures; no compiler, solver or performance execution.",
+  "approval_binds_archive_sha256": "4cac649fa13cf02731dd4cf4fad939e2e40719a75cc79bb93006beb36165aa7e",
+  "approval_binds_manifest_sha256": "e62059e17e54e4454396f5a21e8f6b789b2e286262888a6ff38dfc4da97403fb",
+  "independent_package_inspection": {
+    "archive": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/native-v5-build-v3/rk325-native-qualification-kit-v5.tar.gz",
+    "archive_sha256": "4cac649fa13cf02731dd4cf4fad939e2e40719a75cc79bb93006beb36165aa7e",
+    "manifest_sha256": "e62059e17e54e4454396f5a21e8f6b789b2e286262888a6ff38dfc4da97403fb",
+    "members": 195,
+    "all_manifest_hashes_verified": true,
+    "critical_source_snapshot_matches": true,
+    "frozen_payload_verified": true,
+    "logical_bytes": 9203858,
+    "code_sha256": {
+      "native_runner325.py": "a6524cee55b54bc399164e82e78b96276f783ad91ee023e87770a99f28869af1",
+      "resume_state325.py": "fde514758e8afa855d0e0395e11e64542741449e2ab57976bd41ef74415b7a9b",
+      "stream_compare325.py": "007745b7002c6e14cc767326d3a8cc10e3546efc487533b2d6d5ab23e0ba9f15",
+      "resume_workflow325.py": "737d08f4dcb6b4059fa165fafb0428f069fff92fbc4eea2eab7d6e439d35b479",
+      "resume_native325.py": "dcaefd6e0599177669bf9f2095ddaf270f96c26940c7ff5e06c4910b6434c3bf",
+      "test_native_runner325.py": "9f897003c7047bb022680e64aec9933f83d5b3708323f59ce28e913d8ef89c3a",
+      "control_native325.py": "d6dda1b0d44df4b79399754f09db73ddfb9b6da1c9dcf111e6d2271bbe610328",
+      "verification.sbatch": "169609d3ec284049e25e79d7d1cb8ef63241b7af19b638119c8ba24ac217e06a"
+    }
+  },
+  "source_review": [
+    "Supervisor is outside the new-session verifier group and only terminates that owned group.",
+    "One exclusive bb13/nk allocation uses one16CPU srun Python supervisor step; exact actual affinity and16GiB address limits are checked before verification.",
+    "Worker1740second alarm, supervisor1750second deadline and bounded cleanup fit within1800second requested walltime; no early Slurm TERM warning is configured.",
+    "New1800second allocation is accounted separately; original2656second cost is preserved, not charged against the remaining44seconds.",
+    "Derived databases and complete phase certificates remain native on all outcomes. Native runner offers no resume, retry or solver entry point.",
+    "Execution is bound to strict package manifests, actual checker modules, frozen reader identities, immutable source/capture inventories and narrow checked-closure reuse.",
+    "Completion requires exact six certificate names, equality of worker and attempt digest maps, and hashes of all six actual certificate files.",
+    "Collector keeps32MiB bounded code/JSON/log evidence, omits large SQLite/capture/checkpoint/TSV/vector contents and verifies a complete review manifest."
+  ],
+  "resolved_blockers": [
+    "Unreapable child cleanup no longer masks primary failure or prevents final supervisor reporting.",
+    "All native protected paths are checked before output creation, including original preflight and predecessor evidence.",
+    "Preflight cleanup escalates the owned group even if its parent has exited while a grandchild retains the output pipe.",
+    "Unlisted bytecode/symlinks cannot pass package identity checks; no-bytecode settings propagate to preflight descendants.",
+    "Runtime grace is read dynamically for accurate fast cleanup tests; inode-based accounting avoids false double-counting across phase renames."
+  ],
+  "independent_local_tests": {
+    "native_runner": {
+      "tests": 13,
+      "passed": true,
+      "skipped": 6,
+      "skip_scope": "Linux /proc process tests, mandatory in native preflight"
+    },
+    "native_campaign_controller": {
+      "tests": 16,
+      "passed": true,
+      "skipped": 0
+    },
+    "fresh_sealed_package_log_inspected": {
+      "tests": 288,
+      "seconds": 36.433,
+      "passed": true,
+      "skipped": 6
+    }
+  },
+  "conditions_before_single_sbatch": [
+    "Uploaded archive SHA256 and strict extracted manifest must match this approval.",
+    "All288 tests must pass on bbserv, including all six Linux process/guard tests; no unexpected skip or error.",
+    "Controller must retain its one-launch intent/state and reject duplicate submissions; all predecessor jobs must be terminal.",
+    "Any code, script or manifest change requires new sealing and review before launch."
+  ],
+  "terminal_acceptance": [
+    "Collect and verify the bounded review and exact package identity.",
+    "Independently verify all phase/provider/value/work/preservation evidence and remotely rehash retained cache databases against their phase certificates.",
+    "Hold qualification and conditional commit on any incomplete or failed check; no automatic retry, resume, budget extension or performance campaign."
+  ],
+  "limitations": [
+    "Aggregate /proc memory and filesystem measurements are sampled guards; only per-process address limits and controlled write admissions are hard controls.",
+    "The thirty-minute allowance is a bounded attempt, not a completion guarantee.",
+    "The old interruption cause and any solver performance benefit remain unestablished.",
+    "Local fixtures and source review do not grant native semantic qualification; independent terminal review remains required."
+  ],
+  "native_qualification": false,
+  "performance_qualified": false,
+  "solver_runs": 0,
+  "compiler_runs": 0,
+  "native_jobs_submitted_by_reviewer": 0
+}

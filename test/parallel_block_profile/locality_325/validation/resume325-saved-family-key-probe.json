@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "scope": "Existing checked-L256 rank0 only; native adapter family-key extraction test, not full qualification",
+  "source_job": 55569,
+  "actual_capture_sha256": "2c35cde979b2b9cb86cf5f430b33fcb7b775604c7f2516c67733daf1af99a4c7",
+  "families": 254,
+  "family_keys_sha256": "18926ebfec37fc8856dd1f8f9baa5d73a8f21419eb2c0d543659db06ca55e88d",
+  "source_binding": {
+    "passed": true,
+    "sources": {
+      "src/parallel_block_inverse.f90": "65b936677196c97fabf0f4ec8363132c3e48e9e4ff1f17ba4e789d7781d60db0",
+      "src/parallel_block_mpi.f90": "c915cc2b6529b38ec7a74d41afb74bdb5caddd8c7731cb15ed76c8ea89755027",
+      "src/domain.f90": "54a09b07a979ba54d9695ea23d1b6ea76096893cf1106f9c73acc49f05f27ecd",
+      "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84"
+    }
+  },
+  "elapsed_seconds": 1.2264212910085917,
+  "solver_runs": 0,
+  "native_qualification": false
+}

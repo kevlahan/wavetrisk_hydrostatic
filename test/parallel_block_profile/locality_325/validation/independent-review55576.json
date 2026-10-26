@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "job": 55576,
+  "review_sha256": "67e5823b502e5c40d36b37144f71fc7752b2b5132f3d82ef59ae1b5a8864ecd0",
+  "review_files": 228,
+  "review_logical_bytes": 10080450,
+  "package_manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+  "approved_source_archive_sha256": "99fe77316934f2991f65ecf2e0c22ee15051f490ccb8f38a27c9fb78bc9f86b7",
+  "package_files": 197,
+  "native_preflight_tests": 292,
+  "native_preflight_skipped": 0,
+  "in_step_resource_installation_proved": true,
+  "checked_reuse_job": 55573,
+  "optimized_actual_reads": 512,
+  "provider_families_each": 254,
+  "features_each": 508840,
+  "physical_bridges": 1024,
+  "moved_physical_node_instances": 1380,
+  "work_actual_reads": 768,
+  "preserved_input_hashes": 1536,
+  "preserved_source_files": 258,
+  "source_job": 55569,
+  "scheduler_elapsed_seconds": 441,
+  "cumulative_target_seconds": 3097,
+  "post_terminal_report_sha256": "8916e2f5878d5b6e1797b27e31ee601e73c63d316e164712f628f1cb4d61cce1",
+  "native_qualification_supported": true,
+  "performance_qualified": false,
+  "limitations": [
+    "No new solver or performance run; original science gates are reused through exact source/binary/checkpoint/input hashes.",
+    "Compact evidence does not permit an independent second execution of all semantic comparisons. Source-reviewed checker completion and exact native cache hashes are explicit premises.",
+    "Communication/work changes are counters, not elapsed-time benefit or a cause of negative scaling."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "same_input_database": true,
+  "original_verifier_sha256": "dca208bed81d93109a77122461ae80f2857d6d71fb03eb5629a8f449cfc2d3a2",
+  "original_failure": "'ghost_exchange_plan%local_order297'",
+  "repaired_verifier_sha256": "7adce8a70ebf6b923f06414a3650dac5344337d5511bc2bd48c4f0dc8411314d",
+  "repaired_counts": {
+    "families": 1,
+    "resolved_consumers": 3,
+    "publication_imported_consumers": 0
+  },
+  "scope": "Constructed complete256-rank ghost world, including real failed allocation state. Not native world qualification."
+}

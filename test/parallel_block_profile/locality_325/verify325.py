@@ -10,6 +10,7 @@ import ast, copy, gzip, hashlib, json, math, sqlite3, struct, tempfile, time
 import verify322 as v
 import coverage322 as cov
 from reconcile_boundary325 import reconcile_boundary325
+import inverse_identity325 as inverse325
 
 PERM=cov.PERMUTATION325
 INV=[PERM.index(i) for i in range(256)]
@@ -24,12 +25,22 @@ EXTRA={
 LIMIT=128*1024*1024
 COMPRESSED_LIMIT=64*1024*1024
 SCRATCH_LIMIT=4*1024*1024*1024
+# Source-derived physical routes for the sealed level_start=level_end=5 case.
+# parallel_block_rhs_routes.f90 selects spatial components; independently,
+# parallel_block_rhs_distributed.f90 selects the channel capacity. The logical
+# injected-Bernoulli phase 18 reuses physical route 16 and has no own route.
+RHS_PHASE325={
+    1:(3,2),2:(1,2),3:(3,1),4:(2,1),5:(3,2),6:(2,1),7:(1,1),
+    11:(2,1),12:(3,1),13:(3,2),14:(1,2),15:(3,1),16:(1,2),20:(3,2),
+}
 
 def capture_environment(kind,owner):
     return {'WAVETRISK_EXECUTION_AUDIT316':'1','WAVETRISK_COMPACT_AUDIT325':'1'}
 
 def is_locality(arm):return arm in ('L256','checked-L256','qual-L256')
-def group(rank,arm):return INV[rank] if is_locality(arm) else rank
+def group(rank,arm):
+    require(0<=rank<N,'physical.numerical_rank_range',{'rank':rank,'arm':arm})
+    return INV[rank] if is_locality(arm) else rank
 
 def require(ok,code,detail=''):
     v.require(ok,code,detail)
@@ -141,9 +152,65 @@ def prior(scopes,s,name):
     found=[t for t in scopes if t['name']==name and t['record']<=s['record']]
     require(bool(found),'physical.prior_plan',name)
     return found[-1]
-def record_scope_routes(scopes):
+def rhs_route_layout(q,nd,rank,coordinate=None):
+    """Validate one compiled route against the closed live source contract."""
+    require(q.get('route.allocated')==[1],'physical.rhs_allocated',{'rank':rank,'coordinate':coordinate})
+    h=q.get('route.header',[])
+    require(len(h)==7,'physical.rhs_header',{'rank':rank,'header':h})
+    encoded,nslot,ncolumn,me,nrank,tag,last_columns=h
+    level,phase=divmod(encoded,100)
+    detail={'rank':rank,'phase':phase,'level':level,'coordinate':coordinate,
+            'nodes':nd,'slots':nslot,'components':nslot/nd if nd else None,
+            'columns':ncolumn,'header':h}
+    require(level==5 and phase in RHS_PHASE325,'physical.rhs_phase',detail)
+    require(coordinate is None or coordinate==[phase,level],'physical.rhs_coordinate_header',detail)
+    m,nc=RHS_PHASE325[phase]
+    detail['expected_components']=m;detail['expected_columns']=nc
+    require(nd>0 and nslot==m*nd,'physical.rhs_components',detail)
+    require(ncolumn==last_columns==nc,'physical.rhs_columns',detail)
+    require([me,nrank]==[rank,N] and tag==3*encoded+nc,'physical.rhs_header_contract',detail)
+    require(q.get('route.flags')==[0,1],'physical.rhs_shared_variable_route',detail)
+    return m
+
+def validate_rhs_routes(s,rank):
+    """Close the complete physical census and logical-to-physical bindings.
+
+    Do not infer components from the observed slot count: two-component triangle
+    routes are required, and a wrong count common to both arms must still fail.
+    The coordinate preceding each actual route is checked against its header.
+    """
+    detail={'rank':rank,'epoch':s['epoch'],'step':s['step']}
+    require(integers(s,'transport.route.bounds')==[5,5],'physical.rhs_level_bounds',detail)
+    require(integers(s,'transport.bound')==[int(p in RHS_PHASE325) for p in range(1,21)],
+            'physical.rhs_bound_census',detail)
+    logical={**{p:p for p in RHS_PHASE325},18:16}
+    require(integers(s,'transport.route_phase')==[logical.get(p,0) for p in range(1,21)],
+            'physical.rhs_logical_phase_binding',detail)
+    require(integers(s,'transport.route_level')==[5 if p in logical else 0 for p in range(1,21)],
+            'physical.rhs_logical_level_binding',detail)
+    nd=len(matrix(s,'placement.key',4));routes=[];coordinate=None;q=None
+    for e in s['records']:
+        if e.name=='transport.route.coordinate':
+            if q is not None:routes.append((coordinate,q));q=None;coordinate=None
+            require(coordinate is None,'physical.rhs_coordinate_without_route',detail)
+            require(e.kind==1 and e.count==2,'physical.rhs_coordinate_format',detail)
+            coordinate=v.value(e)
+        elif e.name=='route.allocated':
+            require(coordinate is not None and q is None,'physical.rhs_route_without_coordinate',detail)
+            q={e.name:v.value(e)}
+        elif e.name.startswith('route.'):
+            require(q is not None and e.name not in q,'physical.rhs_route_record_order',detail)
+            q[e.name]=v.value(e)
+    if q is not None:routes.append((coordinate,q));coordinate=None
+    require(coordinate is None,'physical.rhs_dangling_coordinate',detail)
+    require([a for a,b in routes]==[[p,5] for p in RHS_PHASE325],
+            'physical.rhs_physical_census',detail)
+    for coordinate,q in routes:rhs_route_layout(q,nd,rank,coordinate)
+
+def record_scope_routes(scopes,rank):
     seen=Counter();out={}
     for s in scopes:
+        if s['name']=='rhs.prepare':validate_rhs_routes(s,rank)
         path=tuple(s['parent'])+((s['name'],s['epoch']),);seen[path]+=1
         path=repr((path,seen[path]));serial=0
         for e in s['records']:
@@ -193,12 +260,12 @@ def validate_input_addresses(s,scopes,rank):
 
 def route_map(q,s,scopes,rank,arm):
     """Actual slot identities, including mixed fixed Domain/moving-owner plans."""
+    if s['name']=='rhs.prepare':
+        keys=matrix(s,'placement.key',4)
+        m=rhs_route_layout(q,len(keys),rank)
+        return {'rows':physical_rows(keys,m),'role':'numerical','group':group(rank,arm)}
     if q['route.allocated']==[0]:return {'rows':[],'role':'none'}
     phase,nslot=q['route.header'][:2]
-    if s['name']=='rhs.prepare':
-        keys=matrix(s,'placement.key',4);nd=len(keys);require(nd>0 and nslot%nd==0,'physical.rhs_slots')
-        m=nslot//nd;require(m in (1,3),'physical.rhs_components')
-        return {'rows':physical_rows(keys,m),'role':'numerical','group':group(rank,arm)}
     if s['name'] in ('input.scalar_route','input.vector_route','input.mean_route'):
         p=ancestor(scopes,s,'backend.rk_input' if any(x[0]=='backend.rk_input' for x in s['parent']) else 'backend.input')
         validate_input_addresses(p,scopes,rank)
@@ -219,6 +286,9 @@ def route_map(q,s,scopes,rank,arm):
         require(all(d==1 and rank<160 for d in domain),'physical.adapter_domain')
         rows=physical_rows(keys)+[('physical',rank+1,node,1) for node in nodes]
         require(len(rows)==nslot,'physical.adapter_slots')
+        owned=integers(p,'placement.owned')
+        require(len(owned)==len(keys) and all(1<=slot<=len(keys) and owned[slot-1]==1 for slot in q['route.source']),
+                'physical.adapter_numerical_source',{'rank':rank,'numerical_rows':len(keys),'sources':q['route.source'][:8]})
         return {'rows':rows,'role':'fixed','group':rank}
     if s['name'].startswith('transform.'):
         p=ancestor(scopes,s,'transform.plan');keys=matrix(p,'placement%key',4)
@@ -279,9 +349,39 @@ def normalize_block(s,arm):
         ans.append(item)
     return ans
 
+def transform_owner_identity(s,rank,arm):
+    """Normalize canonical owners while preserving dependency-row sentinels.
+
+    distribute_transform_geometry initializes every footprint row to the full
+    sentinel tuple. Only a tag1 Node_Record changes that tuple, and it is sent
+    exclusively to node%owner. A nonowned operator dependency is not a numerical
+    rank and must never enter the rank permutation (Python's -1 indexes a real
+    element). Its actual providers are resolved separately from wire plans.
+    """
+    owners=integers(s,'placement%owner');owned=integers(s,'placement%owned')
+    physical_keys=matrix(s,'placement%key',4);state_keys=matrix(s,'placement%state_key',4)
+    levels=integers(s,'placement%level');masks=matrix(s,'placement%mask',4)
+    nd=len(physical_keys)
+    require(all(len(x)==nd for x in (owners,owned,state_keys,levels,masks)),
+            'physical.transform_placement_extent',{'rank':rank,'nodes':nd})
+    normalized=[]
+    for slot,(key,flag,owner,state,level,mask) in enumerate(zip(physical_keys,owned,owners,state_keys,levels,masks),1):
+        detail={'rank':rank,'epoch':s['epoch'],'step':s['step'],'slot':slot,'physical_key':key,
+                'owned':flag,'owner':owner,'state_key':state,'level':level,'mask':mask}
+        require(flag in (0,1),'physical.transform_owned_flag',detail)
+        if flag:
+            require(owner==rank and 0<=owner<N,'physical.transform_canonical_owner',detail)
+            normalized.append(group(owner,arm))
+        else:
+            require(owner==-1 and state==(0,0,0,0) and level==-1 and mask==(0,0,0,0),
+                    'physical.transform_dependency_sentinels',detail)
+            normalized.append(-1)
+    return normalized
+
 def feature_rows(scopes,rank,arm):
     """Ordered within physical program/consumer, not blanket sorted records."""
     out=[];seen=Counter()
+    inverse_plans={p['step']:inverse325.InverseSlots325(scopes,p) for p in scopes if p['name']=='inverse.plan'}
     def emit(role,key,payload):
         full=(role,key);seen[str(full)]+=1
         out.append((repr((full,seen[str(full)])),sha(payload)))
@@ -289,6 +389,10 @@ def feature_rows(scopes,rank,arm):
         path=scope_key(s);name=s['name'];step=s['step']
         if name in NUMERIC_SCOPES:
             emit('numerical',(group(rank,arm),path),[descriptor(e) for e in s['records']])
+        elif name=='inverse.node_map':
+            emit('fixed',(rank,path),inverse325.normalize_inverse_node_map325(s,inverse_plans[step]))
+        elif name=='inverse.local_alias':
+            emit('fixed',(rank,path),inverse325.normalize_inverse_local_alias325(s,inverse_plans[step]))
         elif name in FIXED_SCOPES:
             emit('fixed',(rank,path),[descriptor(e) for e in s['records']])
         elif name=='rhs.prepare':
@@ -302,9 +406,7 @@ def feature_rows(scopes,rank,arm):
                 if e.name.startswith('retention.') and current is not None and e.name!='retention.block':current[1].append(descriptor(e))
             for cat,records in groups:emit('block-retention-plan',(cat,step),records)
         elif name=='transform.plan':
-            owners=integers(s,'placement%owner')
-            require(all(0<=x<N for x in owners),'physical.transform_owner_range')
-            emit('numeric-owners',(group(rank,arm),path),[group(x,arm) for x in owners])
+            emit('numeric-owners',(group(rank,arm),path),transform_owner_identity(s,rank,arm))
             keys=matrix(s,'placement%state_key',4);blocks=block_storage(scopes,s)
             addresses=matrix(s,'interior_address',6);nodes=integers(s,'interior_node')
             require(len(addresses)==len(nodes),'physical.transform_interior_addresses')
@@ -336,8 +438,7 @@ def feature_rows(scopes,rank,arm):
         elif name=='inverse.boundary' and 'family_and_range' in s['values']:
             emit('fixed',(rank,path),[descriptor(e) for e in s['records']])
         elif name=='inverse.plan':
-            exclude={'transfer_send.shape','transfer_recv.shape'}
-            emit('fixed',(rank,path),[descriptor(e) for e in s['records'] if not e.name.startswith('plan%') and e.name not in exclude])
+            emit('fixed',(rank,path),inverse325.normalize_inverse_plan_records325(inverse_plans[step]))
     require(bool(out),'physical.no_features')
     return out
 
@@ -370,32 +471,51 @@ def scratch_usage(directory,stats):
     require(size<=SCRATCH_LIMIT,"compact.scratch_bound",size)
     return size
 
-def cache_run(c,directory,arm,scratch,started,stats):
-    summaries=[];coverage='checked' if arm.startswith('checked') else 'candidate'
+def cache_rank325(c,path,arm,rank):
+    """Run the exact per-rank native gates, also usable for saved-capture preflight."""
+    coverage='checked' if arm.startswith('checked') else 'candidate'
+    obj=v.parse_stream(path,rank,N,arm,coverage);scopes=obj['scopes']
+    orders=validate_storage_orders(scopes,rank,arm)
+    obj['reader']['storage_orders']=orders
+    v._cache_rank(c,arm,rank,obj)
+    lookup=record_scope_routes(scopes,rank)
+    inverse_plans={p['step']:inverse325.InverseSlots325(scopes,p) for p in scopes if p['name']=='inverse.plan'}
+    if not arm.startswith('checked'):
+        for step,slots in inverse_plans.items():
+            context=inverse325.inverse_bridge_context325(scopes,slots.plan)
+            c.execute('insert into context values(?,?,?,?,?)',(arm,rank,'inverse-bridge',str(step),json.dumps(context,separators=(',',':'))))
+    for key,q in obj['routes'].items():
+        context=route_map(q,lookup[key],scopes,rank,arm)
+        c.execute('insert into context values(?,?,?,?,?)',(arm,rank,'routes',key,json.dumps(context,separators=(',',':'))))
+    for kind in ('adapters','static'):
+        for key,q in obj[kind].items():
+            skey,occurrence=ast.literal_eval(key)
+            matches=[s for s in scopes if tuple(s['parent'])+((s['name'],s['epoch']),)==skey]
+            require(len(matches)>=occurrence,'physical.static_scope_binding');s=matches[occurrence-1]
+            if kind=='adapters':
+                p=ancestor(scopes,s,'transform.plan');m=q['extent'][0]
+                context={'rows':physical_rows(matrix(p,'placement%key',4),m),'group':group(rank,arm),'name':s['name']}
+            else:
+                if s['name']=='ghost.plan':ghost_local_order325(q,rank)
+                elif s['name'] in INVERSE_TRANSFERS325:inverse_transfer_contract325(q)
+                blocks=block_storage(scopes,s)
+                context={'blocks':compact_blocks(blocks), 'name':s['name']}
+                if s['name'].startswith('inverse.'):
+                    context['inverse_nodes']=inverse_plans[s['step']].nodes
+                    if s['name'] in ('inverse.alias','inverse.range_alias'):
+                        context['alias_component']=inverse325.component_for_alias325(scopes,s)
+            c.execute('insert into context values(?,?,?,?,?)',(arm,rank,kind,key,json.dumps(context,separators=(',',':'))))
+    for key,digest in feature_rows(scopes,rank,arm):c.execute('insert into feature values(?,?,?)',(arm,key,digest))
+    c.commit()
+    return obj['reader']
+
+def cache_run(c,directory,arm,scratch,started,stats,summaries=None,progress=None):
+    if summaries is None:summaries=[]
     for rank,path in enumerate(v._stream_set(directory,N)):
-        obj=v.parse_stream(path,rank,N,arm,coverage);scopes=obj['scopes']
-        orders=validate_storage_orders(scopes,rank,arm)
-        obj['reader']['storage_orders']=orders
-        v._cache_rank(c,arm,rank,obj)
-        lookup=record_scope_routes(scopes)
-        for key,q in obj['routes'].items():
-            context=route_map(q,lookup[key],scopes,rank,arm)
-            c.execute('insert into context values(?,?,?,?,?)',(arm,rank,'routes',key,json.dumps(context,separators=(',',':'))))
-        for kind in ('adapters','static'):
-            for key,q in obj[kind].items():
-                skey,occurrence=ast.literal_eval(key)
-                matches=[s for s in scopes if tuple(s['parent'])+((s['name'],s['epoch']),)==skey]
-                require(len(matches)>=occurrence,'physical.static_scope_binding');s=matches[occurrence-1]
-                if kind=='adapters':
-                    p=ancestor(scopes,s,'transform.plan');m=q['extent'][0]
-                    context={'rows':physical_rows(matrix(p,'placement%key',4),m),'group':group(rank,arm),'name':s['name']}
-                else:
-                    blocks=block_storage(scopes,s)
-                    context={'blocks':compact_blocks(blocks), 'name':s['name']}
-                c.execute('insert into context values(?,?,?,?,?)',(arm,rank,kind,key,json.dumps(context,separators=(',',':'))))
-        for key,digest in feature_rows(scopes,rank,arm):c.execute('insert into feature values(?,?,?)',(arm,key,digest))
-        summaries.append(obj['reader']);c.commit()
+        if progress:progress('streams',arm,rank,N,{'rank':rank,'file':path.name},rank%16==0)
+        summaries.append(cache_rank325(c,path,arm,rank))
         size=scratch_usage(scratch,stats)
+        if progress:progress('streams',arm,rank+1,N,None,(rank+1)%16==0 or rank==N-1)
         if (rank+1)%16==0 or rank==N-1:
             print(f'Stage325 {arm}: validated {rank+1}/{N} ranks; scratch {size/2**20:.1f} MiB; elapsed {time.monotonic()-started:.1f}s',flush=True)
     return summaries
@@ -418,10 +538,72 @@ def _provenance(context,rank,slot,arm,source=True):
         return ('provider',group(rank,arm) if numerical else rank,*row)
     return tuple(row)
 
-def route_certificates(c,arm):
+INVERSE_TRANSFERS325=frozenset(('inverse.interior','inverse.level_interior','inverse.boundary',
+                              'inverse.level_boundary','inverse.outer_install'))
+
+def inverse_transfer_contract325(plan):
+    """The sealed sparse-outer=0 configuration uses six-component addresses."""
+    require(plan.get('edgewise')==[0],'physical.inverse_edgewise_disabled')
+    if plan.get('plan%sc.shape')==[-1]:
+        require(plan.get('plan%address.shape')==[-1] and 'plan%address' not in plan,
+                'physical.inverse_unallocated_address')
+        return
+    require('plan%sc' in plan and 'plan%rc' in plan,'physical.inverse_allocated_counts')
+    count=sum(plan['plan%rc'])
+    require(plan.get('plan%address.shape')==[6,count] and len(plan.get('plan%address',[]))==6*count,
+            'physical.inverse_address_shape')
+    a=plan.get('plan%source_info.shape');b=plan.get('plan%target_info.shape')
+    if a==[-1] or b==[-1]:
+        require(a==b==[-1] and 'plan%source_info' not in plan and 'plan%target_info' not in plan,
+                'physical.inverse_optional_metadata')
+    else:
+        require(a==[2,sum(plan['plan%sc'])] and b==[2,count] and
+                len(plan.get('plan%source_info',[]))==2*sum(plan['plan%sc']) and
+                len(plan.get('plan%target_info',[]))==2*count,'physical.inverse_metadata_extent')
+
+def ghost_local_order325(plan,rank,shared_source=False):
+    """Source loop order, with allocation tied to the explicit execution option.
+
+    The sealed Stage325 runs set WAVETRISK_SHARED_GHOST_SOURCE=0. The scalar
+    loop then visits request indices in ascending order, skipping remote owners;
+    vector execution always does so. Grouped scalar reuse is a distinct mode,
+    never inferred from a missing/available array. Shapes must agree with it.
+    """
+    pre='ghost_exchange_plan%'
+    owners=plan[pre+'source_owner']
+    expected=[i+1 for i,owner in enumerate(owners) if owner==rank]
+    fields=('local_order297','local_start297')
+    if not shared_source:
+        require(all(plan.get(pre+k+'.shape')==[-1] and pre+k not in plan for k in fields),
+                'physical.ghost_ungrouped_allocation',rank)
+        return expected
+    require(all(pre+k in plan and plan.get(pre+k+'.shape')==[len(plan[pre+k])] for k in fields),
+            'physical.ghost_grouped_allocation',rank)
+    order=plan[pre+fields[0]];starts=plan[pre+fields[1]]
+    require(sorted(order)==expected,'physical.ghost_local_order_coverage',rank)
+    require(starts and starts[0]==1 and starts[-1]==len(order)+1 and
+            all(a<b for a,b in zip(starts,starts[1:])), 'physical.ghost_local_group_bounds',rank)
+    sources=plan[pre+'source_block'];patches=plan[pre+'source_local_patch']
+    require(len(sources)==len(patches)==len(owners),'physical.ghost_group_source_extent',rank)
+    for a,b in zip(starts,starts[1:]):
+        require(len({(sources[i-1],patches[i-1]) for i in order[a-1:b-1]})==1,
+                'physical.ghost_group_source',rank)
+    # group_local_297 walks global block/patch offsets in increasing order,
+    # and retains original request order inside each group.
+    expected_order=sorted(expected,key=lambda i:(sources[i-1],patches[i-1]))
+    expected_starts=[1]
+    for j in range(1,len(expected_order)):
+        a,b=expected_order[j-1],expected_order[j]
+        if (sources[a-1],patches[a-1])!=(sources[b-1],patches[b-1]):expected_starts.append(j+1)
+    if expected_order:expected_starts.append(len(expected_order)+1)
+    require(order==expected_order and starts==expected_starts,'physical.ghost_source_group_order',rank)
+    return order
+
+def route_certificates(c,arm,progress=None):
     families=c.execute('select kind,key,count(*) from route where arm=? group by kind,key order by kind,key',(arm,)).fetchall()
     result={};total=0;publication=0
     for family_index,(kind,key,num) in enumerate(families,1):
+        if progress:progress('providers',arm,family_index-1,len(families),{'kind':kind,'key':key},(family_index-1)%32==0)
         if family_index%32==0:
             print(f'Stage325 {arm}: physical provider family {family_index}/{len(families)}',flush=True)
         require(num==N,'physical.route_family_ranks',key)
@@ -458,6 +640,8 @@ def route_certificates(c,arm):
                     rows.append((group(receiver,arm),tuple(context[receiver]['rows'][target-1]),('domain',domain,node,component),sign));total+=1
             result[(kind,key)]=canonical_writes(rows)
         else:
+            if context[0]['name'] in INVERSE_TRANSFERS325:
+                for plan in plans:inverse_transfer_contract325(plan)
             resolved=v.reconcile_static(plans)
             name=context[0]['name'];rows=[]
             if name=='ghost.plan':
@@ -470,15 +654,10 @@ def route_certificates(c,arm):
 
                 local_writes=[]
                 for receiver,p in enumerate(plans):
-                    pre='ghost_exchange_plan%'
-                    order=p[pre+'local_order297'];starts=p[pre+'local_start297']
+                    order=ghost_local_order325(p,receiver)
                     entries={entry[0]:entry for entry in resolved[receiver]}
                     expected={i for i,entry in entries.items() if entry[1]==receiver}
                     require(sorted(i-1 for i in order)==sorted(expected),'physical.ghost_local_order_coverage')
-                    require(starts and starts[0]==1 and starts[-1]==len(order)+1 and all(a<b for a,b in zip(starts,starts[1:])), 'physical.ghost_local_group_bounds')
-                    for a,b in zip(starts,starts[1:]):
-                        source_keys=[entries[i-1][2][:2] for i in order[a-1:b-1]]
-                        require(len(set(source_keys))==1,'physical.ghost_group_source')
                     for i in order:
                         ident=entries[i-1][2]
                         local_writes.append((group(receiver,arm),tuple(ident[2:4]),tuple(ident[:2]),ident[4]))
@@ -498,9 +677,19 @@ def route_certificates(c,arm):
                         expected=cov.owner325(cat-1,arm);require(producer==expected,'physical.writeback_owner');total+=1
                 result[(kind,key)]=sha(reconcile_boundary325(plans,context,lambda cat:cov.owner325(cat-1,arm)))
             elif name in ('inverse.alias','inverse.range_alias'):
-                # Fixed Domain-to-Domain alias install order is retained.
-                result[(kind,key)]=sha(resolved);total+=sum(map(len,resolved))
+                # Remote sends snapshot before local in-place alias copies.
+                # The reconciler already applies exact install_order; preserve
+                # repeated destination write order after physical addressing.
+                for receiver,entries in enumerate(resolved):
+                    for target,producer,source,ordinal in entries:
+                        destination=inverse325.physical_inverse_alias325(context[receiver],target,True)
+                        origin=inverse325.physical_inverse_alias325(context[producer],source)
+                        sign=destination[-1] if destination[0]=='edge' else 1
+                        target_identity=destination[:-1] if destination[0]=='edge' else destination
+                        rows.append((receiver,target_identity,('fixed-domain',producer,origin),sign));total+=1
+                result[(kind,key)]=canonical_writes(rows)
             else:
+                gather=[];scatter=[];destinations=set()
                 for receiver,entries in enumerate(resolved):
                     for target,producer,key4,address,ordinal in entries:
                         cat=key4[0];require(1<=cat<=640 and producer==cov.owner325(cat-1,arm),'physical.inverse_owner')
@@ -508,8 +697,18 @@ def route_certificates(c,arm):
                         # order, not a presumed catalogue-order installation.
                         blocks=context[producer]['blocks'];require(1<=address[0]<=len(blocks),'physical.inverse_storage')
                         require(address_key_fields(address,blocks)==tuple(key4),'physical.inverse_catalogue_address')
-                        rows.append((receiver,target,tuple(key4)));total+=1
-                result[(kind,key)]=canonical_writes(rows)
+                        physical_target=inverse325.physical_inverse_node325(context[receiver],target)
+                        # Every actual block destination has one workspace
+                        # writer, so changed source-peer order cannot overwrite
+                        # another source. Boundary/outer plans only scatter.
+                        require(tuple(key4) not in destinations,'physical.inverse_scatter_unique_destination',key4)
+                        destinations.add(tuple(key4))
+                        scatter.append(('block',tuple(key4),('fixed-domain',receiver,physical_target)))
+                        if name in ('inverse.interior','inverse.level_interior'):
+                            gather.append((receiver,physical_target,tuple(key4)))
+                        total+=1
+                result[(kind,key)]=sha({'gather':canonical_writes(gather),'scatter':canonical_writes(scatter)})
+    if progress:progress('providers',arm,len(families),len(families),None,True)
     return {repr(k):value for k,value in result.items()},{'families':len(families),'resolved_consumers':total,'publication_imported_consumers':publication}
 
 def canonical_writes(rows):
@@ -523,34 +722,74 @@ def compare_features(c,left,right):
     require(a.keys()==b.keys(),'physical.feature_coverage',{'missing':list(a.keys()-b.keys())[:3],'extra':list(b.keys()-a.keys())[:3]})
     bad=[k for k in a if a[k]!=b[k]]
     require(not bad,'physical.ordered_program_or_value_difference',bad[:3])
-    return {'passed':True,'features':len(a),'digest':sha(a)}
+    bridge_a={(rank,key):json.loads(payload) for rank,key,payload in c.execute(
+        "select rank,key,payload from context where arm=? and kind='inverse-bridge'",(left,))}
+    bridge_b={(rank,key):json.loads(payload) for rank,key,payload in c.execute(
+        "select rank,key,payload from context where arm=? and kind='inverse-bridge'",(right,))}
+    require(bridge_a.keys()==bridge_b.keys() and len(bridge_a)==N*4,'physical.inverse_bridge_coverage')
+    bridges=[inverse325.compare_inverse_bridge325(bridge_a[key],bridge_b[key]) for key in sorted(bridge_a)]
+    return {'passed':True,'features':len(a),'digest':sha(a),
+            'inverse_physical_bridges':len(bridges),'moved_inverse_physical_node_instances':sum(x['moved_physical_nodes'] for x in bridges)}
 
-def qualify(results,kit=None,placements=None):
+def write_report325(path,report):
+    """Atomic, bounded progress output; never writes inside a capture stream."""
+    if path is None:return
+    path=Path(path);data=json.dumps(report,sort_keys=True,indent=2)+'\n'
+    require(len(data.encode())<=16*1024*1024,'compact.report_bound')
+    temporary=path.with_name(path.name+'.tmp')
+    temporary.write_text(data);temporary.replace(path)
+
+def qualify(results,kit=None,placements=None,*,report_path=None,scratch_root=None):
     started=time.monotonic();stats={}
-    results=Path(results);report={'passed':False,'stage':325,'claim':'configured level5 four-step physical program/value/provider qualification; performance held','runs':{}}
-    with tempfile.TemporaryDirectory(prefix='rk325-semantic-') as scratch:
-        c=_create_cache(Path(scratch)/'routes.sqlite')
-        proofs={}
-        for arm in ('checked-L256','qual-C0','qual-L256'):
-            report['runs'][arm]={'streams':cache_run(c,results/arm,arm,scratch,started,stats)}
-            proofs[arm],counts=route_certificates(c,arm)
-            report['runs'][arm].update(counts)
-        changes=[]
-        for rank in range(N):
-            a=report['runs']['qual-C0']['streams'][rank]['storage_orders']
-            b=report['runs']['qual-L256']['streams'][PERM[rank]]['storage_orders']
-            if a!=b:changes.append(rank)
-        require(len(changes)==48,'physical.changed_storage_group_count')
-        report['changed_storage_groups']=changes
-        report['storage_frames_checked']=5
-        report['optimized_pair']=compare_features(c,'qual-C0','qual-L256')
-        require(proofs['qual-C0']==proofs['qual-L256'],'physical.provider_pair_difference',
-                [k for k in proofs['qual-C0'] if proofs['qual-C0'].get(k)!=proofs['qual-L256'].get(k)][:3])
-        report['provider_identity_digest']=sha(proofs['qual-C0'])
-        report['checked_scope']='independent source-enabled oracle and full coverage/provider closure; checkpoint science handled by campaign'
-        c.close()
-    report['scratch_limit_bytes']=SCRATCH_LIMIT
-    report.update(stats)
-    report['elapsed_seconds']=time.monotonic()-started
-    report['passed']=True
+    results=Path(results);report={'passed':False,'status':'running','stage':325,
+        'contract':'stage325-closed-physical-v5',
+        'claim':'configured level5 four-step physical program/value/provider qualification; performance held',
+        'scratch_limit_bytes':SCRATCH_LIMIT,'runs':{}}
+    def persist():
+        report.update(stats);report['elapsed_seconds']=time.monotonic()-started
+        write_report325(report_path,report)
+    def progress(stage,arm,completed,total,detail=None,save=False):
+        report['progress']={'stage':stage,'arm':arm,'completed':completed,'total':total,'detail':detail}
+        if save:persist()
+    try:
+        persist()
+        with tempfile.TemporaryDirectory(prefix='rk325-semantic-',dir=scratch_root) as scratch:
+            c=_create_cache(Path(scratch)/'routes.sqlite')
+            try:
+                proofs={}
+                for arm in ('checked-L256','qual-C0','qual-L256'):
+                    report['runs'][arm]={'streams':[],'status':'streams'}
+                    cache_run(c,results/arm,arm,scratch,started,stats,report['runs'][arm]['streams'],progress)
+                    report['runs'][arm]['status']='providers'
+                    proofs[arm],counts=route_certificates(c,arm,progress)
+                    report['runs'][arm].update(counts);report['runs'][arm]['status']='complete';persist()
+                progress('cross-arm','qual-C0/qual-L256',0,1,None,True)
+                changes=[]
+                for rank in range(N):
+                    a=report['runs']['qual-C0']['streams'][rank]['storage_orders']
+                    b=report['runs']['qual-L256']['streams'][PERM[rank]]['storage_orders']
+                    if a!=b:changes.append(rank)
+                require(len(changes)==48,'physical.changed_storage_group_count')
+                report['changed_storage_groups']=changes
+                report['storage_frames_checked']=5
+                report['optimized_pair']=compare_features(c,'qual-C0','qual-L256')
+                require(proofs['qual-C0']==proofs['qual-L256'],'physical.provider_pair_difference',
+                        [k for k in proofs['qual-C0'] if proofs['qual-C0'].get(k)!=proofs['qual-L256'].get(k)][:3])
+                report['provider_identity_digest']=sha(proofs['qual-C0'])
+                report['checked_scope']='independent source-enabled oracle and full coverage/provider closure; checkpoint science handled by campaign'
+                progress('complete',None,1,1)
+            finally:c.close()
+        report['passed']=True;report['status']='passed';persist()
+    except BaseException as error:
+        report['passed']=False;report['status']='failed'
+        report['failure']={'type':type(error).__name__,'message':str(error)}
+        try:persist()
+        except BaseException as report_error:
+            # A full disk or failed final save must not replace the original
+            # qualification/write error, or leave an in-memory success flag.
+            detail={'type':type(report_error).__name__,'message':str(report_error)}
+            report['failure']['failure_report_write']=detail
+            if hasattr(error,'add_note'):
+                error.add_note('Stage325 failure report could not be saved: '+str(detail))
+        raise
     return report

@@ -1,0 +1,12 @@
+{
+  "status": "failed_offline_adapter_probe",
+  "date": "2026-10-26",
+  "source_job": 55569,
+  "scope": "Existing checked-L256 rank0 capture only; no new solver or native campaign",
+  "error": "ValueError from ast.literal_eval on native route key containing /route/0 suffix",
+  "reason": "Route keys are closed scope tuple plus route suffix; they are not Python tuple literals. Static/adapter keys differ.",
+  "action": "Preserve exact parsed string keys and bound their schema without interpreting route strings as tuple literals; add regression and repeat this offline probe after correction",
+  "native_qualification": false,
+  "solver_runs": 0,
+  "new_jobs": 0
+}

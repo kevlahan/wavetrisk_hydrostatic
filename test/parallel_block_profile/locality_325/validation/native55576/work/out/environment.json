@@ -1,0 +1,1 @@
+{"address_space_limits":[17179869184,17179869184],"cpus":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"executable":"/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/python-venv-1.0-bj2eoat2m3cvhwjbgauezeqbcp5puwdj/bin/python3","hostname":"bb13.rhpcs.internal","job":55576,"python":"3.11.9","sqlite":"3.46.0"}

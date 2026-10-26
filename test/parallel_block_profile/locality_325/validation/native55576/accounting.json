@@ -1,0 +1,15 @@
+{
+  "command": [
+    "sacct",
+    "-n",
+    "-P",
+    "-X",
+    "-j",
+    "55576",
+    "-o",
+    "JobIDRaw,State,ExitCode,Start,End,Elapsed,ElapsedRaw,NodeList"
+  ],
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "55576|COMPLETED|0:0|2026-10-26T17:08:26|2026-10-26T17:15:47|00:07:21|441|bb13\n"
+}

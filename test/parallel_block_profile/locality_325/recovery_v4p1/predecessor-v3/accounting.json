@@ -1,0 +1,14 @@
+{
+  "command": [
+    "sacct",
+    "-j",
+    "55573",
+    "-X",
+    "--parsable2",
+    "-o",
+    "JobID,JobName,State,ExitCode,Start,End,Elapsed,ElapsedRaw,NodeList"
+  ],
+  "returncode": 0,
+  "stdout": "JobID|JobName|State|ExitCode|Start|End|Elapsed|ElapsedRaw|NodeList\n55573|rk325-verification-recovery-v3|FAILED|1:0|2026-10-26T13:56:07|2026-10-26T14:21:18|00:25:11|1511|bb13\n",
+  "stderr": ""
+}

@@ -1,0 +1,28 @@
+{
+  "stage": 325,
+  "revision": "corrected-inverse-physical-v5-sqlite-uri",
+  "solver_source_changed": false,
+  "builds": 0,
+  "solver_runs": 0,
+  "performance_runs": 0,
+  "package_tests": 183,
+  "local_skips": [
+    "Linux/proc aggregate memory test; runs on bbserv prelaunch"
+  ],
+  "native_rank101_common_features": 1596,
+  "native_rank101_feature_differences": 0,
+  "native_rank101_steps": 4,
+  "source_physical_value_bridge": true,
+  "exact_source_files": 4,
+  "saved_capture_probe": "validation/inverse326-native-rank101-audit.json",
+  "final_spawn_probe": "validation/final-worker-probe-v4p1.json",
+  "full_native_qualification": false,
+  "walltime_cap_seconds": 300,
+  "runner_alarm_seconds": 270,
+  "prior_elapsed_seconds": 2392,
+  "cumulative_maximum_seconds": 2692,
+  "original_budget_seconds": 2700,
+  "automatic_retry": false,
+  "checked_arm_reuse": "Source-bound55573fullstream/providerclosure reused; bothoptimizedworlds new",
+  "scope": "The existing rawarrayhashes remain mandatory. Physical value equality of moveduncataloguedrows additionally requires exact fixedDomainpublications, immutable alias snapshot, nofamily2writers and the closed level5schedule. Providers normalizeactualdirections and signed repeatedwrites; allnegativecases failclosed."
+}

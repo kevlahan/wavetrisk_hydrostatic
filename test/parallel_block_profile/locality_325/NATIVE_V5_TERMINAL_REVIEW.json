@@ -1,0 +1,28 @@
+{
+  "stage": 325,
+  "job": 55575,
+  "status": "startup_failure_native_qualification_incomplete",
+  "source_job": 55569,
+  "accounting_elapsed_seconds": 0,
+  "observed_guard_elapsed_seconds": 0.0006455532275140285,
+  "verifier_started": false,
+  "completed_captures": 0,
+  "new_solver_runs": 0,
+  "source_unchanged": true,
+  "input_hashes_reverified": 1536,
+  "failure": "Exact soft/hard16GiB allocation guard rejected inherited step limits; actual initial values were not recorded",
+  "limits_mechanism_unproved": true,
+  "review_files": 203,
+  "review_archive_sha256": "a8a1147a12fed8096e7611ea51f6f0eb5bb4cd40b418f12966ba0c0f306681b2",
+  "postfailure_preservation": "validation/rk325-native-v5-postfailure-preservation-55575.json",
+  "corrected_candidate": {
+    "kit": "$HOME/rk325-native-qualification-kit-v5p1",
+    "archive_sha256": "99fe77316934f2991f65ecf2e0c22ee15051f490ccb8f38a27c9fb78bc9f86b7",
+    "manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+    "scope": "CLI-only in-step 16GiB soft/hard installation and exact readback; metadata before/after retained",
+    "submitted": false
+  },
+  "native_qualification": false,
+  "conditional_commit_done": false,
+  "no_automatic_retry": true
+}

@@ -1,0 +1,125 @@
+{
+  "schema": "stage325-native-v5p1-design-review-v1",
+  "reviewer": "independent adversarial agent",
+  "decision": "ACCEPT_CORRECTED_EXACT_PACKAGE_FOR_USER_REVIEW; NEW_JOB_REQUIRES_USER_AUTHORIZATION",
+  "scope": "Startup-repair and verification-only design review. No compiler, solver, performance execution or job submission by reviewer.",
+  "package": {
+    "archive": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/native-v5p1-build-v2/rk325-native-qualification-kit-v5p1.tar.gz",
+    "archive_sha256": "99fe77316934f2991f65ecf2e0c22ee15051f490ccb8f38a27c9fb78bc9f86b7",
+    "manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+    "payload_files": 196,
+    "logical_bytes_including_manifest": 9218067,
+    "critical_source_snapshot_matches": true,
+    "frozen_v4p1_manifest_sha256": "ff430542d8ab81078d522a2468a1ce1baa22bac501f922e534c839c7c47ee1bb",
+    "frozen_payload_files": 62,
+    "frozen_payload_verified": true,
+    "source_sha256": {
+      "native_runner325.py": "ded99578d86f3385986c531d30ecb5863eebcc6f935970e0035a6db9a9b11602",
+      "test_native_runner325.py": "ab52bea5bb29537fd1ca9cb4f8a36e81ad8745f45cb74a58f80d80e72079f569",
+      "resume_state325.py": "fde514758e8afa855d0e0395e11e64542741449e2ab57976bd41ef74415b7a9b",
+      "stream_compare325.py": "007745b7002c6e14cc767326d3a8cc10e3546efc487533b2d6d5ab23e0ba9f15",
+      "resume_workflow325.py": "737d08f4dcb6b4059fa165fafb0428f069fff92fbc4eea2eab7d6e439d35b479",
+      "resume_native325.py": "dcaefd6e0599177669bf9f2095ddaf270f96c26940c7ff5e06c4910b6434c3bf",
+      "build_native325.py": "730aff8f822d8712267f6bc5959861a7fb2317349fd955642ce300210b8a8d47",
+      "control_native325.py": "2c3dcfb12118d728056b6818cf7eccc4890f658fbe66ea94971dd51379c60e53",
+      "verification.sbatch": "2c9446c9c5368dcfac8c6ddd13a89eec747779a446d36c81e9900ca88bfc7639",
+      "launch.sh": "48b8835e24d9a761b0fa5d8885b36d9566e88e838c14bff592f0028b2c44a1a9",
+      "status.sh": "7e4ba15f8f671c1596fc9a44d58d752c2c44c66c293ce97345ffd7c299b18d85",
+      "collect.sh": "26442e1c9b8fbe3eebce98a621cdd98c6aef8e3bb08edaa39a6930835d9fd951",
+      "README.md": "abb1acf7433482d6d5bb452b3ffc8cb8bbe462010daf5a839933a249d37da3e4",
+      "test_native_campaign325.py": "93f9e70af96c5ae29f870f8dd74563740902d536db0f02a94c5916836b13770b"
+    }
+  },
+  "failed_predecessor": {
+    "job": 55575,
+    "review_archive_sha256": "a8a1147a12fed8096e7611ea51f6f0eb5bb4cd40b418f12966ba0c0f306681b2",
+    "independent_review": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/independent-review55575.json",
+    "observed_failure": "The Python Slurm step lacked the required exact soft/hard16GiB RLIMIT_AS tuple. Its guard failed before workflow/output creation, source binding, child spawn or capture replay.",
+    "unresolved_mechanism": "Actual inherited values were not recorded; no conclusion about which bound or Slurm mechanism changed them.",
+    "scheduler_elapsed_seconds": 0,
+    "scheduler_rounding_caveat": "Whole-second accounting, not literally zero wall-time.",
+    "native_replay_started": false,
+    "postfailure_preservation_receipt_sha256": "bc1fe4a01d2572969a3469c6d9001da88935850a727d4c3db5411c8039fe69e9",
+    "postfailure_preservation_counts": {
+      "original_capture_and_work_hashes": 1536,
+      "kit_files": 79,
+      "source_files": 258,
+      "metadata_files": 3889
+    },
+    "old_v5_archive_and_eight_tooling_files_unchanged": true
+  },
+  "repair_review": [
+    "CLI bootstrap installs exact soft/hard16GiB RLIMIT_AS inside the actual Python Slurm step, before allocation guards and original-input/output access.",
+    "It logs inherited, required and installed values. Failure logs the actual post-error tuple and exits before verification.",
+    "An inherited hard limit below16GiB is rejected. The allocation guard independently reads and still requires the exact installed tuple.",
+    "The worker is a direct child of the capped supervisor, without an intervening srun step, and independently installs/verifies the same tuple.",
+    "Library calls do not mutate irreversible hard limits; independent local tests verified this distinction.",
+    "No semantic, memory, data or deadline guard is relaxed. Existing single-submit state, bounded collector and phase/source/checked-reuse requirements remain.",
+    "Distinct v5p1 state/package/review prefixes preserve failedv5 and predecessors. No automatic retry, resume, solver or performance path is added."
+  ],
+  "independent_local_tests": {
+    "runner": {
+      "tests": 16,
+      "passed": true,
+      "skipped_linux_only": 8
+    },
+    "controller": {
+      "tests": 17,
+      "passed": true,
+      "skipped": 0
+    },
+    "sealed_package_log_inspected": {
+      "tests": 292,
+      "passed": true,
+      "seconds": 37.166,
+      "skipped_linux_only": 8
+    }
+  },
+  "native_linux_preflight": {
+    "command": [
+      "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/python-venv-1.0-bj2eoat2m3cvhwjbgauezeqbcp5puwdj/bin/python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-v"
+    ],
+    "elapsed_seconds": 47.69290186883882,
+    "log_bytes": 43602,
+    "log_sha256": "0312cb53117cdb57a81378bb2081d97d04d67b65d2aa6e01c3175ebad46af907",
+    "new_jobs": 0,
+    "package_manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+    "passed": true,
+    "returncode": 0,
+    "skipped": 0,
+    "solver_runs": 0,
+    "submission_authorized": false,
+    "tests": 292,
+    "log": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/rk325-native-v5p1-linux-preflight.log",
+    "unittest_seconds": 47.381
+  },
+  "remaining_gate_before_submission": [
+    "Explicit user authorization for one corrected verification-only submission. This review is not authorization.",
+    "Controller mandatory preflight and strict before/after manifest checks must still pass with unchanged files.",
+    "Predecessors remain terminal. Existing one-submit intent/state guards prevent duplicate submission."
+  ],
+  "terminal_acceptance": [
+    "Monitor through terminal state and retain derived databases/phase evidence on every outcome.",
+    "Verify bounded review manifest, exact package identity, six dependency-bound certificates,512new capture reads,254provider keys per arm,508840features per arm,1024bridges,768work reads, original science/checked reuse and1536final preservation hashes.",
+    "Independently rehash retained databases and refresh native source/capture binding after terminal state; compare certificates.",
+    "Hold qualification/conditional commit unless all independent evidence passes. No automatic retry, resume, budget extension or performance run."
+  ],
+  "limitations": [
+    "Linux subprocess preflight covers the installation path; the actual future Slurm-step tuple is learned from bootstrap diagnostics.",
+    "Aggregate process-memory and logical filesystem guards are sampled. Per-process RLIMIT_AS and admitted writes are separate hard controls.",
+    "A bounded attempt is not a completion guarantee; original slowdown cause and solver performance benefit remain unestablished.",
+    "README inheritance wording exceeds measured predecessor evidence. This review relies only on exact-tuple guard failure and does not infer the Slurm reset mechanism."
+  ],
+  "blockers_in_repair_found": [],
+  "native_qualification": false,
+  "performance_qualified": false,
+  "commit_supported": false,
+  "native_jobs_submitted_by_reviewer": 0,
+  "new_job_authorized_by_this_review": false,
+  "review_attachment_policy": "External review binds this exact sealed archive. Do not reseal merely to insert this review."
+}

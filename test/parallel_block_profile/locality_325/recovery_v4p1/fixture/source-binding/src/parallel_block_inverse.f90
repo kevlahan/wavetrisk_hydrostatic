@@ -1,0 +1,2598 @@
+module parallel_block_inverse_mod
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
+  use domain_mod, only : block_child_Domain,audit_domain_fields322
+  use parallel_block_transform_kernels_mod
+  use parallel_block_profile_mod
+  ! Native inverse boundary dependency workspace. Topology is compiled once
+  ! per generation; only required nodes are staged, never Float_Field copies.
+  ! Regular scalar/inner-vector kernels remain on final-owner blocks. The
+  ! sparse outer-edge producer retains the established geometric route owner
+  ! and write order, including aliases which have no compact interior owner.
+  use iso_fortran_env, only : int64, error_unit
+  use ieee_arithmetic, only : ieee_is_finite
+  use mpi_f08, only : MPI_Alltoall, MPI_Alltoallv, MPI_INTEGER, MPI_DOUBLE_PRECISION, MPI_SUCCESS, MPI_Wtime, &
+       MPI_Request, MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_STATUSES_IGNORE, MPI_Allreduce, MPI_MIN, MPI_MAX
+  use kind_mod, only : dp
+  use shared_mod, only : EDGE, AT_NODE, AT_EDGE, N_VARIABLE, N_BDRY, N_CHDRN, &
+       scalars, S_VELO, zlevels, n_domain, level_start, level_end, end_pt, opp_no, hex_sides, hex_s_offs, &
+       DG, FROZEN, LORT, UPLT, TRIAG, RT, UP, NORTHEAST, NORTHWEST, IMINUSJPLUS, IPLUSJMINUS, IJMINUS
+  use domain_mod, only : grid, sol, Float_Field, idx, ed_idx, get_offs_Domain, chd_offs
+  use patch_mod, only : PATCH_SIZE, LAST
+  use arch_mod, only : comm, rank, n_process, glo_id, loc_id, owner, block_catalog, abort_run
+  use parallel_block_mod, only : Block_Data, STORE_PATCH, STORE_BDRY, BLOCK_PAYLOAD_SOL, &
+       BLOCK_PAYLOAD_WAV_COEFF, apply_local_block_field_consumer, &
+       compile_local_block_inverse_routes, transfer_local_block_inverse_routes
+  implicit none
+  private
+  public :: prepare_native_inverse, native_inverse_gather, native_inverse_boundary, &
+       native_inverse_scatter, native_inverse_outer, compare_native_inverse, publish_native_inverse
+  public :: capture_native_inverse_consumer_aliases
+  public :: publish_canonical_inverse203
+  real(dp), public :: native_inverse_seconds(3)=0.0_dp
+  integer(int64), public :: native_inverse_calls(3)=0_int64, native_inverse_messages(3)=0_int64, &
+       native_inverse_bytes(3)=0_int64
+  logical :: timing=.false.
+  logical :: sparse_outer_install=.false., stage192_ready=.false.
+
+  type :: Node_Map
+     integer, allocatable :: slot(:), key(:,:)
+  end type
+  type :: Transfer_Plan
+     integer, allocatable :: sc(:),sd(:),rc(:),rd(:),key(:,:),slot(:)
+     integer, allocatable :: source_info(:,:),target_info(:,:)
+     integer, allocatable :: address(:,:)
+#ifdef STAGE202_INVERSE
+     integer, allocatable :: self_slot(:)
+#endif
+     logical :: edgewise=.false.
+  end type
+  type :: Alias_Plan
+     integer, allocatable :: sc(:),sd(:),rc(:),rd(:),source(:),dest(:)
+     integer, allocatable :: install_order(:)
+  end type
+  type :: Local_Aliases
+     integer, allocatable :: source(:),dest(:)
+  end type
+  type :: Outer_Operation
+     integer :: level=0,kind=0,source(13)=0,target(3)=0
+     real(dp) :: weight(9)=0.0_dp
+  end type
+  type :: Boundary_Manifest
+     integer, allocatable :: item(:,:)
+  end type
+  type :: Publication_Patch_Record
+     integer :: domain=0,start=0
+     ! Positive sources are workspace slots; negative sources are canonical
+     ! restore slots. Cache integer addresses only, never field pointers.
+     integer :: source(PATCH_SIZE**2)=0
+  end type
+  type(Publication_Patch_Record), allocatable :: publication_patch(:)
+  real(dp), allocatable :: publication_tile(:,:,:)
+  type(Node_Map), allocatable :: nodes(:)
+  type(Transfer_Plan) :: interior_plan,boundary_plan
+  type(Transfer_Plan), allocatable :: level_interior(:,:),level_boundary(:,:)
+  type(Transfer_Plan), allocatable :: outer_install(:)
+  type(Alias_Plan), allocatable :: aliases(:,:)
+  type(Alias_Plan) :: range_alias(2,2)
+  type(Local_Aliases) :: local_alias(2)
+  type(Outer_Operation), allocatable :: operations(:)
+  type(MPI_Request), allocatable :: requests(:)
+  real(dp), allocatable, asynchronous :: transfer_send(:),transfer_recv(:)
+  real(dp), allocatable, asynchronous :: alias_send(:),alias_recv(:)
+  integer, allocatable :: node_domain(:),node_id(:),operation_first(:),operation_last(:)
+  integer, allocatable :: scaffold_slot(:)
+  integer, allocatable :: consumer_alias_slot(:)
+  real(dp), allocatable :: consumer_alias_value(:,:,:)
+  integer, allocatable :: node_flags(:)
+  real(dp), allocatable :: scaffold_value(:,:,:)
+  integer(int64), allocatable :: coverage(:,:)
+  real(dp), allocatable :: value(:,:,:,:)
+  integer(int64) :: plan_generation=-1_int64
+  integer :: nnode=0,noperation=0,nscalar=0
+  ! The selector is compile-time; the original path remains the default.
+#ifdef STAGE203_INVERSE
+  logical, parameter, public :: stage203_inverse=.true.
+#else
+  logical, parameter, public :: stage203_inverse=.false.
+#endif
+  public :: seed_cut_phase_oracle
+  public :: begin_inverse203, end_inverse203, scalar_inverse203, inner_inverse203, install_inverse203
+  public :: inverse203_installation_count
+  integer(int64) :: installation203_count=0_int64
+#ifdef STAGE203_LEDGER
+  logical, parameter, public :: ledger203=.true.
+#else
+  logical, parameter, public :: ledger203=.false.
+#endif
+  logical :: resident203=.false., oracle203=.false.
+  logical :: publication_reported=.false.
+  type :: Scalar203
+     integer :: d=0,level=0,phase=0,target=0,base=0,area=0,mask=0,n=0
+     integer :: source(11)=0,geometry(11)=0
+  end type
+  type :: Inner203
+     integer :: d=0,level=0,node(32)=0,edge(32)=0,source(32)=0,target(6)=0
+  end type
+  type(Scalar203), allocatable :: scalar203_ops(:)
+  type(Inner203), allocatable :: inner203_ops(:)
+  integer, allocatable :: restore203_index(:),restore203_slot(:)
+  real(dp), allocatable :: restore203(:,:,:),saved203(:,:,:)
+  integer(int64), public :: work203(6)=0_int64
+  real(dp), parameter :: base_weight(9) = &
+       [16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp,-1.0_dp,-1.0_dp,1.0_dp,1.0_dp]/16.0_dp
+
+  type(Transform_Geometry) :: shadow_program
+  logical :: shadow_enabled=.false.,shadow_configured=.false.
+  type :: Transform_Shadow
+     real(dp),allocatable :: scalar(:,:),scalar_wavelet(:,:),vector(:,:),vector_wavelet(:,:)
+  end type
+  type(Transform_Shadow),allocatable :: shadow(:)
+contains
+
+  subroutine configure_transform_shadow
+    character(8) :: setting
+    if(shadow_configured) return
+    call get_environment_variable('WAVETRISK_TRANSFORM_KERNEL_CHECK',setting)
+    shadow_enabled=trim(setting)=='1';shadow_configured=.true.
+  end subroutine
+  subroutine begin_transform_shadow(family,level,phase)
+    integer,intent(in) :: family,level,phase
+    integer :: p,d,id,k,v,i
+    do d=1,size(shadow)
+       shadow(d)%scalar=0;shadow(d)%scalar_wavelet=0
+       shadow(d)%vector=0;shadow(d)%vector_wavelet=0
+    end do
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)+1
+       do k=1,zlevels
+          do v=1,nscalar
+             shadow(d)%scalar(id,(v-1)*zlevels+k)=value(v,k,p,1)
+             shadow(d)%scalar_wavelet(id,(v-1)*zlevels+k)=value(v,k,p,2)
+          end do
+          do v=1,EDGE
+             shadow(d)%vector(EDGE*(id-1)+v,k)=value(nscalar+v,k,p,1)
+             shadow(d)%vector_wavelet(EDGE*(id-1)+v,k)=value(nscalar+v,k,p,2)
+          end do
+       end do
+    end do
+    select case(family)
+    case(1)
+       do i=1,size(shadow_program%scalar)
+          associate(op=>shadow_program%scalar(i))
+          if(op%level/=level.or.op%phase/=phase) cycle
+          d=op%d
+          call execute_transform_scalar(op,shadow(d)%scalar,shadow(d)%scalar_wavelet,.true.)
+          end associate
+       end do
+    case(2)
+       do i=1,size(shadow_program%inner)
+          associate(op=>shadow_program%inner(i))
+          if(op%level/=level) cycle
+          d=op%d
+          call execute_transform_inner(op,shadow(d)%vector,shadow(d)%vector_wavelet,.true.)
+          end associate
+       end do
+    case(3)
+       do i=1,size(shadow_program%outer)
+          associate(op=>shadow_program%outer(i))
+          if(op%level/=level) cycle
+          d=loc_id(op%global_domain)+1
+          call execute_transform_outer(op,shadow(d)%vector,shadow(d)%vector_wavelet,.true.)
+          end associate
+       end do
+    end select
+  end subroutine
+  subroutine finish_transform_shadow(family,level,phase)
+    integer,intent(in) :: family,level,phase
+    integer :: p,d,id,k,v
+    real(dp) :: expected,observed
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)+1
+       do k=1,zlevels
+          do v=1,nscalar+EDGE
+             if(family==1.and.v>nscalar) cycle
+             if(family/=1.and.v<=nscalar) cycle
+             if(v<=nscalar) then
+                expected=shadow(d)%scalar(id,(v-1)*zlevels+k)
+             else
+                expected=shadow(d)%vector(EDGE*(id-1)+v-nscalar,k)
+             end if
+             observed=value(v,k,p,1)
+             if(transfer(expected,0_int64)/=transfer(observed,0_int64)) then
+                write(*,*) 'transform shadow difference ',rank,family,level,phase,d,id,k,v,expected,observed
+                call die('transform kernel differs from accepted inverse')
+             end if
+          end do
+       end do
+    end do
+  end subroutine
+
+  subroutine configure_stage192
+    character(16) :: setting
+    integer :: status,length,selected,low,high,ierr
+    if (stage192_ready) return
+    call get_environment_variable('WAVETRISK_STAGE192_SPARSE_OUTER',setting,length,status)
+    if (status/=1) then
+       if (status/=0 .or. length/=1) call die('STAGE192_SPARSE_OUTER must be 0 or 1')
+       select case(setting(1:1))
+       case('0')
+          sparse_outer_install=.false.
+       case('1')
+          sparse_outer_install=.true.
+       case default
+          call die('STAGE192_SPARSE_OUTER must be 0 or 1')
+       end select
+    end if
+    selected=merge(1,0,sparse_outer_install)
+    call MPI_Allreduce(selected,low,1,MPI_INTEGER,MPI_MIN,comm,ierr)
+    call check(ierr,'Stage 192 selector minimum')
+    call MPI_Allreduce(selected,high,1,MPI_INTEGER,MPI_MAX,comm,ierr)
+    call check(ierr,'Stage 192 selector maximum')
+    if (low/=high) call die('Stage 192 selector differs between ranks')
+    if (rank==0) write(*,'(a,i0)') 'Stage 192 requested sparse outer install = ',selected
+    stage192_ready=.true.
+  end subroutine
+
+  subroutine check(ierr,where)
+    integer, intent(in) :: ierr
+    character(*), intent(in) :: where
+    if (ierr /= MPI_SUCCESS) call die(where)
+  end subroutine
+
+  subroutine die(message)
+    character(*), intent(in) :: message
+    write(error_unit,'(a,i0,2a)') 'Rank ',rank,': native inverse: ',message
+    call abort_run
+    error stop "native inverse: MPI abort returned"
+  end subroutine
+
+  subroutine displacements(count,offset)
+    integer, intent(in) :: count(:)
+    integer, intent(out) :: offset(:)
+    integer :: r
+    offset=0
+    do r=2,size(count)
+       offset(r)=offset(r-1)+count(r-1)
+    end do
+  end subroutine
+
+  integer function node_slot(d,id) result(slot)
+    integer, intent(in) :: d,id
+    if (d < 1 .or. d > size(nodes)) call die('invalid geometry owner')
+    if (id < 0 .or. id >= size(nodes(d)%slot)) call die('invalid geometry node')
+    slot=nodes(d)%slot(id+1)
+    if (slot > 0) return
+    nnode=nnode+1
+    slot=nnode
+    nodes(d)%slot(id+1)=slot
+    node_domain(slot)=d
+    node_id(slot)=id
+  end function
+
+  integer function edge_slot(d,id) result(slot)
+    integer, intent(in) :: d,id
+    integer :: q
+    if (id < 0) call die('negative source edge')
+    q=node_slot(d,id/EDGE)
+    slot=EDGE*(q-1)+mod(id,EDGE)+1
+  end function
+
+  integer function route_slot(d,id,kind) result(slot)
+    integer, intent(in) :: d,id,kind
+    if (kind == 1) then
+       slot=node_slot(d,abs(id))
+    else
+       slot=edge_slot(d,abs(id))
+       if (id < 0) slot=-slot
+    end if
+  end function
+
+  subroutine prepare_native_inverse(generation,scaling,wavelet,first_level,profile)
+    integer(int64), intent(in) :: generation
+    integer, intent(in) :: first_level
+    logical, intent(in) :: profile
+    type(Float_Field), intent(in) :: scaling(1:N_VARIABLE,1:zlevels),wavelet(1:N_VARIABLE,1:zlevels)
+    integer :: d,id,q,k,v,total,b,p,r,pos,n,next_patch
+    integer, allocatable :: sc(:),rc(:),sd(:),rd(:),sb(:,:),rb(:,:),request(:,:),slots(:)
+    type(Boundary_Manifest) :: manifest
+    type(Transfer_Plan) :: outer_patch,outer_bdry
+
+    resident203=.false.
+    call configure_transform_shadow
+    call configure_stage192
+    call detail_enter(DP_INVERSE_PLAN)
+    timing=profile
+    native_inverse_seconds=0.0_dp
+    native_inverse_calls=0_int64
+    native_inverse_messages=0_int64
+    native_inverse_bytes=0_int64
+    if (plan_generation /= generation) then
+       call detail_add(DC_INVERSE_BUILD,1_int64)
+       if (allocated(nodes)) deallocate(nodes,node_domain,node_id,value,aliases,operations,coverage, &
+            scaffold_slot,scaffold_value,operation_first,operation_last,node_flags,level_interior,level_boundary, &
+            outer_install,transfer_send,transfer_recv,alias_send,alias_recv,consumer_alias_slot,consumer_alias_value)
+       do q=1,2
+          if (allocated(local_alias(q)%source)) deallocate(local_alias(q)%source,local_alias(q)%dest)
+       end do
+       allocate(nodes(size(grid)))
+       if (.not. allocated(requests)) allocate(requests(2*n_process))
+       total=0
+       nscalar=scalars(2)-scalars(1)+1
+       do d=1,size(grid)
+          n=grid(d)%node%length
+          allocate(nodes(d)%slot(n),nodes(d)%key(4,n))
+          nodes(d)%slot=0
+          nodes(d)%key=0
+          do p=1,grid(d)%patch%length
+             if (grid(d)%patch%elts(p)%deleted) cycle
+             id=grid(d)%patch%elts(p)%elts_start
+             nodes(d)%key(2,id+1:id+PATCH_SIZE**2)=-1
+          end do
+          total=total+n
+       end do
+       allocate(node_domain(total),node_id(total))
+       nnode=0
+       do b=1,size(block_catalog)
+          if (owner(block_catalog(b)%root_domain+1) /= rank) cycle
+          d=loc_id(block_catalog(b)%root_domain+1)+1
+          next_patch=0
+          call map_patch(block_catalog(b)%root_patch)
+       end do
+       if (stage203_inverse) call compile203(total)
+       allocate(aliases(2,level_start-1:level_end))
+       call compile_aliases
+       do q=1,2
+          call combine_aliases(range_alias(q,1),q,level_start-1)
+          call combine_aliases(range_alias(q,2),q,level_start)
+       end do
+       allocate(alias_send(max(1,zlevels*max(nscalar*sum(range_alias(1,1)%sc),sum(range_alias(2,1)%sc)))))
+       allocate(alias_recv(max(1,zlevels*max(nscalar*sum(range_alias(1,1)%rc),sum(range_alias(2,1)%rc)))))
+       ! The upper bound is conservative; records are reused for all fields.
+       allocate(operations(max(1,EDGE*total)))
+       allocate(coverage(4,level_start-1:level_end))
+       allocate(operation_first(level_start-1:level_end),operation_last(level_start-1:level_end))
+       operation_first=1
+       operation_last=0
+       coverage=0_int64
+       noperation=0
+       call compile_outer
+
+       ! Final owners supply the compact boundary destinations. Only integer
+       ! geometry metadata uses original Domain indices; values never do.
+       allocate(manifest%item(6,0))
+       call apply_local_block_field_consumer(collect_boundaries,manifest)
+       allocate(sc(n_process),rc(n_process),sd(n_process),rd(n_process))
+       sc=0
+       do p=1,size(manifest%item,2)
+          r=owner(manifest%item(5,p)+1)+1
+          sc(r)=sc(r)+1
+       end do
+       call MPI_Alltoall(sc,1,MPI_INTEGER,rc,1,MPI_INTEGER,comm,q)
+       call check(q,'boundary manifest counts')
+       call displacements(sc,sd)
+       call displacements(rc,rd)
+       allocate(sb(6,max(1,sum(sc))),rb(6,max(1,sum(rc))))
+       sc=0
+       do p=1,size(manifest%item,2)
+          r=owner(manifest%item(5,p)+1)+1
+          pos=sd(r)+sc(r)+1
+          sb(:,pos)=manifest%item(:,p)
+          sc(r)=sc(r)+1
+       end do
+       call MPI_Alltoallv(sb,6*sc,6*sd,MPI_INTEGER,rb,6*rc,6*rd,MPI_INTEGER,comm,q)
+       call check(q,'boundary manifest')
+       n=sum(rc)
+       allocate(request(4,n),slots(n))
+       do p=1,n
+          d=loc_id(rb(5,p)+1)+1
+          slots(p)=node_slot(d,rb(6,p))
+          request(:,p)=rb(1:4,p)
+       end do
+       ! Flags are carried in the existing request-key exchange. Both ends
+       ! then derive identical per-level subplans without extra collectives.
+       allocate(node_flags(nnode))
+       node_flags=0
+       do q=1,2
+          do p=1,size(local_alias(q)%dest)
+             r=alias_node(local_alias(q)%dest(p),q)
+             node_flags(r)=ibset(node_flags(r),q-1)
+             node_flags(r)=ibset(node_flags(r),q+2)
+             if (q==2) node_flags(r)=ibset(node_flags(r),6+mod(abs(local_alias(q)%dest(p))-1,EDGE))
+          end do
+          do b=level_start-1,level_end
+             do p=1,size(aliases(q,b)%dest)
+                r=alias_node(aliases(q,b)%dest(p),q)
+                node_flags(r)=ibset(node_flags(r),q-1)
+                if (q==2) node_flags(r)=ibset(node_flags(r),6+mod(abs(aliases(q,b)%dest(p))-1,EDGE))
+             end do
+          end do
+       end do
+       do p=1,nnode
+          if (nodes(node_domain(p))%key(2,node_id(p)+1)==-1) node_flags(p)=ibset(node_flags(p),2)
+       end do
+       ! Plus-side or pentagon targets outside the nominal fine level must
+       ! participate too; do not assume geometry level alone is sufficient.
+       do p=1,noperation
+          do q=2,3
+             r=alias_node(operations(p)%target(q),2)
+             ! Only target(2:3) are written by native_inverse_outer. Keep a
+             ! conservative union across levels, shared with final owners in
+             ! the existing key exchange; target(1) is a read-only parent.
+             node_flags(r)=ibset(node_flags(r),5)
+             node_flags(r)=ibset(node_flags(r),6+mod(abs(operations(p)%target(q))-1,EDGE))
+             if (grid(node_domain(r))%level%elts(node_id(r)+1)/=operations(p)%level+1) then
+                node_flags(r)=ibset(node_flags(r),1)
+                node_flags(r)=ibset(node_flags(r),4)
+             end if
+          end do
+       end do
+       call build_transfer(boundary_plan,request,slots)
+       deallocate(request,slots)
+       n=0
+       do p=1,nnode
+          if (nodes(node_domain(p))%key(1,node_id(p)+1) > 0) n=n+1
+       end do
+       allocate(request(4,n),slots(n))
+       n=0
+       do p=1,nnode
+          d=node_domain(p)
+          id=node_id(p)
+          if (nodes(d)%key(1,id+1) == 0) cycle
+          n=n+1
+          request(:,n)=nodes(d)%key(:,id+1)
+          slots(n)=p
+       end do
+       call build_transfer(interior_plan,request,slots)
+       ! Direct publication must cover every catalogued patch interior,
+       ! including nodes that no inverse arithmetic updates this time.
+       if (stage203_inverse) then
+          do d=1,size(grid)
+             do p=1,grid(d)%patch%length
+                if (grid(d)%patch%elts(p)%deleted) cycle
+                id=grid(d)%patch%elts(p)%elts_start
+                do q=id+1,id+PATCH_SIZE**2
+                   if (nodes(d)%key(1,q)<=0) cycle
+                   if (nodes(d)%slot(q)<=0) call die('canonical publication interior coverage')
+                end do
+             end do
+          end do
+       end if
+       ! Every transfer completes before the next one starts. Subplans keep
+       ! only integer routing metadata, sharing this one maximum-size pair.
+       allocate(transfer_send(max(1,max(nscalar,EDGE)*zlevels*(sum(interior_plan%sc)+sum(boundary_plan%sc)))))
+       allocate(transfer_recv(max(1,max(nscalar,EDGE)*zlevels*(sum(interior_plan%rc)+sum(boundary_plan%rc)))))
+       allocate(level_interior(2,level_start-2:level_end),level_boundary(2,level_start-2:level_end))
+       do q=1,2
+          do b=level_start-2,level_end
+             call select_transfer(level_interior(q,b),interior_plan,q,b,.false.,.false.)
+             call select_transfer(level_boundary(q,b),boundary_plan,q,b,.true.,.false.)
+          end do
+       end do
+       allocate(outer_install(level_start-1:level_end))
+       do b=level_start-1,level_end
+          call select_transfer(outer_patch,interior_plan,2,b,.true.,.true.,sparse_outer_install)
+          call select_transfer(outer_bdry,boundary_plan,2,b,.true.,.true.,sparse_outer_install)
+          if (sparse_outer_install) then
+             call combine_outer_edges(outer_install(b),outer_patch,outer_bdry)
+          else
+             call combine_transfers(outer_install(b),outer_patch,outer_bdry)
+          end if
+       end do
+#ifdef STAGE202_INVERSE
+       call prepare_self_routes(interior_plan)
+       call prepare_self_routes(boundary_plan)
+       do q=1,2
+          do b=level_start-2,level_end
+             call prepare_self_routes(level_interior(q,b))
+             call prepare_self_routes(level_boundary(q,b))
+          end do
+       end do
+       do b=level_start-1,level_end
+          call prepare_self_routes(outer_install(b))
+       end do
+#endif
+       allocate(value(nscalar+EDGE,zlevels,nnode,2))
+       n=0
+       do p=1,nnode
+          if (nodes(node_domain(p))%key(1,node_id(p)+1)==0) n=n+1
+       end do
+       allocate(consumer_alias_slot(n),consumer_alias_value(nscalar+EDGE,zlevels,n))
+       n=0
+       do p=1,nnode
+          if (nodes(node_domain(p))%key(1,node_id(p)+1)/=0) cycle
+          n=n+1
+          consumer_alias_slot(n)=p
+       end do
+       n=0
+       do p=1,nnode
+          if (nodes(node_domain(p))%key(2,node_id(p)+1)==-1) n=n+1
+       end do
+       allocate(scaffold_slot(n),scaffold_value(nscalar+EDGE,zlevels,n))
+       n=0
+       do p=1,nnode
+          if (nodes(node_domain(p))%key(2,node_id(p)+1)/=-1) cycle
+          n=n+1
+          scaffold_slot(n)=p
+       end do
+       if (stage203_inverse) then
+          if (allocated(restore203_index)) deallocate(restore203_index,restore203_slot,restore203,saved203)
+          allocate(restore203_index(nnode));restore203_index=0
+          n=0
+          do p=1,nnode
+             if (nodes(node_domain(p))%key(1,node_id(p)+1)<=0) cycle
+             if (.not.btest(node_flags(p),0).and..not.btest(node_flags(p),1)) cycle
+             n=n+1;restore203_index(p)=n
+          end do
+          allocate(restore203_slot(n),restore203(nscalar+EDGE,zlevels,n),saved203(nscalar+EDGE,zlevels,n))
+          do p=1,nnode
+             if (restore203_index(p)>0) restore203_slot(restore203_index(p))=p
+          end do
+          call compile_publication203
+       end if
+       if(shadow_enabled) then
+          call compile_transform_geometry(shadow_program)
+          if(allocated(shadow)) deallocate(shadow)
+          allocate(shadow(size(grid)))
+          do d=1,size(grid)
+             n=grid(d)%node%length
+             allocate(shadow(d)%scalar(n,nscalar*zlevels),shadow(d)%scalar_wavelet(n,nscalar*zlevels), &
+                  shadow(d)%vector(EDGE*n,zlevels),shadow(d)%vector_wavelet(EDGE*n,zlevels))
+          end do
+       end if
+       plan_generation=generation
+       if(audit316_enabled()) call audit_inverse_plan316
+    else
+       call detail_add(DC_INVERSE_REUSE,1_int64)
+    end if
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.prepare',plan_generation)
+       call audit316_i('first_level',[first_level])
+       call audit316_end()
+    end if
+    call detail_leave(DP_INVERSE_PLAN)
+    call detail_enter(DP_INVERSE_SEED)
+
+    ! Seed only compatibility/scaffold and pre-existing boundary state once
+    ! per transform. Every catalogued interior dependency is replaced below
+    ! from the authoritative final owner before any arithmetic or alias copy.
+    do p=1,nnode
+       d=node_domain(p)
+       id=node_id(p)
+       if (nodes(d)%key(1,id+1)>0) cycle
+       do k=1,zlevels
+          do v=1,nscalar
+             value(v,k,p,1)=scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)
+             value(v,k,p,2)=wavelet(scalars(1)+v-1,k)%data(d)%elts(id+1)
+          end do
+          do v=1,EDGE
+             value(nscalar+v,k,p,1)=scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)
+             value(nscalar+v,k,p,2)=wavelet(S_VELO,k)%data(d)%elts(EDGE*id+v)
+          end do
+       end do
+    end do
+    ! Legacy writeback preserves uncatalogued interior patches from global
+    ! sol, NOT from the provisional scaling argument. Keep this fixed input
+    ! separate from the pre-boundary seed and apply it at each gather point.
+    do q=1,size(scaffold_slot)
+       p=scaffold_slot(q)
+       d=node_domain(p)
+       id=node_id(p)
+       do k=1,zlevels
+          do v=1,nscalar
+             scaffold_value(v,k,q)=sol(scalars(1)+v-1,k)%data(d)%elts(id+1)
+          end do
+          do v=1,EDGE
+             scaffold_value(nscalar+v,k,q)=sol(S_VELO,k)%data(d)%elts(EDGE*id+v)
+          end do
+       end do
+    end do
+    do q=1,2
+       do b=1,2
+          call native_inverse_gather(q,b,.false.)
+       end do
+    end do
+    if (stage203_inverse) then
+       do q=1,size(restore203_slot)
+          restore203(:,:,q)=value(:,:,restore203_slot(q),1)
+       end do
+    end if
+    do q=1,2
+       call native_inverse_boundary(q,2,level_start,level_end)
+       call native_inverse_boundary(q,1,first_level,level_end)
+       call native_inverse_scatter(q,2,.false.)
+       call native_inverse_scatter(q,1,.false.)
+    end do
+    ! Preserve the legacy consumer-visible alias epoch separately from the
+    ! fresher aliases needed by native kernels. Only boundary/scaffold values
+    ! are retained, not a second solution or another inverse computation.
+    do q=1,size(consumer_alias_slot)
+       consumer_alias_value(:,:,q)=value(:,:,consumer_alias_slot(q),BLOCK_PAYLOAD_SOL)
+    end do
+
+    if(audit316_enabled()) call audit_inverse_values322(1)
+    call detail_leave(DP_INVERSE_SEED)
+
+  contains
+    recursive subroutine map_patch(patch)
+      integer, intent(in) :: patch
+      integer :: c,child,i,j,id_local
+      if (grid(d)%patch%elts(patch+1)%deleted) return
+      next_patch=next_patch+1
+      do j=0,PATCH_SIZE-1
+         do i=0,PATCH_SIZE-1
+            id_local=grid(d)%patch%elts(patch+1)%elts_start+PATCH_SIZE*j+i
+            nodes(d)%key(:,id_local+1)=[b,STORE_PATCH,next_patch,PATCH_SIZE*j+i]
+         end do
+      end do
+      do c=1,N_CHDRN
+         child=block_child_Domain(grid(d),patch,c)
+         if (child > 0) call map_patch(child)
+      end do
+    end subroutine
+  end subroutine
+
+  ! Stage316 qualification only. Each final bound plan is serialized by
+  ! semantic fields, never derived-type storage or MPI handle bytes.
+  subroutine audit_inverse_plan316
+    integer :: i,j,l
+    integer,allocatable :: ints(:,:)
+    real(dp),allocatable :: reals(:,:)
+    call audit316_begin('inverse.plan',plan_generation)
+    call audit316_i('extent',[nnode,noperation,nscalar,zlevels,level_start,level_end])
+    call audit316_l('options',[stage203_inverse,sparse_outer_install])
+    do i=1,size(nodes)
+       call audit316_begin('inverse.node_map',int(glo_id(rank+1,i)+1,int64))
+       call audit316_i('slot',nodes(i)%slot)
+       call audit316_i('key.shape',shape(nodes(i)%key))
+       call audit316_i('key',reshape(nodes(i)%key,[size(nodes(i)%key)]))
+       call audit316_end()
+    end do
+    if(allocated(node_domain)) then
+       call audit316_i('node_domain.shape',shape(node_domain))
+       call audit316_i('node_domain',node_domain(:nnode))
+    else
+       call audit316_i('node_domain.shape',[-1])
+    end if
+    if(allocated(node_id)) then
+       call audit316_i('node_id.shape',shape(node_id))
+       call audit316_i('node_id',node_id(:nnode))
+    else
+       call audit316_i('node_id.shape',[-1])
+    end if
+    if(allocated(operation_first)) then
+       call audit316_i('operation_first.shape',shape(operation_first))
+       call audit316_i('operation_first',operation_first)
+    else
+       call audit316_i('operation_first.shape',[-1])
+    end if
+    if(allocated(operation_last)) then
+       call audit316_i('operation_last.shape',shape(operation_last))
+       call audit316_i('operation_last',operation_last)
+    else
+       call audit316_i('operation_last.shape',[-1])
+    end if
+    if(allocated(scaffold_slot)) then
+       call audit316_i('scaffold_slot.shape',shape(scaffold_slot))
+       call audit316_i('scaffold_slot',scaffold_slot)
+    else
+       call audit316_i('scaffold_slot.shape',[-1])
+    end if
+    if(allocated(consumer_alias_slot)) then
+       call audit316_i('consumer_alias_slot.shape',shape(consumer_alias_slot))
+       call audit316_i('consumer_alias_slot',consumer_alias_slot)
+    else
+       call audit316_i('consumer_alias_slot.shape',[-1])
+    end if
+    if(allocated(node_flags)) then
+       call audit316_i('node_flags.shape',shape(node_flags))
+       call audit316_i('node_flags',node_flags)
+    else
+       call audit316_i('node_flags.shape',[-1])
+    end if
+    if(allocated(restore203_index)) then
+       call audit316_i('restore203_index.shape',shape(restore203_index))
+       call audit316_i('restore203_index',restore203_index)
+    else
+       call audit316_i('restore203_index.shape',[-1])
+    end if
+    if(allocated(restore203_slot)) then
+       call audit316_i('restore203_slot.shape',shape(restore203_slot))
+       call audit316_i('restore203_slot',restore203_slot)
+    else
+       call audit316_i('restore203_slot.shape',[-1])
+    end if
+    if(allocated(value)) then
+       call audit316_i('value.shape',shape(value))
+    else
+       call audit316_i('value.shape',[-1])
+    end if
+    if(allocated(consumer_alias_value)) then
+       call audit316_i('consumer_alias_value.shape',shape(consumer_alias_value))
+    else
+       call audit316_i('consumer_alias_value.shape',[-1])
+    end if
+    if(allocated(scaffold_value)) then
+       call audit316_i('scaffold_value.shape',shape(scaffold_value))
+    else
+       call audit316_i('scaffold_value.shape',[-1])
+    end if
+    if(allocated(restore203)) then
+       call audit316_i('restore203.shape',shape(restore203))
+    else
+       call audit316_i('restore203.shape',[-1])
+    end if
+    if(allocated(saved203)) then
+       call audit316_i('saved203.shape',shape(saved203))
+    else
+       call audit316_i('saved203.shape',[-1])
+    end if
+    if(allocated(publication_tile)) then
+       call audit316_i('publication_tile.shape',shape(publication_tile))
+    else
+       call audit316_i('publication_tile.shape',[-1])
+    end if
+    if(allocated(transfer_send)) then
+       call audit316_i('transfer_send.shape',shape(transfer_send))
+    else
+       call audit316_i('transfer_send.shape',[-1])
+    end if
+    if(allocated(transfer_recv)) then
+       call audit316_i('transfer_recv.shape',shape(transfer_recv))
+    else
+       call audit316_i('transfer_recv.shape',[-1])
+    end if
+    if(allocated(alias_send)) then
+       call audit316_i('alias_send.shape',shape(alias_send))
+    else
+       call audit316_i('alias_send.shape',[-1])
+    end if
+    if(allocated(alias_recv)) then
+       call audit316_i('alias_recv.shape',shape(alias_recv))
+    else
+       call audit316_i('alias_recv.shape',[-1])
+    end if
+    if(allocated(requests)) then
+       call audit316_i('requests.shape',shape(requests))
+    else
+       call audit316_i('requests.shape',[-1])
+    end if
+
+    call audit_transfer316(interior_plan,'inverse.interior')
+    call audit_transfer316(boundary_plan,'inverse.boundary')
+    do l=lbound(level_interior,2),ubound(level_interior,2)
+       call audit316_begin('inverse.level',int(l,int64))
+       do i=1,2
+          call audit316_i('component',[i])
+          call audit_transfer316(level_interior(i,l),'inverse.level_interior')
+          call audit_transfer316(level_boundary(i,l),'inverse.level_boundary')
+       end do
+       call audit316_end()
+    end do
+    do l=lbound(outer_install,1),ubound(outer_install,1)
+       call audit316_begin('inverse.outer_level',int(l,int64))
+       call audit_transfer316(outer_install(l),'inverse.outer_install')
+       do i=1,2
+          call audit316_i('component',[i])
+          call audit_alias316(aliases(i,l),'inverse.alias')
+       end do
+       call audit316_end()
+    end do
+    do i=1,2
+       call audit316_begin('inverse.local_alias',int(i,int64))
+       call audit316_i('source',local_alias(i)%source)
+       call audit316_i('dest',local_alias(i)%dest)
+       do j=1,2
+          call audit316_i('range',[j])
+          call audit_alias316(range_alias(i,j),'inverse.range_alias')
+       end do
+       call audit316_end()
+    end do
+    allocate(ints(18,noperation),reals(9,noperation))
+    do i=1,noperation
+       associate(op=>operations(i))
+       ints(:,i)=[op%level,op%kind,op%source,op%target]
+       reals(:,i)=op%weight
+       end associate
+    end do
+    call audit316_i('outer.program.shape',shape(ints))
+    call audit316_i('outer.program',reshape(ints,[size(ints)]))
+    call audit316_r('outer.coefficients',reshape(reals,[size(reals)]))
+    deallocate(ints,reals)
+    if(allocated(scalar203_ops)) then
+       allocate(ints(30,size(scalar203_ops)))
+       do i=1,size(scalar203_ops)
+          associate(op=>scalar203_ops(i))
+          ints(:,i)=[op%d,op%level,op%phase,op%target,op%base,op%area,op%mask,op%n,op%source,op%geometry]
+          end associate
+       end do
+       call audit316_i('scalar.program.shape',shape(ints))
+       call audit316_i('scalar.program',reshape(ints,[size(ints)]))
+       deallocate(ints)
+    end if
+    if(allocated(inner203_ops)) then
+       allocate(ints(104,size(inner203_ops)))
+       do i=1,size(inner203_ops)
+          associate(op=>inner203_ops(i))
+          ints(:,i)=[op%d,op%level,op%node,op%edge,op%source,op%target]
+          end associate
+       end do
+       call audit316_i('inner.program.shape',shape(ints))
+       call audit316_i('inner.program',reshape(ints,[size(ints)]))
+       deallocate(ints)
+    end if
+    if(allocated(publication_patch)) then
+       allocate(ints(2+PATCH_SIZE**2,size(publication_patch)))
+       do i=1,size(publication_patch)
+          ints(:,i)=[publication_patch(i)%domain,publication_patch(i)%start,publication_patch(i)%source]
+       end do
+       call audit316_i('publication.program.shape',shape(ints))
+       call audit316_i('publication.program',reshape(ints,[size(ints)]))
+       deallocate(ints)
+    end if
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_transfer316(plan,label)
+    type(Transfer_Plan),intent(in) :: plan
+    character(*),intent(in) :: label
+    call audit316_begin(label,plan_generation)
+    call audit316_l('edgewise',[plan%edgewise])
+    if(allocated(plan%sc)) then
+       call audit316_i('plan%sc.shape',shape(plan%sc))
+       call audit316_i('plan%sc',plan%sc)
+    else
+       call audit316_i('plan%sc.shape',[-1])
+    end if
+    if(allocated(plan%sd)) then
+       call audit316_i('plan%sd.shape',shape(plan%sd))
+       call audit316_i('plan%sd',plan%sd)
+    else
+       call audit316_i('plan%sd.shape',[-1])
+    end if
+    if(allocated(plan%rc)) then
+       call audit316_i('plan%rc.shape',shape(plan%rc))
+       call audit316_i('plan%rc',plan%rc)
+    else
+       call audit316_i('plan%rc.shape',[-1])
+    end if
+    if(allocated(plan%rd)) then
+       call audit316_i('plan%rd.shape',shape(plan%rd))
+       call audit316_i('plan%rd',plan%rd)
+    else
+       call audit316_i('plan%rd.shape',[-1])
+    end if
+    if(allocated(plan%key)) then
+       call audit316_i('plan%key.shape',shape(plan%key))
+       call audit316_i('plan%key',reshape(plan%key,[size(plan%key)]))
+    else
+       call audit316_i('plan%key.shape',[-1])
+    end if
+    if(allocated(plan%slot)) then
+       call audit316_i('plan%slot.shape',shape(plan%slot))
+       call audit316_i('plan%slot',plan%slot)
+    else
+       call audit316_i('plan%slot.shape',[-1])
+    end if
+    if(allocated(plan%source_info)) then
+       call audit316_i('plan%source_info.shape',shape(plan%source_info))
+       call audit316_i('plan%source_info',reshape(plan%source_info,[size(plan%source_info)]))
+    else
+       call audit316_i('plan%source_info.shape',[-1])
+    end if
+    if(allocated(plan%target_info)) then
+       call audit316_i('plan%target_info.shape',shape(plan%target_info))
+       call audit316_i('plan%target_info',reshape(plan%target_info,[size(plan%target_info)]))
+    else
+       call audit316_i('plan%target_info.shape',[-1])
+    end if
+    if(allocated(plan%address)) then
+       call audit316_i('plan%address.shape',shape(plan%address))
+       call audit316_i('plan%address',reshape(plan%address,[size(plan%address)]))
+    else
+       call audit316_i('plan%address.shape',[-1])
+    end if
+#ifdef STAGE202_INVERSE
+    if(allocated(plan%self_slot)) then
+       call audit316_i('plan%self_slot.shape',shape(plan%self_slot))
+       call audit316_i('plan%self_slot',plan%self_slot)
+    else
+       call audit316_i('plan%self_slot.shape',[-1])
+    end if
+#endif
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_alias316(plan,label)
+    type(Alias_Plan),intent(in) :: plan
+    character(*),intent(in) :: label
+    call audit316_begin(label,plan_generation)
+    if(allocated(plan%sc)) then
+       call audit316_i('plan%sc.shape',shape(plan%sc))
+       call audit316_i('plan%sc',plan%sc)
+    else
+       call audit316_i('plan%sc.shape',[-1])
+    end if
+    if(allocated(plan%sd)) then
+       call audit316_i('plan%sd.shape',shape(plan%sd))
+       call audit316_i('plan%sd',plan%sd)
+    else
+       call audit316_i('plan%sd.shape',[-1])
+    end if
+    if(allocated(plan%rc)) then
+       call audit316_i('plan%rc.shape',shape(plan%rc))
+       call audit316_i('plan%rc',plan%rc)
+    else
+       call audit316_i('plan%rc.shape',[-1])
+    end if
+    if(allocated(plan%rd)) then
+       call audit316_i('plan%rd.shape',shape(plan%rd))
+       call audit316_i('plan%rd',plan%rd)
+    else
+       call audit316_i('plan%rd.shape',[-1])
+    end if
+    if(allocated(plan%source)) then
+       call audit316_i('plan%source.shape',shape(plan%source))
+       call audit316_i('plan%source',plan%source)
+    else
+       call audit316_i('plan%source.shape',[-1])
+    end if
+    if(allocated(plan%dest)) then
+       call audit316_i('plan%dest.shape',shape(plan%dest))
+       call audit316_i('plan%dest',plan%dest)
+    else
+       call audit316_i('plan%dest.shape',[-1])
+    end if
+    if(allocated(plan%install_order)) then
+       call audit316_i('plan%install_order.shape',shape(plan%install_order))
+       call audit316_i('plan%install_order',plan%install_order)
+    else
+       call audit316_i('plan%install_order.shape',[-1])
+    end if
+    call audit316_end()
+  end subroutine
+
+
+  subroutine audit_inverse_scalar316(level,phase)
+    integer,intent(in) :: level,phase
+    integer,parameter :: wi(11)=[1,2,3,1,2,3,4,1,2,3,4]
+    integer :: p,q,n,d
+    integer,allocatable :: records(:,:)
+    real(dp),allocatable :: coefficients(:,:)
+    n=count(scalar203_ops%level==level.and.scalar203_ops%phase==phase)
+    allocate(records(2,n),coefficients(12,n));coefficients=0;n=0
+    do p=1,size(scalar203_ops)
+       associate(op=>scalar203_ops(p))
+       if(op%level/=level.or.op%phase/=phase) cycle
+       n=n+1;d=op%d
+       records(:,n)=[p,1]
+       if(phase==1) records(2,n)=merge(0,1,grid(d)%mask_n%elts(op%mask+1)==FROZEN)
+       coefficients(1,n)=grid(d)%areas%elts(op%area+1)%hex_inv
+       do q=1,op%n
+          coefficients(q+1,n)=grid(d)%overl_areas%elts(op%geometry(q)+1)%a(merge(wi(q),q,phase==1))
+       end do
+       end associate
+    end do
+    call audit316_begin('inverse.scalar',plan_generation)
+    call audit316_i('level_phase',[level,phase])
+    call audit316_i('selected_and_active',reshape(records,[size(records)]))
+    call audit316_r('coefficients',reshape(coefficients,[size(coefficients)]))
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_inverse_inner316(level)
+    integer,intent(in) :: level
+    integer,parameter :: triangles(8)=[4,8,9,13,17,21,25,29]
+    integer :: p,q,n,d,id,e
+    integer,allocatable :: selected(:)
+    real(dp),allocatable :: coefficients(:,:)
+    n=count(inner203_ops%level==level)
+    allocate(selected(n),coefficients(32,n));n=0
+    do p=1,size(inner203_ops)
+       associate(op=>inner203_ops(p))
+       if(op%level/=level) cycle
+       n=n+1;d=op%d;selected(n)=p
+       do q=1,32
+          id=op%node(q);e=op%edge(q)
+          if(any(triangles==q)) then
+             coefficients(q,n)=grid(d)%triarea%elts(TRIAG*id+e+1)
+          else
+             coefficients(q,n)=grid(d)%len%elts(EDGE*id+e+1)
+          end if
+       end do
+       end associate
+    end do
+    call audit316_begin('inverse.inner',plan_generation)
+    call audit316_i('level',[level])
+    call audit316_i('selected',selected)
+    call audit316_r('coefficients',reshape(coefficients,[size(coefficients)]))
+    call audit316_end()
+  end subroutine
+
+  subroutine collect_boundaries(catalog,block,context)
+    integer, intent(in) :: catalog
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+    integer :: p,q,n,pos
+    integer, allocatable :: grown(:,:)
+    select type(context)
+    type is(Boundary_Manifest)
+       n=size(context%item,2)
+       pos=sum(block%bdry_storage%n_node)
+       allocate(grown(6,n+pos))
+       grown(:,1:n)=context%item
+       do p=1,size(block%bdry_storage)
+          do q=0,block%bdry_storage(p)%n_node-1
+             n=n+1
+             grown(:,n)=[catalog,STORE_BDRY,p,q,block%root_domain,block%bdry_storage(p)%elts_start+q]
+          end do
+       end do
+       call move_alloc(grown,context%item)
+    class default
+       call die('boundary manifest context')
+    end select
+  end subroutine
+
+  subroutine build_transfer(plan,request,slots)
+    type(Transfer_Plan), intent(out) :: plan
+    integer, intent(in) :: request(:,:),slots(:)
+    integer :: p,r,pos,ierr
+    integer, allocatable :: send_key(:,:),recv_key(:,:)
+    allocate(plan%sc(n_process),plan%sd(n_process),plan%rc(n_process),plan%rd(n_process))
+    plan%sc=0
+    do p=1,size(slots)
+       r=block_catalog(request(1,p))%owner+1
+       plan%sc(r)=plan%sc(r)+1
+    end do
+    call MPI_Alltoall(plan%sc,1,MPI_INTEGER,plan%rc,1,MPI_INTEGER,comm,ierr)
+    call check(ierr,'native dependency counts')
+    call displacements(plan%sc,plan%sd)
+    call displacements(plan%rc,plan%rd)
+    allocate(send_key(6,max(1,sum(plan%sc))),recv_key(6,max(1,sum(plan%rc))))
+    allocate(plan%key(4,sum(plan%rc)),plan%source_info(2,sum(plan%sc)),plan%target_info(2,sum(plan%rc)))
+    allocate(plan%slot(sum(plan%sc)))
+    plan%sc=0
+    do p=1,size(slots)
+       r=block_catalog(request(1,p))%owner+1
+       pos=plan%sd(r)+plan%sc(r)+1
+       send_key(1:4,pos)=request(:,p)
+       send_key(5,pos)=grid(node_domain(slots(p)))%level%elts(node_id(slots(p))+1)
+       send_key(6,pos)=node_flags(slots(p))
+       plan%slot(pos)=slots(p)
+       plan%sc(r)=plan%sc(r)+1
+    end do
+    call MPI_Alltoallv(send_key,6*plan%sc,6*plan%sd,MPI_INTEGER, &
+         recv_key,6*plan%rc,6*plan%rd,MPI_INTEGER,comm,ierr)
+    call check(ierr,'native dependency keys')
+    plan%key=recv_key(1:4,1:sum(plan%rc))
+    plan%source_info=send_key(5:6,1:sum(plan%sc))
+    plan%target_info=recv_key(5:6,1:sum(plan%rc))
+    call compile_local_block_inverse_routes(plan%key,plan%address)
+  end subroutine
+
+  subroutine select_transfer(plan,base,component,level,install,outer,modified_only)
+    ! Select changed block levels plus every alias destination (all levels).
+    ! A gather restores authoritative interiors overwritten by workspace
+    ! aliases even when their block kernel did not run. Fixed-coarse resets
+    ! likewise remain visible to boundary consumers on every phase.
+    type(Transfer_Plan), intent(out) :: plan
+    type(Transfer_Plan), intent(in) :: base
+    integer, intent(in) :: component,level
+    logical, intent(in) :: install,outer
+    logical, optional, intent(in) :: modified_only
+    integer :: r,p,s,t
+    allocate(plan%sc(n_process),plan%sd(n_process),plan%rc(n_process),plan%rd(n_process))
+    plan%sc=0
+    plan%rc=0
+    do r=1,n_process
+       do p=base%sd(r)+1,base%sd(r)+base%sc(r)
+          if (selected(base%source_info(:,p))) plan%sc(r)=plan%sc(r)+1
+       end do
+       do p=base%rd(r)+1,base%rd(r)+base%rc(r)
+          if (selected(base%target_info(:,p))) plan%rc(r)=plan%rc(r)+1
+       end do
+    end do
+    call displacements(plan%sc,plan%sd)
+    call displacements(plan%rc,plan%rd)
+    allocate(plan%slot(sum(plan%sc)),plan%key(4,sum(plan%rc)))
+    if (present(modified_only)) then
+       allocate(plan%source_info(2,sum(plan%sc)),plan%target_info(2,sum(plan%rc)))
+    end if
+    s=0
+    do p=1,sum(base%sc)
+       if (.not. selected(base%source_info(:,p))) cycle
+       s=s+1
+       plan%slot(s)=base%slot(p)
+       if (present(modified_only)) plan%source_info(:,s)=base%source_info(:,p)
+    end do
+    t=0
+    do p=1,sum(base%rc)
+       if (.not. selected(base%target_info(:,p))) cycle
+       t=t+1
+       plan%key(:,t)=base%key(:,p)
+       if (present(modified_only)) plan%target_info(:,t)=base%target_info(:,p)
+    end do
+    call compile_local_block_inverse_routes(plan%key,plan%address)
+  contains
+    logical function selected(info)
+      integer, intent(in) :: info(2)
+      if (install) then
+         ! Remote aliases only write their requested level. Local aliases
+         ! still write all levels; an outer transaction also writes coarse
+         ! aliases before producing and synchronizing the fine level.
+         selected=info(1)==level .or. btest(info(2),component+2) .or. btest(info(2),2)
+         if (outer) selected=selected .or. info(1)==level-1
+         if (present(modified_only)) then
+            ! No block vector kernel intervenes since the preceding vector
+            ! sync (or initial seeding). Unwritten interior/boundary records
+            ! already contain the gathered value; retain aliases and resets.
+            if (modified_only) selected=selected .and. &
+                 (btest(info(2),1) .or. btest(info(2),2) .or. btest(info(2),5))
+         end if
+      else
+         selected=info(1)==level .or. btest(info(2),component-1) .or. btest(info(2),2)
+      end if
+    end function
+  end subroutine
+
+  subroutine combine_transfers(plan,a,b)
+    ! The two destinations are disjoint storage families (patch/boundary).
+    ! Preserve each family's peer order, with one exchange and completion.
+    ! Both ends derive this concatenation locally: no new setup collective.
+    type(Transfer_Plan), intent(out) :: plan
+    type(Transfer_Plan), intent(in) :: a,b
+    integer :: r,s,t,na,nb
+    plan%sc=a%sc+b%sc
+    plan%rc=a%rc+b%rc
+    allocate(plan%sd(n_process),plan%rd(n_process))
+    call displacements(plan%sc,plan%sd)
+    call displacements(plan%rc,plan%rd)
+    allocate(plan%slot(sum(plan%sc)),plan%key(4,sum(plan%rc)))
+    do r=1,n_process
+       s=plan%sd(r)
+       na=a%sc(r)
+       nb=b%sc(r)
+       plan%slot(s+1:s+na)=a%slot(a%sd(r)+1:a%sd(r)+na)
+       plan%slot(s+na+1:s+na+nb)=b%slot(b%sd(r)+1:b%sd(r)+nb)
+       t=plan%rd(r)
+       na=a%rc(r)
+       nb=b%rc(r)
+       plan%key(:,t+1:t+na)=a%key(:,a%rd(r)+1:a%rd(r)+na)
+       plan%key(:,t+na+1:t+na+nb)=b%key(:,b%rd(r)+1:b%rd(r)+nb)
+    end do
+    call compile_local_block_inverse_routes(plan%key,plan%address)
+  end subroutine
+
+  subroutine combine_outer_edges(plan,interior,boundary)
+    ! A single peer exchange in edge units. Interior writes use the union of
+    ! actual outer targets and signed alias destinations in both storage
+    ! families. Scaffold resets retain all edges. Peer/family order is unchanged.
+    type(Transfer_Plan), intent(out) :: plan
+    type(Transfer_Plan), intent(in) :: interior,boundary
+    integer :: r,p,e,s,t,n,pass
+    integer, allocatable :: edges(:),address(:,:)
+    plan%edgewise=.true.
+    allocate(plan%sc(n_process),plan%sd(n_process),plan%rc(n_process),plan%rd(n_process))
+    plan%sc=0
+    plan%rc=0
+    do pass=1,2
+       s=0
+       t=0
+       do r=1,n_process
+          do p=interior%sd(r)+1,interior%sd(r)+interior%sc(r)
+             do e=1,EDGE
+                if (.not.(btest(interior%source_info(2,p),5+e).or.btest(interior%source_info(2,p),2))) cycle
+                s=s+1
+                if (pass==1) plan%sc(r)=plan%sc(r)+1
+                if (pass==2) plan%slot(s)=EDGE*(interior%slot(p)-1)+e
+             end do
+          end do
+          do p=boundary%sd(r)+1,boundary%sd(r)+boundary%sc(r)
+             do e=1,EDGE
+                if (.not.(btest(boundary%source_info(2,p),5+e).or.btest(boundary%source_info(2,p),2))) cycle
+                s=s+1
+                if (pass==1) plan%sc(r)=plan%sc(r)+1
+                if (pass==2) plan%slot(s)=EDGE*(boundary%slot(p)-1)+e
+             end do
+          end do
+          do p=interior%rd(r)+1,interior%rd(r)+interior%rc(r)
+             do e=1,EDGE
+                if (.not.(btest(interior%target_info(2,p),5+e).or.btest(interior%target_info(2,p),2))) cycle
+                t=t+1
+                if (pass==1) plan%rc(r)=plan%rc(r)+1
+                if (pass==2) then
+                   plan%key(:,t)=interior%key(:,p)
+                   edges(t)=e
+                end if
+             end do
+          end do
+          do p=boundary%rd(r)+1,boundary%rd(r)+boundary%rc(r)
+             do e=1,EDGE
+                if (.not.(btest(boundary%target_info(2,p),5+e).or.btest(boundary%target_info(2,p),2))) cycle
+                t=t+1
+                if (pass==1) plan%rc(r)=plan%rc(r)+1
+                if (pass==2) then
+                   plan%key(:,t)=boundary%key(:,p)
+                   edges(t)=e
+                end if
+             end do
+          end do
+       end do
+       if (pass==1) then
+          call displacements(plan%sc,plan%sd)
+          call displacements(plan%rc,plan%rd)
+          allocate(plan%slot(s),plan%key(4,t),edges(t))
+       end if
+    end do
+    call compile_local_block_inverse_routes(plan%key,address)
+    n=size(address,2)
+    allocate(plan%address(7,n))
+    plan%address(1:6,:)=address
+    plan%address(7,:)=edges
+  end subroutine
+
+  integer function alias_node(code,component) result(p)
+    integer, intent(in) :: code,component
+    p=abs(code)
+    if (component==2) p=(p-1)/EDGE+1
+  end function
+
+  subroutine native_inverse_gather(component,family,reset_scaffold,changed_level)
+    integer, intent(in) :: component,family
+    logical, optional, intent(in) :: reset_scaffold
+    integer, optional, intent(in) :: changed_level
+    logical :: reset
+    integer :: q,first,last
+    reset=.true.
+    if (present(reset_scaffold)) reset=reset_scaffold
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.gather',plan_generation)
+       call audit316_i('family',[component,family])
+       call audit316_l('flags',[reset,resident203,present(changed_level)])
+       if(present(changed_level)) call audit316_i('level',[changed_level])
+       call audit316_end()
+    end if
+    if (family==BLOCK_PAYLOAD_SOL .and. reset) then
+       first=merge(1,nscalar+1,component==1)
+       last=merge(nscalar,nscalar+EDGE,component==1)
+       do q=1,size(scaffold_slot)
+          value(first:last,:,scaffold_slot(q),family)=scaffold_value(first:last,:,q)
+       end do
+    end if
+    if (resident203) then
+       first=merge(1,nscalar+1,component==1);last=merge(nscalar,nscalar+EDGE,component==1)
+       do q=1,size(restore203_slot)
+          value(first:last,:,restore203_slot(q),family)=restore203(first:last,:,q)
+       end do
+       if (family/=BLOCK_PAYLOAD_SOL) call die('resident gather family')
+       if (.not.present(changed_level)) call die('resident gather requires phase')
+       if (oracle203) call check_gather203(level_interior(component,changed_level),component,family)
+       if(ledger203) work203(5)=work203(5)+int(size(restore203_slot),int64)*(last-first+1)*zlevels
+       if(ledger203) work203(1)=work203(1)+1_int64
+       return
+    end if
+    if (present(changed_level)) then
+       if (changed_level<level_start-2 .or. changed_level>level_end) call die('gather level range')
+       call transfer_nodes(level_interior(component,changed_level),component,family,.false.)
+    else
+       call transfer_nodes(interior_plan,component,family,.false.)
+    end if
+  end subroutine
+
+  subroutine native_inverse_scatter(component,family,interiors,changed_level)
+    integer, intent(in) :: component,family
+    logical, intent(in) :: interiors
+    integer, optional, intent(in) :: changed_level
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.scatter',plan_generation)
+       call audit316_i('family',[component,family])
+       call audit316_l('flags',[interiors,resident203,present(changed_level)])
+       if(present(changed_level)) call audit316_i('level',[changed_level])
+       call audit316_end()
+    end if
+    if (resident203) then
+       if (interiors) then
+          if (.not.present(changed_level)) call die('resident outer install requires level')
+          call remember_outer203(outer_install(changed_level))
+       end if
+       if(ledger203) work203(2)=work203(2)+1_int64
+       if (.not.oracle203) return
+    end if
+    if (present(changed_level)) then
+       if (changed_level<level_start-2 .or. changed_level>level_end) call die('scatter level range')
+       if (interiors) then
+          if (component/=2 .or. changed_level<level_start-1) call die('outer scatter phase')
+          call transfer_nodes(outer_install(changed_level),component,family,.true.)
+       else
+          call transfer_nodes(level_boundary(component,changed_level),component,family,.true.)
+       end if
+    else
+       if (interiors) call transfer_nodes(interior_plan,component,family,.true.)
+       call transfer_nodes(boundary_plan,component,family,.true.)
+    end if
+  end subroutine
+
+#ifdef STAGE202_INVERSE
+  subroutine prepare_self_routes(plan)
+    type(Transfer_Plan), intent(inout) :: plan
+    integer :: first,last
+    first=plan%sd(rank+1)+1
+    last=plan%sd(rank+1)+plan%sc(rank+1)
+    if (plan%sc(rank+1)/=plan%rc(rank+1)) call die('native self route extent')
+    plan%self_slot=plan%slot(first:last)
+    if (plan%edgewise) plan%self_slot=(plan%self_slot-1)/EDGE+1
+  end subroutine prepare_self_routes
+#endif
+
+  subroutine transfer_nodes(plan,component,family,install)
+    type(Transfer_Plan), intent(in) :: plan
+    integer, intent(in) :: component,family
+    logical, intent(in) :: install
+    integer :: p,q,k,v,nv,first,n,phase
+#ifdef STAGE202_INVERSE
+    integer :: node,source_first,self_first,self_last,local_first
+#endif
+    real(dp) :: started
+    first=merge(1,nscalar+1,component==1)
+    nv=merge(nscalar,EDGE,component==1)
+    if (plan%edgewise) then
+       if (.not.install .or. component/=2) call die('edgewise transfer outside vector install')
+       nv=1
+    end if
+    n=nv*zlevels
+#ifdef STAGE202_INVERSE
+    self_first=plan%sd(rank+1)+1
+    self_last=plan%sd(rank+1)+plan%sc(rank+1)
+    local_first=plan%rd(rank+1)+1
+    ! Request order on the self peer pairs these workspace slots with the
+    ! corresponding block routes. Edge installs encode component in slot.
+#endif
+    started=0.0_dp
+    if (timing) started=MPI_Wtime()
+    if (install) then
+       call detail_enter(DP_INVERSE_PACK)
+       do p=1,sum(plan%sc)
+#ifdef STAGE202_INVERSE
+          if (p>=self_first.and.p<=self_last) cycle
+#endif
+          q=(p-1)*n
+#ifdef STAGE202_INVERSE
+          node=plan%slot(p)
+          source_first=first
+          if (plan%edgewise) then
+             source_first=nscalar+mod(node-1,EDGE)+1
+             node=(node-1)/EDGE+1
+          end if
+          do k=1,zlevels
+             do v=1,nv
+                q=q+1
+                transfer_send(q)=value(source_first+v-1,k,node,family)
+             end do
+          end do
+#else
+          do k=1,zlevels
+             do v=1,nv
+                q=q+1
+                if (plan%edgewise) then
+                   transfer_send(q)=value(nscalar+mod(plan%slot(p)-1,EDGE)+1,k,(plan%slot(p)-1)/EDGE+1,family)
+                else
+                   transfer_send(q)=value(first+v-1,k,plan%slot(p),family)
+                end if
+             end do
+          end do
+#endif
+       end do
+       call detail_leave(DP_INVERSE_PACK)
+
+#ifdef STAGE202_INVERSE
+       call exchange_values(transfer_send,plan%sc,plan%sd,transfer_recv,plan%rc,plan%rd,n,19071,.false.)
+#else
+       call exchange_values(transfer_send,plan%sc,plan%sd,transfer_recv,plan%rc,plan%rd,n,19071)
+#endif
+       call detail_enter(DP_INVERSE_INSTALL)
+       if (plan%edgewise) then
+#ifdef STAGE202_INVERSE
+          call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv, &
+               plan%address(7,:),value(:,:,:,family),local_first,plan%self_slot)
+#else
+       call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv,plan%address(7,:))
+#endif
+       else
+#ifdef STAGE202_INVERSE
+          call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv, &
+               workspace=value(:,:,:,family),local_first=local_first,local_slots=plan%self_slot)
+#else
+       call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv)
+#endif
+       end if
+       call detail_leave(DP_INVERSE_INSTALL)
+    else
+       call detail_enter(DP_INVERSE_PACK)
+
+#ifdef STAGE202_INVERSE
+       call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv, &
+            workspace=value(:,:,:,family),local_first=local_first,local_slots=plan%self_slot)
+#else
+       call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv)
+#endif
+       call detail_leave(DP_INVERSE_PACK)
+
+#ifdef STAGE202_INVERSE
+       call exchange_values(transfer_recv,plan%rc,plan%rd,transfer_send,plan%sc,plan%sd,n,19072,.false.)
+#else
+       call exchange_values(transfer_recv,plan%rc,plan%rd,transfer_send,plan%sc,plan%sd,n,19072)
+#endif
+       call detail_enter(DP_INVERSE_INSTALL)
+       do p=1,sum(plan%sc)
+#ifdef STAGE202_INVERSE
+          if (p>=self_first.and.p<=self_last) cycle
+#endif
+          q=(p-1)*n
+          do k=1,zlevels
+             do v=1,nv
+                q=q+1
+                value(first+v-1,k,plan%slot(p),family)=transfer_send(q)
+             end do
+          end do
+       end do
+       call detail_leave(DP_INVERSE_INSTALL)
+    end if
+    if (timing) then
+       phase=merge(3,1,install)
+       native_inverse_seconds(phase)=native_inverse_seconds(phase)+MPI_Wtime()-started
+       native_inverse_calls(phase)=native_inverse_calls(phase)+1_int64
+       if (install) then
+          call record_traffic(phase,plan%sc,n)
+       else
+          call record_traffic(phase,plan%rc,n)
+       end if
+    end if
+  end subroutine
+
+  subroutine exchange_values(send,sc,sd,recv,rc,rd,n,tag,copy_self)
+    real(dp), intent(in), asynchronous :: send(:)
+    real(dp), intent(out), asynchronous :: recv(:)
+    integer, intent(in) :: sc(:),sd(:),rc(:),rd(:),n,tag
+    logical, optional, intent(in) :: copy_self
+    integer :: nrequest
+    call begin_exchange_values(send,sc,sd,recv,rc,rd,n,tag,nrequest,copy_self)
+    call finish_exchange_values(nrequest)
+  end subroutine
+
+  subroutine begin_exchange_values(send,sc,sd,recv,rc,rd,n,tag,nrequest,copy_self)
+    ! Persistent sparse peer schedules, with no per-phase global collective.
+    real(dp), intent(in), asynchronous :: send(:)
+    real(dp), intent(out), asynchronous :: recv(:)
+    integer, intent(in) :: sc(:),sd(:),rc(:),rd(:),n,tag
+    integer, intent(out) :: nrequest
+    logical, optional, intent(in) :: copy_self
+    logical :: self_copy
+    integer :: r,ierr
+    call detail_enter(DP_INVERSE_POST)
+    nrequest=0
+    do r=1,n_process
+       if (r==rank+1 .or. rc(r)==0) cycle
+       nrequest=nrequest+1
+       call MPI_Irecv(recv(n*rd(r)+1:n*(rd(r)+rc(r))),n*rc(r),MPI_DOUBLE_PRECISION, &
+            r-1,tag,comm,requests(nrequest),ierr)
+       call check(ierr,'native dependency receive')
+    end do
+    do r=1,n_process
+       if (r==rank+1 .or. sc(r)==0) cycle
+       nrequest=nrequest+1
+       call MPI_Isend(send(n*sd(r)+1:n*(sd(r)+sc(r))),n*sc(r),MPI_DOUBLE_PRECISION, &
+            r-1,tag,comm,requests(nrequest),ierr)
+       call check(ierr,'native dependency send')
+    end do
+    r=rank+1
+    if (sc(r)/=rc(r)) call die('native self route extent')
+    self_copy=.true.
+    if (present(copy_self)) self_copy=copy_self
+    if (self_copy) then
+    recv(n*rd(r)+1:n*(rd(r)+rc(r)))=send(n*sd(r)+1:n*(sd(r)+sc(r)))
+    end if
+    call detail_leave(DP_INVERSE_POST)
+
+  end subroutine
+
+  subroutine finish_exchange_values(nrequest)
+    integer, intent(in) :: nrequest
+    integer :: ierr
+    call detail_enter(DP_INVERSE_WAIT)
+    if (nrequest>0) then
+       call MPI_Waitall(nrequest,requests(1:nrequest),MPI_STATUSES_IGNORE,ierr)
+       call check(ierr,'native dependency completion')
+    end if
+    call detail_leave(DP_INVERSE_WAIT)
+
+  end subroutine
+
+  subroutine record_traffic(phase,counts,nvalue)
+    integer, intent(in) :: phase,counts(:),nvalue
+    integer :: r
+    do r=1,n_process
+       if (r==rank+1 .or. counts(r)==0) cycle
+       native_inverse_messages(phase)=native_inverse_messages(phase)+1_int64
+       native_inverse_bytes(phase)=native_inverse_bytes(phase)+8_int64*nvalue*counts(r)
+    end do
+  end subroutine
+
+  subroutine compile_aliases
+    integer :: kind,pos,l,r,ds,dd,g,q,id,dest,n,s,t
+    do kind=1,2
+       pos=merge(AT_NODE,AT_EDGE,kind==1)
+       do l=level_start-1,level_end
+          associate(a=>aliases(kind,l))
+            allocate(a%sc(n_process),a%sd(n_process),a%rc(n_process),a%rd(n_process))
+            a%sc=0
+            a%rc=0
+            do r=1,n_process
+               if (r==rank+1) cycle
+               do ds=1,size(grid)
+                  do dd=1,n_domain(r)
+                     g=glo_id(r,dd)+1
+                     do q=1,grid(ds)%pack(pos,g)%length
+                        id=grid(ds)%pack(pos,g)%elts(q)
+                        if (grid(ds)%level%elts(id/merge(1,EDGE,kind==1)+1)==l) a%sc(r)=a%sc(r)+1
+                     end do
+                  end do
+               end do
+               do ds=1,n_domain(r)
+                  g=glo_id(r,ds)+1
+                  do dd=1,size(grid)
+                     do q=1,grid(dd)%unpk(pos,g)%length
+                        id=abs(grid(dd)%unpk(pos,g)%elts(q))
+                        if (grid(dd)%level%elts(id/merge(1,EDGE,kind==1)+1)==l) a%rc(r)=a%rc(r)+1
+                     end do
+                  end do
+               end do
+            end do
+            call displacements(a%sc,a%sd)
+            call displacements(a%rc,a%rd)
+            allocate(a%source(sum(a%sc)),a%dest(sum(a%rc)))
+            s=0
+            t=0
+            do r=1,n_process
+               if (r==rank+1) cycle
+               do ds=1,size(grid)
+                  do dd=1,n_domain(r)
+                     g=glo_id(r,dd)+1
+                     do q=1,grid(ds)%pack(pos,g)%length
+                        id=grid(ds)%pack(pos,g)%elts(q)
+                        if (grid(ds)%level%elts(id/merge(1,EDGE,kind==1)+1)/=l) cycle
+                        s=s+1
+                        a%source(s)=route_slot(ds,id,kind)
+                     end do
+                  end do
+               end do
+               do ds=1,n_domain(r)
+                  g=glo_id(r,ds)+1
+                  do dd=1,size(grid)
+                     do q=1,grid(dd)%unpk(pos,g)%length
+                        id=grid(dd)%unpk(pos,g)%elts(q)
+                        if (grid(dd)%level%elts(abs(id)/merge(1,EDGE,kind==1)+1)/=l) cycle
+                        t=t+1
+                        a%dest(t)=route_slot(dd,id,kind)
+                     end do
+                  end do
+               end do
+            end do
+          end associate
+       end do
+       n=0
+       do ds=1,size(grid)
+          do dd=1,size(grid)
+             n=n+grid(ds)%pack(pos,glo_id(rank+1,dd)+1)%length
+          end do
+       end do
+       allocate(local_alias(kind)%source(n),local_alias(kind)%dest(n))
+       n=0
+       do ds=1,size(grid)
+          do dd=1,size(grid)
+             g=glo_id(rank+1,dd)+1
+             dest=glo_id(rank+1,ds)+1
+             if (grid(ds)%pack(pos,g)%length /= grid(dd)%unpk(pos,dest)%length) call die('local alias extent')
+             do q=1,grid(ds)%pack(pos,g)%length
+                n=n+1
+                local_alias(kind)%source(n)=route_slot(ds,grid(ds)%pack(pos,g)%elts(q),kind)
+                local_alias(kind)%dest(n)=route_slot(dd,grid(dd)%unpk(pos,dest)%elts(q),kind)
+             end do
+          end do
+       end do
+    end do
+  end subroutine
+
+  subroutine combine_aliases(a,component,first)
+    ! Pack all requested levels into one peer message, but retain the old
+    ! level-major receive installation order, including repeated targets.
+    type(Alias_Plan), intent(out) :: a
+    integer, intent(in) :: component,first
+    integer :: l,r,p,s,t,q
+    integer :: cursor(n_process)
+    allocate(a%sc(n_process),a%sd(n_process),a%rc(n_process),a%rd(n_process))
+    a%sc=0
+    a%rc=0
+    do l=first,level_end
+       a%sc=a%sc+aliases(component,l)%sc
+       a%rc=a%rc+aliases(component,l)%rc
+    end do
+    call displacements(a%sc,a%sd)
+    call displacements(a%rc,a%rd)
+    allocate(a%source(sum(a%sc)),a%dest(sum(a%rc)),a%install_order(sum(a%rc)))
+    s=0
+    t=0
+    do r=1,n_process
+       do l=first,level_end
+          associate(b=>aliases(component,l))
+            do p=b%sd(r)+1,b%sd(r)+b%sc(r)
+               s=s+1
+               a%source(s)=b%source(p)
+            end do
+            do p=b%rd(r)+1,b%rd(r)+b%rc(r)
+               t=t+1
+               a%dest(t)=b%dest(p)
+            end do
+          end associate
+       end do
+    end do
+    cursor=a%rd
+    q=0
+    do l=first,level_end
+       do r=1,n_process
+          do p=1,aliases(component,l)%rc(r)
+             q=q+1
+             cursor(r)=cursor(r)+1
+             a%install_order(q)=cursor(r)
+          end do
+       end do
+    end do
+  end subroutine
+
+  subroutine native_inverse_boundary(component,family,first,last)
+    integer, intent(in) :: component,family,first,last
+    real(dp) :: started
+    started=0.0_dp
+    if (timing) started=MPI_Wtime()
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.boundary',plan_generation)
+       call audit316_i('family_and_range',[component,family,first,last])
+       call audit316_end()
+    end if
+    if (first==last) then
+       call apply_aliases(aliases(component,first),component,family)
+    else if (last==level_end .and. first==level_start-1) then
+       call apply_aliases(range_alias(component,1),component,family)
+    else if (last==level_end .and. first==level_start) then
+       call apply_aliases(range_alias(component,2),component,family)
+    else
+       call die('uncompiled alias level range')
+    end if
+    if (timing) then
+       native_inverse_seconds(2)=native_inverse_seconds(2)+MPI_Wtime()-started
+       native_inverse_calls(2)=native_inverse_calls(2)+1_int64
+    end if
+  end subroutine
+
+  subroutine apply_aliases(a,component,family)
+    type(Alias_Plan), intent(inout) :: a
+    integer, intent(in) :: component,family
+    integer :: p,k,v,nv,n,q,t,nrequest
+#ifdef STAGE202_INVERSE
+    integer :: sn,dn,sf,df
+    logical :: negative
+#endif
+    nv=merge(nscalar,1,component==1)
+    n=nv*zlevels
+    ! Remote sends are snapshots BEFORE the ordered, all-level local copies.
+    call detail_enter(DP_INVERSE_PACK)
+    q=0
+    do p=1,size(a%source)
+#ifdef STAGE202_INVERSE
+       call alias_address(a%source(p),component,sn,sf)
+       do k=1,zlevels
+          do v=1,nv
+             q=q+1
+             alias_send(q)=value(sf+v-1,k,sn,family)
+          end do
+       end do
+#else
+       do k=1,zlevels
+          do v=1,nv
+             q=q+1
+             alias_send(q)=alias_value(a%source(p),component,v,k,family)
+          end do
+       end do
+#endif
+    end do
+    ! Sends have already snapshotted every remote source. Local copies use
+    ! only value(), so communication can progress without changing ordering.
+    call detail_leave(DP_INVERSE_PACK)
+    call begin_exchange_values(alias_send,a%sc,a%sd,alias_recv,a%rc,a%rd,n,19073,nrequest)
+    call detail_enter(DP_INVERSE_LOCAL)
+    do p=1,size(local_alias(component)%source)
+#ifdef STAGE202_INVERSE
+       call alias_address(local_alias(component)%source(p),component,sn,sf)
+       call alias_address(local_alias(component)%dest(p),component,dn,df)
+       negative=component==2.and.local_alias(component)%dest(p)<0
+       ! Keep p,k,v ordering: local alias chains can consume earlier writes.
+       if (negative) then
+          do k=1,zlevels
+             do v=1,nv
+                value(df+v-1,k,dn,family)=-value(sf+v-1,k,sn,family)
+             end do
+          end do
+       else
+          do k=1,zlevels
+             do v=1,nv
+                value(df+v-1,k,dn,family)=value(sf+v-1,k,sn,family)
+             end do
+          end do
+       end if
+#else
+       do k=1,zlevels
+          do v=1,nv
+             call set_alias(local_alias(component)%dest(p),component,v,k,family, &
+                  alias_value(local_alias(component)%source(p),component,v,k,family))
+          end do
+       end do
+#endif
+    end do
+    call detail_leave(DP_INVERSE_LOCAL)
+    call finish_exchange_values(nrequest)
+    if (timing) call record_traffic(2,a%sc,n)
+    call detail_enter(DP_INVERSE_INSTALL)
+    do p=1,size(a%dest)
+       t=p
+       if (allocated(a%install_order)) t=a%install_order(p)
+       q=(t-1)*n
+#ifdef STAGE202_INVERSE
+       call alias_address(a%dest(t),component,dn,df)
+       if (component==2.and.a%dest(t)<0) then
+          do k=1,zlevels
+             do v=1,nv
+                q=q+1
+                value(df+v-1,k,dn,family)=-alias_recv(q)
+             end do
+          end do
+       else
+          do k=1,zlevels
+             do v=1,nv
+                q=q+1
+                value(df+v-1,k,dn,family)=alias_recv(q)
+             end do
+          end do
+       end if
+#else
+       do k=1,zlevels
+          do v=1,nv
+             q=q+1
+             call set_alias(a%dest(t),component,v,k,family,alias_recv(q))
+          end do
+       end do
+#endif
+    end do
+    call detail_leave(DP_INVERSE_INSTALL)
+  end subroutine
+
+#ifdef STAGE202_INVERSE
+  subroutine alias_address(code,component,node,first)
+    integer, intent(in) :: code,component
+    integer, intent(out) :: node,first
+    node=code
+    first=1
+    if (component==2) then
+       node=(abs(code)-1)/EDGE+1
+       first=nscalar+mod(abs(code)-1,EDGE)+1
+    end if
+  end subroutine alias_address
+#endif
+
+  real(dp) function alias_value(code,component,v,k,family) result(x)
+    integer, intent(in) :: code,component,v,k,family
+    if (component==1) then
+       x=value(v,k,code,family)
+    else
+       x=value(nscalar+mod(code-1,EDGE)+1,k,(code-1)/EDGE+1,family)
+    end if
+  end function
+
+  subroutine set_alias(code,component,v,k,family,x)
+    integer, intent(in) :: code,component,v,k,family
+    real(dp), intent(in) :: x
+    integer :: q
+    if (component==1) then
+       value(v,k,code,family)=x
+    else
+       q=abs(code)
+       value(nscalar+mod(q-1,EDGE)+1,k,(q-1)/EDGE+1,family)=x
+       if (code < 0) value(nscalar+mod(q-1,EDGE)+1,k,(q-1)/EDGE+1,family)=-x
+    end if
+  end subroutine
+
+  subroutine compare_native_inverse(scaling,component,payload_family)
+    type(Float_Field), intent(in) :: scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: component
+    integer, optional, intent(in) :: payload_family
+    integer :: p,d,id,k,v,first,last,var,address,family
+    real(dp) :: reference,native,allowed
+    first=merge(1,nscalar+1,component==1)
+    last=merge(nscalar,nscalar+EDGE,component==1)
+    family=BLOCK_PAYLOAD_SOL
+    if (present(payload_family)) family=payload_family
+    do p=1,nnode
+       d=node_domain(p)
+       id=node_id(p)
+       do k=1,zlevels
+          do v=first,last
+             if (component==1) then
+                var=scalars(1)+v-1
+                address=id+1
+             else
+                var=S_VELO
+                address=EDGE*id+v-nscalar
+             end if
+             native=value(v,k,p,family)
+             reference=scaling(var,k)%data(d)%elts(address)
+             if (transfer_bits(native)==transfer_bits(reference)) cycle
+             if (.not. ieee_is_finite(native) .or. .not. ieee_is_finite(reference)) call die('nonfinite oracle difference')
+             allowed=128.0_dp*epsilon(1.0_dp)*max(1.0_dp,abs(native),abs(reference))
+             if (abs(native-reference) <= allowed) cycle
+             write(error_unit,'(a,5i8,3es25.16)') 'Inverse phase mismatch d,node,k,var,component: ', &
+                  d,id,k,var,v,native,reference,native-reference
+             write(error_unit,'(a,5i8)') 'level and native key: ',grid(d)%level%elts(id+1),nodes(d)%key(:,id+1)
+             call die('phase oracle mismatch')
+          end do
+       end do
+    end do
+  end subroutine
+
+  integer(int64) function transfer_bits(x) result(bits)
+    real(dp), intent(in) :: x
+    bits=transfer(x,bits)
+  end function
+
+  subroutine capture_native_inverse_consumer_aliases(component,level)
+    integer, intent(in) :: component,level
+    integer :: q,p,d,id,first,last
+    first=merge(1,nscalar+1,component==1)
+    last=merge(nscalar,nscalar+EDGE,component==1)
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q)
+       d=node_domain(p)
+       id=node_id(p)
+       if (grid(d)%level%elts(id+1)/=level) cycle
+       consumer_alias_value(first:last,:,q)=value(first:last,:,p,BLOCK_PAYLOAD_SOL)
+    end do
+  end subroutine
+
+  subroutine publish_native_inverse(scaling,payload_family,consumer_aliases)
+    ! One compatibility publication after the complete native transaction.
+    ! Interior installation remains the standard final-owner publication.
+    type(Float_Field), intent(inout) :: scaling(1:N_VARIABLE,1:zlevels)
+    integer, optional, intent(in) :: payload_family
+    logical, optional, intent(in) :: consumer_aliases
+    integer :: p,d,id,k,v,family,q
+    logical :: consumer
+    family=BLOCK_PAYLOAD_SOL
+    if (present(payload_family)) family=payload_family
+    consumer=.false.
+    if (present(consumer_aliases)) consumer=consumer_aliases
+    if (consumer.and.family/=BLOCK_PAYLOAD_SOL) call die('consumer aliases require solution')
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.publish322',plan_generation)
+       call audit316_i('publication.mode',[1,family,merge(1,0,consumer)])
+    end if
+    if (consumer) then
+       do q=1,size(consumer_alias_slot)
+          p=consumer_alias_slot(q)
+          d=node_domain(p)
+          id=node_id(p)
+          do k=1,zlevels
+             do v=1,nscalar
+                scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)=consumer_alias_value(v,k,q)
+             end do
+             do v=1,EDGE
+                scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)=consumer_alias_value(nscalar+v,k,q)
+             end do
+          end do
+       end do
+       if(audit316_enabled()) then
+          call audit_domain_fields322(scaling,31,plan_generation)
+          call audit316_end()
+       end if
+       return
+    end if
+    do p=1,nnode
+       d=node_domain(p)
+       id=node_id(p)
+       if (nodes(d)%key(1,id+1)>0) cycle
+       do k=1,zlevels
+          do v=1,nscalar
+             scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)=value(v,k,p,family)
+          end do
+          do v=1,EDGE
+             scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)=value(nscalar+v,k,p,family)
+          end do
+       end do
+    end do
+    if(audit316_enabled()) then
+       call audit_domain_fields322(scaling,31,plan_generation)
+       call audit316_end()
+    end if
+  end subroutine
+
+  subroutine publish_canonical_inverse203(generation,scaling)
+    ! The resident producer is on the geometry consumer's rank. Its canonical
+    ! interior view is the same one installed on final block owners above.
+    ! Keep boundary publication separate: it has a different alias epoch.
+    integer(int64), intent(in) :: generation
+    type(Float_Field), intent(inout) :: scaling(1:N_VARIABLE,1:zlevels)
+    integer :: p,d,id,k,v,q,start,last,i
+    if (.not.resident203.or.generation/=plan_generation) call die('canonical publication generation')
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.publish322',plan_generation)
+       call audit316_i('publication.mode',[2,BLOCK_PAYLOAD_SOL,0])
+    end if
+    if (.not.publication_reported) then
+       if(rank==0) write(*,'(a)') 'Stage265 direct inverse SOL return = on'
+       if(rank==0) write(*,'(a)') 'Stage265 tiled canonical publication = on'
+       publication_reported=.true.
+    end if
+    ! Check every destination and canonical source before authoritative writes.
+    do d=1,size(grid)
+       do k=1,zlevels
+          do v=scalars(1),scalars(2)
+             if (size(scaling(v,k)%data)/=size(grid)) call die('canonical scalar Domain extent')
+             if (size(scaling(v,k)%data(d)%elts)<grid(d)%node%length) call die('canonical scalar extent')
+          end do
+          if (size(scaling(S_VELO,k)%data)/=size(grid)) call die('canonical vector Domain extent')
+          if (size(scaling(S_VELO,k)%data(d)%elts)<EDGE*grid(d)%node%length) &
+               call die('canonical vector extent')
+       end do
+    end do
+    do p=1,size(interior_plan%slot)
+       id=interior_plan%slot(p);q=restore203_index(id)
+       if(q>0) then
+          if (.not.all(ieee_is_finite(restore203(:,:,q)))) call die('nonfinite canonical interior')
+       else
+          if (.not.all(ieee_is_finite(value(:,:,id,BLOCK_PAYLOAD_SOL)))) call die('nonfinite canonical interior')
+       end if
+    end do
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(p)%deleted) cycle
+          start=grid(d)%patch%elts(p)%elts_start;last=start+PATCH_SIZE**2
+          if(nodes(d)%key(1,start+1)>0) cycle
+          do k=1,zlevels
+             do v=scalars(1),scalars(2)
+                if (.not.all(ieee_is_finite(sol(v,k)%data(d)%elts(start+1:last)))) &
+                     call die('nonfinite canonical scaffold')
+             end do
+             if (.not.all(ieee_is_finite(sol(S_VELO,k)%data(d)%elts(EDGE*start+1:EDGE*last)))) &
+                  call die('nonfinite canonical scaffold')
+          end do
+       end do
+    end do
+    ! Uncatalogued patches use the timestep-base SOL scaffold, as the old
+    ! complete reconstruction did, even when scaling is provisional q1.
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(p)%deleted) cycle
+          start=grid(d)%patch%elts(p)%elts_start;last=start+PATCH_SIZE**2
+          if(nodes(d)%key(1,start+1)>0) cycle
+          do k=1,zlevels
+             do v=scalars(1),scalars(2)
+                scaling(v,k)%data(d)%elts(start+1:last)=sol(v,k)%data(d)%elts(start+1:last)
+             end do
+             scaling(S_VELO,k)%data(d)%elts(EDGE*start+1:EDGE*last)= &
+                  sol(S_VELO,k)%data(d)%elts(EDGE*start+1:EDGE*last)
+          end do
+       end do
+    end do
+    ! Reorder copies in one bounded, reusable patch tile. The old point-major
+    ! loop touched every field/vertical plane before visiting the next point.
+    ! Here each destination field receives a complete adjacent patch range.
+    ! All finite/extent preflight above remains ahead of authoritative writes.
+    do p=1,size(publication_patch)
+       d=publication_patch(p)%domain;start=publication_patch(p)%start
+       last=start+PATCH_SIZE**2
+       do i=1,PATCH_SIZE**2
+          id=publication_patch(p)%source(i)
+          if(id<0) then
+             do k=1,zlevels
+                do v=1,nscalar+EDGE
+                   publication_tile(i,v,k)=restore203(v,k,-id)
+                end do
+             end do
+          else
+             do k=1,zlevels
+                do v=1,nscalar+EDGE
+                   publication_tile(i,v,k)=value(v,k,id,BLOCK_PAYLOAD_SOL)
+                end do
+             end do
+          end if
+       end do
+       do k=1,zlevels
+          do v=1,nscalar
+             scaling(scalars(1)+v-1,k)%data(d)%elts(start+1:last)=publication_tile(:,v,k)
+          end do
+          do i=1,PATCH_SIZE**2
+             do v=1,EDGE
+                scaling(S_VELO,k)%data(d)%elts(EDGE*(start+i-1)+v)=publication_tile(i,nscalar+v,k)
+             end do
+          end do
+       end do
+    end do
+    scaling%bdry_uptodate=.false.
+    if(audit316_enabled()) then
+       call audit_domain_fields322(scaling,31,plan_generation)
+       call audit316_end()
+    end if
+  end subroutine publish_canonical_inverse203
+
+  subroutine compile_publication203
+    ! Rebuilt with the existing inverse generation after canonical restore
+    ! indices are known. The only new numerical storage is one physical patch,
+    ! shared by all Domains and reused across every inverse transaction.
+    integer :: d,p,start,i,id,q,n,expected
+    if (allocated(publication_patch)) deallocate(publication_patch)
+    if (allocated(publication_tile)) deallocate(publication_tile)
+    n=0
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(p)%deleted) cycle
+          start=grid(d)%patch%elts(p)%elts_start
+          if(nodes(d)%key(1,start+1)>0) n=n+1
+       end do
+    end do
+    allocate(publication_patch(n),publication_tile(PATCH_SIZE**2,nscalar+EDGE,zlevels))
+    n=0;expected=0
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if(grid(d)%patch%elts(p)%deleted) cycle
+          start=grid(d)%patch%elts(p)%elts_start
+          if(nodes(d)%key(1,start+1)<=0) cycle
+          n=n+1
+          publication_patch(n)%domain=d;publication_patch(n)%start=start
+          do i=1,PATCH_SIZE**2
+             id=nodes(d)%slot(start+i)
+             if(id<=0.or.nodes(d)%key(1,start+i)<=0) call die('tiled publication coverage')
+             q=restore203_index(id)
+             publication_patch(n)%source(i)=merge(-q,id,q>0)
+          end do
+          expected=expected+PATCH_SIZE**2
+       end do
+    end do
+    if(expected/=size(interior_plan%slot)) call die('tiled publication patch inventory')
+  end subroutine compile_publication203
+
+  subroutine compile_outer
+    integer :: l,d,p,pi,c,child,i,j,ic,jc,ip,jp,e,corner,q,a,b,t,mode
+    integer :: op(N_BDRY+1),oc(N_BDRY+1),dp0(2,N_BDRY+1),dc(2,N_BDRY+1)
+    type(Outer_Operation) :: item
+    do l=level_start-1,level_end-1
+       operation_first(l)=noperation+1
+       do d=1,size(grid)
+          do pi=1,grid(d)%lev(l)%length
+             p=grid(d)%lev(l)%elts(pi)
+             if (.not. any(grid(d)%patch%elts(p+1)%children>0)) cycle
+             coverage(1,l)=coverage(1,l)+int(zlevels,int64)
+             call get_offs_Domain(grid(d),p,op,dp0)
+             do c=1,N_CHDRN
+                child=grid(d)%patch%elts(p+1)%children(c)
+                if (child==0) cycle
+                call get_offs_Domain(grid(d),child,oc,dc)
+                do j=1,PATCH_SIZE/2+1
+                   jc=2*(j-1)
+                   jp=j-1+chd_offs(2,c)
+                   do i=1,PATCH_SIZE/2+1
+                      ic=2*(i-1)
+                      ip=i-1+chd_offs(1,c)
+                      coverage(2,l)=coverage(2,l)+int(zlevels,int64)
+                      do e=RT,UP
+                         item=Outer_Operation(level=l)
+                         a=idx(ic+end_pt(1,1,e+1),jc+end_pt(2,1,e+1),oc,dc)
+                         b=idx(ic+end_pt(1,2,e+1),jc+end_pt(2,2,e+1),oc,dc)
+                         item%target=[edge_slot(d,EDGE*idx(ip,jp,op,dp0)+e), &
+                              edge_slot(d,EDGE*a+e),edge_slot(d,EDGE*b+e)]
+                         item%weight=base_weight+[(grid(d)%I_u_wgt%elts(b+1)%enc(q),q=1,9)]
+                         item%source(1)=item%target(1)
+                         item%source(2)=side(ip+end_pt(1,2,e+1),jp+end_pt(2,2,e+1),hex_s_offs(e+1)+3)
+                         item%source(3)=side(ip+end_pt(1,1,e+1),jp+end_pt(2,1,e+1),hex_s_offs(e+1)+4)
+                         item%source(4)=side(ip+end_pt(1,1,e+1),jp+end_pt(2,1,e+1),hex_s_offs(e+1)+6)
+                         item%source(5)=side(ip+end_pt(1,2,e+1),jp+end_pt(2,2,e+1),hex_s_offs(e+1)+1)
+                         item%source(6)=side(ip+opp_no(1,1,e+1),jp+opp_no(2,1,e+1),hex_s_offs(e+1)+2)
+                         item%source(7)=side(ip+end_pt(1,1,e+1),jp+end_pt(2,1,e+1),hex_s_offs(e+1)+3)
+                         item%source(8)=side(ip+end_pt(1,2,e+1),jp+end_pt(2,2,e+1),hex_s_offs(e+1)+4)
+                         item%source(9)=side(ip+opp_no(1,1,e+1),jp+opp_no(2,1,e+1),hex_s_offs(e+1)+5)
+                         item%source(10)=side(ip+opp_no(1,2,e+1),jp+opp_no(2,2,e+1),hex_s_offs(e+1)+5)
+                         item%source(11)=side(ip+end_pt(1,2,e+1),jp+end_pt(2,2,e+1),hex_s_offs(e+1)+6)
+                         item%source(12)=side(ip+end_pt(1,1,e+1),jp+end_pt(2,1,e+1),hex_s_offs(e+1)+1)
+                         item%source(13)=side(ip+opp_no(1,2,e+1),jp+opp_no(2,2,e+1),hex_s_offs(e+1)+2)
+                         call append_operation
+                         coverage(3,l)=coverage(3,l)+2_int64*zlevels
+                      end do
+                   end do
+                end do
+             end do
+          end do
+          ! Preserve the original per-Domain correction order, after all
+          ! regular plus-side writes on that Domain and before the next one.
+          do corner=NORTHEAST,NORTHWEST
+             if (.not. grid(d)%penta(corner)) cycle
+             p=1
+             do while (p>0)
+                child=grid(d)%patch%elts(p+1)%children(corner-4)
+                if (grid(d)%patch%elts(p+1)%level<l) then
+                   p=child
+                   cycle
+                end if
+                if (grid(d)%patch%elts(p+1)%level>l) exit
+                if (child>0) then
+                   call get_offs_Domain(grid(d),p,op,dp0)
+                   call get_offs_Domain(grid(d),child,oc,dc)
+                   if (corner==IMINUSJPLUS) then
+                      item=Outer_Operation(level=l,kind=1)
+                      a=idx(0,LAST-1,oc,dc)
+                      b=idx(0,LAST,oc,dc)
+                      item%target(2:3)=[edge_slot(d,EDGE*a+UP),edge_slot(d,EDGE*b+UP)]
+                      item%source(1:2)=[edge_slot(d,EDGE*idx(0,PATCH_SIZE,op,dp0)+UP), &
+                           edge_slot(d,EDGE*idx(-1,PATCH_SIZE,op,dp0)+RT)]
+                      item%weight(1)=base_weight(8)+grid(d)%I_u_wgt%elts(b+1)%enc(8)
+                      call append_operation
+                   else if (corner==IPLUSJMINUS) then
+                      item=Outer_Operation(level=l,kind=1)
+                      a=idx(LAST-1,0,oc,dc)
+                      b=idx(LAST,0,oc,dc)
+                      item%target(2:3)=[edge_slot(d,EDGE*a+RT),edge_slot(d,EDGE*b+RT)]
+                      item%source(1:2)=[edge_slot(d,EDGE*idx(PATCH_SIZE,0,op,dp0)+RT), &
+                           edge_slot(d,EDGE*idx(PATCH_SIZE,-1,op,dp0)+UP)]
+                      item%weight(1)=-(base_weight(7)+grid(d)%I_u_wgt%elts(b+1)%enc(7))
+                      call append_operation
+                   else if (corner==IJMINUS) then
+                      do mode=2,3
+                         item=Outer_Operation(level=l,kind=mode)
+                         e=merge(UP,RT,mode==2)
+                         a=idx(0,0,oc,dc)
+                         b=idx(merge(0,1,mode==2),merge(1,0,mode==2),oc,dc)
+                         item%target(2:3)=[edge_slot(d,EDGE*a+e),edge_slot(d,EDGE*b+e)]
+                         t=idx(end_pt(1,2,e+1),end_pt(2,2,e+1),oc,dc)
+                         q=merge(9,6,mode==2)
+                         item%weight(1)=base_weight(q)+grid(d)%I_u_wgt%elts(t+1)%enc(q)
+                         if (mode==2) then
+                            item%source(1:2)=[edge_slot(d,EDGE*idx(0,-1,op,dp0)+UP), &
+                                 edge_slot(d,EDGE*idx(-1,-1,op,dp0)+RT)]
+                            item%source(3)=side(end_pt(1,1,UP+1),end_pt(2,1,UP+1),hex_s_offs(UP+1)+1)
+                            item%source(4)=side(opp_no(1,2,UP+1),opp_no(2,2,UP+1),hex_s_offs(UP+1)+2)
+                         else
+                            item%source(1:2)=[edge_slot(d,EDGE*idx(-1,-1,op,dp0)+RT), &
+                                 edge_slot(d,EDGE*idx(-1,0,op,dp0)+RT)]
+                            item%source(3)=side(opp_no(1,1,RT+1),opp_no(2,1,RT+1),hex_s_offs(RT+1)+2)
+                            item%source(4)=side(end_pt(1,1,RT+1),end_pt(2,1,RT+1),hex_s_offs(RT+1)+3)
+                         end if
+                         call append_operation
+                      end do
+                   end if
+                end if
+                p=child
+             end do
+          end do
+       end do
+       operation_last(l)=noperation
+    end do
+  contains
+    integer function side(i,j,s) result(address)
+      integer, intent(in) :: i,j,s
+      address=edge_slot(d,ed_idx(i,j,hex_sides(:,s),op,dp0))
+    end function
+    subroutine append_operation
+      noperation=noperation+1
+      if (noperation>size(operations)) call die('outer tape capacity')
+      operations(noperation)=item
+      if (item%kind/=0) coverage(4,l)=coverage(4,l)+2_int64*zlevels
+    end subroutine
+  end subroutine
+
+  subroutine native_inverse_outer(level,count)
+    integer, intent(in) :: level
+    integer(int64), intent(out) :: count(4)
+    integer :: p,k,q
+    real(dp) :: s(13),x(9),correction,second,first
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.outer',plan_generation)
+       call audit316_i('level',[level])
+       call audit316_i('operation_range',[operation_first(level),operation_last(level)])
+       call audit316_end()
+    end if
+    call detail_enter(DP_OUTER_KERNEL)
+    if(shadow_enabled) call begin_transform_shadow(3,level,0)
+    count=coverage(:,level)
+    first=0.0_dp
+    second=0.0_dp
+    do k=1,zlevels
+       do p=operation_first(level),operation_last(level)
+          associate(op=>operations(p))
+            do q=1,13
+               if (op%source(q)==0) exit
+               s(q)=alias_value(op%source(q),2,1,k,1)
+            end do
+            select case(op%kind)
+            case(0)
+               x(1:5)=s(1:5)
+               x(6:9)=[s(6)-s(7),s(8)-s(9),s(10)-s(11),s(12)-s(13)]
+               second=sum(op%weight*x)+alias_value(op%target(3),2,1,k,2)
+               call set_alias(op%target(3),2,1,k,1,second)
+               ! Read the parent after the second write, matching the exact
+               ! in-place dependency order even for aliased geometry slots.
+               first=2.0_dp*alias_value(op%target(1),2,1,k,1)-second
+            case(1:3)
+               select case(op%kind)
+               case(1)
+                  correction=op%weight(1)*(s(1)+s(2))
+               case(2)
+                  correction=op%weight(1)*((-s(1)-(-s(2)))-(s(3)-s(4)))
+               case(3)
+                  correction=op%weight(1)*(s(1)+s(2)-(s(3)-s(4)))
+               end select
+               first=alias_value(op%target(2),2,1,k,1)-correction
+               call set_alias(op%target(2),2,1,k,1,first)
+               second=alias_value(op%target(3),2,1,k,1)+correction
+               call set_alias(op%target(3),2,1,k,1,second)
+            case default
+               call die('invalid outer operation')
+            end select
+            if (.not. ieee_is_finite(first) .or. .not. ieee_is_finite(second)) call die('nonfinite outer edge')
+            call set_alias(op%target(2),2,1,k,1,first)
+          end associate
+       end do
+    end do
+    call detail_leave(DP_OUTER_KERNEL)
+
+    if(shadow_enabled) call finish_transform_shadow(3,level,0)
+  end subroutine
+
+  subroutine audit_inverse_values322(phase)
+    ! Called only after every slot has been seeded/gathered. Scratch send/recv
+    ! buffers and saved203 are intentionally excluded: they are not all live.
+    integer,intent(in) :: phase
+    call audit316_begin('inverse.values322',plan_generation)
+    call audit316_i('inverse.phase',[phase,nnode,nscalar,zlevels])
+    call audit316_i('inverse.value.shape',shape(value))
+    call audit316_r('inverse.value',reshape(value,[size(value)]))
+    call audit316_i('inverse.scaffold.shape',shape(scaffold_value))
+    call audit316_r('inverse.scaffold',reshape(scaffold_value,[size(scaffold_value)]))
+    call audit316_i('inverse.alias.shape',shape(consumer_alias_value))
+    call audit316_r('inverse.alias',reshape(consumer_alias_value,[size(consumer_alias_value)]))
+    if(allocated(restore203)) then
+       call audit316_i('inverse.restore.shape',shape(restore203))
+       call audit316_r('inverse.restore',reshape(restore203,[size(restore203)]))
+    else
+       call audit316_i('inverse.restore.shape',[-1])
+    end if
+    call audit316_end()
+  end subroutine audit_inverse_values322
+
+  subroutine begin_inverse203(oracle)
+    logical, intent(in) :: oracle
+    if(stage203_inverse.and.sparse_outer_install) call die("Stage203 requires sparse outer off")
+    resident203=stage203_inverse
+    oracle203=oracle
+    work203=0_int64
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.begin',plan_generation)
+       call audit316_l('options',[resident203,oracle203,sparse_outer_install])
+       call audit_inverse_values322(2)
+       call audit316_end()
+    end if
+  end subroutine
+
+  subroutine end_inverse203
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.end',plan_generation)
+       call audit316_i64('work',work203)
+       call audit_inverse_values322(3)
+       call audit316_end()
+    end if
+    resident203=.false.
+  end subroutine
+
+  subroutine seed_cut_phase_oracle(scaling,wavelet)
+    ! Snapshot shared phase INPUTS only, before either independent arithmetic
+    ! path runs. Avoid feeding tolerated legacy boundary rounding into an exact
+    ! phase check. Full-trajectory independent science/oracles remain separate.
+    type(Float_Field),intent(inout) :: scaling(1:N_VARIABLE,1:zlevels),wavelet(1:N_VARIABLE,1:zlevels)
+    integer :: p,d,id,k,v
+    if(.not.oracle203.or..not.resident203) call die('cut phase snapshot outside oracle')
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)
+       do k=1,zlevels
+          do v=1,nscalar
+             scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)=value(v,k,p,1)
+             wavelet(scalars(1)+v-1,k)%data(d)%elts(id+1)=value(v,k,p,2)
+          end do
+          do v=1,EDGE
+             scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)=value(nscalar+v,k,p,1)
+             wavelet(S_VELO,k)%data(d)%elts(EDGE*id+v)=value(nscalar+v,k,p,2)
+          end do
+       end do
+    end do
+  end subroutine seed_cut_phase_oracle
+
+  subroutine check_gather203(plan,component,family)
+    type(Transfer_Plan), intent(in) :: plan
+    integer, intent(in) :: component,family
+    integer :: lo,hi,p,k,v
+    real(dp), allocatable :: expected(:,:,:)
+    lo=merge(1,nscalar+1,component==1);hi=merge(nscalar,nscalar+EDGE,component==1)
+    allocate(expected(lo:hi,zlevels,size(plan%slot)))
+    do p=1,size(plan%slot)
+       expected(:,:,p)=value(lo:hi,:,plan%slot(p),family)
+    end do
+    call transfer_nodes(plan,component,family,.false.)
+    do p=1,size(plan%slot)
+       do k=1,zlevels
+          do v=lo,hi
+             if (transfer_bits(expected(v,k,p))/=transfer_bits(value(v,k,plan%slot(p),family))) then
+                write(error_unit,*) 'Stage203 phase mismatch rank/component/node/k/v ',rank,component,plan%slot(p),k,v
+                write(error_unit,*) expected(v,k,p),value(v,k,plan%slot(p),family)
+                call die('resident phase differs from independent block kernel')
+             end if
+          end do
+       end do
+    end do
+  end subroutine
+
+  subroutine remember_outer203(plan)
+    type(Transfer_Plan), intent(in) :: plan
+    integer :: p,q,s
+    if (plan%edgewise) call die('Stage203 requires Stage192 sparse outer off')
+    do p=1,size(plan%slot)
+       s=plan%slot(p);q=restore203_index(s)
+       if(q>0) restore203(nscalar+1:nscalar+EDGE,:,q)=value(nscalar+1:nscalar+EDGE,:,s,1)
+    end do
+  end subroutine
+
+  subroutine store203(slot,component,k,x)
+    integer, intent(in) :: slot,component,k
+    real(dp), intent(in) :: x
+    integer :: q
+    value(component,k,slot,1)=x
+    q=restore203_index(slot)
+    if(q>0) restore203(component,k,q)=x
+  end subroutine
+
+  integer(int64) function inverse203_installation_count() result(count)
+    count=installation203_count
+  end function inverse203_installation_count
+
+  subroutine install_inverse203
+    ! Install canonical interiors without exporting alias-overwritten values.
+    ! Boundary views keep the latest dependency epoch; physics aliases have
+    ! their independent consumer snapshot just as in Stage202.
+    integer :: q,c
+    if (.not.resident203) return
+    installation203_count=installation203_count+1_int64
+    do q=1,size(restore203_slot)
+       saved203(:,:,q)=value(:,:,restore203_slot(q),1)
+       value(:,:,restore203_slot(q),1)=restore203(:,:,q)
+    end do
+    if(ledger203) work203(6)=work203(6)+int(size(interior_plan%slot),int64)*(nscalar+EDGE)*zlevels
+    do c=1,2
+       call transfer_nodes(interior_plan,c,BLOCK_PAYLOAD_SOL,.true.)
+    end do
+    do q=1,size(restore203_slot)
+       value(:,:,restore203_slot(q),1)=saved203(:,:,q)
+    end do
+    do c=1,2
+       call transfer_nodes(boundary_plan,c,BLOCK_PAYLOAD_SOL,.true.)
+    end do
+  end subroutine
+
+  subroutine compile203(total)
+    integer, intent(in) :: total
+    integer :: d,l,p,pi,c,ch,i,j,x,y,ip,jp,n,m,t,a,offp(N_BDRY+1),offc(N_BDRY+1)
+    integer :: dimp(2,N_BDRY+1),dimc(2,N_BDRY+1),sx(11),sy(11),q,baseid
+    integer :: tx(4),ty(4),wi(11)
+    type(Scalar203) :: op
+    type(Inner203) :: cell
+    if (allocated(scalar203_ops)) deallocate(scalar203_ops,inner203_ops)
+    allocate(scalar203_ops(max(1,2*total)),inner203_ops(max(1,total)))
+    n=0;m=0
+    wi=[1,2,3,1,2,3,4,1,2,3,4]
+    do l=level_start,level_end-1
+       do d=1,size(grid)
+          do pi=1,grid(d)%lev(l)%length
+             p=grid(d)%lev(l)%elts(pi)
+             if (.not.any(grid(d)%patch%elts(p+1)%children>0)) cycle
+             call get_offs_Domain(grid(d),p,offp,dimp)
+             do c=1,N_CHDRN
+                ch=grid(d)%patch%elts(p+1)%children(c)
+                if(ch==0) cycle
+                call get_offs_Domain(grid(d),ch,offc,dimc)
+                do j=1,PATCH_SIZE/2
+                   y=2*(j-1);jp=j-1+chd_offs(2,c)
+                   do i=1,PATCH_SIZE/2
+                      x=2*(i-1);ip=i-1+chd_offs(1,c)
+                      tx=[x,x+1,x+1,x];ty=[y,y,y+1,y+1]
+                      do t=1,4
+                         op=Scalar203(d=d,level=l,phase=merge(1,2,t==1))
+                         op%target=node_slot(d,idx(tx(t),ty(t),offc,dimc))
+                         op%mask=idx(x,y,offc,dimc)
+                         if(t==1) then
+                            op%n=11;sx=x+[1,1,2,0,-1,-1,-2,-1,0,-1,1]
+                            sy=y+[0,1,1,1,0,1,-1,-1,-1,-2,-1]
+                            baseid=idx(ip,jp,offp,dimp)
+                            op%base=node_slot(d,baseid);op%area=baseid
+                         else
+                            op%n=4
+                            select case(t)
+                            case(2)
+                               sx(:4)=[x,x+2,x+2,x];sy(:4)=[y,y,y+2,y-2]
+                            case(3)
+                               sx(:4)=[x+2,x,x+2,x];sy(:4)=[y+2,y,y,y+2]
+                            case(4)
+                               sx(:4)=[x,x,x-2,x+2];sy(:4)=[y,y+2,y,y+2]
+                            end select
+                            op%base=op%target;op%area=idx(tx(t),ty(t),offc,dimc)
+                         end if
+                         do q=1,op%n
+                            a=idx(sx(q),sy(q),offc,dimc)
+                            op%source(q)=node_slot(d,a)
+                            op%geometry(q)=merge(a,op%area,t==1)
+                         end do
+                         n=n+1
+                         if(n>size(scalar203_ops)) call die('scalar tape capacity')
+                         scalar203_ops(n)=op
+                      end do
+                      cell=Inner203(d=d,level=l)
+                      do t=LORT,UPLT
+                         call edge_geom(4*(t-LORT)+1,ip,jp,DG,.true.)
+                         call edge_geom(4*(t-LORT)+2,ip-t+1,jp,UP,.true.)
+                         call edge_geom(4*(t-LORT)+3,ip,jp+t,RT,.true.)
+                         call triangle_geom(4*(t-LORT)+4,ip,jp,t,.true.)
+                      end do
+                      call triangle_geom(9,x,y,LORT,.false.)
+                      call edge_geom(10,x,y,RT,.false.)
+                      call edge_geom(11,x,y,DG,.false.)
+                      call edge_geom(12,x+1,y,UP,.false.)
+                      call triangle_geom(13,x+1,y,LORT,.false.)
+                      call edge_geom(14,x+1,y,RT,.false.)
+                      call edge_geom(15,x+2,y,UP,.false.)
+                      call edge_geom(16,x+1,y,DG,.false.)
+                      call triangle_geom(17,x+1,y+1,LORT,.false.)
+                      call edge_geom(18,x+1,y+1,DG,.false.)
+                      call edge_geom(19,x+2,y+1,UP,.false.)
+                      call edge_geom(20,x+1,y+1,RT,.false.)
+                      call triangle_geom(21,x,y,UPLT,.false.)
+                      call edge_geom(22,x,y,UP,.false.)
+                      call edge_geom(23,x,y,DG,.false.)
+                      call edge_geom(24,x,y+1,RT,.false.)
+                      call triangle_geom(25,x,y+1,UPLT,.false.)
+                      call edge_geom(26,x,y+1,UP,.false.)
+                      call edge_geom(27,x,y+2,RT,.false.)
+                      call edge_geom(28,x,y+1,DG,.false.)
+                      call triangle_geom(29,x+1,y+1,UPLT,.false.)
+                      call edge_geom(30,x+1,y+1,DG,.false.)
+                      call edge_geom(31,x+1,y+2,RT,.false.)
+                      call edge_geom(32,x+1,y+1,UP,.false.)
+                      cell%target=cell%source([12,16,20,24,28,32])
+                      m=m+1
+                      if(m>size(inner203_ops)) call die('inner tape capacity')
+                      inner203_ops(m)=cell
+                   end do
+                end do
+             end do
+          end do
+       end do
+    end do
+    scalar203_ops=scalar203_ops(:n);inner203_ops=inner203_ops(:m)
+  contains
+    subroutine edge_geom(slot,xx,yy,e,parent)
+      integer, intent(in) :: slot,xx,yy,e
+      logical, intent(in) :: parent
+      integer :: id
+      if(parent) then
+         id=idx(xx,yy,offp,dimp)
+      else
+         id=idx(xx,yy,offc,dimc)
+      end if
+      cell%node(slot)=id;cell%edge(slot)=e
+      cell%source(slot)=edge_slot(d,EDGE*id+e)
+    end subroutine
+    subroutine triangle_geom(slot,xx,yy,e,parent)
+      integer, intent(in) :: slot,xx,yy,e
+      logical, intent(in) :: parent
+      if(parent) then
+         cell%node(slot)=idx(xx,yy,offp,dimp)
+      else
+         cell%node(slot)=idx(xx,yy,offc,dimc)
+      end if
+      cell%edge(slot)=e
+    end subroutine
+  end subroutine
+
+  subroutine scalar_inverse203(level,phase)
+    integer, intent(in) :: level,phase
+    integer :: p,k,v,q,d
+    integer, parameter :: wi(11)=[1,2,3,1,2,3,4,1,2,3,4]
+    real(dp) :: w(11),area,s,x
+    if(.not.resident203) return
+    if(audit316_enabled()) call audit_inverse_scalar316(level,phase)
+    if(shadow_enabled) call begin_transform_shadow(1,level,phase)
+    do p=1,size(scalar203_ops)
+       associate(op=>scalar203_ops(p))
+         if(op%level/=level.or.op%phase/=phase) cycle
+         d=op%d
+         if(phase==1) then
+            if(grid(d)%mask_n%elts(op%mask+1)==FROZEN) cycle
+         end if
+         area=grid(d)%areas%elts(op%area+1)%hex_inv
+         do q=1,op%n
+            w(q)=grid(d)%overl_areas%elts(op%geometry(q)+1)%a(merge(wi(q),q,phase==1))
+         end do
+         do v=1,nscalar
+            do k=1,zlevels
+               s=0.0_dp
+               do q=1,op%n
+                  s=s+value(v,k,op%source(q),merge(2,1,phase==1))*w(q)
+               end do
+               if(phase==1) then
+                  x=value(v,k,op%base,1)-s*area
+               else
+                  x=s*area+value(v,k,op%base,2)
+               end if
+               call store203(op%target,v,k,x)
+            end do
+         end do
+         if(ledger203) work203(3)=work203(3)+int(zlevels,int64)*nscalar
+       end associate
+    end do
+    if(shadow_enabled) call finish_transform_shadow(1,level,phase)
+  end subroutine
+
+  subroutine inner_inverse203(level)
+    integer, intent(in) :: level
+    integer :: p,k,q,t,d,id,e,s,slot,comp
+    integer, parameter :: triangles(8)=[4,8,9,13,17,21,25,29]
+    integer, parameter :: inputs(18)=[1,2,3,5,6,7,10,11,14,15,18,19,22,23,26,27,30,31]
+    real(dp) :: g(32),u(32),curl(LORT:UPLT),x(6)
+    if(.not.resident203) return
+    if(audit316_enabled()) call audit_inverse_inner316(level)
+    if(shadow_enabled) call begin_transform_shadow(2,level,0)
+    do p=1,size(inner203_ops)
+       associate(op=>inner203_ops(p))
+         if(op%level/=level) cycle
+         d=op%d
+         do q=1,32
+            id=op%node(q);e=op%edge(q)
+            if(any(triangles==q)) then
+               g(q)=grid(d)%triarea%elts(TRIAG*id+e+1)
+            else
+               g(q)=grid(d)%len%elts(EDGE*id+e+1)
+            end if
+         end do
+         do k=1,zlevels
+            do q=1,size(inputs)
+               t=inputs(q);u(t)=alias_value(op%source(t),2,1,k,1)
+            end do
+            do t=LORT,UPLT
+               s=4*(t-LORT)
+               curl(t)=(u(s+1)*g(s+1)+u(s+2)*g(s+2)+u(s+3)*g(s+3))/g(s+4)
+            end do
+            x(1)=(g(9)*curl(LORT)-u(10)*g(10)-u(11)*g(11))/g(12)
+            x(2)=(g(13)*curl(LORT)-u(14)*g(14)-u(15)*g(15))/g(16)
+            x(3)=(g(17)*curl(LORT)-u(18)*g(18)-u(19)*g(19))/g(20)
+            x(4)=(g(21)*curl(UPLT)-u(22)*g(22)-u(23)*g(23))/g(24)
+            x(5)=(g(25)*curl(UPLT)-u(26)*g(26)-u(27)*g(27))/g(28)
+            x(6)=(g(29)*curl(UPLT)-u(30)*g(30)-u(31)*g(31))/g(32)
+            do q=1,6
+               slot=(op%target(q)-1)/EDGE+1;comp=nscalar+mod(op%target(q)-1,EDGE)+1
+               call store203(slot,comp,k,x(q)+value(comp,k,slot,2))
+            end do
+         end do
+         if(ledger203) work203(4)=work203(4)+int(zlevels,int64)
+       end associate
+    end do
+    if(shadow_enabled) call finish_transform_shadow(2,level,0)
+  end subroutine
+
+end module parallel_block_inverse_mod

@@ -1,0 +1,427 @@
+{
+  "stage": 325,
+  "status": "PASS_FIXED_CASE_NATIVE_QUALIFICATION",
+  "decision": "SUPPORT_CONDITIONAL_VERIFICATION_COMMIT",
+  "job": 55576,
+  "source_job": 55569,
+  "failed_predecessor_job": 55575,
+  "scope": {
+    "max_level": 5,
+    "min_level": 5,
+    "tol": 0,
+    "ranks": 256,
+    "steps": 4,
+    "layers": 30,
+    "physics": "Simple",
+    "owner_map": "L256",
+    "solver_source_unchanged_since_55569": true
+  },
+  "native_qualification": true,
+  "performance_qualified": false,
+  "primary_negative_scaling_cause_established": false,
+  "adaptive_case_qualified": false,
+  "new_builds": 0,
+  "new_solver_runs": 0,
+  "new_performance_runs": 0,
+  "automatic_retry": false,
+  "source_and_predecessor_evidence_preserved": true,
+  "conditional_commit_supported": true,
+  "archive": {
+    "passed": true,
+    "job": 55576,
+    "archive_sha256": "67e5823b502e5c40d36b37144f71fc7752b2b5132f3d82ef59ae1b5a8864ecd0",
+    "archive_bytes": 1864493,
+    "manifest_payload_files": 227,
+    "archive_entries": 228,
+    "logical_bytes": 10080450,
+    "extracted_root": "/Users/kevlahan/wavetrisk_hydrostatic/.stage325-development/native-v5p1-review-55576/review"
+  },
+  "package_manifest_sha256": "1a47b001cad28d82de231623f3c85e7b271e744369f9549d8a7b6b30d56dd196",
+  "approved_source_archive_sha256": "99fe77316934f2991f65ecf2e0c22ee15051f490ccb8f38a27c9fb78bc9f86b7",
+  "native_preflight_tests": 292,
+  "native_preflight_skips": 0,
+  "scheduler": {
+    "clean_completion": true,
+    "command": [
+      "sacct",
+      "-n",
+      "-P",
+      "-X",
+      "-j",
+      "55576",
+      "-o",
+      "JobIDRaw,State,ExitCode,ElapsedRaw,Start,End,NodeList"
+    ],
+    "returncode": 0,
+    "row": [
+      "55576",
+      "COMPLETED",
+      "0:0",
+      "441",
+      "2026-10-26T17:08:26",
+      "2026-10-26T17:15:47",
+      "bb13"
+    ],
+    "stderr": "",
+    "stdout": "55576|COMPLETED|0:0|441|2026-10-26T17:08:26|2026-10-26T17:15:47|bb13\n",
+    "terminal": true
+  },
+  "scheduler_elapsed_seconds": 441,
+  "prior_elapsed_seconds": 2656,
+  "cumulative_target_elapsed_seconds": 3097,
+  "original_budget_seconds": 2700,
+  "original_budget_used_seconds": 2656,
+  "original_budget_remaining_seconds": 44,
+  "separately_authorized_budget_seconds": 1800,
+  "new_budget_used_seconds": 441,
+  "new_budget_unused_seconds": 1359,
+  "unused_budget_does_not_authorize_another_submission": true,
+  "phase_certificate_sha256": {
+    "cache": "e684dd7f5d9017cb0599f26ed136dc656dfe618f50c3c2d89546f59dcb4b30a5",
+    "pair": "0c23696cc6ea19b5a50ef933ffe2faf4d75e2a3f84ed025f94c24f07c5e248e6",
+    "preservation": "6c5d6c1282a43f4138496a48d321429bee01618d45b4445c4d8c81b3bed75927",
+    "providers-C0": "0122e6d2b7e62874b988ff34d5217339f136d7ad2aed713b5f964989aefac6ea",
+    "providers-L256": "53a96675f51deb4b0162d7c3677b124310698d467b1c5d279626787f121fd6a4",
+    "work": "bc636c40e126df3d5f38cdc37ff078e8e856b091c91ce992fe116c41fd209fcb"
+  },
+  "phase_timings": [
+    {
+      "allowance_bytes": 4018143232,
+      "callback_seconds": 125.4970963220112,
+      "certificate_sha256": "e684dd7f5d9017cb0599f26ed136dc656dfe618f50c3c2d89546f59dcb4b30a5",
+      "commit_and_full_rehash_seconds": 3.8579989396966994,
+      "elapsed_seconds": 129.36822091415524,
+      "phase": "cache",
+      "reused": false,
+      "started_monotonic": 3874481.660579187,
+      "started_utc": "2026-10-26T21:08:42.083665+00:00"
+    },
+    {
+      "allowance_bytes": 2097152,
+      "callback_seconds": 127.3919722540304,
+      "certificate_sha256": "0122e6d2b7e62874b988ff34d5217339f136d7ad2aed713b5f964989aefac6ea",
+      "commit_and_full_rehash_seconds": 1.9389839032664895,
+      "elapsed_seconds": 129.3442155602388,
+      "phase": "providers-C0",
+      "reused": false,
+      "started_monotonic": 3874611.134208114,
+      "started_utc": "2026-10-26T21:10:51.557286+00:00"
+    },
+    {
+      "allowance_bytes": 2097152,
+      "callback_seconds": 123.18538652965799,
+      "certificate_sha256": "53a96675f51deb4b0162d7c3677b124310698d467b1c5d279626787f121fd6a4",
+      "commit_and_full_rehash_seconds": 1.9393501351587474,
+      "elapsed_seconds": 125.13838857971132,
+      "phase": "providers-L256",
+      "reused": false,
+      "started_monotonic": 3874740.480920385,
+      "started_utc": "2026-10-26T21:13:00.904002+00:00"
+    },
+    {
+      "allowance_bytes": 2097152,
+      "callback_seconds": 11.728198695927858,
+      "certificate_sha256": "0c23696cc6ea19b5a50ef933ffe2faf4d75e2a3f84ed025f94c24f07c5e248e6",
+      "commit_and_full_rehash_seconds": 1.93965331511572,
+      "elapsed_seconds": 13.68390174722299,
+      "phase": "pair",
+      "reused": false,
+      "started_monotonic": 3874865.621930998,
+      "started_utc": "2026-10-26T21:15:06.045013+00:00"
+    },
+    {
+      "allowance_bytes": 201326592,
+      "callback_seconds": 12.861293751746416,
+      "certificate_sha256": "bc636c40e126df3d5f38cdc37ff078e8e856b091c91ce992fe116c41fd209fcb",
+      "commit_and_full_rehash_seconds": 1.9500643946230412,
+      "elapsed_seconds": 14.82587214699015,
+      "phase": "work",
+      "reused": false,
+      "started_monotonic": 3874879.308176106,
+      "started_utc": "2026-10-26T21:15:19.731260+00:00"
+    },
+    {
+      "allowance_bytes": 33554432,
+      "callback_seconds": 10.1614287388511,
+      "certificate_sha256": "6c5d6c1282a43f4138496a48d321429bee01618d45b4445c4d8c81b3bed75927",
+      "commit_and_full_rehash_seconds": 1.9468489699065685,
+      "elapsed_seconds": 12.141334656160325,
+      "phase": "preservation",
+      "reused": false,
+      "started_monotonic": 3874894.238455862,
+      "started_utc": "2026-10-26T21:15:34.661534+00:00"
+    }
+  ],
+  "coverage": {
+    "optimized_actual_capture_reads": 512,
+    "provider_families_each": 254,
+    "feature_rows_each": 508840,
+    "physical_inverse_bridges": 1024,
+    "moved_physical_node_instances": 1380,
+    "work_actual_reads": 768,
+    "fresh_preserved_input_hashes": 1536,
+    "source_files": 258,
+    "original_kit_files": 79,
+    "metadata_files": 3889
+  },
+  "checked_reuse": {
+    "actual_read_hashes": 256,
+    "families": 254,
+    "passed": true,
+    "scope": "Earlier checked closure only; optimized proof recomputed.",
+    "semantic_sha256": "06f1f9ddfdcf7f4df9abc1b4c3078483e98827ca978bce8a9a6678560b09ce4a",
+    "source_job": 55573,
+    "streams": 256
+  },
+  "resource_evidence": {
+    "address_limit_before_installation": [
+      17179869184,
+      -1
+    ],
+    "address_limit_installation": {
+      "after": [
+        17179869184,
+        17179869184
+      ],
+      "before": [
+        17179869184,
+        -1
+      ],
+      "installation": "inside Python verification step before allocation/capture checks"
+    },
+    "environment": {
+      "address_space_limits": [
+        17179869184,
+        17179869184
+      ],
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "executable": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/python-venv-1.0-bj2eoat2m3cvhwjbgauezeqbcp5puwdj/bin/python3",
+      "hostname": "bb13.rhpcs.internal",
+      "job": 55576,
+      "python": "3.11.9",
+      "sqlite": "3.46.0"
+    },
+    "sampled_peak_derived_bytes": 2558805416,
+    "sampled_peak_virtual_bytes": 3402747904,
+    "sampled_peak_rss_bytes": 2324824064,
+    "sampling_policy": "0.25second periodic /proc and tree samples; peaks are sampled, not hard aggregate quotas",
+    "elapsed_seconds": 439.8355687740259,
+    "signals": [],
+    "remaining_live_child_group_pids": [],
+    "cleanup_wait_timed_out": false
+  },
+  "databases": {
+    "left_db": {
+      "bytes": 1228595200,
+      "canonical_path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/left.sqlite",
+      "expected_bytes": 1228595200,
+      "expected_sha256": "7e809511ed6ffd3ebaf994865679d6e05eef2a2eaaf8b9f44bd07bf1cb463508",
+      "lexical_path": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/left.sqlite",
+      "path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/left.sqlite",
+      "samefile": true,
+      "sha256": "7e809511ed6ffd3ebaf994865679d6e05eef2a2eaaf8b9f44bd07bf1cb463508",
+      "stat_after": {
+        "bytes": 1228595200,
+        "ctime_ns": 1793049040407887454,
+        "device": 49,
+        "inode": 21884093,
+        "links": 1,
+        "mtime_ns": 1793049010287033271,
+        "owner": 5318
+      },
+      "stat_before": {
+        "bytes": 1228595200,
+        "ctime_ns": 1793049040407887454,
+        "device": 49,
+        "inode": 21884093,
+        "links": 1,
+        "mtime_ns": 1793049010287033271,
+        "owner": 5318
+      }
+    },
+    "right_db": {
+      "bytes": 1162719232,
+      "canonical_path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/right.sqlite",
+      "expected_bytes": 1162719232,
+      "expected_sha256": "a789e3ed7c5dd48381d8e1955ac1e34e0ad0d11aafe9b56b38cb4048130af744",
+      "lexical_path": "/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/right.sqlite",
+      "path": "/1/home/kevlahan/rk325-native-v5p1-m3sk3_8i/out/state/phases/cache/right.sqlite",
+      "samefile": true,
+      "sha256": "a789e3ed7c5dd48381d8e1955ac1e34e0ad0d11aafe9b56b38cb4048130af744",
+      "stat_after": {
+        "bytes": 1162719232,
+        "ctime_ns": 1793049043598872007,
+        "device": 49,
+        "inode": 21882414,
+        "links": 1,
+        "mtime_ns": 1793049035402911684,
+        "owner": 5318
+      },
+      "stat_before": {
+        "bytes": 1162719232,
+        "ctime_ns": 1793049043598872007,
+        "device": 49,
+        "inode": 21882414,
+        "links": 1,
+        "mtime_ns": 1793049035402911684,
+        "owner": 5318
+      }
+    }
+  },
+  "raw_binding": {
+    "captures": "dd7aa26334a3d9b3a6d2aaa747cbb246f7c1f43691207d2fe4efec958f835fbb",
+    "checker": "edb8640ddf091ab72afca56497f6ff994c4097fa59b1697973b612ce9ca4ba63",
+    "config": "805d3955fa7902ccbe469ce753044c0810afefd83d0c0e3b70fca46d2f485294",
+    "source": "0dc5c160e154d0959719f03b6460a436fe0a2847dbd06b79e533bd496f3af031"
+  },
+  "work_migration_summary": {
+    "qual-C0": {
+      "active_ranks": 256,
+      "call_range": [
+        5,
+        5
+      ],
+      "fields": [
+        "source_blocks",
+        "retained_blocks",
+        "remote_send_blocks",
+        "remote_receive_blocks",
+        "packed_copy_checksum_send_bytes",
+        "unpack_checksum_receive_bytes",
+        "storage_moves",
+        "direct_collectives",
+        "live_aggregate_payload_bytes"
+      ],
+      "max_rank_total": [
+        20,
+        15,
+        20,
+        15,
+        12900200,
+        9823780,
+        15,
+        85,
+        22723980
+      ],
+      "max_single_call": [
+        4,
+        3,
+        4,
+        3,
+        2580040,
+        1964756,
+        3,
+        17,
+        4544796
+      ],
+      "sum": [
+        3200,
+        30,
+        3170,
+        3170,
+        2044978960,
+        2044978960,
+        3200,
+        21760,
+        4089958405
+      ]
+    },
+    "qual-L256": {
+      "active_ranks": 256,
+      "call_range": [
+        5,
+        5
+      ],
+      "fields": [
+        "source_blocks",
+        "retained_blocks",
+        "remote_send_blocks",
+        "remote_receive_blocks",
+        "packed_copy_checksum_send_bytes",
+        "unpack_checksum_receive_bytes",
+        "storage_moves",
+        "direct_collectives",
+        "live_aggregate_payload_bytes"
+      ],
+      "max_rank_total": [
+        20,
+        15,
+        15,
+        15,
+        9823780,
+        9526520,
+        15,
+        85,
+        9823785
+      ],
+      "max_single_call": [
+        4,
+        3,
+        3,
+        3,
+        1964756,
+        1905304,
+        3,
+        17,
+        1964757
+      ],
+      "sum": [
+        3200,
+        2000,
+        1200,
+        1200,
+        776390080,
+        776390080,
+        3200,
+        21760,
+        1552781200
+      ]
+    }
+  },
+  "evidence": {
+    "independent_review": {
+      "path": "validation/independent-review55576.json",
+      "sha256": "4fd21f847217b8efca55e866de3423db6998e0b108c07e697e66e3cbd30ea61c"
+    },
+    "adversarial_notes": {
+      "path": "validation/independent-review55576-adversarial-notes.json",
+      "sha256": "7cd67ed137171a54f9738ddaa95d5d806ef4d6093a8a4afea88ea0d41853ba95"
+    },
+    "fresh_postterminal": {
+      "path": "validation/native-v5p1-final-preservation55576.json",
+      "sha256": "8916e2f5878d5b6e1797b27e31ee601e73c63d316e164712f628f1cb4d61cce1"
+    },
+    "native_capsule": "validation/native55576"
+  },
+  "postterminal_audit_seconds": 12.216976019088179,
+  "limitations": [
+    "No new solver or performance run; original science gates are reused through exact source/binary/checkpoint/input hashes.",
+    "Compact evidence does not permit an independent second execution of all semantic comparisons. Source-reviewed checker completion and exact native cache hashes are explicit premises.",
+    "Communication/work changes are counters, not elapsed-time benefit or a cause of negative scaling.",
+    "Qualification covers the saved fixed nonadaptive case only; it does not qualify arbitrary adaptive/legacy/multinode configurations.",
+    "Original sealed native_qualification=false and accounting AWAIT verdicts remain unchanged; this external independent review supplies the qualification decision."
+  ],
+  "bounded_capsule": {
+    "path": "validation/native55576",
+    "files_sha256": "d40eda009ec6d70db620f01cd1be8897d245aadbe1474eb1b3c5111201796e46",
+    "provenance_sha256": "158e20d6083457442ed9055ff813b4d115cd16952825154895bb99a7dbeae454",
+    "policy": "Exact bounded subset; no kit code, SQLite, captures, checkpoints, TSV or vectors."
+  }
+}

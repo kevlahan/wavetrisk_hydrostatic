@@ -1,0 +1,22 @@
+{
+  "source_job": 55569,
+  "predecessor_job": 55573,
+  "predecessor_elapsed_seconds": 1511,
+  "prior_elapsed_seconds": 2392,
+  "walltime_cap_seconds": 300,
+  "cumulative_maximum_seconds": 2692,
+  "original_budget_seconds": 2700,
+  "predecessor_review_archive_sha256": "bf893a02891ee6a8b9d13145b962a9de94764bdbd46a7b938ef354fed82d23f2",
+  "certificate_sha256": {
+    "predecessor-v3/recovery-report.json": "1224b6a6e23a01973e5a0ad1b2ac2b90862bba022e2190f272d357922c7c42d1",
+    "predecessor-v3/accounting.json": "f38dabda15bf5676fb1208b4d1ea687e2eb94f3b90832dd0c97df3d12c87282d",
+    "predecessor-v3/capture-read-checks-partial.json": "783328f1d87e045a9a2898a1db5f914cb9e340920e5c4f5dfb1af21434977f12",
+    "predecessor-v3/semantic-replay.json": "06f1f9ddfdcf7f4df9abc1b4c3078483e98827ca978bce8a9a6678560b09ce4a"
+  },
+  "remote_predecessor_files": {
+    "/home/kevlahan/rk325-verification-recovery-v3-cqqr41mc/results/recovery-report.json": "1224b6a6e23a01973e5a0ad1b2ac2b90862bba022e2190f272d357922c7c42d1",
+    "/home/kevlahan/rk325-verification-recovery-v3-cqqr41mc/results/capture-read-checks-partial.json": "783328f1d87e045a9a2898a1db5f914cb9e340920e5c4f5dfb1af21434977f12",
+    "/home/kevlahan/rk325-verification-recovery-v3-cqqr41mc/results/semantic-replay.json": "06f1f9ddfdcf7f4df9abc1b4c3078483e98827ca978bce8a9a6678560b09ce4a"
+  },
+  "checked_reuse": "Only the fully passed checked stream/provider closure is reused; optimized feature/physical bridge/provider equality is recomputed."
+}

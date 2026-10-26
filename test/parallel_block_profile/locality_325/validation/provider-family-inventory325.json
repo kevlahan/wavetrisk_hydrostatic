@@ -1,0 +1,138 @@
+{
+  "capture_sha256": "2c35cde979b2b9cb86cf5f430b33fcb7b775604c7f2516c67733daf1af99a4c7",
+  "arm": "checked-L256",
+  "rank": 0,
+  "total_provider_families": 254,
+  "scopes": [
+    {
+      "kind": "adapters",
+      "scope": "transform.scalar_adapter",
+      "families": 4
+    },
+    {
+      "kind": "adapters",
+      "scope": "transform.vector_adapter",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "backend.adapter_route",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "input.mean_route",
+      "families": 8
+    },
+    {
+      "kind": "routes",
+      "scope": "input.scalar_route",
+      "families": 8
+    },
+    {
+      "kind": "routes",
+      "scope": "input.vector_route",
+      "families": 8
+    },
+    {
+      "kind": "routes",
+      "scope": "rhs.prepare",
+      "families": 56
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.fixed_scalar_route",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.fixed_vector_route",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.scalar_halo",
+      "families": 12
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.scalar_initial",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.scalar_publication",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.scalar_wave_halo",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.vector_halo",
+      "families": 12
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.vector_initial",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.vector_publication",
+      "families": 4
+    },
+    {
+      "kind": "routes",
+      "scope": "transform.vector_wave_halo",
+      "families": 4
+    },
+    {
+      "kind": "static",
+      "scope": "ghost.plan",
+      "families": 5
+    },
+    {
+      "kind": "static",
+      "scope": "inverse.alias",
+      "families": 16
+    },
+    {
+      "kind": "static",
+      "scope": "inverse.boundary",
+      "families": 4
+    },
+    {
+      "kind": "static",
+      "scope": "inverse.interior",
+      "families": 4
+    },
+    {
+      "kind": "static",
+      "scope": "inverse.level_boundary",
+      "families": 24
+    },
+    {
+      "kind": "static",
+      "scope": "inverse.level_interior",
+      "families": 24
+    },
+    {
+      "kind": "static",
+      "scope": "inverse.outer_install",
+      "families": 8
+    },
+    {
+      "kind": "static",
+      "scope": "inverse.range_alias",
+      "families": 16
+    },
+    {
+      "kind": "static",
+      "scope": "writeback.plan",
+      "families": 5
+    }
+  ]
+}

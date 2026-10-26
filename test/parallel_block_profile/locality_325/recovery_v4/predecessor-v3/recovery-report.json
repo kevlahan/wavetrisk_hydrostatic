@@ -1,0 +1,91 @@
+{
+  "stage": 325,
+  "revision": "verification-recovery-v3",
+  "source_job": 55569,
+  "verification_job": "55573",
+  "status": "failed",
+  "builds": 0,
+  "solver_runs": 0,
+  "performance_runs": 0,
+  "performance_qualified": false,
+  "package_manifest_sha256": "386333bfa0bb686f4dbec9cdc8f940df50d8c020dc02c76ff5d2a8e7003d70ad",
+  "original_elapsed_seconds": 392,
+  "predecessor_elapsed_seconds": 476,
+  "earlier_replay_elapsed_seconds": 13,
+  "prior_replay_elapsed_seconds": 489,
+  "recovery_walltime_cap_seconds": 1800,
+  "cumulative_maximum_seconds": 2681,
+  "predecessor_binding": {
+    "job": 55572,
+    "earlier_job": 55571,
+    "review_archive_sha256": "78070fb6a7817d6e6565953e06b16e3240b7634868504add15771dc163ec058f",
+    "anchors_sha256": "f1a3b67af02f8a70c25e420027b9c3b3a4c2527278940cfc7301ff655593deb7",
+    "anchor_policy": "All retained capture and raw-work input hashes must equal the hashes recorded before semantic verification by job55571; they are not claimed to predate job55569."
+  },
+  "verifier_environment": {
+    "python": "3.11.9",
+    "executable": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/python-3.11.9-qeb3nj2buhvtewrg6m46oasknsr57h7d/bin/python3.11",
+    "numpy": "2.1.2",
+    "hostname": "bb13.rhpcs.internal",
+    "allowed_cpus": [
+      0
+    ],
+    "requested_tasks": 1,
+    "scheduler_memory": "--mem=0 (site MEMORY=1 placeholder)",
+    "process_virtual_memory_limit_bytes": [
+      17179869184,
+      17179869184
+    ]
+  },
+  "elapsed_seconds": 1510.4275581198744,
+  "peak_rss_kib": 408904,
+  "phase": "corrected_semantic_replay",
+  "binding_before": {
+    "passed": true,
+    "original_kit_files": 79,
+    "source_files": 258,
+    "metadata_files": 3889,
+    "binaries": [
+      {
+        "kind": "checked",
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/sources/candidate/bin-rk325-checked/climate",
+        "sha256": "ad427c4fd890297d762cccb60427044158e1709ea464bcb079a0bbc1bfdec667"
+      },
+      {
+        "kind": "candidate",
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/sources/candidate/bin-rk325-candidate/climate",
+        "sha256": "b690e340b3878c58c1f8e29cb804c9a13fcaa152cc639a8f7ed4dc6aa2e6c473"
+      }
+    ],
+    "checkpoints": [
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/checked-L256/test_checkpoint_9900.bin.zst",
+        "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/checked-L256/test_checkpoint_9901.bin.zst",
+        "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-C0/test_checkpoint_9900.bin.zst",
+        "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-C0/test_checkpoint_9901.bin.zst",
+        "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-L256/test_checkpoint_9900.bin.zst",
+        "sha256": "90b1f6169561dcc47c35e9cc3e18c408fad3cda0fa8049405f172102d4b9d406"
+      },
+      {
+        "path": "/1/home/kevlahan/rk325-v1-owner-intervention-bs1i7mca/results/qual-L256/test_checkpoint_9901.bin.zst",
+        "sha256": "d1ca0c18cfff6f2f72f0fd460e80e7e1765fda9d4a82f16e744b1625872cdf51"
+      }
+    ],
+    "science_policy": "Reuses byte-bound original native decoded science/placement checks; no new solver or independent checkpoint decode."
+  },
+  "historical_input_hashes_matched": 1536,
+  "error": "AuditError('physical.ordered_program_or_value_difference: [\"((\\'fixed\\', (101, (((\\'step\\', 1), (\\'step322\\', 1), (\\'rk.final322\\', 1)), \\'inverse.plan\\', 1))), 1)\", \"((\\'fixed\\', (101, (((\\'step\\', 1), (\\'step322\\', 1), (\\'rk.final322\\', 1), (\\'inverse.plan\\', 1)), \\'inverse.node_map\\', 102))), 1)\", \"((\\'fixed\\', (101, (((\\'step\\', 2), (\\'step322\\', 2), (\\'rk.final322\\', 2)), \\'inverse.plan\\', 2))), 1)\"]')",
+  "decision": "STOP_RETAIN_PARTIAL_EVIDENCE_NO_AUTOMATIC_RETRY"
+}

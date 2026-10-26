@@ -1,0 +1,47 @@
+.....................................................EE.EE.............................................................................................................................
+======================================================================
+ERROR: test_changed_table_certificate_rejected (test_parallel_replay325.ParallelMergeTests.test_changed_table_certificate_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/1/home/kevlahan/rk325-verification-recovery-v4/test_parallel_replay325.py", line 66, in test_changed_table_certificate_rejected
+    p.merge_shards325([certificate], root / 'merged.sqlite', root)
+  File "/1/home/kevlahan/rk325-verification-recovery-v4/parallel_replay325.py", line 105, in merge_shards325
+    connection.execute('attach database ? as shard', (path.as_uri() + '?mode=ro',))
+sqlite3.OperationalError: unable to open database: file:///tmp/tmp2l2z4dzr/one.sqlite?mode=ro
+
+======================================================================
+ERROR: test_duplicate_primary_key_fails (test_parallel_replay325.ParallelMergeTests.test_duplicate_primary_key_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/1/home/kevlahan/rk325-verification-recovery-v4/test_parallel_replay325.py", line 74, in test_duplicate_primary_key_fails
+    p.merge_shards325(shards, root / 'merged.sqlite', root)
+  File "/1/home/kevlahan/rk325-verification-recovery-v4/parallel_replay325.py", line 105, in merge_shards325
+    connection.execute('attach database ? as shard', (path.as_uri() + '?mode=ro',))
+sqlite3.OperationalError: unable to open database: file:///tmp/tmpvk75tza2/shard-0.sqlite?mode=ro
+
+======================================================================
+ERROR: test_exact_serial_and_merged_tables (test_parallel_replay325.ParallelMergeTests.test_exact_serial_and_merged_tables)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/1/home/kevlahan/rk325-verification-recovery-v4/test_parallel_replay325.py", line 29, in test_exact_serial_and_merged_tables
+    result = p.merge_shards325(shards, root / 'merged.sqlite', root)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/1/home/kevlahan/rk325-verification-recovery-v4/parallel_replay325.py", line 105, in merge_shards325
+    connection.execute('attach database ? as shard', (path.as_uri() + '?mode=ro',))
+sqlite3.OperationalError: unable to open database: file:///tmp/tmpe8w0st6f/shard-2.sqlite?mode=ro
+
+======================================================================
+ERROR: test_full_provider_proof_matches_serial_world (test_parallel_replay325.ParallelMergeTests.test_full_provider_proof_matches_serial_world)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/1/home/kevlahan/rk325-verification-recovery-v4/test_parallel_replay325.py", line 153, in test_full_provider_proof_matches_serial_world
+    merged = p.merge_shards325(certificates, root / 'merged.sqlite', root)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/1/home/kevlahan/rk325-verification-recovery-v4/parallel_replay325.py", line 105, in merge_shards325
+    connection.execute('attach database ? as shard', (path.as_uri() + '?mode=ro',))
+sqlite3.OperationalError: unable to open database: file:///tmp/tmppggeuj1s/part-0.sqlite?mode=ro
+
+----------------------------------------------------------------------
+Ran 183 tests in 22.347s
+
+FAILED (errors=4)
