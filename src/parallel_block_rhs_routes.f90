@@ -7,17 +7,33 @@ module parallel_block_rhs_routes_mod
   use parallel_block_rhs_diffusion_mod
   implicit none
   private
-  public :: compile_rhs_phase_route
+  public :: compile_rhs_phase_route,rhs_phase_canonical_writers
 contains
+  logical function rhs_phase_canonical_writers(phase) result(sole)
+    integer,intent(in) :: phase
+    ! Placement selects these operators by their write target. They never
+    ! write a neighbour/alias target: the already-proved canonical home is
+    ! therefore the final writer, including retained values at unwritten nodes.
+    ! Edge producers, southwest/pentagon writes and restrictions with aliases
+    ! keep the ordered distributed writer election below.
+    select case(phase)
+    case(RHS_DIFFUSION_NODES,RHS_DIFFUSION_DIRECT_NODES,RHS_ROTATION_EDGES,RHS_SCALAR_TENDENCY, &
+         RHS_VELOCITY_SOURCE,RHS_BERNOULLI,RHS_EXNER,RHS_INJECTED_BERNOULLI,RHS_INJECTED_EXNER)
+       sole=.true.
+    case default
+       sole=.false.
+    end select
+  end function
+
   subroutine compile_rhs_phase_route(plan,key,owned,phase,l,ncolumn,comm,topology,masks, &
-       consumer_key,orientation,route,shared_context,producer_home,consumer_home)
+       consumer_key,orientation,route,shared_context,producer_home,consumer_home,shared_buffers)
     type(Rhs_Domain_Operators),intent(in) :: plan
     integer,intent(in) :: key(:,:),phase,l,ncolumn,consumer_key(:,:),orientation(:)
     logical,intent(in) :: owned(:)
     type(MPI_Comm),intent(in) :: comm
     integer(int64),intent(in) :: topology,masks
     type(Rhs_Exchange),intent(inout) :: route
-    logical,optional,intent(in) :: shared_context
+    logical,optional,intent(in) :: shared_context,shared_buffers
     integer,optional,intent(in) :: producer_home(:,:),consumer_home(:,:)
     logical,allocatable :: needed(:)
     integer,allocatable :: definition(:,:),order(:,:),slot(:),target(:),canonical(:)
@@ -35,6 +51,20 @@ contains
     nslot=mult*plan%nnode
     if(any(shape(consumer_key)/=[4,nslot]).or.size(orientation)/=nslot) error stop 'RHS phase consumer extent'
     call phase_demand(plan,owned,phase,mult,needed)
+    if(present(producer_home).and.rhs_phase_canonical_writers(phase)) then
+       if(.not.present(consumer_home).or..not.present(shared_context)) error stop 'RHS incomplete canonical binding'
+       if(.not.shared_context) error stop 'RHS canonical route requires executor context'
+       if(any(shape(producer_home)/=[2,nslot]).or.any(shape(consumer_home)/=[2,nslot])) &
+            error stop 'RHS canonical home extent'
+       ! The directory was rebuilt for this exact placement, topology and mask.
+       ! Every local canonical slot has already been included by phase_demand.
+       allocate(definition(4,0),order(2,0),slot(0))
+       target=pack([(i,i=1,nslot)],needed)
+       call compile_rhs_exchange(route,comm,topology,masks,100*l+phase,nslot,ncolumn,definition,order,slot, &
+            consumer_key(:,target),target,orientation(target),shared_tag=3*(100*l+phase)+ncolumn, &
+            variable_columns=.true.,consumer_provider=consumer_home(:,target),shared_buffers=shared_buffers)
+       return
+    end if
     do pass=1,2
        n=0
        ! A single numerical owner preserves slots not written in this phase.
@@ -154,14 +184,15 @@ contains
        call compile_rhs_exchange(route,comm,topology,masks,100*l+phase,nslot,ncolumn,definition,order,slot, &
             consumer_key(:,target),target,orientation(target),shared_tag=3*(100*l+phase)+ncolumn, &
             variable_columns=.true.,definition_home=producer_home(:,slot),consumer_home=consumer_home(:,target), &
-            canonical_slot=canonical)
+            canonical_slot=canonical,shared_buffers=shared_buffers)
     else if(present(shared_context)) then
        if(.not.shared_context) error stop 'RHS shared context must be owned by executor'
        call compile_rhs_exchange(route,comm,topology,masks,100*l+phase,nslot,ncolumn,definition,order,slot, &
-            consumer_key(:,target),target,orientation(target),shared_tag=3*(100*l+phase)+ncolumn,variable_columns=.true.)
+            consumer_key(:,target),target,orientation(target),shared_tag=3*(100*l+phase)+ncolumn, &
+            variable_columns=.true.,shared_buffers=shared_buffers)
     else
        call compile_rhs_exchange(route,comm,topology,masks,100*l+phase,nslot,ncolumn,definition,order,slot, &
-            consumer_key(:,target),target,orientation(target))
+            consumer_key(:,target),target,orientation(target),shared_buffers=shared_buffers)
     end if
   contains
     subroutine define(node,component,sequence)

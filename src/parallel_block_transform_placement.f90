@@ -36,7 +36,8 @@ contains
     end do
   end subroutine
 
-  subroutine distribute_transform_geometry(input,result)
+  subroutine distribute_transform_geometry(input,result,domain_extent)
+    integer,intent(in),optional :: domain_extent(:)
     type(Transform_Geometry),intent(in) :: input
     type(Transform_Placement),intent(out) :: result
     type(Domain_Identity),allocatable :: identity(:)
@@ -47,7 +48,9 @@ contains
     type(Transform_Inner) :: iop
     type(Transform_Outer) :: oop
     integer :: d,i,j,pass,p,tag,width,ierr,capacity,used,b
-    integer,allocatable :: table(:),keys(:,:)
+    integer,allocatable :: table(:),keys(:,:),domain_base(:),touched(:)
+    integer :: original_capacity,key_domain
+    character(8) :: option
     integer :: counts(4),sizes(4)
     sizes=[storage_size(node),storage_size(sop),storage_size(iop),storage_size(oop)]/8
     allocate(identity(size(grid)))
@@ -115,8 +118,71 @@ contains
          result%scalar_order(counts(2)),result%inner_order(counts(3)),result%outer_order(counts(4)))
     ! All local canonical nodes plus the operation footprint. Open addressing
     ! compacts physical keys once; no owner/key lookup occurs during arithmetic.
-    capacity=counts(1)+13*counts(2)+38*counts(3)+16*counts(4)
-    allocate(keys(4,max(1,capacity)),table(max(1,2*capacity+1)))
+    original_capacity=counts(1)+13*counts(2)+38*counts(3)+16*counts(4)
+    capacity=original_capacity
+    if(present(domain_extent)) then
+       allocate(domain_base(size(domain_extent)),touched(size(domain_extent)));touched=0;domain_base=-1
+       p=1
+       do while(p<=size(received))
+          tag=transfer(received(p:p+width-1),tag);p=p+2*width
+          select case(tag)
+          case(1)
+             node=transfer(received(p:p+sizes(tag)-1),node);key_domain=node%key(1)
+          case(2)
+             sop=transfer(received(p:p+sizes(tag)-1),sop);key_domain=sop%global_domain
+          case(3)
+             iop=transfer(received(p:p+sizes(tag)-1),iop);key_domain=iop%global_domain
+          case(4)
+             oop=transfer(received(p:p+sizes(tag)-1),oop);key_domain=oop%global_domain
+          case default
+             error stop 'transform footprint record tag'
+          end select
+          if(key_domain<1.or.key_domain>size(touched)) error stop 'transform footprint namespace'
+          touched(key_domain)=1;p=p+sizes(tag)
+       end do
+       capacity=0
+       do d=1,size(touched)
+          if(touched(d)==0) cycle
+          domain_base(d)=capacity;capacity=capacity+domain_extent(d)
+       end do
+       allocate(table(max(1,capacity)));table=0;used=0
+       ! First count the unique physical slots; then allocate keys exactly.
+       p=1
+       do while(p<=size(received))
+          tag=transfer(received(p:p+width-1),tag);p=p+2*width
+          select case(tag)
+          case(1)
+             node=transfer(received(p:p+sizes(tag)-1),node)
+             call mark(node%key(1),node%key(2))
+          case(2)
+             sop=transfer(received(p:p+sizes(tag)-1),sop)
+             call mark(sop%global_domain,sop%target);call mark(sop%global_domain,sop%base)
+             do j=1,sop%n
+                call mark(sop%global_domain,sop%source(j))
+             end do
+          case(3)
+             iop=transfer(received(p:p+sizes(tag)-1),iop)
+             do j=1,32
+                if(iop%source(j)>0) call mark(iop%global_domain,(iop%source(j)-1)/EDGE+1)
+             end do
+             do j=1,6
+                call mark(iop%global_domain,(iop%target(j)-1)/EDGE+1)
+             end do
+          case(4)
+             oop=transfer(received(p:p+sizes(tag)-1),oop)
+             do j=1,13
+                if(oop%source(j)>0) call mark(oop%global_domain,(oop%source(j)-1)/EDGE+1)
+             end do
+             do j=1,3
+                if(oop%target(j)>0) call mark(oop%global_domain,(oop%target(j)-1)/EDGE+1)
+             end do
+          end select
+          p=p+sizes(tag)
+       end do
+       allocate(keys(4,used));table=0
+    else
+       allocate(keys(4,max(1,capacity)),table(max(1,2*capacity+1)))
+    end if
     table=0;used=0;counts=0;p=1
     do while(p<=size(received))
        tag=transfer(received(p:p+width-1),tag);p=p+width
@@ -156,6 +222,10 @@ contains
        end select
        p=p+sizes(tag)
     end do
+    call get_environment_variable('WAVETRISK_CONNECTED_RHS_AUDIT',option)
+    if(trim(option)=='1') write(*,*) 'Structure284 footprint:',rank,original_capacity,used, &
+         4_int64*(4_int64*original_capacity+2_int64*original_capacity+1), &
+         4_int64*(size(keys,kind=int64)+size(table,kind=int64))
     result%key=keys(:,:used)
     allocate(result%owned(used),result%owner(used),result%state_key(4,used),result%level(used),result%mask(4,used))
     result%owned=.false.;result%owner=-1;result%state_key=0;result%level=-1;result%mask=0
@@ -171,6 +241,15 @@ contains
        p=p+sizes(tag)
     end do
   contains
+    subroutine mark(domain,node)
+      integer,intent(in) :: domain,node
+      integer :: h
+      if(node<1.or.node>domain_extent(domain)) error stop 'transform footprint node'
+      h=domain_base(domain)+node
+      if(table(h)==0) then
+         used=used+1;table(h)=used
+      end if
+    end subroutine
     subroutine emit(kind,destination,data,ordinal)
       integer,intent(in) :: kind,destination
       integer(int8),intent(in) :: data(:)
@@ -192,6 +271,17 @@ contains
       integer :: h
       integer(int64) :: bits
       if(domain<1.or.node<1) error stop 'transform physical key'
+      if(present(domain_extent)) then
+         if(domain>size(domain_extent)) error stop 'transform physical namespace'
+         if(node>domain_extent(domain).or.domain_base(domain)<0) error stop 'transform physical slot'
+         h=domain_base(domain)+node;index=table(h)
+         if(index==0) then
+            used=used+1
+            if(used>size(keys,2)) error stop 'transform exact footprint capacity'
+            index=used;table(h)=index;keys(:,index)=[domain,node,1,1]
+         end if
+         return
+      end if
       bits=modulo(int(node,int64)*104729_int64+int(domain,int64)*65599_int64,2147483647_int64)
       bits=ieor(bits,shiftr(bits,16));h=int(modulo(bits,int(size(table),int64)))+1
       do

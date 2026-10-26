@@ -292,7 +292,7 @@ $(TEST_SRC):
 # =========================
 vpath %.f90 $(SRC_DIR)
 
-SRC = kind.f90 \
+SRC = runtime322.f90 audit316.f90 campaign312.f90 boundary310.f90 kind.f90 \
       $(PARAM).f90 \
       shared.f90 \
       coord_arithmetic.f90 \
@@ -378,7 +378,14 @@ SRC += main.f90 \
        test_case_module.f90 \
        test.f90
 
-OBJ := $(addprefix $(BUILD_DIR)/,$(SRC:.f90=.o))
+OBJ := $(BUILD_DIR)/audit_compress322.o $(addprefix $(BUILD_DIR)/,$(SRC:.f90=.o)) $(BUILD_DIR)/runtime322_c.o
+LDLIBS += -lz
+
+$(BUILD_DIR)/audit_compress322.o: $(SRC_DIR)/audit_compress322.c | dirs
+	$(CC) -std=c11 -O2 -Wall -Wextra -Werror -c $< -o $@
+
+$(BUILD_DIR)/runtime322_c.o: $(SRC_DIR)/runtime322.c | dirs
+	$(CC) -std=c11 -O2 -Wall -Wextra -Werror -c $< -o $@
 
 # =========================
 # Main target
@@ -549,3 +556,11 @@ $(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_transform_backend
 
 $(BUILD_DIR)/parallel_block_transform_adapter.o: $(BUILD_DIR)/domain.o $(BUILD_DIR)/arch.o
 $(BUILD_DIR)/parallel_block_transform_backend.o: $(BUILD_DIR)/parallel_block_transform_adapter.o
+
+$(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/wavelet.o
+$(BUILD_DIR)/wavelet.o: $(BUILD_DIR)/comm_mpi.o $(BUILD_DIR)/utils.o $(BUILD_DIR)/domain_ops.o
+$(BUILD_DIR)/utils.o: $(BUILD_DIR)/comm_mpi.o
+$(BUILD_DIR)/comm_mpi.o: $(BUILD_DIR)/comm.o $(BUILD_DIR)/domain_ops.o
+
+# Qualification writer is dependency-free and available before all audit hooks.
+$(filter-out $(BUILD_DIR)/audit316.o,$(OBJ)): $(BUILD_DIR)/audit316.o

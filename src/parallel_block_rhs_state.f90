@@ -1,4 +1,5 @@
 module parallel_block_rhs_state_mod
+  use audit316_mod, only : audit316_i,audit316_i64,audit316_l
   ! Resident interior inputs plus the explicitly bounded compatibility alias
   ! adapter. Geometric state is read only for uncatalogued boundary/scaffold
   ! sources requested by the compiled post-halo footprint.
@@ -17,6 +18,7 @@ module parallel_block_rhs_state_mod
   implicit none
   private
   public :: Rhs_Resident_Input,prepare_rhs_resident_input,read_rhs_resident_input,release_rhs_resident_input
+  public :: audit_rhs_input316
   type :: Provider_Inventory
      integer :: pass=0,used=0
      integer,allocatable :: key(:,:)
@@ -30,6 +32,28 @@ module parallel_block_rhs_state_mod
      real(dp),allocatable :: scalar(:,:),mean(:,:),vector(:,:),read_scalar(:,:),read_mean(:,:),read_vector(:,:)
   end type
 contains
+  subroutine audit_rhs_input316(input)
+    type(Rhs_Resident_Input),intent(in) :: input
+    call audit316_i64('input.epoch',[input%topology,input%masks])
+    call audit316_i('input.extent',[input%nprovider,input%nslot])
+    call audit316_l('input.means',[input%means])
+    call audit316_i('input.local_provider',input%local_provider)
+    call audit316_i('input.address.shape',shape(input%address))
+    call audit316_i('input.address',reshape(input%address,[size(input%address)]))
+    call audit316_i('input.adapter_provider',input%adapter_provider)
+    call audit316_i('input.adapter_domain',input%adapter_domain)
+    call audit316_i('input.adapter_node',input%adapter_node)
+    call audit_rhs_exchange316(input%scalar_route,'input.scalar_route')
+    call audit_rhs_exchange316(input%vector_route,'input.vector_route')
+    call audit_rhs_exchange316(input%mean_route,'input.mean_route')
+    call audit316_i('input.scalar.shape',shape(input%scalar))
+    call audit316_i('input.mean.shape',shape(input%mean))
+    call audit316_i('input.vector.shape',shape(input%vector))
+    call audit316_i('input.read_scalar.shape',shape(input%read_scalar))
+    call audit316_i('input.read_mean.shape',shape(input%read_mean))
+    call audit316_i('input.read_vector.shape',shape(input%read_vector))
+  end subroutine
+
   subroutine collect_providers(catalog,block,context)
     integer,intent(in) :: catalog
     type(Block_Data),intent(in) :: block

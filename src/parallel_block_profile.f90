@@ -26,7 +26,9 @@ module parallel_block_profile_mod
        DP_RHS_RK=77, DP_RHS_EXCHANGE=78, DP_RHS_PACK=79, &
        DP_RHS_POST=80, DP_RHS_WAIT=81, DP_RHS_INSTALL=82, &
        DP_RHS_COST=83, DP_RHS_TRANSFORM=84, DP_TRANSFORM_PLAN=85, DP_TRANSFORM_INPUT=86, &
-       DP_TRANSFORM_FORWARD=87, DP_TRANSFORM_INVERSE=88, DP_TRANSFORM_OUTPUT=89, DP_TRANSFORM_EXCHANGE=90, DP_COUNT=90
+       DP_TRANSFORM_FORWARD=87, DP_TRANSFORM_INVERSE=88, DP_TRANSFORM_OUTPUT=89, DP_TRANSFORM_EXCHANGE=90, &
+       DP_CATALOG_METADATA=91, DP_CATALOG_GATHER=92, &
+       DP_CATALOG_SELECT=93, DP_CATALOG_GROUPS=94, DP_COUNT=94
   character(32), parameter, public :: detail_name(DP_COUNT)=[character(32) :: &
        'timestep residual', 'dynamics residual', 'adaptation residual', 'output/checkpoint', &
        'source extraction', 'source serialization proof', 'receive serialization proof', &
@@ -56,8 +58,11 @@ module parallel_block_profile_mod
        'RHS MPI post and local copy', 'RHS MPI completion wait', 'RHS exchange installation', &
        'RHS traffic accounting', 'RHS transform preparation', 'resident transform plan', &
        'resident transform input', 'resident forward/compression', 'resident inverse arithmetic', &
-       'resident transform output', 'resident transform exchange']
-  logical, public, save :: detail_enabled=.false.
+       'resident transform output', 'resident transform exchange', &
+       'catalogue metadata construction', 'catalogue gather/readiness', &
+       'catalogue ownership selection', 'catalogue group installation']
+  logical, public, save :: detail_enabled=.false.,detail_attribution=.false.
+  public :: detail_configure_attribution
   logical, save :: rhs_detail_option_read=.false.,rhs_detail_fine=.false.
   public :: rhs_detail_enter,rhs_detail_leave
   ! self wall, self process CPU, inclusive wall, inclusive process CPU.
@@ -98,13 +103,49 @@ module parallel_block_profile_mod
   real(real64) :: start_wall(STACK_SIZE), start_cpu(STACK_SIZE), last_wall=0, last_cpu=0
   public :: detail_enter, detail_leave, detail_reset, detail_add, detail_memory, detail_idle
 contains
+  subroutine detail_configure_attribution(enabled)
+    logical,intent(in) :: enabled
+    character(48),parameter :: forbidden(9)=[character(48) :: &
+         'WAVETRISK_CONNECTED_RHS_AUDIT','WAVETRISK_BALANCE_AUDIT', &
+         'WAVETRISK_GROUP_AUDIT','WAVETRISK_SUBDIVISION_AUDIT', &
+         'WAVETRISK_COARSE_FIRST_PROFILE','WAVETRISK_SHARED_GHOST_PROFILE', &
+         'WAVETRISK_COST_AUDIT','WAVETRISK_PROFILE_RHS_FINE','WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS']
+    character(32) :: value
+    integer :: i,status,length
+    if(depth/=0) error stop 'attribution mode changed inside timed scope'
+    detail_attribution=enabled
+    if(.not.enabled) return
+    do i=1,size(forbidden)
+       value=''
+       call get_environment_variable(trim(forbidden(i)),value,length=length,status=status)
+       if(status==-1.or.length>len(value)) error stop 'oversized attribution audit option'
+       if(len_trim(value)>0.and.trim(value)/='0') error stop 'audit or fine clocks contaminate attribution'
+    end do
+  end subroutine
+
+  logical function attribution_region(p) result(enabled)
+    integer,intent(in) :: p
+    ! Major operation boundaries only. In particular, no clock per halo,
+    ! producer node, transport stage, boundary element or route-cost query.
+    select case(p)
+    case(DP_STEP:DP_MIGRATE_MPI,DP_INVERSE,DP_INVERSE_PLAN,DP_CATALOG, &
+         DP_WAVELET:DP_STATE_REFRESH,DP_PHYSICS:DP_ORACLE,DP_WT_DRIVER, &
+         DP_RHS_PREP:DP_RHS_RK,DP_RHS_TRANSFORM:DP_TRANSFORM_OUTPUT, &
+         DP_CATALOG_METADATA:DP_CATALOG_GROUPS)
+       enabled=.true.
+    case default
+       enabled=.false.
+    end select
+  end function
+
   subroutine stamp(w,c)
     real(real64), intent(out) :: w,c
     integer(int64) :: ticks,rate
     call system_clock(ticks,rate)
     if (rate<=0) error stop 'detail profiler: unavailable monotonic clock'
     w=real(ticks,real64)/real(rate,real64)
-    call cpu_time(c)
+    c=0.0_real64
+    if (.not.detail_attribution) call cpu_time(c)
   end subroutine
 
   subroutine account(w,c)
@@ -130,7 +171,7 @@ contains
     integer,intent(in) :: p
     character(len=8) :: option
     integer :: length,status
-    if(.not.detail_enabled) return
+    if(.not.detail_enabled.or.detail_attribution) return
     if(.not.rhs_detail_option_read) then
        call get_environment_variable('WAVETRISK_PROFILE_RHS_FINE',option,length=length,status=status)
        if(status==-1.or.length>len(option)) error stop 'invalid RHS fine profile option'
@@ -149,7 +190,7 @@ contains
 
   subroutine rhs_detail_leave(p)
     integer,intent(in) :: p
-    if(.not.detail_enabled) return
+    if(.not.detail_enabled.or.detail_attribution) return
     if(rhs_detail_fine) call detail_leave(p)
   end subroutine
 
@@ -157,7 +198,11 @@ contains
     integer, intent(in) :: p
     real(real64) :: w,c
     if (.not.detail_enabled) return
-    if (p<1.or.p>DP_COUNT.or.depth>=STACK_SIZE) error stop 'detail profiler: invalid enter'
+    if (p<1.or.p>DP_COUNT) error stop 'detail profiler: invalid enter'
+    if (detail_attribution) then
+       if(.not.attribution_region(p)) return
+    end if
+    if (depth>=STACK_SIZE) error stop 'detail profiler: invalid enter'
     if (p==DP_STEP) then
        if (depth/=0) error stop 'detail profiler: nested timestep'
        step_before=detail_time
@@ -183,6 +228,10 @@ contains
     integer, intent(in) :: p
     real(real64) :: w,c
     if (.not.detail_enabled) return
+    if (p<1.or.p>DP_COUNT) error stop 'detail profiler: invalid leave'
+    if (detail_attribution) then
+       if(.not.attribution_region(p)) return
+    end if
     if (depth<1) error stop 'detail profiler: empty stack'
     if (phase_stack(depth)/=p) error stop 'detail profiler: mismatched scope'
     call stamp(w,c)
@@ -200,6 +249,7 @@ contains
                detail_calls(DP_RESTART)-step_calls_before(DP_RESTART), &
                detail_calls(DP_REMAP)-step_calls_before(DP_REMAP)]
        else
+          if(detail_attribution) error stop 'bounded attribution step capacity exceeded'
           detail_dropped_steps=detail_dropped_steps+1
        end if
     end if
@@ -208,14 +258,14 @@ contains
   subroutine detail_add(p,n)
     integer, intent(in) :: p
     integer(int64), intent(in) :: n
-    if (.not.detail_enabled) return
+    if (.not.detail_enabled.or.detail_attribution) return
     if (p<1.or.p>DC_COUNT.or.n<0) error stop 'detail profiler: invalid counter'
     detail_count(p)=detail_count(p)+n
   end subroutine
 
   subroutine detail_memory(values)
     integer(int64), intent(in) :: values(DM_COUNT)
-    if (.not.detail_enabled) return
+    if (.not.detail_enabled.or.detail_attribution) return
     detail_peak=max(detail_peak,values)
   end subroutine
 

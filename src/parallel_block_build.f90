@@ -21,7 +21,7 @@ module parallel_block_build_mod
 
   use arch_mod, only : block_catalog, loc_id, n_process, owner, rank
 
-  use domain_mod, only : grid, sol, sol_mean, tke, topography, &
+  use domain_mod, only : block_child_Domain, grid, sol, sol_mean, tke, topography, &
        wav_coeff, wav_tke, &
        count_subtree_patches_Domain, &
        extract_subtree_patches_Domain, subtree_depth_Domain, &
@@ -719,7 +719,7 @@ subroutine build_one_source_block ( &
   end if
 
   p_root   = block_catalog(b_catalog)%root_patch
-  depth_old = subtree_depth_Domain(grid(d),p_root)
+  depth_old = subtree_depth_Domain(grid(d),p_root,.true.)
 
   !
   ! ===============================================================
@@ -727,9 +727,9 @@ subroutine build_one_source_block ( &
   ! ===============================================================
   !
   call extract_subtree_patches_Domain( &
-       grid(d), p_root, patch_copy, old_to_new)
+       grid(d), p_root, patch_copy, old_to_new,.true.)
 
-  n_old = count_subtree_patches_Domain(grid(d),p_root)
+  n_old = count_subtree_patches_Domain(grid(d),p_root,.true.)
   n_new = size(patch_copy)
 
   if (n_new /= n_old) then
@@ -1148,7 +1148,7 @@ subroutine build_one_source_block ( &
 
      do c = 1, N_CHDRN
 
-        p_chd_old = grid(d)%patch%elts(p_old+1)%children(c)
+        p_chd_old = block_child_Domain(grid(d),p_old,c)
         p_chd_new = patch_copy(old_to_new(p_old)+1)%children(c)
 
         if (p_chd_old <= 0) then
@@ -1189,7 +1189,7 @@ subroutine build_one_source_block ( &
 
      if (old_to_new(p_old) < 0) cycle
 
-     if (all(grid(d)%patch%elts(p_old+1)%children == 0)) then
+     if (all([(block_child_Domain(grid(d),p_old,c)==0,c=1,N_CHDRN)])) then
         n_leaf_old = n_leaf_old + 1
      end if
 
@@ -2377,7 +2377,7 @@ subroutine build_one_source_block ( &
      end if
 
      source_patch_count = count_subtree_patches_Domain( &
-          grid(d),block_catalog(source_block)%root_patch)
+          grid(d),block_catalog(source_block)%root_patch,.true.)
 
      if (source_local_patch >= source_patch_count) then
         error stop &
@@ -3716,7 +3716,7 @@ contains
     next_patch = next_patch + 1
 
     do c = 1, N_CHDRN
-       p_chd = grid(d)%patch%elts(p+1)%children(c)
+       p_chd = block_child_Domain(grid(d),p,c)
        if (p_chd <= 0) cycle
        call find_subtree_patch_index( &
             p_chd,p_target,next_patch,local_patch)
@@ -3746,7 +3746,7 @@ contains
 
     do c = 1, N_CHDRN
 
-       p_chd = grid(d)%patch%elts(p+1)%children(c)
+       p_chd = block_child_Domain(grid(d),p,c)
 
        if (p_chd > 0) then
 

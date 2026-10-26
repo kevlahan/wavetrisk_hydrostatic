@@ -1,4 +1,5 @@
 module parallel_block_rhs_exchange_mod
+  use audit316_mod, only : audit316_i,audit316_i64,audit316_l,audit316_begin,audit316_end
   use parallel_block_profile_mod, only : detail_enter,detail_leave,rhs_detail_enter,rhs_detail_leave, &
        DP_RHS_EXCHANGE,DP_RHS_PACK,DP_RHS_POST,DP_RHS_WAIT,DP_RHS_INSTALL
   ! Topology-time final-writer selection and phase-bounded derived-field halos.
@@ -13,6 +14,8 @@ module parallel_block_rhs_exchange_mod
   public :: Rhs_Exchange, compile_rhs_exchange, exchange_rhs_values, release_rhs_exchange
   public :: rhs_exchange_cost,rhs_exchange_source_slots,deliver_rhs_indexed_metadata,rhs_exchange_buffer_values
   public :: Rhs_Owner_Directory,compile_rhs_owner_directory,lookup_rhs_owner_directory
+  public :: rhs_exchange_backward_demand,rhs_exchange_restrict,rhs_exchange_target_count
+  public :: audit_rhs_exchange316
   integer, parameter :: KEY_SIZE=4, DEFINITION_SIZE=8
   type :: Rhs_Owner_Directory
      private
@@ -34,6 +37,35 @@ module parallel_block_rhs_exchange_mod
      type(MPI_Request), allocatable :: requests(:)
   end type
 contains
+  subroutine audit_rhs_exchange316(plan,label)
+    ! Final committed route only; requests/communicator handles are process-local
+    ! MPI implementation identities, not canonical peers or numerical addresses.
+    type(Rhs_Exchange),intent(in) :: plan
+    character(*),optional,intent(in) :: label
+    if(present(label)) call audit316_begin(label,plan%masks)
+    call audit316_l('route.allocated',[allocated(plan%sc)])
+    if(.not.allocated(plan%sc)) then
+       if(present(label)) call audit316_end()
+       return
+    end if
+    call audit316_i64('route.epoch',[plan%topology,plan%masks,plan%last_state])
+    call audit316_i('route.header',[plan%phase,plan%nslot,plan%nlayer,plan%me,plan%nrank,plan%tag,plan%last_columns])
+    call audit316_l('route.flags',[plan%owns_comm,plan%variable_columns])
+    call audit316_i('route.sc',plan%sc)
+    call audit316_i('route.sd',plan%sd)
+    call audit316_i('route.rc',plan%rc)
+    call audit316_i('route.rd',plan%rd)
+    call audit316_i('route.source',plan%source)
+    call audit316_i('route.target',plan%target)
+    call audit316_i('route.address',plan%address)
+    call audit316_i('route.orientation',plan%orientation)
+    call audit316_i('route.send_peer',plan%send_peer)
+    call audit316_i('route.receive_peer',plan%receive_peer)
+    call audit316_i('route.target_peer',plan%target_peer)
+    call audit316_i('route.allocations',[size(plan%send),size(plan%received),size(plan%requests)])
+    if(present(label)) call audit316_end()
+  end subroutine
+
   subroutine die(comm,message)
     type(MPI_Comm), intent(in) :: comm
     character(*), intent(in) :: message
@@ -571,6 +603,93 @@ contains
        end if
     end if
     allocate(plan%send(nlayer*sum(plan%sc)+plan%nrank),plan%received(nlayer*sum(plan%rc)+plan%nrank))
+  end subroutine
+
+  integer function rhs_exchange_target_count(plan) result(n)
+    type(Rhs_Exchange),intent(in) :: plan
+    if(plan%comm==MPI_COMM_NULL) error stop 'demand requires compiled route'
+    n=size(plan%target)
+  end function
+
+  subroutine select_demand_requests(plan,wanted,requested,exported)
+    ! Reverse the already-proved provider binding. There is no writer election,
+    ! numerical value, new communicator or runtime work in this preparation pass.
+    type(Rhs_Exchange),intent(in) :: plan
+    logical,intent(in) :: wanted(:,:)
+    logical,allocatable,intent(out) :: requested(:,:),exported(:,:)
+    integer :: i,c,nc,ierr
+    if(plan%comm==MPI_COMM_NULL.or.plan%last_state>=0) error stop 'demand route lifetime'
+    if(size(wanted,1)/=size(plan%target).or.size(wanted,2)<1) error stop 'demand consumer extent'
+    nc=size(wanted,2)
+    allocate(requested(nc,sum(plan%rc)),exported(nc,sum(plan%sc)));requested=.false.
+    do i=1,size(plan%target)
+       do c=1,nc
+          if(wanted(i,c)) requested(c,plan%address(i)+1)=.true.
+       end do
+    end do
+    call MPI_Alltoallv(requested,nc*plan%rc,nc*plan%rd,MPI_LOGICAL, &
+         exported,nc*plan%sc,nc*plan%sd,MPI_LOGICAL,plan%comm,ierr)
+    call mpi_check(plan%comm,ierr,'backward demand requests')
+  end subroutine
+
+  subroutine rhs_exchange_backward_demand(plan,live,keep)
+    ! The halo is one simultaneous pre-install snapshot. Kill all destinations
+    ! before marking requested producer versions; this preserves signed cycles.
+    type(Rhs_Exchange),intent(in) :: plan
+    logical,intent(inout) :: live(:,:),keep(:)
+    logical,allocatable :: wanted(:,:),requested(:,:),exported(:,:)
+    integer :: i,c
+    if(size(live,1)/=plan%nslot.or.size(keep)/=size(plan%target)) error stop 'backward demand extent'
+    allocate(wanted(size(plan%target),size(live,2)))
+    wanted(:,:)=live(plan%target,:)
+    keep=keep.or.any(wanted,dim=2)
+    call select_demand_requests(plan,wanted,requested,exported)
+    live(plan%target,:)=.false.
+    do i=1,size(plan%source)
+       do c=1,size(live,2)
+          if(exported(c,i)) live(plan%source(i),c)=.true.
+       end do
+    end do
+  end subroutine
+
+  subroutine rhs_exchange_restrict(plan,keep)
+    ! Retain a subset of established consumer bindings. One reverse flag exchange
+    ! selects matching exports; existing ordering supplies reciprocal new counts.
+    ! No second compiler, consensus, directory or new route context is needed.
+    type(Rhs_Exchange),intent(inout) :: plan
+    logical,intent(in) :: keep(:)
+    logical,allocatable :: wanted(:,:),requested(:,:),exported(:,:)
+    integer,allocatable :: position(:),sc(:),rc(:),selected(:)
+    integer :: i,r,n
+    logical :: shared
+    if(size(keep)/=size(plan%target)) error stop 'restricted demand extent'
+    allocate(wanted(size(keep),1));wanted(:,1)=keep
+    call select_demand_requests(plan,wanted,requested,exported)
+    allocate(sc(plan%nrank),rc(plan%nrank),position(size(requested,2)));position=0;n=0
+    do i=1,size(position)
+       if(.not.requested(1,i)) cycle
+       n=n+1;position(i)=n
+    end do
+    do r=1,plan%nrank
+       sc(r)=count(exported(1,plan%sd(r)+1:plan%sd(r)+plan%sc(r)))
+       rc(r)=count(requested(1,plan%rd(r)+1:plan%rd(r)+plan%rc(r)))
+    end do
+    selected=pack([(i,i=1,size(keep))],keep)
+    plan%address=position(plan%address(selected)+1)-1
+    if(any(plan%address<0)) error stop 'restricted request missing provider'
+    plan%target=plan%target(selected);plan%orientation=plan%orientation(selected)
+    plan%target_peer=plan%target_peer(selected)
+    plan%source=pack(plan%source,exported(1,:))
+    plan%sc=sc;plan%rc=rc;call prefix(plan%sc,plan%sd);call prefix(plan%rc,plan%rd)
+    plan%send_peer=pack([(r,r=1,plan%nrank)],plan%sc>0)
+    plan%receive_peer=pack([(r,r=1,plan%nrank)],plan%rc>0)
+    deallocate(plan%requests);allocate(plan%requests(size(plan%send_peer)+size(plan%receive_peer)))
+    shared=size(plan%send)==0.and.size(plan%received)==0
+    if(.not.shared) then
+       deallocate(plan%send,plan%received)
+       allocate(plan%send(plan%nlayer*sum(plan%sc)+plan%nrank), &
+            plan%received(plan%nlayer*sum(plan%rc)+plan%nrank))
+    end if
   end subroutine
 
   subroutine exchange_rhs_values(plan,topology,masks,phase,state,values,scratch)

@@ -1,7 +1,10 @@
 module multi_level_mod
+  use boundary310_mod, only: b310_enter,b310_leave
   use parallel_block_rhs_backend_mod, only : connected_rhs_enabled,connected_rhs_needs_prepare, &
        prepare_connected_rhs,evaluate_connected_rhs
-  use parallel_block_rhs_compile_mod, only : Rhs_Domain_Operators,compile_rhs_dynamics
+  use parallel_block_rhs_compile_mod, only : Rhs_Domain_Operators,compile_rhs_dynamics, &
+       balance_mode_295,early_plan_295,early_work_295,early_generation_295,clear_balance_295,scan_work_295
+  use parallel_block_rhs_placement_mod, only : begin_rhs_layout,end_rhs_layout
   use init_mod, only : surf_geopot
   use utils_mod, only : nu_scale
   use shared_mod, only : compressible,mode_split,NCAR_topo,sso,test_case,C_visc,physics_type
@@ -33,7 +36,7 @@ module multi_level_mod
   use parallel_block_velocity_mod, only : velocity_dx, velocity_dy, &
        velocity_weights, velocity_qperp, velocity_source, &
        velocity_restrict_source, velocity_gradient, &
-       Native_Velocity_Workspace, native_velocity, native_velocity_work, &
+       Velocity_Program, Native_Velocity_Workspace, native_velocity, native_velocity_work, &
        native_velocity_transaction, native_velocity_oracle, &
        VELOCITY_DIRECT, VELOCITY_RESTRICT, validate_velocity_program, &
        execute_velocity_sources, execute_velocity_gradients
@@ -64,6 +67,7 @@ module multi_level_mod
   implicit none
 
   private
+  public :: prepare_balance_295
   public :: block_connected_tendency_ml
   public :: cpt_or_restr_flux, trend_ml, &
        block_tendency_compatibility_ml, cal_divu_ml
@@ -85,7 +89,7 @@ module multi_level_mod
   ! Serial oracle traversal context. Module callbacks avoid executable-stack
   ! trampolines on cluster builds; production does not enter this traversal.
   integer, save :: native_velocity_measurement_domain = 0
-  integer, save :: velocity_plan_domain=0, velocity_plan_level=0, velocity_plan_patch=0
+  integer, save :: velocity_plan_level=0, velocity_plan_patch=0
   integer, save :: velocity_plan_pass=0, velocity_plan_action=0, velocity_plan_direct=0, velocity_plan_restriction=0
 
   type :: Mass_Boundary_Plan
@@ -98,7 +102,18 @@ module multi_level_mod
   end type
   type(Mass_Boundary_Plan), allocatable, asynchronous, save :: mass_boundary(:,:)
   integer(int64), save :: mass_boundary_generation=-1_int64
-  integer, save :: mass_plan_domain=0,mass_plan_level=0,mass_plan_pass=0,mass_plan_count=0
+  integer, save :: mass_plan_level=0,mass_plan_pass=0,mass_plan_count=0
+  ! Connected compilation retains only structural metadata, with the same exact
+  ! per-Domain generation/mask guards as the legacy compiler. No numeric buffers,
+  ! mass boundary routes or additional communicator are owned by these caches.
+  type(Mass_Program), allocatable, save :: connected_mass_program(:)
+  type(Velocity_Program), allocatable, save :: connected_velocity_program(:)
+  type(Mass_Program), pointer :: compiling_mass=>null()
+  type(Velocity_Program), pointer :: compiling_velocity=>null()
+#ifdef WAVETRISK_TEST_STRUCTURE_AUDIT
+  public :: mass_program_current,velocity_program_current,prepare_connected_programs
+  public :: connected_mass_program,connected_velocity_program
+#endif
 
   
 contains
@@ -476,6 +491,23 @@ contains
   end subroutine block_tendency_compatibility_ml
 
 
+  subroutine prepare_balance_295()
+    integer :: d
+    integer(int64) :: generation
+    if(balance_mode_295()==0) return
+    if(.not.connected_rhs_enabled()) error stop 'selective balance requires connected RHS'
+    call clear_balance_295()
+    generation=native_velocity_plan_generation()+1_int64
+    call prepare_connected_programs(generation)
+    allocate(early_plan_295(size(grid)),early_work_295(size(grid)))
+    do d=1,size(grid)
+       call compile_rhs_dynamics(grid(d),connected_mass_program(d)%level,connected_velocity_program(d),early_plan_295(d))
+       allocate(early_work_295(d)%node(grid(d)%node%length))
+       call scan_work_295(early_plan_295(d),early_work_295(d)%node)
+    end do
+    early_generation_295=generation
+  end subroutine
+
   subroutine block_connected_tendency_ml(q)
     type(Float_Field),intent(in) :: q(N_VARIABLE,zlevels)
     type(Rhs_Domain_Operators),allocatable :: plan(:)
@@ -487,15 +519,36 @@ contains
     if(.not.compressible.or.mode_split.or.NCAR_topo.or.sso.or.trim(test_case)/='climate'.or. &
          trim(physics_type)/='Simple') &
          error stop 'connected RHS unsupported model configuration'
+    call b310_enter(3)
     generation=native_velocity_plan_generation()
     if(connected_rhs_needs_prepare(generation)) then
        call detail_enter(DP_RHS_PREP)
        call detail_enter(DP_RHS_COMPILE)
-       call prepare_native_velocity_programs
-       call prepare_native_mass
-       allocate(plan(size(grid)),base(size(grid)+1));base(1)=0
+       if(balance_mode_295()>0) then
+          if(.not.allocated(early_plan_295)) error stop 'balance structural plan absent'
+          ! Validation may rebuild communication plans without changing geometry.
+          ! Structural lifetime ends in clear_parallel_block_state, not in a
+          ! route-only rebuild. Verify exact masks before binding the new routes.
+          if(early_generation_295>generation) error stop 'balance structural generation reversed'
+          if(size(early_plan_295)/=size(grid)) error stop 'balance structural Domain extent'
+          do d=1,size(grid)
+             if(.not.mass_program_current(connected_mass_program(d),d,early_generation_295).or. &
+                  .not.velocity_program_current(connected_velocity_program(d),d,early_generation_295)) &
+                  error stop 'balance masks changed after assignment'
+             connected_mass_program(d)%generation=generation
+             connected_velocity_program(d)%generation=generation
+          end do
+          call move_alloc(early_plan_295,plan)
+          call clear_balance_295()
+       else
+          call prepare_connected_programs(generation)
+          allocate(plan(size(grid)))
+          do d=1,size(grid)
+             call compile_rhs_dynamics(grid(d),connected_mass_program(d)%level,connected_velocity_program(d),plan(d))
+          end do
+       end if
+       allocate(base(size(grid)+1));base(1)=0
        do d=1,size(grid)
-          call compile_rhs_dynamics(grid(d),native_mass(d)%level,native_velocity(d),plan(d))
           base(d+1)=base(d)+grid(d)%node%length
        end do
        allocate(surface(base(size(base))));surface=0
@@ -506,9 +559,11 @@ contains
           end do
        end do
        call detail_leave(DP_RHS_COMPILE)
+       call begin_rhs_layout(generation)
        call prepare_connected_rhs(plan,base,generation,surface)
     call detail_enter(DP_RHS_TRANSFORM)
        call prepare_connected_transform_geometry
+       call end_rhs_layout()
     call detail_leave(DP_RHS_TRANSFORM)
        call detail_leave(DP_RHS_PREP)
     end if
@@ -523,34 +578,111 @@ contains
        end do
        C_visc(S_DIVU,:)=saved
     end if
+    call b310_leave(3)
+    call b310_enter(4)
     call evaluate_connected_rhs(q,nu,pentagon)
+    call b310_leave(4)
+  end subroutine
+
+  logical function mass_program_current(program,d,generation) result(current)
+    type(Mass_Program),intent(in) :: program
+    integer,intent(in) :: d
+    integer(int64),intent(in) :: generation
+    integer :: n
+    current=.false.
+    if(program%generation/=generation) return
+    n=grid(d)%node%length
+    if(program%nnode/=n) error stop 'mass program layout changed without generation'
+    if(.not.allocated(program%active).or..not.allocated(program%restricted)) &
+         error stop 'mass program masks absent'
+    if(size(program%active)/=n.or.size(program%restricted)/=EDGE*n) error stop 'mass program mask extent'
+    current=all(program%active.eqv.(grid(d)%mask_n%elts(1:n)>=TRSK)).and. &
+         all(program%restricted.eqv.(grid(d)%mask_e%elts(1:EDGE*n)>=RESTRCT))
+  end function
+
+  logical function velocity_program_current(program,d,generation) result(current)
+    type(Velocity_Program),intent(in) :: program
+    integer,intent(in) :: d
+    integer(int64),intent(in) :: generation
+    integer :: n
+    current=.false.
+    if(program%generation/=generation) return
+    n=grid(d)%node%length
+    if(program%nnode/=n) error stop 'velocity program layout changed without generation'
+    if(.not.allocated(program%active_mask).or..not.allocated(program%restriction_mask)) &
+         error stop 'velocity program masks absent'
+    if(size(program%active_mask)/=n.or.size(program%restriction_mask)/=EDGE*n) &
+         error stop 'velocity program mask extent'
+    current=all(program%active_mask.eqv.(grid(d)%mask_n%elts(1:n)>=TRSK)).and. &
+         all(program%restriction_mask.eqv.(grid(d)%mask_e%elts(1:EDGE*n)>=ADJZONE))
+  end function
+
+  subroutine prepare_connected_programs(generation)
+    integer(int64),intent(in) :: generation
+    integer :: d
+    if(allocated(connected_mass_program)) then
+       if(size(connected_mass_program)/=size(grid)) deallocate(connected_mass_program,connected_velocity_program)
+    end if
+    if(.not.allocated(connected_mass_program)) &
+         allocate(connected_mass_program(size(grid)),connected_velocity_program(size(grid)))
+    ! The selector is fixed for a solver process. Accidentally entering an old
+    ! numerical preparation path must fail, not silently retain duplicate state.
+    if(allocated(native_mass).or.allocated(native_velocity).or.allocated(mass_boundary)) &
+         error stop 'connected compiler retained legacy numerical workspaces'
+    do d=1,size(grid)
+       if(.not.velocity_program_current(connected_velocity_program(d),d,generation)) &
+            call compile_velocity_program(d,generation,connected_velocity_program(d),.false.)
+       if(.not.mass_program_current(connected_mass_program(d),d,generation)) &
+            call compile_mass_program(d,generation,connected_mass_program(d))
+    end do
+#ifdef WAVETRISK_TEST_STRUCTURE_AUDIT
+    call audit_connected_program_storage(generation)
+#endif
   end subroutine
 
   subroutine prepare_native_mass
-    integer :: d,l,p,c,s,pass,n
+    integer :: d,n,l
     integer(int64) :: generation
     generation=native_velocity_plan_generation()
-    if (allocated(native_mass)) then
-       if (size(native_mass)/=size(grid)) deallocate(native_mass)
+    if(allocated(native_mass)) then
+       if(size(native_mass)/=size(grid)) deallocate(native_mass)
     end if
-    if (.not. allocated(native_mass)) allocate(native_mass(size(grid)))
+    if(.not.allocated(native_mass)) allocate(native_mass(size(grid)))
     do d=1,size(grid)
-       n=grid(d)%node%length
-       if (native_mass(d)%generation==generation) then
-          if (size(native_mass(d)%active)/=n) error stop "native mass layout changed without generation"
-          if (all(native_mass(d)%active .eqv. (grid(d)%mask_n%elts(1:n)>=TRSK)) .and. &
-               all(native_mass(d)%restricted .eqv. (grid(d)%mask_e%elts(1:EDGE*n)>=RESTRCT))) cycle
-       end if
+       if(mass_program_current(native_mass(d)%Mass_Program,d,generation)) cycle
        native_mass(d)=Native_Mass_Workspace()
+       call compile_mass_program(d,generation,native_mass(d)%Mass_Program)
+       n=native_mass(d)%nnode
        associate(w=>native_mass(d))
-       allocate(w%level(level_start:level_end),w%flux(EDGE*n),w%tendency(n,zlevels),w%rk(n,zlevels))
-       allocate(w%active(n),w%restricted(EDGE*n),w%ready(zlevels))
-       w%active=grid(d)%mask_n%elts(1:n)>=TRSK
-       w%restricted=grid(d)%mask_e%elts(1:EDGE*n)>=RESTRCT
-       w%flux=0.0_dp
-       w%tendency=0.0_dp
-       w%ready=.false.
-       mass_plan_domain=d
+       allocate(w%flux(EDGE*n),w%tendency(n,zlevels),w%rk(n,zlevels),w%ready(zlevels))
+       w%flux=0.0_dp;w%tendency=0.0_dp;w%ready=.false.
+       end associate
+    end do
+    if (mass_boundary_generation/=generation) then
+       if (allocated(mass_boundary)) then
+          if(any(mass_boundary%pending)) error stop "mass plan retired with pending exchange"
+          deallocate(mass_boundary)
+       end if
+       allocate(mass_boundary(AT_NODE:AT_EDGE,level_start:level_end))
+       do l=level_start,level_end
+          call compile_mass_boundary(AT_NODE,l)
+          call compile_mass_boundary(AT_EDGE,l)
+       end do
+       mass_boundary_generation=generation
+    end if
+  end subroutine
+
+  subroutine compile_mass_program(d,generation,w)
+    integer,intent(in) :: d
+    integer(int64),intent(in) :: generation
+    type(Mass_Program),intent(out),target :: w
+    integer :: l,p,c,s,pass,n
+    if(associated(compiling_mass)) error stop 'nested mass structural compilation'
+    compiling_mass=>w
+    n=grid(d)%node%length;w%nnode=n
+    allocate(w%level(level_start:level_end),w%active(n),w%restricted(EDGE*n))
+    w%active=grid(d)%mask_n%elts(1:n)>=TRSK
+    w%restricted=grid(d)%mask_e%elts(1:EDGE*n)>=RESTRCT
        do l=level_end,level_start,-1
           mass_plan_level=l
           do pass=1,2
@@ -576,23 +708,33 @@ contains
              if (pass==1) allocate(w%level(l)%divergence(mass_plan_count))
           end do
        end do
-       w%generation=generation
-       mass_work(1)=mass_work(1)+1_int64
-       end associate
-    end do
-    if (mass_boundary_generation/=generation) then
-       if (allocated(mass_boundary)) then
-          if(any(mass_boundary%pending)) error stop "mass plan retired with pending exchange"
-          deallocate(mass_boundary)
-       end if
-       allocate(mass_boundary(AT_NODE:AT_EDGE,level_start:level_end))
-       do l=level_start,level_end
-          call compile_mass_boundary(AT_NODE,l)
-          call compile_mass_boundary(AT_EDGE,l)
-       end do
-       mass_boundary_generation=generation
-    end if
+    w%generation=generation
+    mass_work(1)=mass_work(1)+1_int64
+    nullify(compiling_mass)
   end subroutine
+
+#ifdef WAVETRISK_TEST_STRUCTURE_AUDIT
+  subroutine audit_connected_program_storage(generation)
+    integer(int64),intent(in) :: generation
+    integer(int64) :: nodes,retired,domains,rb,ib,lb
+    integer :: d,u
+    character(96) :: filename
+    nodes=0;domains=int(size(grid),int64)
+    do d=1,size(grid)
+       nodes=nodes+connected_mass_program(d)%nnode
+       if(allocated(connected_velocity_program(d)%physics_address)) error stop 'connected legacy physics address'
+    end do
+    rb=storage_size(0.0_dp)/8;ib=storage_size(0)/8;lb=storage_size(.false.)/8
+    ! Exactly the old mass/velocity numeric payload plus optional legacy address
+    ! map and ready flags. Boundary routes, descriptors and allocator retention
+    ! are additional, and are deliberately excluded from this byte bound.
+    retired=nodes*(rb*(EDGE+2*zlevels+8+2*EDGE*zlevels)+3*ib+lb)+2*domains*zlevels*lb
+    write(filename,'(a,i0,a)') 'structure286-rank-',rank,'.txt'
+    open(newunit=u,file=trim(filename),status='unknown',position='append',action='write')
+    write(u,*) generation,domains,nodes,retired,0,0
+    close(u)
+  end subroutine
+#endif
 
   subroutine compile_mass_divergence(dom,i,j,k,offs,dims)
     type(Domain), intent(inout) :: dom
@@ -601,7 +743,7 @@ contains
     mass_plan_count=mass_plan_count+1
     if (mass_plan_pass==1) return
     id=idx(i,j,offs,dims)
-    associate(s=>native_mass(mass_plan_domain)%level(mass_plan_level)%divergence(mass_plan_count))
+    associate(s=>compiling_mass%level(mass_plan_level)%divergence(mass_plan_count))
     s%target=id+1
     s%active=dom%mask_n%elts(id+1)>=TRSK
     if (.not. s%active) return
@@ -610,7 +752,7 @@ contains
     isw=idx(i-1,j-1,offs,dims)
     s%edge=[EDGE*id+RT,EDGE*iw+RT,EDGE*isw+DG,EDGE*id+DG,EDGE*id+UP,EDGE*is+UP]+1
     s%inverse_area=dom%areas%elts(id+1)%hex_inv
-    if (any(s%edge<1).or.any(s%edge>size(native_mass(mass_plan_domain)%flux))) &
+    if (any(s%edge<1).or.any(s%edge>EDGE*compiling_mass%nnode)) &
          error stop "native mass divergence address is invalid"
     end associate
   end subroutine
@@ -625,8 +767,8 @@ contains
     if (.not. any(dom%mask_e%elts(EDGE*(id-1)+1:EDGE*id)>=RESTRCT)) return
     mass_plan_count=mass_plan_count+1
     if (mass_plan_pass==1) return
-    nnode=grid(mass_plan_domain)%node%length
-    associate(s=>native_mass(mass_plan_domain)%level(mass_plan_level)%restriction(mass_plan_count))
+    nnode=compiling_mass%nnode
+    associate(s=>compiling_mass%level(mass_plan_level)%restriction(mass_plan_count))
     s%target=id
     s%edge=dom%mask_e%elts(EDGE*(id-1)+1:EDGE*id)>=RESTRCT
     weights(:,1)=[idx(ic+1,jc-2,oc,dc),idx(ic+1,jc-1,oc,dc)]+1
@@ -869,37 +1011,46 @@ contains
   end subroutine
 
   subroutine prepare_native_velocity_programs
-    integer :: d,l,p,c,slot,pass,nnode,ngrad,i,j,s,id,n,offs(N_BDRY+1),dims(2,N_BDRY+1)
+    integer :: d,nnode
     integer(int64) :: generation
     generation=native_velocity_plan_generation()
-    if (allocated(native_velocity)) then
-       if (size(native_velocity)/=size(grid)) deallocate(native_velocity)
+    if(allocated(native_velocity)) then
+       if(size(native_velocity)/=size(grid)) deallocate(native_velocity)
     end if
-    if (.not. allocated(native_velocity)) allocate(native_velocity(size(grid)))
+    if(.not.allocated(native_velocity)) allocate(native_velocity(size(grid)))
     do d=1,size(grid)
-       nnode=grid(d)%node%length
-       if (native_velocity(d)%generation==generation) then
-          if (size(native_velocity(d)%source,2)/=nnode .or. size(native_velocity(d)%ready)/=zlevels) &
-               error stop "native velocity layout changed without a new generation"
-          ! A mask-only adaptation can change which source edges are direct
-          ! without changing the address/ownership generation. Compare the
-          ! actual predicates, not a collision-prone checksum or dimensions.
-          if (all(native_velocity(d)%active_mask .eqv. (grid(d)%mask_n%elts(1:nnode)>=TRSK)) .and. &
-               all(native_velocity(d)%restriction_mask .eqv. (grid(d)%mask_e%elts(1:EDGE*nnode)>=ADJZONE))) cycle
+       if(velocity_program_current(native_velocity(d)%Velocity_Program,d,generation)) then
+          if(size(native_velocity(d)%source,2)/=grid(d)%node%length.or. &
+               size(native_velocity(d)%ready)/=zlevels) error stop 'native velocity numerical extent'
+          cycle
        end if
        native_velocity(d)=Native_Velocity_Workspace()
+       call compile_velocity_program(d,generation,native_velocity(d)%Velocity_Program,.true.)
+       nnode=native_velocity(d)%nnode
        associate(work=>native_velocity(d))
-       allocate(work%level(level_start:level_end),work%physics_address(3,nnode))
        allocate(work%source(3,nnode),work%physics(3,nnode),work%physics_ready(nnode))
        allocate(work%tendency(EDGE*nnode,zlevels),work%rk(EDGE*nnode,zlevels),work%ready(zlevels))
        allocate(work%rho(nnode),work%rho_theta(nnode))
-       allocate(work%active_mask(nnode),work%restriction_mask(EDGE*nnode))
-       work%active_mask=grid(d)%mask_n%elts(1:nnode)>=TRSK
-       work%restriction_mask=grid(d)%mask_e%elts(1:EDGE*nnode)>=ADJZONE
-       work%physics_address=0
-       work%physics=0.0_dp
-       work%ready=.false.
-       velocity_plan_domain=d
+       work%physics=0.0_dp;work%ready=.false.
+       end associate
+    end do
+  end subroutine prepare_native_velocity_programs
+
+  subroutine compile_velocity_program(d,generation,work,legacy_physics)
+    integer,intent(in) :: d
+    integer(int64),intent(in) :: generation
+    type(Velocity_Program),intent(out),target :: work
+    logical,intent(in) :: legacy_physics
+    integer :: l,p,c,slot,pass,nnode,ngrad,i,j,s,id,n,offs(N_BDRY+1),dims(2,N_BDRY+1)
+    if(associated(compiling_velocity)) error stop 'nested velocity structural compilation'
+    compiling_velocity=>work
+    nnode=grid(d)%node%length;work%nnode=nnode
+    allocate(work%level(level_start:level_end),work%active_mask(nnode),work%restriction_mask(EDGE*nnode))
+    work%active_mask=grid(d)%mask_n%elts(1:nnode)>=TRSK
+    work%restriction_mask=grid(d)%mask_e%elts(1:EDGE*nnode)>=ADJZONE
+    if(legacy_physics) then
+       allocate(work%physics_address(3,nnode));work%physics_address=0
+    end if
        do l=level_end,level_start,-1
           velocity_plan_level=l
           do pass=1,2
@@ -957,32 +1108,30 @@ contains
              end do
           end do
        end do
-       work%generation=generation
-       native_velocity_work(1)=native_velocity_work(1)+1_int64
-       end associate
-    end do
-    velocity_plan_domain=0
-  end subroutine prepare_native_velocity_programs
+    work%generation=generation
+    native_velocity_work(1)=native_velocity_work(1)+1_int64
+    nullify(compiling_velocity)
+  end subroutine compile_velocity_program
 
   subroutine compile_velocity_direct(dom,i,j,k,offs,dims)
     type(Domain), intent(inout) :: dom
     integer, intent(in) :: i,j,k,offs(N_BDRY+1),dims(2,N_BDRY+1)
-    integer :: id,n,d,l,s
+    integer :: id,n,l,s
     real(dp) :: parts(6,4),inverse_area(4)
     velocity_plan_action=velocity_plan_action+1
     velocity_plan_direct=velocity_plan_direct+1
     if (velocity_plan_pass==1) return
-    d=velocity_plan_domain
     l=velocity_plan_level
     s=velocity_plan_direct
-    associate(program=>native_velocity(d)%level(l))
+    associate(program=>compiling_velocity%level(l))
     program%action(velocity_plan_action)=VELOCITY_DIRECT
     program%operand(velocity_plan_action)=s
     id=idx(i,j,offs,dims)+1
     program%direct(s)%node(1)=id
     program%direct(s)%active=dom%mask_n%elts(id)>=TRSK
     if (.not. program%direct(s)%active) return
-    native_velocity(d)%physics_address(:,id)=[velocity_plan_patch,i,j]
+    if(allocated(compiling_velocity%physics_address)) &
+         compiling_velocity%physics_address(:,id)=[velocity_plan_patch,i,j]
     do n=1,9
        program%direct(s)%node(n)=idx(i+velocity_dx(n),j+velocity_dy(n),offs,dims)+1
     end do
@@ -998,7 +1147,7 @@ contains
   subroutine compile_velocity_restriction(dom,ip,jp,ic,jc,k,op,dp_,oc,dc)
     type(Domain), intent(inout) :: dom
     integer, intent(in) :: ip,jp,ic,jc,k,op(N_BDRY+1),dp_(2,N_BDRY+1),oc(N_BDRY+1),dc(2,N_BDRY+1)
-    integer :: child,d,l,s
+    integer :: child,l,s
     logical :: restricted(EDGE)
     child=idx(ic,jc,oc,dc)+1
     restricted=dom%mask_e%elts(EDGE*(child-1)+1:EDGE*child)>=ADJZONE
@@ -1006,10 +1155,9 @@ contains
     velocity_plan_action=velocity_plan_action+1
     velocity_plan_restriction=velocity_plan_restriction+1
     if (velocity_plan_pass==1) return
-    d=velocity_plan_domain
     l=velocity_plan_level
     s=velocity_plan_restriction
-    associate(program=>native_velocity(d)%level(l))
+    associate(program=>compiling_velocity%level(l))
     program%action(velocity_plan_action)=VELOCITY_RESTRICT
     program%operand(velocity_plan_action)=s
     program%restriction(s)%target=idx(ip,jp,op,dp_)+1

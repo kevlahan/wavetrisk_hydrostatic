@@ -8,7 +8,10 @@
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 module physics_simple_mod
-  
+  use iso_fortran_env, only : int64
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
+  use shared_mod, only : istep
+  use arch_mod, only : rank,glo_id
   use, intrinsic :: iso_c_binding, only : C_BOOL
   
   use kind_mod,   only : dp, sp
@@ -28,6 +31,7 @@ module physics_simple_mod
   private
   public :: physics_simple_step, Rayleigh_friction
   
+  integer(int64) :: physics_visits322=0_int64
   real(sp) :: phys_dt
 contains
   subroutine physics_simple_step (h)
@@ -36,6 +40,12 @@ contains
     real(dp) :: h ! time step
     
     phys_dt = real (h, kind=sp)
+    if(audit316_enabled()) then
+       physics_visits322=0_int64
+       call audit316_begin('physics322',int(istep,int64))
+       call audit316_r('physics.time',[h,real(phys_dt,dp),time])
+       call audit316_l('physics.firstcall',[logical(physics_firstcall_flag)])
+    end if
     
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
@@ -43,7 +53,11 @@ contains
     call apply_no_bdry2 (physics_call, z_null)
 
     sol%bdry_uptodate      = .false.
-    physics_firstcall_flag = .false.   
+    physics_firstcall_flag = .false.
+    if(audit316_enabled()) then
+       call audit316_i64('physics.visits',[physics_visits322])
+       call audit316_end()
+    end if
   end subroutine physics_simple_step
 
   subroutine Rayleigh_friction (dom, i, j, zlev, offs, dims)
@@ -152,11 +166,25 @@ contains
     ! Mask for adaptive grid
     mask = grid(d)%mask_n%elts(id_i)
 
+    if(audit316_enabled()) then
+       physics_visits322=physics_visits322+1_int64
+       call audit316_begin('physics.column322',physics_visits322)
+       call audit316_i('physics.column',[d,glo_id(rank+1,d),p_null,i,j,zlev,is_pole,id_i,mask])
+       call audit316_r('physics.coordinates',[latitude,longitude])
+       call audit316_r('physics.input',[real(nth_day,dp),real(day_fraction,dp),real(phys_dt,dp), &
+            real(phys_Play,dp),real(phys_Pint,dp),real(phys_Phi,dp),real(phys_Phisurf,dp),real(phys_Umag,dp), &
+            real(phys_U,dp),real(phys_V,dp),real(phys_W,dp),real(phys_Theta,dp),real(Tsoil,dp)])
+    end if
     ! Backwards Euler step on current column
     call physics_call_single_col (1, zlevels, mask, &
          physics_firstcall_flag, lastcall_flag, nth_day, day_fraction, phys_dt, &
          phys_Play, phys_Pint, phys_Phi, phys_Phisurf, phys_Umag, &
          phys_U, phys_V, phys_W, phys_Theta, Tsoil) ! updated values
+    if(audit316_enabled()) then
+       call audit316_r('physics.output',[real(phys_U,dp),real(phys_V,dp),real(phys_W,dp), &
+            real(phys_Theta,dp),real(Tsoil,dp)])
+       call audit316_end()
+    end if
 
     ! Assign solution at t+h
     do k = 1, zlevels

@@ -23,7 +23,7 @@ module checkpoint_mod
   implicit none 
 
   private
-  public :: dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
+  public :: dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory, snapshot_adapt_mpi312
 
 
   ! Magic number identifying a WAVETRISK checkpoint file.
@@ -154,6 +154,94 @@ contains
 
   end subroutine validate_checkpoint_file_extent
 
+
+
+  subroutine snapshot_adapt_mpi312(id)
+    ! Campaign endpoints are observations, not checkpoint/restart transitions.
+    ! dump_adapt_mpi changes scalar fields, wavelet halos, deletion flags,
+    ! level traversal lists and the restart directory. Preserve them all.
+    ! Restore arrays in place so existing block/Domain aliases stay valid.
+    use dyn_arrays, only: Int_Array
+    integer,intent(in) :: id
+    type :: Saved_Tree
+       logical,allocatable :: deleted(:)
+       type(Int_Array),allocatable :: lev(:)
+    end type
+    type(Saved_Tree),allocatable :: tree(:)
+    type(Float_Field),allocatable :: saved_sol(:,:),saved_wav(:,:)
+    integer,allocatable :: saved_load(:)
+    integer(int64),allocatable :: saved_offset(:),saved_nbytes(:)
+    integer :: d,l,v,k,u,changed_deleted,changed_levels
+    character(80) :: path
+
+    if(vert_diffuse) error stop 'Stage312 snapshot supports no-TKE climate only'
+    allocate(saved_sol,source=sol)
+    allocate(saved_wav,source=wav_coeff)
+    allocate(tree(size(grid)))
+    do d=1,size(grid)
+       ! Avoid GCC13 SOURCE= ICE on an array-of-derived-type component.
+       allocate(tree(d)%deleted(size(grid(d)%patch%elts)))
+       tree(d)%deleted(:)=grid(d)%patch%elts%deleted
+       allocate(tree(d)%lev,source=grid(d)%lev)
+    end do
+    call move_alloc(cp_load,saved_load)
+    call move_alloc(cp_offset,saved_offset)
+    call move_alloc(cp_nbytes,saved_nbytes)
+
+    call dump_adapt_mpi(id)
+
+    changed_deleted=0;changed_levels=0
+    do d=1,size(grid)
+       changed_deleted=changed_deleted+count(tree(d)%deleted.neqv.grid(d)%patch%elts%deleted)
+       grid(d)%patch%elts%deleted=tree(d)%deleted
+       do l=lbound(grid(d)%lev,1),ubound(grid(d)%lev,1)
+          if(grid(d)%lev(l)%length/=tree(d)%lev(l)%length) changed_levels=changed_levels+1
+          grid(d)%lev(l)%length=tree(d)%lev(l)%length
+          if(allocated(tree(d)%lev(l)%elts)) then
+             changed_levels=changed_levels+count(grid(d)%lev(l)%elts/=tree(d)%lev(l)%elts)
+             grid(d)%lev(l)%elts(:)=tree(d)%lev(l)%elts
+          end if
+       end do
+    end do
+    do k=lbound(sol,2),ubound(sol,2)
+       do v=lbound(sol,1),ubound(sol,1)
+          call restore_field(sol(v,k),saved_sol(v,k))
+          call restore_field(wav_coeff(v,k),saved_wav(v,k))
+       end do
+    end do
+    call move_alloc(saved_load,cp_load)
+    call move_alloc(saved_offset,cp_offset)
+    call move_alloc(saved_nbytes,cp_nbytes)
+    do d=1,size(grid)
+       if(any(tree(d)%deleted.neqv.grid(d)%patch%elts%deleted)) error stop 'Stage312 snapshot changed deletion flags'
+       do l=lbound(grid(d)%lev,1),ubound(grid(d)%lev,1)
+          if(grid(d)%lev(l)%length/=tree(d)%lev(l)%length) error stop 'Stage312 snapshot changed level length'
+          if(allocated(tree(d)%lev(l)%elts)) then
+             if(any(grid(d)%lev(l)%elts/=tree(d)%lev(l)%elts)) error stop 'Stage312 snapshot changed level traversal'
+          end if
+       end do
+    end do
+    write(path,'(a,i0,a)') 'snapshot312-rank-',rank,'.txt'
+    open(newunit=u,file=trim(path),status='unknown',position='append')
+    write(u,*) id,changed_deleted,changed_levels
+    close(u)
+  contains
+    subroutine restore_field(field,saved)
+      type(Float_Field),intent(inout) :: field
+      type(Float_Field),intent(in) :: saved
+      integer :: j
+      if(field%pos/=saved%pos.or.size(field%data)/=size(saved%data)) error stop 'Stage312 snapshot changed field layout'
+      field%bdry_tag=saved%bdry_tag
+      field%bdry_uptodate=saved%bdry_uptodate
+      do j=1,size(field%data)
+         if(field%data(j)%length/=saved%data(j)%length.or. &
+              size(field%data(j)%elts)/=size(saved%data(j)%elts)) error stop 'Stage312 snapshot changed field extent'
+         field%data(j)%elts(:)=saved%data(j)%elts
+         if(any(transfer(field%data(j)%elts,[0_int64])/=transfer(saved%data(j)%elts,[0_int64]))) &
+              error stop 'Stage312 snapshot changed field bits'
+      end do
+    end subroutine
+  end subroutine snapshot_adapt_mpi312
 
   subroutine dump_adapt_mpi (id)
     ! Save adaptive checkpoint data to one shared MPI-IO file.

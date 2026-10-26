@@ -1,4 +1,7 @@
 module time_integr_mod
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i
+  use domain_mod, only : audit_domain_fields322
+  use shared_mod, only : istep
   use parallel_block_rhs_backend_mod, only : connected_rhs_enabled,prepare_connected_rhs_rk,install_connected_rhs_rk
   use parallel_block_profile_mod, only : detail_enter, detail_leave, DP_CAPTURE, DP_VELOCITY_PREP
 
@@ -247,6 +250,11 @@ contains
     integer, intent(in) :: stage_count
     logical :: handled
 
+    if(audit316_enabled()) then
+       call audit316_begin('rk.provisional322',int(istep,int64))
+       call audit316_i('rk.stage',[stage,stage_count])
+       call audit_domain_fields322(scaling,20,int(istep,int64))
+    end if
     call prepare_block_native_multistage_wavelet_stage(stage,stage_count)
     call try_resident_provisional_transform(scaling,wavelet,handled)
     if(.not.handled) then
@@ -268,6 +276,10 @@ contains
     end if
     call refresh_parallel_block_candidate_boundary_state( &
          scaling,stage,stage_count,native_inverse=.true.)
+    if(audit316_enabled()) then
+       call audit_domain_fields322(scaling,22,int(istep,int64))
+       call audit316_end()
+    end if
 
   end subroutine native_provisional_WT
 
@@ -511,6 +523,12 @@ contains
        call retain_block_native_multistage_candidate(q,4,4)
        call prepare_block_native_multistage_wavelet_acceptance(4)
     end if
+    if(audit316_enabled()) then
+       call audit316_begin('rk.final322',int(istep,int64))
+       call audit316_i('rk.stage',[4,4])
+       call audit_domain_fields322(q,20,int(istep,int64))
+       call audit_domain_fields322(wav,21,int(istep,int64))
+    end if
     call WT_after_step( &
          q,wav,level_start-1, &
          validate_scalar_wavelets= &
@@ -530,6 +548,11 @@ contains
        call refresh_parallel_block_domain_prognostic_state(native_inverse=.true.)
        call assert_multistage_legacy_tendency_calls( &
             legacy_call_count_before,4,validate_oracle)
+    end if
+    if(audit316_enabled()) then
+       call audit_domain_fields322(q,22,int(istep,int64))
+       call audit_domain_fields322(wav,23,int(istep,int64))
+       call audit316_end()
     end if
   end subroutine RK4
 

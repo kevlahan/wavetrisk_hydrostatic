@@ -1,13 +1,79 @@
 module parallel_block_rhs_placement_mod
+  use domain_mod, only : block_child_Domain
   ! Topology-time selection and address compaction. Operation selection follows
   ! the target's numerical owner, while shared writes retain original ordinals.
   use parallel_block_rhs_compile_mod, only : Rhs_Domain_Operators
   use parallel_block_velocity_mod, only : VELOCITY_DIRECT,VELOCITY_RESTRICT
+  use iso_fortran_env, only : int64
   implicit none
   private
-  public :: select_rhs_placement,compile_rhs_owner_map
+  public :: select_rhs_placement,compile_rhs_owner_map,begin_rhs_layout,end_rhs_layout
+  type :: Layout_Domain
+     integer :: global_domain=-1
+     integer,allocatable :: owner(:),key(:,:)
+  end type
+  type(Layout_Domain),allocatable,save :: layout(:)
+  integer(int64),save :: layout_generation=-1
+  integer,save :: layout_builds=0,layout_hits=0
+  logical,save :: layout_enabled=.true.
 contains
+  subroutine begin_rhs_layout(generation)
+    use domain_mod, only : grid
+    use arch_mod, only : rank,glo_id
+    integer(int64),intent(in) :: generation
+    integer :: d
+    character(8) :: option
+    call end_rhs_layout()
+    call get_environment_variable('WAVETRISK_STRUCTURE_CACHE',option)
+    if(len_trim(option)>0.and.trim(option)/='0'.and.trim(option)/='1') error stop 'RHS structure selector'
+    layout_enabled=trim(option)/='0';layout_generation=generation
+    layout_builds=0;layout_hits=0
+    if(.not.layout_enabled) return
+    allocate(layout(size(grid)))
+    do d=1,size(grid)
+       layout(d)%global_domain=glo_id(rank+1,d)
+       call build_rhs_owner_map(grid(d),layout(d)%global_domain,layout(d)%owner,layout(d)%key)
+       layout_builds=layout_builds+1
+    end do
+  end subroutine
+
+  subroutine end_rhs_layout()
+    use arch_mod,only : rank
+    character(8) :: option
+    integer(int64) :: bytes
+    integer :: d
+    call get_environment_variable('WAVETRISK_CONNECTED_RHS_AUDIT',option)
+    if(allocated(layout)) then
+       bytes=0
+       do d=1,size(layout)
+          bytes=bytes+4_int64*(size(layout(d)%owner,kind=int64)+size(layout(d)%key,kind=int64))
+       end do
+       if(trim(option)=='1') write(*,*) 'Structure284 layout:',rank,layout_builds,layout_hits,bytes
+       deallocate(layout)
+    end if
+    layout_generation=-1
+  end subroutine
+
   subroutine compile_rhs_owner_map(dom,global_domain,numerical_owner,state_key)
+    use domain_mod, only : Domain
+    type(Domain),intent(in) :: dom
+    integer,intent(in) :: global_domain
+    integer,allocatable,intent(out) :: numerical_owner(:),state_key(:,:)
+    integer :: d
+    if(allocated(layout)) then
+       do d=1,size(layout)
+          if(layout(d)%global_domain/=global_domain) cycle
+          if(size(layout(d)%owner)/=dom%node%length.or.layout_generation<0) error stop 'RHS stale layout binding'
+          numerical_owner=layout(d)%owner;state_key=layout(d)%key
+          layout_hits=layout_hits+1
+          return
+       end do
+       error stop 'RHS layout missing Domain'
+    end if
+    call build_rhs_owner_map(dom,global_domain,numerical_owner,state_key)
+  end subroutine
+
+  subroutine build_rhs_owner_map(dom,global_domain,numerical_owner,state_key)
     use domain_mod, only : Domain
     use arch_mod, only : block_catalog
     use shared_mod, only : N_CHDRN
@@ -43,7 +109,7 @@ contains
          numerical_owner(a+q)=block_catalog(b)%owner
       end do
       do c=1,N_CHDRN
-         q=dom%patch%elts(p+1)%children(c)
+         q=block_child_Domain(dom,p,c)
          if(q>0) call visit(q)
       end do
     end subroutine

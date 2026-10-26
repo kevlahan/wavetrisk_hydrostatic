@@ -1,4 +1,10 @@
 module main_mod
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
+  use domain_mod, only : audit_domain_fields322
+  use parallel_block_mod, only : local_block_store_ready,n_local_blocks
+  use campaign312_mod, only: steps312
+  use shared_mod, only: tol
+  use boundary310_mod, only: b310_enter,b310_leave
 
   use, intrinsic :: ieee_arithmetic
   use, intrinsic :: iso_fortran_env, only : int64
@@ -22,12 +28,12 @@ module main_mod
   use domain_ops_mod,     only : apply_interscale, apply_no_bdry,  apply_onescale2
   use geom_mod,           only : number_hex
   use integrate_mod,      only : integrate_hex, integrate_tri
-  use checkpoint_mod,     only : dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
+  use checkpoint_mod,     only : dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory, snapshot_adapt_mpi312
   use io_vtk_mod,         only : write_and_export
   use lin_solve_mod,      only : Full_Multigrid, Scheduled_Relaxation_Jacobi
   use lnorms_mod,         only : lnorm
   use mask_mod,           only : init_masks, mask_adj_child
-  use multi_level_mod,    only : trend_ml
+  use multi_level_mod,    only : trend_ml,prepare_balance_295
   use NCAR_topo_mod,      only : load_topo
   use refine_patch_mod,   only : add_second_level
   use remap_mod,          only : &
@@ -102,7 +108,7 @@ module main_mod
   implicit none
   
   private
-  public :: cpt_min_mass, initialize, restart, time_step
+  public :: cpt_min_mass, initialize, restart, time_step,checkpoint312
   
   
   type Initial_State
@@ -113,6 +119,8 @@ module main_mod
 integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:), edge_level_start(:)
 real(dp)             :: dt_new, initial_total_mass, time_mult
 real(dp)             :: dt_loc, min_mass_loc
+
+integer(int64) :: cfl_visits322=0_int64
 
 integer, parameter :: DOMAIN_CONSUMER_READY = 1
 integer, parameter :: DOMAIN_CONSUMER_PENDING = 2
@@ -653,6 +661,8 @@ contains
     if (trim(test_case) /= "spherical_harmonics") then
        call initialize_dt_viscosity
        call initialize_thresholds
+       call prepare_tolerance312
+       call initialize_dt_viscosity
 
        if (log_total_mass) call cal_total_mass (.true.)
 
@@ -678,6 +688,7 @@ contains
     ! Construct and redistribute the persistent final-owner block
     ! store after every checkpoint restart. This covers both a resumed
     ! run and the restart performed after a newly written checkpoint.
+    call prepare_balance_295()
     call build_parallel_block_catalog
     detailed_block_diagnostics = &
          block_detailed_diagnostics_enabled()
@@ -698,7 +709,83 @@ contains
 
   end subroutine restart
 
-  subroutine time_step 
+
+  subroutine prepare_tolerance312
+    integer :: iteration,d,p,missing(1),u
+    if(steps312<0) error stop 'Stage312 unconfigured restart'
+    do iteration=1,max_level-min_level+3
+       call adapt(set_thresholds)
+       call inverse_wavelet_transform(wav_coeff,sol,jmin_in=level_start-1)
+       if(vert_diffuse) call inverse_scalar_transform(wav_tke,tke,jmin_in=level_start-1)
+       missing=0
+       do d=1,size(grid)
+          do p=1,grid(d)%patch%length
+             if(grid(d)%patch%elts(p)%deleted) cycle
+             if(grid(d)%patch%elts(p)%level<level_start.or.grid(d)%patch%elts(p)%level>=max_level) cycle
+             missing(1)=missing(1)+count(grid(d)%patch%elts(p)%children<=0)
+          end do
+       end do
+       missing=sum_int(missing)
+       if(tol>0.0_dp) exit
+       if(iteration>=2.and.missing(1)==0) exit
+    end do
+    if(tol<=0.0_dp.and.missing(1)/=0) error stop 'Stage312 full-grid activation failed'
+    if(rank==0) then
+       open(newunit=u,file='tolerance312.txt',status='new')
+       write(u,*) tol,iteration,missing(1),level_start,level_end,max_level
+       write(u,*) minval(threshold(S_MASS,1:zlevels)),maxval(threshold(S_MASS,1:zlevels)), &
+            minval(threshold(S_TEMP,1:zlevels)),maxval(threshold(S_TEMP,1:zlevels)), &
+            minval(threshold(S_VELO,1:zlevels)),maxval(threshold(S_VELO,1:zlevels))
+       close(u)
+    end if
+  end subroutine
+
+  subroutine checkpoint312(id)
+    integer,intent(in) :: id
+    if(parallel_block_state_is_ready()) call synchronize_parallel_block_checkpoint
+    call snapshot_adapt_mpi312(id)
+  end subroutine
+
+  subroutine audit_main_boundary322(boundary)
+    integer,intent(in) :: boundary
+    integer :: blocks
+    if(.not.audit316_enabled()) return
+    if(steps312/=4.or.min_level/=5.or.max_level/=5.or.zlevels/=30) &
+         error stop 'Stage322 audit requires four level5 steps and30 layers'
+    if(.not.ieee_is_finite(tol).or..not.(tol<=0.0_dp.and.tol>=0.0_dp)) &
+         error stop 'Stage322 audit requires exact zero tolerance'
+    blocks=-1
+    if(local_block_store_ready()) blocks=n_local_blocks()
+    call audit316_begin('main.boundary322',int(istep,int64))
+    call audit316_i('main.identity',[boundary,istep,rank,n_process,size(grid),blocks,min_level,max_level, &
+         level_start,level_end,zlevels,zmin,zmax,iremap])
+    call audit316_r('main.time',[time,dt,dt_new,tol])
+    call audit316_i64('main.integer_time',[int(itime,int64),int(istep_cumul,int64)])
+    call audit316_i('main.active',n_active)
+    call audit316_l('main.decisions',[adapt_dt,physics_model,vert_diffuse,remap, &
+         parallel_block_state_is_ready(),parallel_block_grid_change_is_pending()])
+    ! Boundaries2/3 enclose physics, which consumes SOL/means and writes SOL.
+    ! No numerical mutation occurs between boundary3 and adaptation entry4.
+    ! Adaptation consumes coefficients and produces SOL/WAV/means at boundary5.
+    select case(boundary)
+    case(1,3,6)
+       call audit_domain_fields322(sol,1,int(istep,int64))
+    case(2)
+       call audit_domain_fields322(sol,1,int(istep,int64))
+       call audit_domain_fields322(sol_mean,3,int(istep,int64))
+    case(4)
+       call audit_domain_fields322(wav_coeff,2,int(istep,int64))
+    case(5)
+       call audit_domain_fields322(sol,1,int(istep,int64))
+       call audit_domain_fields322(wav_coeff,2,int(istep,int64))
+       call audit_domain_fields322(sol_mean,3,int(istep,int64))
+    case default
+       error stop 'Stage322 unknown main boundary'
+    end select
+    call audit316_end()
+  end subroutine audit_main_boundary322
+
+  subroutine time_step
     implicit none
     integer(8) :: idt, ialign
     integer(int64) :: active_after
@@ -730,6 +817,10 @@ contains
     istep_cumul = istep_cumul + 1
     dt          = dt_new
     idt         = nint (dt * time_mult, 8)
+    if(audit316_enabled()) then
+       call audit316_begin('step322',int(istep,int64))
+       call audit_main_boundary322(1)
+    end if
 
     ! Check whether to save data
     save_data = .false.
@@ -754,6 +845,7 @@ contains
     block_multistage_candidate = .false.
     rebuild_block_state = .false.
     block_state_ready = parallel_block_state_is_ready()
+    call b310_enter(2)
     dynamics_profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_DYNAMICS)
     ! Keep incompressible dynamics on the legacy Domain pathway until its
@@ -792,7 +884,9 @@ contains
     ! If no complete shadow exists, retain the idempotent cleanup path.
     block_state_ready = parallel_block_state_is_ready()
     if (block_state_ready .and. .not. block_multistage_candidate) then
+       call b310_enter(7)
        call prepare_parallel_block_grid_change
+       call b310_leave(7)
        rebuild_block_state = .true.
     else if (.not. block_state_ready) then
        call invalidate_parallel_block_domain_shadow
@@ -815,28 +909,37 @@ contains
           error stop &
                "multistage block candidate did not retain synchronized state"
        end if
+       call b310_enter(7)
        call prepare_parallel_block_grid_change
+       call b310_leave(7)
        rebuild_block_state = .true.
     end if
     call parallel_block_profile_end( &
          BLOCK_PROFILE_DYNAMICS,dynamics_profile_start)
+    call b310_leave(2)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Physics split step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+    call b310_enter(8)
     physics_profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_PHYSICS)
+    if(audit316_enabled()) call audit_main_boundary322(2)
     call apply_domain_physics_consumers
+    if(audit316_enabled()) call audit_main_boundary322(3)
     call parallel_block_profile_end( &
          BLOCK_PROFILE_PHYSICS,physics_profile_start)
+    call b310_leave(8)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Grid adaptation
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    call b310_enter(9)
     adaptation_profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_ADAPTATION)
     active_before = int(sum(n_active),int64)
+    if(audit316_enabled()) call audit_main_boundary322(4)
     call update_domain_soil_wavelet_consumer
     ! Post-cutover milestone: profile the complete block-native timestep,
     ! including all communication, synchronization and compatibility phases.
@@ -859,9 +962,11 @@ contains
     ! Vertical remapping can then execute independently in both compact block
     ! storage and the retained Domain oracle without a post-remap reimport.
     if (rebuild_block_state) then
+       call b310_enter(10)
        topology_profile_start = &
             parallel_block_profile_begin(BLOCK_PROFILE_TOPOLOGY)
-       call build_parallel_block_catalog
+       call prepare_balance_295()
+    call build_parallel_block_catalog
        detailed_block_diagnostics = &
             block_detailed_diagnostics_enabled()
        call build_source_blocks(verbose=detailed_block_diagnostics, &
@@ -873,13 +978,17 @@ contains
        call parallel_block_profile_end( &
             BLOCK_PROFILE_TOPOLOGY,topology_profile_start, &
             int(n_glo_block,int64))
+       call b310_leave(10)
     end if
     call parallel_block_profile_end( &
          BLOCK_PROFILE_ADAPTATION,adaptation_profile_start)
+    call b310_leave(9)
+    if(audit316_enabled()) call audit_main_boundary322(5)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping (after grid adaptation to ensure ADJCENT_ZONE and ZERO cells are remapped consistently)
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    call b310_enter(11)
     block_state_ready = parallel_block_state_is_ready()
     validate_block_remap = .false.
     if (compressible .and. block_state_ready) then
@@ -944,6 +1053,8 @@ contains
     else
        iremap = iremap + 1
     end if
+    call b310_leave(11)
+    call b310_enter(12)
     output_profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_OUTPUT)
     checkpoint_due = .false.
@@ -991,6 +1102,12 @@ contains
          call report_parallel_block_profile(reset=.true.)
     if (.not.domain_tendency_storage_required .and. allocated(trend)) &
          error stop "Domain tendency storage reappeared during block timestep"
+    call b310_leave(12)
+    if(audit316_enabled()) then
+       call audit316_l('step.output_decisions',[save_data,checkpoint_due])
+       call audit_main_boundary322(6)
+       call audit316_end()
+    end if
   end subroutine time_step
 
   subroutine init_basic
@@ -1156,6 +1273,11 @@ contains
     n_active_edges = 0
 
     ! Calculate minimum time step, number of active nodes and edges
+    if(audit316_enabled()) then
+       cfl_visits322=0_int64
+       call audit316_begin('cfl322',int(istep,int64))
+       call audit316_l('cfl.adaptive',[adapt_dt])
+    end if
     call apply_no_bdry (cal_min_dt, z_null)
 
     ! Time step
@@ -1169,6 +1291,13 @@ contains
     n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
     n_active = sum_int (n_active_loc)
     level_end = sync_max_int (level_end)
+    if(audit316_enabled()) then
+       call audit316_i64('cfl.visits',[cfl_visits322])
+       call audit316_i('cfl.active_nodes',n_active_nodes)
+       call audit316_i('cfl.active_edges',n_active_edges)
+       call audit316_r('cfl.result',[cpt_dt])
+       call audit316_end()
+    end if
 
     call end_domain_consumer_audit(audit)
   end function cpt_dt
@@ -1196,6 +1325,11 @@ contains
     ide  = id_edge (id)
 
     lev  = dom%level%elts(id_i)
+    if(audit316_enabled()) then
+       cfl_visits322=cfl_visits322+1_int64
+       call audit316_i('cfl.visit',[d,glo_id(rank+1,d),i,j,id_i,lev,dom%mask_n%elts(id_i), &
+            dom%mask_e%elts(ide)])
+    end if
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        n_active_nodes(lev) = n_active_nodes(lev) + 1

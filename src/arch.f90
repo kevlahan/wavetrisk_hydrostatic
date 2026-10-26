@@ -35,10 +35,55 @@ module arch_mod
   end type Parallel_Block
 
   type(Parallel_Block), allocatable, public :: block_catalog(:)
+  type, public :: Block_Cut_Mask
+     logical, allocatable :: root(:)
+  end type
+  type(Block_Cut_Mask), allocatable, public :: block_cuts(:)
+  public :: block_subdivision_mode, block_subdivision_tasks, is_block_cut
+
 
   
 contains
 
+
+  integer function block_subdivision_mode() result(mode)
+    integer,save :: selected=-1
+    integer :: status
+    character(32) :: option
+    if(selected<0) then
+       option='';call get_environment_variable('WAVETRISK_BLOCK_SUBDIVISION',option,status=status)
+       if(status/=0.and.status/=1) error stop 'subdivision selector read failed'
+       select case(trim(option))
+       case('','0');selected=0
+       case('1');selected=1
+       case('2');selected=2
+       case default;error stop 'subdivision selector must be 0, 1 (weights), or 2 (cuts)'
+       end select
+    end if
+    mode=selected
+  end function
+
+  integer function block_subdivision_tasks() result(tasks)
+    integer :: status,ios
+    character(32) :: option
+    tasks=n_process;option=''
+    call get_environment_variable('WAVETRISK_SUBDIVISION_TARGET_TASKS',option,status=status)
+    if(status/=0.and.status/=1) error stop 'subdivision target read failed'
+    if(len_trim(option)>0) then
+       read(option,*,iostat=ios) tasks
+       if(ios/=0.or.tasks<n_process.or.tasks>8*N_GLO_DOMAIN) error stop 'invalid subdivision target tasks'
+    end if
+  end function
+
+  logical function is_block_cut(global_domain,patch) result(cut)
+    integer,intent(in) :: global_domain,patch
+    cut=.false.
+    if(.not.allocated(block_cuts)) return
+    if(global_domain<0.or.global_domain>=size(block_cuts)) error stop 'cut Domain range'
+    if(.not.allocated(block_cuts(global_domain+1)%root)) error stop 'cut Domain not local'
+    if(patch<0.or.patch>=size(block_cuts(global_domain+1)%root)) error stop 'cut patch range'
+    cut=block_cuts(global_domain+1)%root(patch)
+  end function
 
   subroutine init_arch_mod (defer_domain_limit)
 
@@ -90,7 +135,7 @@ contains
     end if
     ! The present catalogue splits at most one level. The actual capacity is
     ! checked again after every catalogue build, including adaptive rebuilds.
-    call check_parallel_task_capacity(N_CHDRN*N_GLO_DOMAIN)
+    if (block_subdivision_mode()/=2) call check_parallel_task_capacity(N_CHDRN*N_GLO_DOMAIN)
     if (rank == 0) write(6,'(a,i0,a,i0)') &
          "Resident block execution: MPI tasks = ",n_process,", geometric Domains = ",N_GLO_DOMAIN
   end subroutine validate_domain_rank_count

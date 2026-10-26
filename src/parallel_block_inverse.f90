@@ -1,4 +1,6 @@
 module parallel_block_inverse_mod
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
+  use domain_mod, only : block_child_Domain,audit_domain_fields322
   use parallel_block_transform_kernels_mod
   use parallel_block_profile_mod
   ! Native inverse boundary dependency workspace. Topology is compiled once
@@ -93,6 +95,7 @@ module parallel_block_inverse_mod
 #else
   logical, parameter, public :: stage203_inverse=.false.
 #endif
+  public :: seed_cut_phase_oracle
   public :: begin_inverse203, end_inverse203, scalar_inverse203, inner_inverse203, install_inverse203
   public :: inverse203_installation_count
   integer(int64) :: installation203_count=0_int64
@@ -537,8 +540,14 @@ contains
           end do
        end if
        plan_generation=generation
+       if(audit316_enabled()) call audit_inverse_plan316
     else
        call detail_add(DC_INVERSE_REUSE,1_int64)
+    end if
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.prepare',plan_generation)
+       call audit316_i('first_level',[first_level])
+       call audit316_end()
     end if
     call detail_leave(DP_INVERSE_PLAN)
     call detail_enter(DP_INVERSE_SEED)
@@ -600,6 +609,7 @@ contains
        consumer_alias_value(:,:,q)=value(:,:,consumer_alias_slot(q),BLOCK_PAYLOAD_SOL)
     end do
 
+    if(audit316_enabled()) call audit_inverse_values322(1)
     call detail_leave(DP_INVERSE_SEED)
 
   contains
@@ -615,10 +625,387 @@ contains
          end do
       end do
       do c=1,N_CHDRN
-         child=grid(d)%patch%elts(patch+1)%children(c)
+         child=block_child_Domain(grid(d),patch,c)
          if (child > 0) call map_patch(child)
       end do
     end subroutine
+  end subroutine
+
+  ! Stage316 qualification only. Each final bound plan is serialized by
+  ! semantic fields, never derived-type storage or MPI handle bytes.
+  subroutine audit_inverse_plan316
+    integer :: i,j,l
+    integer,allocatable :: ints(:,:)
+    real(dp),allocatable :: reals(:,:)
+    call audit316_begin('inverse.plan',plan_generation)
+    call audit316_i('extent',[nnode,noperation,nscalar,zlevels,level_start,level_end])
+    call audit316_l('options',[stage203_inverse,sparse_outer_install])
+    do i=1,size(nodes)
+       call audit316_begin('inverse.node_map',int(glo_id(rank+1,i)+1,int64))
+       call audit316_i('slot',nodes(i)%slot)
+       call audit316_i('key.shape',shape(nodes(i)%key))
+       call audit316_i('key',reshape(nodes(i)%key,[size(nodes(i)%key)]))
+       call audit316_end()
+    end do
+    if(allocated(node_domain)) then
+       call audit316_i('node_domain.shape',shape(node_domain))
+       call audit316_i('node_domain',node_domain(:nnode))
+    else
+       call audit316_i('node_domain.shape',[-1])
+    end if
+    if(allocated(node_id)) then
+       call audit316_i('node_id.shape',shape(node_id))
+       call audit316_i('node_id',node_id(:nnode))
+    else
+       call audit316_i('node_id.shape',[-1])
+    end if
+    if(allocated(operation_first)) then
+       call audit316_i('operation_first.shape',shape(operation_first))
+       call audit316_i('operation_first',operation_first)
+    else
+       call audit316_i('operation_first.shape',[-1])
+    end if
+    if(allocated(operation_last)) then
+       call audit316_i('operation_last.shape',shape(operation_last))
+       call audit316_i('operation_last',operation_last)
+    else
+       call audit316_i('operation_last.shape',[-1])
+    end if
+    if(allocated(scaffold_slot)) then
+       call audit316_i('scaffold_slot.shape',shape(scaffold_slot))
+       call audit316_i('scaffold_slot',scaffold_slot)
+    else
+       call audit316_i('scaffold_slot.shape',[-1])
+    end if
+    if(allocated(consumer_alias_slot)) then
+       call audit316_i('consumer_alias_slot.shape',shape(consumer_alias_slot))
+       call audit316_i('consumer_alias_slot',consumer_alias_slot)
+    else
+       call audit316_i('consumer_alias_slot.shape',[-1])
+    end if
+    if(allocated(node_flags)) then
+       call audit316_i('node_flags.shape',shape(node_flags))
+       call audit316_i('node_flags',node_flags)
+    else
+       call audit316_i('node_flags.shape',[-1])
+    end if
+    if(allocated(restore203_index)) then
+       call audit316_i('restore203_index.shape',shape(restore203_index))
+       call audit316_i('restore203_index',restore203_index)
+    else
+       call audit316_i('restore203_index.shape',[-1])
+    end if
+    if(allocated(restore203_slot)) then
+       call audit316_i('restore203_slot.shape',shape(restore203_slot))
+       call audit316_i('restore203_slot',restore203_slot)
+    else
+       call audit316_i('restore203_slot.shape',[-1])
+    end if
+    if(allocated(value)) then
+       call audit316_i('value.shape',shape(value))
+    else
+       call audit316_i('value.shape',[-1])
+    end if
+    if(allocated(consumer_alias_value)) then
+       call audit316_i('consumer_alias_value.shape',shape(consumer_alias_value))
+    else
+       call audit316_i('consumer_alias_value.shape',[-1])
+    end if
+    if(allocated(scaffold_value)) then
+       call audit316_i('scaffold_value.shape',shape(scaffold_value))
+    else
+       call audit316_i('scaffold_value.shape',[-1])
+    end if
+    if(allocated(restore203)) then
+       call audit316_i('restore203.shape',shape(restore203))
+    else
+       call audit316_i('restore203.shape',[-1])
+    end if
+    if(allocated(saved203)) then
+       call audit316_i('saved203.shape',shape(saved203))
+    else
+       call audit316_i('saved203.shape',[-1])
+    end if
+    if(allocated(publication_tile)) then
+       call audit316_i('publication_tile.shape',shape(publication_tile))
+    else
+       call audit316_i('publication_tile.shape',[-1])
+    end if
+    if(allocated(transfer_send)) then
+       call audit316_i('transfer_send.shape',shape(transfer_send))
+    else
+       call audit316_i('transfer_send.shape',[-1])
+    end if
+    if(allocated(transfer_recv)) then
+       call audit316_i('transfer_recv.shape',shape(transfer_recv))
+    else
+       call audit316_i('transfer_recv.shape',[-1])
+    end if
+    if(allocated(alias_send)) then
+       call audit316_i('alias_send.shape',shape(alias_send))
+    else
+       call audit316_i('alias_send.shape',[-1])
+    end if
+    if(allocated(alias_recv)) then
+       call audit316_i('alias_recv.shape',shape(alias_recv))
+    else
+       call audit316_i('alias_recv.shape',[-1])
+    end if
+    if(allocated(requests)) then
+       call audit316_i('requests.shape',shape(requests))
+    else
+       call audit316_i('requests.shape',[-1])
+    end if
+
+    call audit_transfer316(interior_plan,'inverse.interior')
+    call audit_transfer316(boundary_plan,'inverse.boundary')
+    do l=lbound(level_interior,2),ubound(level_interior,2)
+       call audit316_begin('inverse.level',int(l,int64))
+       do i=1,2
+          call audit316_i('component',[i])
+          call audit_transfer316(level_interior(i,l),'inverse.level_interior')
+          call audit_transfer316(level_boundary(i,l),'inverse.level_boundary')
+       end do
+       call audit316_end()
+    end do
+    do l=lbound(outer_install,1),ubound(outer_install,1)
+       call audit316_begin('inverse.outer_level',int(l,int64))
+       call audit_transfer316(outer_install(l),'inverse.outer_install')
+       do i=1,2
+          call audit316_i('component',[i])
+          call audit_alias316(aliases(i,l),'inverse.alias')
+       end do
+       call audit316_end()
+    end do
+    do i=1,2
+       call audit316_begin('inverse.local_alias',int(i,int64))
+       call audit316_i('source',local_alias(i)%source)
+       call audit316_i('dest',local_alias(i)%dest)
+       do j=1,2
+          call audit316_i('range',[j])
+          call audit_alias316(range_alias(i,j),'inverse.range_alias')
+       end do
+       call audit316_end()
+    end do
+    allocate(ints(18,noperation),reals(9,noperation))
+    do i=1,noperation
+       associate(op=>operations(i))
+       ints(:,i)=[op%level,op%kind,op%source,op%target]
+       reals(:,i)=op%weight
+       end associate
+    end do
+    call audit316_i('outer.program.shape',shape(ints))
+    call audit316_i('outer.program',reshape(ints,[size(ints)]))
+    call audit316_r('outer.coefficients',reshape(reals,[size(reals)]))
+    deallocate(ints,reals)
+    if(allocated(scalar203_ops)) then
+       allocate(ints(30,size(scalar203_ops)))
+       do i=1,size(scalar203_ops)
+          associate(op=>scalar203_ops(i))
+          ints(:,i)=[op%d,op%level,op%phase,op%target,op%base,op%area,op%mask,op%n,op%source,op%geometry]
+          end associate
+       end do
+       call audit316_i('scalar.program.shape',shape(ints))
+       call audit316_i('scalar.program',reshape(ints,[size(ints)]))
+       deallocate(ints)
+    end if
+    if(allocated(inner203_ops)) then
+       allocate(ints(104,size(inner203_ops)))
+       do i=1,size(inner203_ops)
+          associate(op=>inner203_ops(i))
+          ints(:,i)=[op%d,op%level,op%node,op%edge,op%source,op%target]
+          end associate
+       end do
+       call audit316_i('inner.program.shape',shape(ints))
+       call audit316_i('inner.program',reshape(ints,[size(ints)]))
+       deallocate(ints)
+    end if
+    if(allocated(publication_patch)) then
+       allocate(ints(2+PATCH_SIZE**2,size(publication_patch)))
+       do i=1,size(publication_patch)
+          ints(:,i)=[publication_patch(i)%domain,publication_patch(i)%start,publication_patch(i)%source]
+       end do
+       call audit316_i('publication.program.shape',shape(ints))
+       call audit316_i('publication.program',reshape(ints,[size(ints)]))
+       deallocate(ints)
+    end if
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_transfer316(plan,label)
+    type(Transfer_Plan),intent(in) :: plan
+    character(*),intent(in) :: label
+    call audit316_begin(label,plan_generation)
+    call audit316_l('edgewise',[plan%edgewise])
+    if(allocated(plan%sc)) then
+       call audit316_i('plan%sc.shape',shape(plan%sc))
+       call audit316_i('plan%sc',plan%sc)
+    else
+       call audit316_i('plan%sc.shape',[-1])
+    end if
+    if(allocated(plan%sd)) then
+       call audit316_i('plan%sd.shape',shape(plan%sd))
+       call audit316_i('plan%sd',plan%sd)
+    else
+       call audit316_i('plan%sd.shape',[-1])
+    end if
+    if(allocated(plan%rc)) then
+       call audit316_i('plan%rc.shape',shape(plan%rc))
+       call audit316_i('plan%rc',plan%rc)
+    else
+       call audit316_i('plan%rc.shape',[-1])
+    end if
+    if(allocated(plan%rd)) then
+       call audit316_i('plan%rd.shape',shape(plan%rd))
+       call audit316_i('plan%rd',plan%rd)
+    else
+       call audit316_i('plan%rd.shape',[-1])
+    end if
+    if(allocated(plan%key)) then
+       call audit316_i('plan%key.shape',shape(plan%key))
+       call audit316_i('plan%key',reshape(plan%key,[size(plan%key)]))
+    else
+       call audit316_i('plan%key.shape',[-1])
+    end if
+    if(allocated(plan%slot)) then
+       call audit316_i('plan%slot.shape',shape(plan%slot))
+       call audit316_i('plan%slot',plan%slot)
+    else
+       call audit316_i('plan%slot.shape',[-1])
+    end if
+    if(allocated(plan%source_info)) then
+       call audit316_i('plan%source_info.shape',shape(plan%source_info))
+       call audit316_i('plan%source_info',reshape(plan%source_info,[size(plan%source_info)]))
+    else
+       call audit316_i('plan%source_info.shape',[-1])
+    end if
+    if(allocated(plan%target_info)) then
+       call audit316_i('plan%target_info.shape',shape(plan%target_info))
+       call audit316_i('plan%target_info',reshape(plan%target_info,[size(plan%target_info)]))
+    else
+       call audit316_i('plan%target_info.shape',[-1])
+    end if
+    if(allocated(plan%address)) then
+       call audit316_i('plan%address.shape',shape(plan%address))
+       call audit316_i('plan%address',reshape(plan%address,[size(plan%address)]))
+    else
+       call audit316_i('plan%address.shape',[-1])
+    end if
+#ifdef STAGE202_INVERSE
+    if(allocated(plan%self_slot)) then
+       call audit316_i('plan%self_slot.shape',shape(plan%self_slot))
+       call audit316_i('plan%self_slot',plan%self_slot)
+    else
+       call audit316_i('plan%self_slot.shape',[-1])
+    end if
+#endif
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_alias316(plan,label)
+    type(Alias_Plan),intent(in) :: plan
+    character(*),intent(in) :: label
+    call audit316_begin(label,plan_generation)
+    if(allocated(plan%sc)) then
+       call audit316_i('plan%sc.shape',shape(plan%sc))
+       call audit316_i('plan%sc',plan%sc)
+    else
+       call audit316_i('plan%sc.shape',[-1])
+    end if
+    if(allocated(plan%sd)) then
+       call audit316_i('plan%sd.shape',shape(plan%sd))
+       call audit316_i('plan%sd',plan%sd)
+    else
+       call audit316_i('plan%sd.shape',[-1])
+    end if
+    if(allocated(plan%rc)) then
+       call audit316_i('plan%rc.shape',shape(plan%rc))
+       call audit316_i('plan%rc',plan%rc)
+    else
+       call audit316_i('plan%rc.shape',[-1])
+    end if
+    if(allocated(plan%rd)) then
+       call audit316_i('plan%rd.shape',shape(plan%rd))
+       call audit316_i('plan%rd',plan%rd)
+    else
+       call audit316_i('plan%rd.shape',[-1])
+    end if
+    if(allocated(plan%source)) then
+       call audit316_i('plan%source.shape',shape(plan%source))
+       call audit316_i('plan%source',plan%source)
+    else
+       call audit316_i('plan%source.shape',[-1])
+    end if
+    if(allocated(plan%dest)) then
+       call audit316_i('plan%dest.shape',shape(plan%dest))
+       call audit316_i('plan%dest',plan%dest)
+    else
+       call audit316_i('plan%dest.shape',[-1])
+    end if
+    if(allocated(plan%install_order)) then
+       call audit316_i('plan%install_order.shape',shape(plan%install_order))
+       call audit316_i('plan%install_order',plan%install_order)
+    else
+       call audit316_i('plan%install_order.shape',[-1])
+    end if
+    call audit316_end()
+  end subroutine
+
+
+  subroutine audit_inverse_scalar316(level,phase)
+    integer,intent(in) :: level,phase
+    integer,parameter :: wi(11)=[1,2,3,1,2,3,4,1,2,3,4]
+    integer :: p,q,n,d
+    integer,allocatable :: records(:,:)
+    real(dp),allocatable :: coefficients(:,:)
+    n=count(scalar203_ops%level==level.and.scalar203_ops%phase==phase)
+    allocate(records(2,n),coefficients(12,n));coefficients=0;n=0
+    do p=1,size(scalar203_ops)
+       associate(op=>scalar203_ops(p))
+       if(op%level/=level.or.op%phase/=phase) cycle
+       n=n+1;d=op%d
+       records(:,n)=[p,1]
+       if(phase==1) records(2,n)=merge(0,1,grid(d)%mask_n%elts(op%mask+1)==FROZEN)
+       coefficients(1,n)=grid(d)%areas%elts(op%area+1)%hex_inv
+       do q=1,op%n
+          coefficients(q+1,n)=grid(d)%overl_areas%elts(op%geometry(q)+1)%a(merge(wi(q),q,phase==1))
+       end do
+       end associate
+    end do
+    call audit316_begin('inverse.scalar',plan_generation)
+    call audit316_i('level_phase',[level,phase])
+    call audit316_i('selected_and_active',reshape(records,[size(records)]))
+    call audit316_r('coefficients',reshape(coefficients,[size(coefficients)]))
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_inverse_inner316(level)
+    integer,intent(in) :: level
+    integer,parameter :: triangles(8)=[4,8,9,13,17,21,25,29]
+    integer :: p,q,n,d,id,e
+    integer,allocatable :: selected(:)
+    real(dp),allocatable :: coefficients(:,:)
+    n=count(inner203_ops%level==level)
+    allocate(selected(n),coefficients(32,n));n=0
+    do p=1,size(inner203_ops)
+       associate(op=>inner203_ops(p))
+       if(op%level/=level) cycle
+       n=n+1;d=op%d;selected(n)=p
+       do q=1,32
+          id=op%node(q);e=op%edge(q)
+          if(any(triangles==q)) then
+             coefficients(q,n)=grid(d)%triarea%elts(TRIAG*id+e+1)
+          else
+             coefficients(q,n)=grid(d)%len%elts(EDGE*id+e+1)
+          end if
+       end do
+       end associate
+    end do
+    call audit316_begin('inverse.inner',plan_generation)
+    call audit316_i('level',[level])
+    call audit316_i('selected',selected)
+    call audit316_r('coefficients',reshape(coefficients,[size(coefficients)]))
+    call audit316_end()
   end subroutine
 
   subroutine collect_boundaries(catalog,block,context)
@@ -857,6 +1244,13 @@ contains
     integer :: q,first,last
     reset=.true.
     if (present(reset_scaffold)) reset=reset_scaffold
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.gather',plan_generation)
+       call audit316_i('family',[component,family])
+       call audit316_l('flags',[reset,resident203,present(changed_level)])
+       if(present(changed_level)) call audit316_i('level',[changed_level])
+       call audit316_end()
+    end if
     if (family==BLOCK_PAYLOAD_SOL .and. reset) then
        first=merge(1,nscalar+1,component==1)
        last=merge(nscalar,nscalar+EDGE,component==1)
@@ -888,6 +1282,13 @@ contains
     integer, intent(in) :: component,family
     logical, intent(in) :: interiors
     integer, optional, intent(in) :: changed_level
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.scatter',plan_generation)
+       call audit316_i('family',[component,family])
+       call audit316_l('flags',[interiors,resident203,present(changed_level)])
+       if(present(changed_level)) call audit316_i('level',[changed_level])
+       call audit316_end()
+    end if
     if (resident203) then
        if (interiors) then
           if (.not.present(changed_level)) call die('resident outer install requires level')
@@ -1251,6 +1652,11 @@ contains
     real(dp) :: started
     started=0.0_dp
     if (timing) started=MPI_Wtime()
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.boundary',plan_generation)
+       call audit316_i('family_and_range',[component,family,first,last])
+       call audit316_end()
+    end if
     if (first==last) then
        call apply_aliases(aliases(component,first),component,family)
     else if (last==level_end .and. first==level_start-1) then
@@ -1471,6 +1877,10 @@ contains
     consumer=.false.
     if (present(consumer_aliases)) consumer=consumer_aliases
     if (consumer.and.family/=BLOCK_PAYLOAD_SOL) call die('consumer aliases require solution')
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.publish322',plan_generation)
+       call audit316_i('publication.mode',[1,family,merge(1,0,consumer)])
+    end if
     if (consumer) then
        do q=1,size(consumer_alias_slot)
           p=consumer_alias_slot(q)
@@ -1485,6 +1895,10 @@ contains
              end do
           end do
        end do
+       if(audit316_enabled()) then
+          call audit_domain_fields322(scaling,31,plan_generation)
+          call audit316_end()
+       end if
        return
     end if
     do p=1,nnode
@@ -1500,6 +1914,10 @@ contains
           end do
        end do
     end do
+    if(audit316_enabled()) then
+       call audit_domain_fields322(scaling,31,plan_generation)
+       call audit316_end()
+    end if
   end subroutine
 
   subroutine publish_canonical_inverse203(generation,scaling)
@@ -1510,6 +1928,10 @@ contains
     type(Float_Field), intent(inout) :: scaling(1:N_VARIABLE,1:zlevels)
     integer :: p,d,id,k,v,q,start,last,i
     if (.not.resident203.or.generation/=plan_generation) call die('canonical publication generation')
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.publish322',plan_generation)
+       call audit316_i('publication.mode',[2,BLOCK_PAYLOAD_SOL,0])
+    end if
     if (.not.publication_reported) then
        if(rank==0) write(*,'(a)') 'Stage265 direct inverse SOL return = on'
        if(rank==0) write(*,'(a)') 'Stage265 tiled canonical publication = on'
@@ -1601,6 +2023,10 @@ contains
        end do
     end do
     scaling%bdry_uptodate=.false.
+    if(audit316_enabled()) then
+       call audit_domain_fields322(scaling,31,plan_generation)
+       call audit316_end()
+    end if
   end subroutine publish_canonical_inverse203
 
   subroutine compile_publication203
@@ -1771,6 +2197,12 @@ contains
     integer(int64), intent(out) :: count(4)
     integer :: p,k,q
     real(dp) :: s(13),x(9),correction,second,first
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.outer',plan_generation)
+       call audit316_i('level',[level])
+       call audit316_i('operation_range',[operation_first(level),operation_last(level)])
+       call audit316_end()
+    end if
     call detail_enter(DP_OUTER_KERNEL)
     if(shadow_enabled) call begin_transform_shadow(3,level,0)
     count=coverage(:,level)
@@ -1818,17 +2250,72 @@ contains
     if(shadow_enabled) call finish_transform_shadow(3,level,0)
   end subroutine
 
+  subroutine audit_inverse_values322(phase)
+    ! Called only after every slot has been seeded/gathered. Scratch send/recv
+    ! buffers and saved203 are intentionally excluded: they are not all live.
+    integer,intent(in) :: phase
+    call audit316_begin('inverse.values322',plan_generation)
+    call audit316_i('inverse.phase',[phase,nnode,nscalar,zlevels])
+    call audit316_i('inverse.value.shape',shape(value))
+    call audit316_r('inverse.value',reshape(value,[size(value)]))
+    call audit316_i('inverse.scaffold.shape',shape(scaffold_value))
+    call audit316_r('inverse.scaffold',reshape(scaffold_value,[size(scaffold_value)]))
+    call audit316_i('inverse.alias.shape',shape(consumer_alias_value))
+    call audit316_r('inverse.alias',reshape(consumer_alias_value,[size(consumer_alias_value)]))
+    if(allocated(restore203)) then
+       call audit316_i('inverse.restore.shape',shape(restore203))
+       call audit316_r('inverse.restore',reshape(restore203,[size(restore203)]))
+    else
+       call audit316_i('inverse.restore.shape',[-1])
+    end if
+    call audit316_end()
+  end subroutine audit_inverse_values322
+
   subroutine begin_inverse203(oracle)
     logical, intent(in) :: oracle
     if(stage203_inverse.and.sparse_outer_install) call die("Stage203 requires sparse outer off")
     resident203=stage203_inverse
     oracle203=oracle
     work203=0_int64
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.begin',plan_generation)
+       call audit316_l('options',[resident203,oracle203,sparse_outer_install])
+       call audit_inverse_values322(2)
+       call audit316_end()
+    end if
   end subroutine
 
   subroutine end_inverse203
+    if(audit316_enabled()) then
+       call audit316_begin('inverse.end',plan_generation)
+       call audit316_i64('work',work203)
+       call audit_inverse_values322(3)
+       call audit316_end()
+    end if
     resident203=.false.
   end subroutine
+
+  subroutine seed_cut_phase_oracle(scaling,wavelet)
+    ! Snapshot shared phase INPUTS only, before either independent arithmetic
+    ! path runs. Avoid feeding tolerated legacy boundary rounding into an exact
+    ! phase check. Full-trajectory independent science/oracles remain separate.
+    type(Float_Field),intent(inout) :: scaling(1:N_VARIABLE,1:zlevels),wavelet(1:N_VARIABLE,1:zlevels)
+    integer :: p,d,id,k,v
+    if(.not.oracle203.or..not.resident203) call die('cut phase snapshot outside oracle')
+    do p=1,nnode
+       d=node_domain(p);id=node_id(p)
+       do k=1,zlevels
+          do v=1,nscalar
+             scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)=value(v,k,p,1)
+             wavelet(scalars(1)+v-1,k)%data(d)%elts(id+1)=value(v,k,p,2)
+          end do
+          do v=1,EDGE
+             scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)=value(nscalar+v,k,p,1)
+             wavelet(S_VELO,k)%data(d)%elts(EDGE*id+v)=value(nscalar+v,k,p,2)
+          end do
+       end do
+    end do
+  end subroutine seed_cut_phase_oracle
 
   subroutine check_gather203(plan,component,family)
     type(Transfer_Plan), intent(in) :: plan
@@ -2029,6 +2516,7 @@ contains
     integer, parameter :: wi(11)=[1,2,3,1,2,3,4,1,2,3,4]
     real(dp) :: w(11),area,s,x
     if(.not.resident203) return
+    if(audit316_enabled()) call audit_inverse_scalar316(level,phase)
     if(shadow_enabled) call begin_transform_shadow(1,level,phase)
     do p=1,size(scalar203_ops)
        associate(op=>scalar203_ops(p))
@@ -2068,6 +2556,7 @@ contains
     integer, parameter :: inputs(18)=[1,2,3,5,6,7,10,11,14,15,18,19,22,23,26,27,30,31]
     real(dp) :: g(32),u(32),curl(LORT:UPLT),x(6)
     if(.not.resident203) return
+    if(audit316_enabled()) call audit_inverse_inner316(level)
     if(shadow_enabled) call begin_transform_shadow(2,level,0)
     do p=1,size(inner203_ops)
        associate(op=>inner203_ops(p))

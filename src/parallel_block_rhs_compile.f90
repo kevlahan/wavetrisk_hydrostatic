@@ -1,4 +1,5 @@
 module parallel_block_rhs_compile_mod
+  use audit316_mod, only : audit316_i,audit316_r,audit316_l
   ! Geometry-only front end. Original physical storage addresses are retained
   ! here for exact remapping; these are not runtime numerical Domain views.
   use kind_mod, only : dp
@@ -10,10 +11,11 @@ module parallel_block_rhs_compile_mod
   use domain_ops_mod, only : apply_onescale_to_patch,apply_to_penta_d,apply_interscale_to_patch3
   use parallel_block_primitive_walk_mod, only : Primitive_Walk,walk_primitive_patch
   use parallel_block_mass_mod, only : Mass_Level,Mass_Divergence
-  use parallel_block_velocity_mod, only : Native_Velocity_Workspace,Velocity_Level_Program,Velocity_Gradient_Stencil
+  use parallel_block_velocity_mod, only : Velocity_Program,Velocity_Level_Program,Velocity_Gradient_Stencil
   use geom_mod, only : geodesic
   use parallel_block_rhs_mod, only : Rhs_Primitive_Stencil,Rhs_Pentagon_Stencil
   use parallel_block_rhs_diffusion_mod, only : Rhs_Diffusion_Level,Rhs_Curl_Stencil
+  use iso_fortran_env, only : int64
   implicit none
   private
   public :: Rhs_Domain_Operators,compile_rhs_domain_operators,merge_rhs_domain_operators,compile_rhs_dynamics
@@ -49,9 +51,356 @@ module parallel_block_rhs_compile_mod
      type(Rhs_Diffusion_Level), allocatable :: diffusion(:)
      type(Rhs_Rotation_Level), allocatable :: rotation(:)
   end type
+  public :: audit_rhs_program316
+  public :: interval_counts_299
+  public :: balance_mode_295,early_plan_295,early_work_295,early_generation_295,clear_balance_295,scan_work_295
+  type :: Balance_Work_295
+     integer,allocatable :: node(:)
+  end type
+  type(Rhs_Domain_Operators),allocatable,save :: early_plan_295(:)
+  type(Balance_Work_295),allocatable,save :: early_work_295(:)
+  integer(int64),save :: early_generation_295=-1_int64
   type(Rhs_Domain_Operators), pointer :: compiling=>null()
   integer :: current_level=0,pass=0,used=0
 contains
+  subroutine audit_rhs_program316(p)
+    ! Semantic component serialization; no derived-record padding or numerical
+    ! packet capture. Each buffer column preserves one exact operator ordinal.
+    type(Rhs_Domain_Operators),intent(in) :: p
+    integer,allocatable :: iv(:,:)
+    real(dp),allocatable :: rv(:,:)
+    logical,allocatable :: lv(:,:)
+    integer :: l,j,n
+    call audit316_i('program.header',[p%domain_id,p%nnode,lbound(p%diffusion,1),ubound(p%diffusion,1)])
+    call audit316_i('program.surface_visits',p%surface_visits)
+    n=size(p%gradient)
+    call audit316_i('gradient.shape',[4,3,1,n])
+    allocate(iv(4,n),rv(3,n),lv(1,n))
+    do j=1,n
+       associate(v=>p%gradient(j))
+       iv(:,j)=v%node
+       rv(:,j)=v%length
+       lv(:,j)=[v%active]
+       end associate
+    end do
+    call audit316_i('gradient.i',reshape(iv,[size(iv)]))
+    call audit316_r('gradient.r',reshape(rv,[size(rv)]))
+    call audit316_l('gradient.l',reshape(lv,[size(lv)]))
+    deallocate(iv,rv,lv)
+    do l=lbound(p%diffusion,1),ubound(p%diffusion,1)
+       call audit316_i('program.level',[l,p%diffusion(l)%level])
+       n=size(p%pressure(l)%patch)
+       call audit316_i('pressure.patch.shape',[4,0,0,n])
+       allocate(iv(4,n))
+       do j=1,n
+          associate(v=>p%pressure(l)%patch(j))
+          iv(:,j)=[v%first_producer,v%last_producer,v%first_pressure,v%last_pressure]
+          end associate
+       end do
+       call audit316_i('pressure.patch.i',reshape(iv,[size(iv)]))
+       deallocate(iv)
+       call audit316_i('pressure.node',p%pressure(l)%node)
+       call audit316_i('pressure.producer_ordinal',p%pressure(l)%producer_ordinal)
+       n=size(p%diffusion(l)%producer)
+       call audit316_i('diffusion.producer.shape',[32,49,1,n])
+       allocate(iv(32,n),rv(49,n),lv(1,n))
+       do j=1,n
+          associate(v=>p%diffusion(l)%producer(j))
+          iv(:,j)=[v%target,v%mass,v%velocity,v%vorticity,v%sw_mass,v%sw_velocity, &
+            reshape(v%sw_edge,[6]),v%sw_vorticity]
+          rv(:,j)=[v%geometry,v%sw_geometry]
+          lv(:,j)=[v%southwest]
+          end associate
+       end do
+       call audit316_i('diffusion.producer.i',reshape(iv,[size(iv)]))
+       call audit316_r('diffusion.producer.r',reshape(rv,[size(rv)]))
+       call audit316_l('diffusion.producer.l',reshape(lv,[size(lv)]))
+       deallocate(iv,rv,lv)
+       n=size(p%diffusion(l)%restriction)
+       call audit316_i('diffusion.restriction.shape',[85,57,3,n])
+       allocate(iv(85,n),rv(57,n),lv(3,n))
+       do j=1,n
+          associate(v=>p%diffusion(l)%restriction(j))
+          iv(:,j)=[v%target,reshape(v%small,[36]),reshape(v%partial_flux,[18]), &
+            reshape(v%partial_node,[12]),reshape(v%coarse_node,[18])]
+          rv(:,j)=[reshape(v%weight,[24]),reshape(v%area,[6]),reshape(v%overlap,[12]),reshape(v%coarse,[15])]
+          lv(:,j)=v%edge
+          end associate
+       end do
+       call audit316_i('diffusion.restriction.i',reshape(iv,[size(iv)]))
+       call audit316_r('diffusion.restriction.r',reshape(rv,[size(rv)]))
+       call audit316_l('diffusion.restriction.l',reshape(lv,[size(lv)]))
+       deallocate(iv,rv,lv)
+       n=size(p%diffusion(l)%divergence)
+       call audit316_i('diffusion.divergence.shape',[7,1,0,n])
+       allocate(iv(7,n),rv(1,n))
+       do j=1,n
+          associate(v=>p%diffusion(l)%divergence(j))
+          iv(:,j)=[v%target,v%edge]
+          rv(:,j)=[v%inverse_area]
+          end associate
+       end do
+       call audit316_i('diffusion.divergence.i',reshape(iv,[size(iv)]))
+       call audit316_r('diffusion.divergence.r',reshape(rv,[size(rv)]))
+       deallocate(iv,rv)
+       n=size(p%rotation(l)%curl)
+       call audit316_i('rotation.curl.shape',[5,3,1,n])
+       allocate(iv(5,n),rv(3,n),lv(1,n))
+       do j=1,n
+          associate(v=>p%rotation(l)%curl(j))
+          iv(:,j)=[v%target,v%vorticity]
+          rv(:,j)=v%dual_length
+          lv(:,j)=[v%diagonal]
+          end associate
+       end do
+       call audit316_i('rotation.curl.i',reshape(iv,[size(iv)]))
+       call audit316_r('rotation.curl.r',reshape(rv,[size(rv)]))
+       call audit316_l('rotation.curl.l',reshape(lv,[size(lv)]))
+       deallocate(iv,rv,lv)
+       n=size(p%rotation(l)%pentagon)
+       call audit316_i('rotation.pentagon.shape',[50,91,0,n])
+       allocate(iv(50,n),rv(91,n))
+       do j=1,n
+          associate(v=>p%rotation(l)%pentagon(j))
+          iv(:,j)=[v%corner,v%mass,reshape(v%velocity,[21]),reshape(v%vorticity,[14]),v%pv_node]
+          rv(:,j)=[reshape(v%length,[21]),reshape(v%triangle_area,[14]), &
+            reshape(v%coriolis,[14]),reshape(v%parts,[42])]
+          end associate
+       end do
+       call audit316_i('rotation.pentagon.i',reshape(iv,[size(iv)]))
+       call audit316_r('rotation.pentagon.r',reshape(rv,[size(rv)]))
+       deallocate(iv,rv)
+       n=size(p%dynamics(l)%divergence)
+       call audit316_i('dynamics.divergence.shape',[7,1,1,n])
+       allocate(iv(7,n),rv(1,n),lv(1,n))
+       do j=1,n
+          associate(v=>p%dynamics(l)%divergence(j))
+          iv(:,j)=[v%target,v%edge]
+          rv(:,j)=[v%inverse_area]
+          lv(:,j)=[v%active]
+          end associate
+       end do
+       call audit316_i('dynamics.divergence.i',reshape(iv,[size(iv)]))
+       call audit316_r('dynamics.divergence.r',reshape(rv,[size(rv)]))
+       call audit316_l('dynamics.divergence.l',reshape(lv,[size(lv)]))
+       deallocate(iv,rv,lv)
+       n=size(p%dynamics(l)%physics)
+       call audit316_i('dynamics.physics.shape',[8,6,1,n])
+       allocate(iv(8,n),rv(6,n),lv(1,n))
+       do j=1,n
+          associate(v=>p%dynamics(l)%physics(j))
+          iv(:,j)=[v%node,v%vorticity]
+          rv(:,j)=[v%length,v%dual_length]
+          lv(:,j)=[v%pentagon]
+          end associate
+       end do
+       call audit316_i('dynamics.physics.i',reshape(iv,[size(iv)]))
+       call audit316_r('dynamics.physics.r',reshape(rv,[size(rv)]))
+       call audit316_l('dynamics.physics.l',reshape(lv,[size(lv)]))
+       deallocate(iv,rv,lv)
+       call audit316_i('dynamics.injection.shape',shape(p%dynamics(l)%injection))
+       call audit316_i('dynamics.injection',reshape(p%dynamics(l)%injection,[size(p%dynamics(l)%injection)]))
+       call audit316_i('dynamics.source.action',p%dynamics(l)%source%action)
+       call audit316_i('dynamics.source.operand',p%dynamics(l)%source%operand)
+       n=size(p%dynamics(l)%source%direct)
+       call audit316_i('dynamics.source.direct.shape',[9,33,1,n])
+       allocate(iv(9,n),rv(33,n),lv(1,n))
+       do j=1,n
+          associate(v=>p%dynamics(l)%source%direct(j))
+          iv(:,j)=v%node
+          rv(:,j)=[reshape(v%weights,[30]),v%length]
+          lv(:,j)=[v%active]
+          end associate
+       end do
+       call audit316_i('dynamics.source.direct.i',reshape(iv,[size(iv)]))
+       call audit316_r('dynamics.source.direct.r',reshape(rv,[size(rv)]))
+       call audit316_l('dynamics.source.direct.l',reshape(lv,[size(lv)]))
+       deallocate(iv,rv,lv)
+       n=size(p%dynamics(l)%source%restriction)
+       call audit316_i('dynamics.source.restriction.shape',[5,0,3,n])
+       allocate(iv(5,n),lv(3,n))
+       do j=1,n
+          associate(v=>p%dynamics(l)%source%restriction(j))
+          iv(:,j)=[v%target,v%child,v%neighbor]
+          lv(:,j)=v%edge
+          end associate
+       end do
+       call audit316_i('dynamics.source.restriction.i',reshape(iv,[size(iv)]))
+       call audit316_l('dynamics.source.restriction.l',reshape(lv,[size(lv)]))
+       deallocate(iv,lv)
+    end do
+  end subroutine
+
+  integer function balance_mode_295() result(mode)
+    integer,save :: chosen=-1
+    character(8) :: option
+    integer :: status
+    if(chosen<0) then
+       option='';call get_environment_variable('WAVETRISK_SELECTIVE_BALANCE',option,status=status)
+       if(status/=0.and.status/=1) error stop 'selective balance selector read'
+       select case(trim(option))
+       case('','0');chosen=0
+       case('1');chosen=1
+       case('2');chosen=2
+       case('3');chosen=3
+       case('4');chosen=4
+       case default;error stop 'selective balance requires 0, 1, 2, 3 or 4'
+       end select
+    end if
+    mode=chosen
+  end function
+
+  subroutine clear_balance_295()
+    if(allocated(early_plan_295)) deallocate(early_plan_295)
+    if(allocated(early_work_295)) deallocate(early_work_295)
+    early_generation_295=-1_int64
+  end subroutine
+
+  subroutine interval_counts_299(readers,source,table)
+    ! Unique source-node incidences for every contiguous consumer interval.
+    ! O(nodes*units + units**3); units<=16. No per-subset exponential table.
+    integer(int64),intent(in) :: readers(:)
+    integer,intent(in) :: source(:)
+    integer,intent(out) :: table(:,:,:)
+    integer :: n,i,left,right,last,v
+    n=size(table,1)
+    if(n<1.or.n>16.or.any(shape(table)/=[n,n,n])) error stop 'interval table extent'
+    if(size(readers)/=size(source)) error stop 'interval source extent'
+    if(any(source<1).or.any(source>n)) error stop 'interval source range'
+    if(any(readers<0).or.any(shiftr(readers,n)/=0_int64)) error stop 'interval reader range'
+    table=0
+    do i=1,size(source)
+       last=0;v=source(i)
+       do right=1,n
+          if(btest(readers(i),right-1)) last=right
+          if(last>0) table(last,right,v)=table(last,right,v)+1
+       end do
+    end do
+    do right=1,n
+       do left=right-1,1,-1
+          table(left,right,:)=table(left,right,:)+table(left+1,right,:)
+       end do
+    end do
+  end subroutine
+
+  subroutine scan_work_295(program,node_work,unit_of,counts,edges,group_mask,group_edges,interval_edges)
+    ! Fresh exact operator-record census, not calibrated wall-clock weights.
+    ! Edges count unique physical node reads per destination unit. Phase,
+    ! variable and canonical cross-Domain aliases remain separate runtime costs.
+    type(Rhs_Domain_Operators),intent(in) :: program
+    integer,intent(out) :: node_work(:)
+    integer,optional,intent(in) :: unit_of(:)
+    integer,optional,intent(out) :: counts(:,:),edges(:,:),group_edges(:,:),interval_edges(:,:,:)
+    integer(int64),optional,intent(in) :: group_mask(:)
+    integer(int64),allocatable :: readers(:)
+    integer :: n,i,j,l,a,u,v
+    logical :: interfaces
+    n=program%nnode;interfaces=present(unit_of)
+    if(size(node_work)/=n) error stop 'balance node census extent'
+    node_work=0
+    if(interfaces) then
+       if(.not.present(counts).or..not.present(edges).or..not.present(group_mask).or. &
+            .not.present(group_edges)) error stop 'balance census outputs absent'
+       if(size(unit_of)/=n.or.size(counts,1)/=14.or.size(counts,2)>16) error stop 'balance unit extent'
+       if(any(unit_of<1).or.any(unit_of>size(counts,2))) error stop 'balance unit map'
+       if(any(shape(edges)/=[size(counts,2),size(counts,2)])) error stop 'balance interface extent'
+       if(size(group_mask)/=size(counts,2).or.any(shape(group_edges)/=shape(edges))) &
+            error stop 'balance group dependency extent'
+       allocate(readers(n));readers=0;counts=0;edges=0;group_edges=0
+    end if
+    do i=1,n
+       do j=1,program%surface_visits(i)
+          call emit(1,i,[i])
+       end do
+    end do
+    do l=lbound(program%diffusion,1),ubound(program%diffusion,1)
+       do j=1,size(program%pressure(l)%node)
+          a=program%pressure(l)%node(j);call emit(2,a,[a])
+       end do
+       do j=1,size(program%diffusion(l)%producer)
+          associate(v=>program%diffusion(l)%producer(j))
+          call emit(3,v%target,[v%mass,(v%velocity-1)/3+1])
+          if(v%southwest) call emit(4,v%target,[v%sw_mass,(v%sw_velocity-1)/3+1, &
+               v%sw_edge(2,:)])
+          end associate
+       end do
+       do j=1,size(program%diffusion(l)%restriction)
+          associate(v=>program%diffusion(l)%restriction(j))
+          call emit(5,v%target,[reshape((v%small-1)/3+1,[36]),reshape(merge((v%partial_flux-1)/3+1,0,v%partial_flux>0),[18]), &
+               reshape(v%partial_node,[12]),reshape(v%coarse_node,[18])])
+          end associate
+       end do
+       do j=1,size(program%diffusion(l)%divergence)
+          associate(v=>program%diffusion(l)%divergence(j))
+          call emit(6,v%target,(v%edge-1)/3+1)
+          end associate
+       end do
+       do j=1,size(program%rotation(l)%curl)
+          associate(v=>program%rotation(l)%curl(j))
+          call emit(7,v%target,(v%vorticity-1)/2+1)
+          end associate
+       end do
+       do j=1,size(program%rotation(l)%pentagon)
+          associate(v=>program%rotation(l)%pentagon(j))
+          call emit(8,v%mass(1),[v%mass,reshape((v%velocity-1)/3+1,[21])])
+          end associate
+       end do
+       do j=1,size(program%dynamics(l)%divergence)
+          associate(v=>program%dynamics(l)%divergence(j))
+          if(v%active) call emit(9,v%target,(v%edge-1)/3+1)
+          end associate
+       end do
+       do j=1,size(program%dynamics(l)%source%direct)
+          associate(v=>program%dynamics(l)%source%direct(j))
+          if(v%active) call emit(10,v%node(1),v%node)
+          end associate
+       end do
+       do j=1,size(program%dynamics(l)%source%restriction)
+          associate(v=>program%dynamics(l)%source%restriction(j))
+          call emit(11,v%target,[v%child,v%neighbor])
+          end associate
+       end do
+       do j=1,size(program%dynamics(l)%physics)
+          associate(v=>program%dynamics(l)%physics(j))
+          call emit(12,v%node(1),[v%node,(v%vorticity-1)/2+1])
+          end associate
+       end do
+       do j=1,size(program%dynamics(l)%injection,2)
+          call emit(13,program%dynamics(l)%injection(1,j),[program%dynamics(l)%injection(2,j)])
+       end do
+    end do
+    do j=1,size(program%gradient)
+       associate(v=>program%gradient(j))
+       if(v%active) call emit(14,v%node(1),v%node)
+       end associate
+    end do
+    if(present(interval_edges)) then
+       if(.not.interfaces) error stop 'interval census needs unit map'
+       call interval_counts_299(readers,unit_of,interval_edges)
+    end if
+    if(interfaces) then
+       do i=1,n
+          v=unit_of(i)
+          do u=1,size(counts,2)
+             if(btest(readers(i),u-1)) edges(u,v)=edges(u,v)+1
+             if(iand(readers(i),group_mask(u))/=0) group_edges(u,v)=group_edges(u,v)+1
+          end do
+       end do
+    end if
+  contains
+    subroutine emit(kind,target,reads)
+      integer,intent(in) :: kind,target,reads(:)
+      integer :: q,destination
+      if(target<1.or.target>n.or.any(reads<0).or.any(reads>n)) error stop 'balance operator address'
+      node_work(target)=node_work(target)+1
+      if(.not.interfaces) return
+      destination=unit_of(target);counts(kind,destination)=counts(kind,destination)+1
+      do q=1,size(reads)
+         if(reads(q)>0) readers(reads(q))=ibset(readers(reads(q)),destination-1)
+      end do
+    end subroutine
+  end subroutine
+
   subroutine compile_rhs_domain_operators(dom,mass,output)
     type(Domain), intent(inout) :: dom
     type(Mass_Level), intent(in) :: mass(level_start:)
@@ -123,7 +472,7 @@ contains
     ! direct/restriction order. No numerical values are copied from its workspace.
     type(Domain), intent(inout) :: dom
     type(Mass_Level), intent(in) :: mass(level_start:)
-    type(Native_Velocity_Workspace), intent(in) :: velocity
+    type(Velocity_Program), intent(in) :: velocity
     type(Rhs_Domain_Operators), intent(out), target :: output
     integer :: l,s,n,p,j,c,ip,q
     call compile_rhs_domain_operators(dom,mass,output)

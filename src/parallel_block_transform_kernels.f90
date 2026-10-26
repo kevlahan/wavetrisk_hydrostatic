@@ -56,8 +56,22 @@ contains
   end function
   subroutine compile_transform_geometry(program)
     type(Transform_Geometry),intent(out) :: program
+    integer(int64) :: old_bytes,new_bytes,total
+    integer :: d
+    character(8) :: option
     call compile_transform_cells(program)
     call compile_transform_outer(program)
+    call get_environment_variable('WAVETRISK_CONNECTED_RHS_AUDIT',option)
+    if(trim(option)=='1') then
+       total=sum([(int(grid(d)%node%length,int64),d=1,size(grid))])
+       old_bytes=total*(2_int64*storage_size(Transform_Scalar())+storage_size(Transform_Inner())+ &
+            EDGE*int(storage_size(Transform_Outer()),int64))/8
+       new_bytes=(size(program%scalar,kind=int64)*storage_size(Transform_Scalar())+ &
+            size(program%inner,kind=int64)*storage_size(Transform_Inner())+ &
+            size(program%outer,kind=int64)*storage_size(Transform_Outer()))/8
+       write(*,*) 'Structure284 tapes:',rank,old_bytes,new_bytes,size(program%scalar),size(program%inner), &
+            size(program%outer)
+    end if
     call dump_transform_dependencies(program)
   end subroutine
   subroutine dump_transform_dependencies(program)
@@ -100,15 +114,23 @@ contains
 
   subroutine compile_transform_cells(program)
     type(Transform_Geometry),intent(inout) :: program
-    integer :: total
+    integer :: total,ncell
     integer :: d,l,p,pi,c,ch,i,j,x,y,ip,jp,n,m,t,a,offp(N_BDRY+1),offc(N_BDRY+1)
     integer :: dimp(2,N_BDRY+1),dimc(2,N_BDRY+1),sx(11),sy(11),q,baseid
     integer :: tx(4),ty(4),wi(11)
     type(Transform_Scalar) :: op
     type(Transform_Inner) :: cell
-    total=sum([(grid(d)%node%length,d=1,size(grid))])
+    total=sum([(grid(d)%node%length,d=1,size(grid))]);ncell=0
+    do l=level_start,level_end-1
+       do d=1,size(grid)
+          do pi=1,grid(d)%lev(l)%length
+             p=grid(d)%lev(l)%elts(pi)
+             ncell=ncell+count(grid(d)%patch%elts(p+1)%children>0)*(PATCH_SIZE/2)**2
+          end do
+       end do
+    end do
     if (allocated(program%scalar)) deallocate(program%scalar,program%inner)
-    allocate(program%scalar(max(1,2*total)),program%inner(max(1,total)))
+    allocate(program%scalar(4*ncell),program%inner(ncell))
     n=0;m=0
     wi=[1,2,3,1,2,3,4,1,2,3,4]
     do l=level_start,level_end-1
@@ -216,7 +238,7 @@ contains
           end do
        end do
     end do
-    program%scalar=program%scalar(:n);program%inner=program%inner(:m)
+    if(n/=4*ncell.or.m/=ncell) call die('cell tape count')
   contains
     subroutine edge_geom(slot,xx,yy,e,parent)
       integer, intent(in) :: slot,xx,yy,e
@@ -244,12 +266,37 @@ contains
 
   subroutine compile_transform_outer(program)
     type(Transform_Geometry),intent(inout) :: program
-    integer :: noperation,total
+    integer :: noperation,total,capacity
     integer :: l,d,p,pi,c,child,i,j,ic,jc,ip,jp,e,corner,q,a,b,t,mode
     integer :: op(N_BDRY+1),oc(N_BDRY+1),dp0(2,N_BDRY+1),dc(2,N_BDRY+1)
     type(Transform_Outer) :: item
     total=sum([(grid(d)%node%length,d=1,size(grid))]);noperation=0
-    allocate(program%outer(max(1,EDGE*total)))
+    capacity=0
+    do l=level_start-1,level_end-1
+       do d=1,size(grid)
+          do pi=1,grid(d)%lev(l)%length
+             p=grid(d)%lev(l)%elts(pi)
+             capacity=capacity+count(grid(d)%patch%elts(p+1)%children>0)*(UP-RT+1)*(PATCH_SIZE/2+1)**2
+          end do
+          do corner=NORTHEAST,NORTHWEST
+             if(.not.grid(d)%penta(corner)) cycle
+             p=1
+             do while(p>0)
+                child=grid(d)%patch%elts(p+1)%children(corner-4)
+                if(grid(d)%patch%elts(p+1)%level<l) then
+                   p=child;cycle
+                end if
+                if(grid(d)%patch%elts(p+1)%level>l) exit
+                if(child>0) then
+                   if(corner==IMINUSJPLUS.or.corner==IPLUSJMINUS) capacity=capacity+1
+                   if(corner==IJMINUS) capacity=capacity+2
+                end if
+                p=child
+             end do
+          end do
+       end do
+    end do
+    allocate(program%outer(capacity))
     do l=level_start-1,level_end-1
 
        do d=1,size(grid)
@@ -359,7 +406,7 @@ contains
        end do
 
     end do
-    program%outer=program%outer(:noperation)
+    if(noperation/=capacity) call die('outer tape count')
   contains
     integer function side(i,j,s) result(address)
       integer, intent(in) :: i,j,s

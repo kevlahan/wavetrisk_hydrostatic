@@ -746,7 +746,7 @@ subroutine install_local_blocks (n_catalog,local_seen,transfer_storage)
      end if
 
      ilocal = ilocal + 1
-     if(detail_enabled) then
+     if(detail_enabled.and..not.detail_attribution) then
         if(move_storage) then
            call detail_add(DC_INSTALL_MOVED,int(packed_block_nbyte(block_source(ib)),int64))
         else
@@ -797,7 +797,7 @@ subroutine install_local_blocks (n_catalog,local_seen,transfer_storage)
      end if
 
      ilocal = ilocal + 1
-     if(detail_enabled) then
+     if(detail_enabled.and..not.detail_attribution) then
         if(move_storage) then
            call detail_add(DC_INSTALL_MOVED,int(packed_block_nbyte(block_received(i)),int64))
         else

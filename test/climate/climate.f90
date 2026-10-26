@@ -5,6 +5,15 @@ program climate
   !
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  use audit316_mod, only: audit316_init,audit316_finish,audit316_begin,audit316_end,audit316_i
+  use boundary310_mod, only: b310_init,b310_begin,b310_end,b310_flush
+  use parallel_block_mpi_mod, only: snapshot_groups312,audit_transport_footer322
+  use runtime322_mod
+  use campaign312_mod
+  use mpi_f08, only: MPI_Wtime
+  use shared_mod, only: dt,n_active,tol,min_level,max_level
+  use comm_mpi_mod, only: get_timing
+  use main_mod, only: checkpoint312
   use kind_mod,   only : dp
   use shared_mod, only : DAY, JOULE, KELVIN, KG, KM, METRE, N_VARIABLE, RAD, SECOND, &
        Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim, &
@@ -20,6 +29,7 @@ program climate
   use checkpoint_mod,      only : dump_adapt_mpi 
   use io_vtk_mod,          only : write_and_export
   use main_mod,            only : initialize, time_step
+  use parallel_block_mpi_mod, only : report_parallel_block_profile
   use multi_level_mod,     only : trend_ml
   use std_atm_profile_mod, only : std_surf_pres
 
@@ -27,9 +37,13 @@ program climate
        read_test_case_parameters, T_0, topo_test, total_cpu_time, u_0
 
   implicit none
+  real(dp) :: init_start312,startup312
+  integer :: j312
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod(defer_domain_limit=.true.)
+  call init_runtime322()
+  call audit316_init(rank)
   call init_comm_mpi_mod
   call read_test_case_parameters   
 
@@ -101,9 +115,21 @@ program climate
   !    Initialization
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   call assign_functions
+  call configure312
+  ! Stage321 permits the bounded four-step single-level J5 control only.
+  if(tol<=0.0_dp.and.steps312>1) then
+     if(tol<0.0_dp.or.min_level/=5.or.max_level/=5) &
+          error stop "Stage312 tol=0 allows one timestep except single-level J5"
+  end if
+  init_start312=MPI_Wtime()
+  call audit316_begin("initialization",0_int64)
   call initialize_seed
   call initialize (run_id)
+  call audit316_end()
+  startup312=MPI_Wtime()-init_start312
   call print_test_case_parameters
+  call checkpoint312(9900)
+  call snapshot_groups312("initial")
 
   ! Save initial tendencies in prognostic variables when testing topography
   if (topo_test .and. time_end < 1e-16_dp) then
@@ -128,11 +154,41 @@ program climate
   if (rank == 0) write (6,'(a)') &
        '----------------------------------------------------- Start simulation run &
        & ------------------------------------------------------'
-  do while (time < time_end)
-     call start_timing ; call time_step; call stop_timing
+  call b310_init
+  call observe_runtime322(1)
+  do j312=1,steps312
+     step312=j312
+     if(time>=time_end) error stop "Stage312 time_end reached before step limit"
+     if(j312==2) call start_window322()
+     call audit316_begin("step",int(j312,int64))
+     call start_timing
+     call b310_begin
+     call time_step
+     call b310_end
+     call stop_timing
+     call audit316_end()
+     timing312(j312)=get_timing()
+     physical312(j312)=time
+     dt312(j312)=dt
+     active312(j312)=int(sum(n_active),int64)
      call print_log
+     if(j312==4) call end_window322()
+     call observe_runtime322(j312+1)
   end do
+  ! All numerical steps and their outer timing/logging have completed. In lean
+  ! mode this is the sole flush; output events inside time_step retain records.
+  call report_parallel_block_profile(reset=.true.,after_trajectory=.true.)
+  call b310_flush(rank)
+  call flush312(rank,startup312)
+  if(steps312>0) call checkpoint312(9901)
+  ! Defer the map-override snapshot/checks until the existing checkpoint barriers.
+  call snapshot_groups312("final")
+  ! Existing checkpoint ends in all-rank barriers; no new output before it.
+  call finish_runtime322(rank,steps312)
   close (12)
   if (rank == 0) write (6,'(a,es11.4)') 'Total cpu time = ', total_cpu_time
+  call audit316_i("driver.steps",[steps312])
+  call audit_transport_footer322()
+  call audit316_finish()
   call finalize
 end program climate

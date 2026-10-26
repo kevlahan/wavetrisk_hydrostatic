@@ -1,4 +1,7 @@
 module parallel_block_rhs_backend_mod
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
+  use campaign312_mod, only: record_rhs312
+  use boundary310_mod, only: b310_enter,b310_leave
   use parallel_block_profile_mod, only : detail_enter,detail_leave, &
        DP_RHS_INPUT_PLAN,DP_RHS_RETAIN_PLAN,DP_RHS_INPUT,DP_RHS_KERNEL,DP_RHS_RETAIN,DP_RHS_RK
   use iso_fortran_env, only : int64
@@ -7,7 +10,7 @@ module parallel_block_rhs_backend_mod
   use arch_mod, only : rank,comm,glo_id,block_catalog
   use shared_mod, only : N_VARIABLE,zlevels,scalars,S_VELO,AT_NODE,AT_EDGE,level_start,level_end, &
        Laplace_sclr,Laplace_divu,Laplace_rotu,grav_accel,c_p,p_0,kappa,p_top
-  use domain_mod, only : grid,Float_Field
+  use domain_mod, only : grid,Float_Field,audit_domain_fields322
   use parallel_block_rhs_compile_mod, only : Rhs_Domain_Operators
   use parallel_block_rhs_placement_mod, only : compile_rhs_owner_map
   use parallel_block_rhs_distribute_mod, only : deliver_rhs_metadata,Rhs_Geometry_Directory,prepare_rhs_geometry_directory
@@ -35,6 +38,7 @@ module parallel_block_rhs_backend_mod
   integer(int64),save :: generation=-1,mask_epoch=0,state_epoch=0,rk_epoch=0
   integer(int64),save :: rhs_calls=0,rk_calls=0,adapter_rk_values=0,resident_rk_values=0
   logical,save :: option_read=.false.,enabled=.false.,completed=.false.,rk_prepared=.false.
+  logical,save :: audit_pending_state316=.false.
 contains
   integer(int64) function connected_rhs_mask_generation() result(epoch)
     epoch=mask_epoch
@@ -71,6 +75,12 @@ contains
     ! no local block. It is explicit preparation cost, not a numeric halo.
     call MPI_Allreduce(local,rebuild,1,MPI_LOGICAL,MPI_LOR,comm,ierr)
     if(ierr/=MPI_SUCCESS) error stop 'RHS mask epoch consensus'
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.prepare_check',topology)
+       call audit316_i64('prepare_check.generation',[generation,mask_epoch])
+       call audit316_l('prepare_check.rebuild',[local,rebuild])
+       call audit316_end()
+    end if
   end function
 
   subroutine prepare_connected_rhs(plan,base,topology,geometry_surface)
@@ -165,6 +175,42 @@ contains
     call detail_leave(DP_RHS_INPUT_PLAN)
     completed=.false.;rk_prepared=.false.
     call audit_plan(MPI_Wtime()-started)
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.prepare',mask_epoch)
+       call audit316_i64('backend.generation',[generation,mask_epoch,state_epoch,rk_epoch])
+       call audit316_i('backend.geometry.base',base)
+       call audit_rhs_distributed316(executor)
+       call audit316_begin('backend.input',mask_epoch)
+       call audit_rhs_input316(input)
+       call audit316_end()
+       call audit316_begin('backend.rk_input',mask_epoch)
+       call audit_rhs_input316(rk_input)
+       call audit316_end()
+       call audit_rhs_retention316(retention)
+       call audit_rhs_exchange316(adapter_route,'backend.adapter_route')
+       call audit316_i('backend.adapter_domain',adapter_domain)
+       call audit316_i('backend.adapter_node',adapter_node)
+       call audit316_i('backend.rk_domain',rk_domain)
+       call audit316_i('backend.rk_node',rk_node)
+       call audit316_i('backend.owned',owned)
+       call audit316_i('backend.mask.domains',[size(masks)])
+       do d=1,size(masks)
+          call audit316_i('backend.mask.domain',[d,glo_id(rank+1,d)])
+          call audit316_i('backend.mask.node',masks(d)%node)
+          call audit316_i('backend.mask.edge',masks(d)%edge)
+       end do
+       call audit316_r('backend.surface',surface)
+       call audit316_i('backend.scalar.shape',shape(scalar))
+       call audit316_i('backend.mean.shape',shape(mean))
+       call audit316_i('backend.velocity.shape',shape(velocity))
+       call audit316_i('backend.adapter_value.shape',shape(adapter_value))
+       call audit316_i('backend.rk_value.shape',shape(rk_value))
+       call audit316_i('backend.rk_scalar.shape',shape(rk_scalar))
+       call audit316_i('backend.rk_mean.shape',shape(rk_mean))
+       call audit316_i('backend.rk_velocity.shape',shape(rk_velocity))
+       call audit316_end()
+       audit_pending_state316=.true.
+    end if
   end subroutine
 
   subroutine state_footprint(plan,required)
@@ -220,22 +266,57 @@ contains
     started=MPI_Wtime()
     if(rhs_calls==0.and.rank==0) write(*,'(a)') 'Stage278 connected resident RHS = on'
     state_epoch=state_epoch+1
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.evaluate',state_epoch)
+       call audit316_i64('evaluate.epoch',[generation,mask_epoch,state_epoch,rk_epoch,rhs_calls])
+       call audit316_l('evaluate.first_after_prepare',[audit_pending_state316])
+    end if
     call detail_enter(DP_RHS_INPUT)
     call read_rhs_resident_input(input,q,state_epoch,scalar,mean,velocity)
+    if(audit316_enabled()) then
+       ! Stage322 records every installed input, not only the first after a
+       ! preparation. All sixteen live RK evaluations must qualify.
+       call audit316_begin('rhs.prepared_state',mask_epoch)
+       call audit316_i('state.scalar.shape',shape(scalar))
+       call audit316_i('state.mean.shape',shape(mean))
+       call audit316_i('state.velocity.shape',shape(velocity))
+       call audit316_r('state.scalar',reshape(scalar,[size(scalar)]))
+       call audit316_r('state.mean',reshape(mean,[size(mean)]))
+       call audit316_r('state.velocity',reshape(velocity,[size(velocity)]))
+       call audit316_r('state.surface',surface)
+       call audit316_end()
+       audit_pending_state316=.false.
+    end if
     call detail_leave(DP_RHS_INPUT)
     call detail_enter(DP_RHS_KERNEL)
     call run_rhs_distributed(executor,scalar,mean,velocity,surface,[Laplace_sclr,Laplace_divu,Laplace_rotu], &
          nu,pentagon,grav_accel,c_p,p_0,kappa,p_top)
     call detail_leave(DP_RHS_KERNEL)
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.output322',state_epoch)
+       call audit316_i('output.scalar.shape',shape(executor%scalar_rhs))
+       call audit316_i('output.velocity.shape',shape(executor%velocity_rhs))
+       call audit316_r('output.scalar',reshape(executor%scalar_rhs,[size(executor%scalar_rhs)]))
+       call audit316_r('output.velocity',reshape(executor%velocity_rhs,[size(executor%velocity_rhs)]))
+       call audit316_end()
+    end if
     evaluate_seconds=evaluate_seconds+MPI_Wtime()-started
     completed=.true.;rhs_calls=rhs_calls+1
+    if(audit316_enabled()) call audit316_end()
   end subroutine
 
   subroutine retain_connected_rhs
     if(.not.completed) error stop 'RHS retention before evaluation'
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.retain',state_epoch)
+       call audit316_i64('retain.epoch',[generation,mask_epoch,state_epoch,retention%retained_stages])
+    end if
     call detail_enter(DP_RHS_RETAIN)
+    call b310_enter(4)
     call retain_rhs_tendency(executor,retention)
+    call b310_leave(4)
     call detail_leave(DP_RHS_RETAIN)
+    if(audit316_enabled()) call audit316_end()
   end subroutine
 
   subroutine prepare_connected_rhs_rk(base,h)
@@ -245,6 +326,12 @@ contains
     real(dp) :: started
     started=MPI_Wtime()
     if(.not.completed.or.rk_prepared) error stop 'RHS RK preparation sequence'
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.rk_prepare',state_epoch)
+       call audit316_i64('rk_prepare.epoch',[generation,mask_epoch,state_epoch,rk_epoch])
+       call audit316_r('rk_prepare.h',[h])
+       call audit_domain_fields322(base,10,state_epoch)
+    end if
     call detail_enter(DP_RHS_RK)
     n=executor%placement%program%nnode;c=0
     do k=1,zlevels
@@ -270,8 +357,23 @@ contains
     ! are included in the resident adapter payload counter (means excluded).
     rk_epoch=rk_epoch+1
     call read_rhs_resident_input(rk_input,base,rk_epoch,rk_scalar,rk_mean,rk_velocity)
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.rk_values322',rk_epoch)
+       call audit316_i('rk.adapter.shape',shape(adapter_value))
+       call audit316_i('rk.value.shape',shape(rk_value))
+       call audit316_i('rk.scalar.shape',shape(rk_scalar))
+       call audit316_i('rk.mean.shape',shape(rk_mean))
+       call audit316_i('rk.velocity.shape',shape(rk_velocity))
+       call audit316_r('rk.adapter',reshape(adapter_value,[size(adapter_value)]))
+       call audit316_r('rk.value',reshape(rk_value,[size(rk_value)]))
+       call audit316_r('rk.scalar',reshape(rk_scalar,[size(rk_scalar)]))
+       call audit316_r('rk.mean',reshape(rk_mean,[size(rk_mean)]))
+       call audit316_r('rk.velocity',reshape(rk_velocity,[size(rk_velocity)]))
+       call audit316_end()
+    end if
     rk_seconds=rk_seconds+MPI_Wtime()-started
     rk_prepared=.true.
+    if(audit316_enabled()) call audit316_end()
     call detail_leave(DP_RHS_RK)
   end subroutine
 
@@ -298,6 +400,9 @@ contains
           route_bytes=route_bytes+bytes
        end do
     end do
+    route_bytes=route_bytes+8_int64*size(executor%transport%scratch,kind=int64)+ &
+         int(storage_size(0)/8,int64)*(size(executor%transport%route_phase,kind=int64)+ &
+         size(executor%transport%route_level,kind=int64))
     values=0
     values=values+size(scalar,kind=int64)
     values=values+size(mean,kind=int64)
@@ -375,6 +480,10 @@ contains
     character(len=8) :: option
     character(len=64) :: path
     integer :: unit
+    call record_rhs312([generation,mask_epoch,int(size(grid),int64),int(size(retention%block),int64), &
+         executor%primitive_events,executor%scalar_targets,executor%velocity_targets, &
+         executor%transport%remote_values,executor%transport%remote_messages, &
+         int(executor%placement%program%nnode,int64),rhs_calls])
     call get_environment_variable('WAVETRISK_CONNECTED_RHS_AUDIT',option)
     if(trim(option)/='1') return
     write(path,'(a,i0,a)') 'rhs278-production-rank-',rank,'.txt'
@@ -391,6 +500,11 @@ contains
     logical,intent(in) :: validate
     integer :: i,d,j,k,v,c
     if(.not.rk_prepared) error stop 'RHS RK install before preparation'
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.rk_install',rk_epoch)
+       call audit316_i64('rk_install.epoch',[generation,mask_epoch,state_epoch,rk_epoch])
+       call audit316_l('rk_install.validate',[validate])
+    end if
     do i=1,size(adapter_node)
        d=adapter_domain(i);j=adapter_node(i);c=0
        do k=1,zlevels
@@ -411,9 +525,30 @@ contains
        end do
     end do
     dest%bdry_uptodate=.false.
+    if(audit316_enabled()) then
+       call audit316_begin('rhs.rk_installed322',rk_epoch)
+       call audit316_i('installed.extent',[size(adapter_node),size(rk_node),zlevels])
+       do i=1,size(adapter_node)
+          d=adapter_domain(i);j=adapter_node(i)
+          call audit316_i('installed.adapter',[i,d,j])
+          do k=1,zlevels
+             call audit316_r('installed.values',[dest(scalars(1),k)%data(d)%elts(j), &
+                  dest(scalars(2),k)%data(d)%elts(j),dest(S_VELO,k)%data(d)%elts(3*j-2:3*j)])
+          end do
+       end do
+       do i=1,size(rk_node)
+          d=rk_domain(i);j=rk_node(i)
+          call audit316_i('installed.resident',[i,d,j])
+          do k=1,zlevels
+             call audit316_r('installed.temperature',[dest(scalars(2),k)%data(d)%elts(j)])
+          end do
+       end do
+       call audit316_end()
+    end if
     adapter_rk_values=adapter_rk_values+int(size(adapter_node),int64)*5*zlevels
     resident_rk_values=resident_rk_values+int(size(rk_node),int64)*5*zlevels
     rk_prepared=.false.;completed=.false.;rk_calls=rk_calls+1
+    if(audit316_enabled()) call audit316_end()
     call audit
   contains
     subroutine install(target,value)

@@ -1,4 +1,5 @@
 module parallel_block_rhs_retention_mod
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_r,audit316_l
   ! The authoritative connected RHS is retained directly in the existing
   ! resident RK accumulator. Only topology identities cross the geometry cut.
   use iso_fortran_env, only : int64
@@ -16,6 +17,7 @@ module parallel_block_rhs_retention_mod
   implicit none
   private
   public :: Rhs_Retention,prepare_rhs_retention,retain_rhs_tendency
+  public :: audit_rhs_retention316
   type :: Rhs_Rounding_Column
      logical,allocatable :: ready(:)
      real(dp),allocatable :: exner(:,:),theta(:,:)
@@ -32,6 +34,27 @@ module parallel_block_rhs_retention_mod
      integer(int64) :: retained_values=0,retained_stages=0
   end type
 contains
+  subroutine audit_rhs_retention316(retention)
+    type(Rhs_Retention),intent(in) :: retention
+    integer :: i,j
+    call audit316_i('retention.blocks',[size(retention%block)])
+    do i=1,size(retention%block)
+       associate(b=>retention%block(i))
+       call audit316_i('retention.block',[i,b%catalog])
+       call audit316_i('retention.node',b%node)
+       call audit316_i('retention.length.shape',shape(b%length))
+       call audit316_r('retention.length',reshape(b%length,[size(b%length)]))
+       do j=1,3
+          call audit316_i('retention.column',[j])
+          call audit316_i('retention.ready.shape',shape(b%column(j)%ready))
+          call audit316_i('retention.exner.shape',shape(b%column(j)%exner))
+          call audit316_i('retention.theta.shape',shape(b%column(j)%theta))
+          call audit316_l('retention.ready',b%column(j)%ready)
+       end do
+       end associate
+    end do
+  end subroutine
+
   subroutine prepare_rhs_retention(executor,base,topology,retention,directory)
     type(Rhs_Distributed_Executor),intent(in) :: executor
     integer,intent(in) :: base(:)
@@ -137,6 +160,13 @@ contains
           end do
        end do
        call accepted_velocity_rounding(block,c%block(local),vector_tendency)
+       if(audit316_enabled()) then
+          call audit316_begin('rhs.retained322',c%retained_stages)
+          call audit316_i('retained.block',[catalog,local,size(block%patch),n])
+          call audit316_r('retained.scalar',scalar_tendency)
+          call audit316_r('retained.velocity',vector_tendency)
+          call audit316_end()
+       end if
        c%retained_values=c%retained_values+int(5*PATCH_SIZE**2*size(block%patch),int64)*zlevels
     class default
        error stop 'RHS retention context'

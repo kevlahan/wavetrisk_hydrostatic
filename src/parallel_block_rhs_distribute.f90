@@ -15,7 +15,7 @@ module parallel_block_rhs_distribute_mod
   implicit none
   private
   public :: Rhs_Placement,distribute_rhs_geometry,deliver_rhs_metadata
-  public :: Rhs_Geometry_Directory,prepare_rhs_geometry_directory
+  public :: Rhs_Geometry_Directory,prepare_rhs_geometry_directory,rhs_geometry_extents
   type :: Rhs_Geometry_Directory
      ! A preparation-local snapshot, rebuilt from current geometry every time.
      ! It owns no communicator and is never reused across an invalidation.
@@ -33,6 +33,12 @@ module parallel_block_rhs_distribute_mod
      integer(int8),allocatable :: value(:)
   end type
 contains
+  function rhs_geometry_extents(directory) result(extent)
+    type(Rhs_Geometry_Directory),intent(in) :: directory
+    integer,allocatable :: extent(:)
+    if(directory%topology<0.or..not.allocated(directory%extent)) error stop 'RHS absent geometry extent'
+    extent=directory%extent
+  end function
   subroutine prepare_rhs_geometry_directory(base,topology,directory)
     integer,intent(in) :: base(:)
     integer(int64),intent(in) :: topology

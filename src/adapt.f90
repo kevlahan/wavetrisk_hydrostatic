@@ -1,4 +1,6 @@
 module adapt_mod
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_l
+  use shared_mod, only : istep
   use parallel_block_profile_mod, only : detail_enter, detail_leave, DP_WT_DRIVER
   use, intrinsic :: iso_fortran_env, only : int64
 
@@ -190,7 +192,7 @@ contains
     logical, intent(in), optional :: type ! recalculate thresholds
     procedure(noarg_sub), optional :: block_mask_seed
     
-    logical :: local_type
+    logical :: local_type,refined322
 
     n_patch_old = grid%patch%length
     n_node_old  = grid%node%length
@@ -202,18 +204,26 @@ contains
        local_type = .true.
     end if
 
+    if(audit316_enabled()) then
+       call audit316_begin('adapt322',int(istep,int64))
+       call audit316_l('adapt.options',[local_type,present(block_mask_seed)])
+       call audit316_i('adapt.operation',[1])
+    end if
     if (local_type) call call_adaptation_domain_consumer(set_thresholds)
 
     ! Initialize all masks to ZERO at scales > level_start
+    if(audit316_enabled()) call audit316_i('adapt.operation',[2])
     call init_masks_zero
 
     ! A retained compact wavelet image installs the authoritative direct
     ! threshold seed after mask initialization.  The callback optionally
     ! validates the seed and releases topology-dependent block state before
     ! refinement.
+    if(audit316_enabled()) call audit316_i('adapt.operation',[3])
     if (present(block_mask_seed)) call block_mask_seed
     
     ! Active zone at all scales
+    if(audit316_enabled()) call audit316_i('adapt.operation',[4])
     if (present(block_mask_seed)) then
        call mask_active(.true.)
     else
@@ -221,28 +231,39 @@ contains
     end if
 
     ! Adjacent zone at same scale
+    if(audit316_enabled()) call audit316_i('adapt.operation',[5])
     call mask_adj_same_scale
 
     ! Mask for restriction at same scale
+    if(audit316_enabled()) call audit316_i('adapt.operation',[6])
     call mask_restrict_same_scale
 
     ! Determine whether any new patches are required
-    if (refine ()) call post_refine
+    if(audit316_enabled()) call audit316_i('adapt.operation',[7])
+    refined322=refine()
+    if(audit316_enabled()) call audit316_l('adapt.refined',[refined322])
+    if (refined322) call post_refine
 
     ! Adjacent zone at finer scale
+    if(audit316_enabled()) call audit316_i('adapt.operation',[8])
     call mask_adj_finer_scale
 
     ! Ensure consistency between node and edge masks
+    if(audit316_enabled()) call audit316_i('adapt.operation',[9])
     call complete_masks
 
     ! Label ZERO mask nodes/edges that are second nearest neighbours of nodes in adjacent zone mask where trends are be computed
+    if(audit316_enabled()) call audit316_i('adapt.operation',[10])
     call mask_second_neighbours
 
     ! Set insignificant wavelet coefficients to zero
+    if(audit316_enabled()) call audit316_i('adapt.operation',[11])
     if (local_type) call compress_wavelets (wav_coeff)
     
     ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
+    if(audit316_enabled()) call audit316_i('adapt.operation',[12])
     call call_adaptation_domain_consumer(update)
+    if(audit316_enabled()) call audit316_end()
   end subroutine adapt
 
   

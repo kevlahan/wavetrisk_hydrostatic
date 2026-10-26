@@ -4,7 +4,7 @@ module parallel_block_mass_mod
   use, intrinsic :: iso_fortran_env, only : int64
   implicit none
   private
-  public :: Mass_Restriction, Mass_Divergence, Mass_Level, Native_Mass_Workspace
+  public :: Mass_Restriction, Mass_Divergence, Mass_Level, Mass_Program, Native_Mass_Workspace
   public :: native_mass, mass_transaction, mass_oracle, execute_mass_restriction, execute_mass_divergence
   public :: mass_work
 
@@ -23,11 +23,16 @@ module parallel_block_mass_mod
      type(Mass_Restriction), allocatable :: restriction(:)
      type(Mass_Divergence), allocatable :: divergence(:)
   end type
-  type :: Native_Mass_Workspace
+  ! Structural metadata has no numerical values or execution readiness.
+  type :: Mass_Program
      integer(int64) :: generation=-1_int64
+     integer :: nnode=0
      type(Mass_Level), allocatable :: level(:)
+     logical, allocatable :: active(:), restricted(:)
+  end type
+  type, extends(Mass_Program) :: Native_Mass_Workspace
      real(dp), allocatable :: flux(:), tendency(:,:), rk(:,:)
-     logical, allocatable :: active(:), restricted(:), ready(:)
+     logical, allocatable :: ready(:)
   end type
   type(Native_Mass_Workspace), allocatable, target, save :: native_mass(:)
   logical, save :: mass_transaction=.false., mass_oracle=.false.

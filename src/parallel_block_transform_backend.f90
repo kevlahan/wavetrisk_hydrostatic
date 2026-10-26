@@ -1,18 +1,20 @@
 module parallel_block_transform_backend_mod
   use iso_fortran_env,only : int64
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
   use kind_mod,only : dp
   use parallel_block_profile_mod,only : detail_enter,detail_leave,DP_TRANSFORM_PLAN,DP_TRANSFORM_INPUT, &
        DP_TRANSFORM_FORWARD,DP_TRANSFORM_INVERSE,DP_TRANSFORM_OUTPUT,DP_TRANSFORM_EXCHANGE
   use mpi_f08
   use arch_mod,only : comm,rank,n_process,glo_id,loc_id,block_catalog,geometry_owner=>owner
   use shared_mod,only : EDGE,N_VARIABLE,zlevels,scalars,S_VELO,AT_NODE,AT_EDGE,NONE,ADJZONE,level_start,level_end
-  use domain_mod,only : grid,sol,Float_Field
+  use domain_mod,only : grid,sol,Float_Field,audit_domain_fields322
   use patch_mod,only : PATCH_SIZE
   use parallel_block_transform_kernels_mod
   use parallel_block_transform_adapter_mod
   use parallel_block_transform_placement_mod
-  use parallel_block_rhs_placement_mod,only : compile_rhs_owner_map
-  use parallel_block_rhs_distribute_mod,only : Rhs_Geometry_Directory,prepare_rhs_geometry_directory,deliver_rhs_metadata
+  use parallel_block_rhs_placement_mod,only : compile_rhs_owner_map,begin_rhs_layout,end_rhs_layout
+  use parallel_block_rhs_distribute_mod,only : Rhs_Geometry_Directory,prepare_rhs_geometry_directory, &
+       deliver_rhs_metadata,rhs_geometry_extents
   use parallel_block_rhs_exchange_mod
   use parallel_block_rhs_boundary_mod
   use parallel_block_rhs_backend_mod,only : connected_rhs_mask_generation
@@ -270,9 +272,10 @@ contains
     ng=base(size(base))
     call prepare_rhs_geometry_directory(base,topology,directory)
     stamp=MPI_Wtime();segments(1)=stamp-started
+    call begin_rhs_layout(topology)
     call compile_transform_geometry(geometry)
     segments(2)=MPI_Wtime()-stamp;stamp=MPI_Wtime()
-    call distribute_transform_geometry(geometry,placement)
+    call distribute_transform_geometry(geometry,placement,rhs_geometry_extents(directory))
     segments(3)=MPI_Wtime()-stamp;stamp=MPI_Wtime()
     nnode=size(placement%key,2)
     allocate(physical(4,ng),metadata(10,ng));metadata=0
@@ -418,12 +421,348 @@ contains
     call bind_halo(vector_initial,3,level_start-2,.false.,homes,identity=.true.)
     call prepare_exchange_scratch
     call compile_forward_order
+    if(audit316_enabled()) call audit_transform_plan316
     segments(8)=MPI_Wtime()-stamp
     if(audit_on) write(*,'(a,3(i0,1x),8(es13.5,1x))') 'Transform279 preparation: ',rank,generation,masks,segments
     builds=builds+1;preparation_seconds=MPI_Wtime()-started
+    call end_rhs_layout()
     call audit_transform_plan
     call detail_leave(DP_TRANSFORM_PLAN)
     if(resident_transform_check_enabled().and.rank==0) write(*,'(a)') 'Resident provisional transform plan prepared'
+  end subroutine
+
+  ! Stage316 qualification-only exact final execution metadata. Buffer contents
+  ! are not read: they may be uninitialized until the first numerical operation.
+  subroutine audit_transform_plan316
+    integer :: i,l
+    integer,allocatable :: ints(:,:)
+    real(dp),allocatable :: reals(:,:)
+    call audit316_begin('transform.plan',generation)
+    call audit316_i64('masks',[masks])
+    call audit316_i('extent',[nnode,nrow,nfixed,npublication,nboundary,level_start,level_end,zlevels])
+    if(allocated(placement%key)) then
+       call audit316_i('placement%key.shape',shape(placement%key))
+       call audit316_i('placement%key',reshape(placement%key,[size(placement%key)]))
+    else
+       call audit316_i('placement%key.shape',[-1])
+    end if
+    if(allocated(placement%owner)) then
+       call audit316_i('placement%owner.shape',shape(placement%owner))
+       call audit316_i('placement%owner',placement%owner)
+    else
+       call audit316_i('placement%owner.shape',[-1])
+    end if
+    if(allocated(placement%state_key)) then
+       call audit316_i('placement%state_key.shape',shape(placement%state_key))
+       call audit316_i('placement%state_key',reshape(placement%state_key,[size(placement%state_key)]))
+    else
+       call audit316_i('placement%state_key.shape',[-1])
+    end if
+    if(allocated(placement%level)) then
+       call audit316_i('placement%level.shape',shape(placement%level))
+       call audit316_i('placement%level',placement%level)
+    else
+       call audit316_i('placement%level.shape',[-1])
+    end if
+    if(allocated(placement%mask)) then
+       call audit316_i('placement%mask.shape',shape(placement%mask))
+       call audit316_i('placement%mask',reshape(placement%mask,[size(placement%mask)]))
+    else
+       call audit316_i('placement%mask.shape',[-1])
+    end if
+    if(allocated(placement%owned)) then
+       call audit316_i('placement%owned.shape',shape(placement%owned))
+       call audit316_l('placement%owned',placement%owned)
+    else
+       call audit316_i('placement%owned.shape',[-1])
+    end if
+    if(allocated(placement%scalar_order)) then
+       call audit316_i('placement%scalar_order.shape',shape(placement%scalar_order))
+       call audit316_i('placement%scalar_order',placement%scalar_order)
+    else
+       call audit316_i('placement%scalar_order.shape',[-1])
+    end if
+    if(allocated(placement%inner_order)) then
+       call audit316_i('placement%inner_order.shape',shape(placement%inner_order))
+       call audit316_i('placement%inner_order',placement%inner_order)
+    else
+       call audit316_i('placement%inner_order.shape',[-1])
+    end if
+    if(allocated(placement%outer_order)) then
+       call audit316_i('placement%outer_order.shape',shape(placement%outer_order))
+       call audit316_i('placement%outer_order',placement%outer_order)
+    else
+       call audit316_i('placement%outer_order.shape',[-1])
+    end if
+    if(allocated(info)) then
+       call audit316_i('info.shape',shape(info))
+       call audit316_i('info',reshape(info,[size(info)]))
+    else
+       call audit316_i('info.shape',[-1])
+    end if
+    if(allocated(interior_address)) then
+       call audit316_i('interior_address.shape',shape(interior_address))
+       call audit316_i('interior_address',reshape(interior_address,[size(interior_address)]))
+    else
+       call audit316_i('interior_address.shape',[-1])
+    end if
+    if(allocated(boundary_address)) then
+       call audit316_i('boundary_address.shape',shape(boundary_address))
+       call audit316_i('boundary_address',reshape(boundary_address,[size(boundary_address)]))
+    else
+       call audit316_i('boundary_address.shape',[-1])
+    end if
+    if(allocated(save_node)) then
+       call audit316_i('save_node.shape',shape(save_node))
+       call audit316_i('save_node',save_node)
+    else
+       call audit316_i('save_node.shape',[-1])
+    end if
+    if(allocated(save_index)) then
+       call audit316_i('save_index.shape',shape(save_index))
+       call audit316_i('save_index',save_index)
+    else
+       call audit316_i('save_index.shape',[-1])
+    end if
+    if(allocated(fixed_node)) then
+       call audit316_i('fixed_node.shape',shape(fixed_node))
+       call audit316_i('fixed_node',fixed_node)
+    else
+       call audit316_i('fixed_node.shape',[-1])
+    end if
+    if(allocated(fixed_index)) then
+       call audit316_i('fixed_index.shape',shape(fixed_index))
+       call audit316_i('fixed_index',fixed_index)
+    else
+       call audit316_i('fixed_index.shape',[-1])
+    end if
+    if(allocated(interior_node)) then
+       call audit316_i('interior_node.shape',shape(interior_node))
+       call audit316_i('interior_node',interior_node)
+    else
+       call audit316_i('interior_node.shape',[-1])
+    end if
+    if(allocated(publication_domain)) then
+       call audit316_i('publication_domain.shape',shape(publication_domain))
+       call audit316_i('publication_domain',publication_domain)
+    else
+       call audit316_i('publication_domain.shape',[-1])
+    end if
+    if(allocated(publication_node)) then
+       call audit316_i('publication_node.shape',shape(publication_node))
+       call audit316_i('publication_node',publication_node)
+    else
+       call audit316_i('publication_node.shape',[-1])
+    end if
+    if(allocated(publication_row)) then
+       call audit316_i('publication_row.shape',shape(publication_row))
+       call audit316_i('publication_row',publication_row)
+    else
+       call audit316_i('publication_row.shape',[-1])
+    end if
+    if(allocated(forward_inner)) then
+       call audit316_i('forward_inner.shape',shape(forward_inner))
+       call audit316_i('forward_inner',forward_inner)
+    else
+       call audit316_i('forward_inner.shape',[-1])
+    end if
+    if(allocated(base)) then
+       call audit316_i('base.shape',shape(base))
+       call audit316_i('base',base)
+    else
+       call audit316_i('base.shape',[-1])
+    end if
+    if(allocated(fixed_domain)) then
+       call audit316_i('fixed_domain.shape',shape(fixed_domain))
+       call audit316_i('fixed_domain',fixed_domain)
+    else
+       call audit316_i('fixed_domain.shape',[-1])
+    end if
+    if(allocated(fixed_physical_node)) then
+       call audit316_i('fixed_physical_node.shape',shape(fixed_physical_node))
+       call audit316_i('fixed_physical_node',fixed_physical_node)
+    else
+       call audit316_i('fixed_physical_node.shape',[-1])
+    end if
+    if(allocated(scalar)) then
+       call audit316_i('scalar.shape',shape(scalar))
+    else
+       call audit316_i('scalar.shape',[-1])
+    end if
+    if(allocated(vector)) then
+       call audit316_i('vector.shape',shape(vector))
+    else
+       call audit316_i('vector.shape',[-1])
+    end if
+    if(allocated(scalar_wavelet)) then
+       call audit316_i('scalar_wavelet.shape',shape(scalar_wavelet))
+    else
+       call audit316_i('scalar_wavelet.shape',[-1])
+    end if
+    if(allocated(vector_wavelet)) then
+       call audit316_i('vector_wavelet.shape',shape(vector_wavelet))
+    else
+       call audit316_i('vector_wavelet.shape',[-1])
+    end if
+    if(allocated(fixed_scalar)) then
+       call audit316_i('fixed_scalar.shape',shape(fixed_scalar))
+    else
+       call audit316_i('fixed_scalar.shape',[-1])
+    end if
+    if(allocated(fixed_vector)) then
+       call audit316_i('fixed_vector.shape',shape(fixed_vector))
+    else
+       call audit316_i('fixed_vector.shape',[-1])
+    end if
+    if(allocated(wire)) then
+       call audit316_i('wire.shape',shape(wire))
+    else
+       call audit316_i('wire.shape',[-1])
+    end if
+    if(allocated(exchange_scratch)) then
+       call audit316_i('exchange_scratch.shape',shape(exchange_scratch))
+    else
+       call audit316_i('exchange_scratch.shape',[-1])
+    end if
+
+    allocate(ints(33,size(placement%program%scalar)),reals(12,size(placement%program%scalar)))
+    do i=1,size(placement%program%scalar)
+       associate(op=>placement%program%scalar(i))
+       ints(:,i)=[op%d,op%global_domain,op%level,op%phase,op%target,op%base,op%area,op%mask,op%n, &
+            op%source,op%geometry,op%inverse_active,op%forward_active]
+       reals(:,i)=[op%weight,op%inverse_area]
+       end associate
+    end do
+    call audit316_i('scalar.program.shape',shape(ints))
+    call audit316_i('scalar.program',reshape(ints,[size(ints)]))
+    call audit316_r('scalar.coefficients',reshape(reals,[size(reals)]))
+    deallocate(ints,reals)
+    allocate(ints(112,size(placement%program%inner)),reals(32,size(placement%program%inner)))
+    do i=1,size(placement%program%inner)
+       associate(op=>placement%program%inner(i))
+       ints(:,i)=[op%d,op%global_domain,op%level,op%cell,op%node,op%edge,op%source,op%target,op%forward_active]
+       reals(:,i)=op%geometry
+       end associate
+    end do
+    call audit316_i('inner.program.shape',shape(ints))
+    call audit316_i('inner.program',reshape(ints,[size(ints)]))
+    call audit316_r('inner.coefficients',reshape(reals,[size(reals)]))
+    deallocate(ints,reals)
+    allocate(ints(22,size(placement%program%outer)),reals(9,size(placement%program%outer)))
+    do i=1,size(placement%program%outer)
+       associate(op=>placement%program%outer(i))
+       ints(:,i)=[op%global_domain,op%level,op%kind,op%cell,op%component,op%source,op%target,op%forward_active]
+       reals(:,i)=op%weight
+       end associate
+    end do
+    call audit316_i('outer.program.shape',shape(ints))
+    call audit316_i('outer.program',reshape(ints,[size(ints)]))
+    call audit316_r('outer.coefficients',reshape(reals,[size(reals)]))
+    do l=lbound(scalar_halo,1),ubound(scalar_halo,1)
+       call audit316_begin('transform.level',int(l,int64))
+       call audit316_i('scalar.boundary.key',reshape(scalar_boundary(l)%key,[size(scalar_boundary(l)%key)]))
+       call audit316_i('scalar.boundary.sign',scalar_boundary(l)%sign)
+       call audit316_i('vector.boundary.key',reshape(vector_boundary(l)%key,[size(vector_boundary(l)%key)]))
+       call audit316_i('vector.boundary.sign',vector_boundary(l)%sign)
+       call audit_rhs_exchange316(scalar_halo(l)%exchange,'transform.scalar_halo')
+       call audit_rhs_exchange316(vector_halo(l)%exchange,'transform.vector_halo')
+       if(l>level_start) call audit_rhs_exchange316(outer_halo(l)%exchange,'transform.outer_halo')
+       call audit316_end()
+    end do
+    call audit_rhs_exchange316(scalar_initial%exchange,'transform.scalar_initial')
+    call audit_rhs_exchange316(vector_initial%exchange,'transform.vector_initial')
+    call audit_rhs_exchange316(scalar_wave_halo%exchange,'transform.scalar_wave_halo')
+    call audit_rhs_exchange316(vector_wave_halo%exchange,'transform.vector_wave_halo')
+    call audit_rhs_exchange316(scalar_publication%exchange,'transform.scalar_publication')
+    call audit_rhs_exchange316(vector_publication%exchange,'transform.vector_publication')
+    call audit_rhs_exchange316(fixed_scalar_route,'transform.fixed_scalar_route')
+    call audit_rhs_exchange316(fixed_vector_route,'transform.fixed_vector_route')
+    call audit_transform_adapter316(scalar_adapter,'transform.scalar_adapter')
+    call audit_transform_adapter316(vector_adapter,'transform.vector_adapter')
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_transform_adapter316(plan,label)
+    type(Transform_Adapter),intent(in) :: plan
+    character(*),intent(in) :: label
+    call audit316_begin(label,generation)
+    call audit316_i('extent',[plan%component,plan%tag,plan%columns])
+    if(allocated(plan%sc)) then
+       call audit316_i('plan%sc.shape',shape(plan%sc))
+       call audit316_i('plan%sc',plan%sc)
+    else
+       call audit316_i('plan%sc.shape',[-1])
+    end if
+    if(allocated(plan%sd)) then
+       call audit316_i('plan%sd.shape',shape(plan%sd))
+       call audit316_i('plan%sd',plan%sd)
+    else
+       call audit316_i('plan%sd.shape',[-1])
+    end if
+    if(allocated(plan%rc)) then
+       call audit316_i('plan%rc.shape',shape(plan%rc))
+       call audit316_i('plan%rc',plan%rc)
+    else
+       call audit316_i('plan%rc.shape',[-1])
+    end if
+    if(allocated(plan%rd)) then
+       call audit316_i('plan%rd.shape',shape(plan%rd))
+       call audit316_i('plan%rd',plan%rd)
+    else
+       call audit316_i('plan%rd.shape',[-1])
+    end if
+    if(allocated(plan%source)) then
+       call audit316_i('plan%source.shape',shape(plan%source))
+       call audit316_i('plan%source',reshape(plan%source,[size(plan%source)]))
+    else
+       call audit316_i('plan%source.shape',[-1])
+    end if
+    if(allocated(plan%index)) then
+       call audit316_i('plan%index.shape',shape(plan%index))
+       call audit316_i('plan%index',plan%index)
+    else
+       call audit316_i('plan%index.shape',[-1])
+    end if
+    if(allocated(plan%target)) then
+       call audit316_i('plan%target.shape',shape(plan%target))
+       call audit316_i('plan%target',plan%target)
+    else
+       call audit316_i('plan%target.shape',[-1])
+    end if
+    if(allocated(plan%sign)) then
+       call audit316_i('plan%sign.shape',shape(plan%sign))
+       call audit316_i('plan%sign',plan%sign)
+    else
+       call audit316_i('plan%sign.shape',[-1])
+    end if
+    if(allocated(plan%send_peer)) then
+       call audit316_i('plan%send_peer.shape',shape(plan%send_peer))
+       call audit316_i('plan%send_peer',plan%send_peer)
+    else
+       call audit316_i('plan%send_peer.shape',[-1])
+    end if
+    if(allocated(plan%receive_peer)) then
+       call audit316_i('plan%receive_peer.shape',shape(plan%receive_peer))
+       call audit316_i('plan%receive_peer',plan%receive_peer)
+    else
+       call audit316_i('plan%receive_peer.shape',[-1])
+    end if
+    if(allocated(plan%sent)) then
+       call audit316_i('plan%sent.shape',shape(plan%sent))
+    else
+       call audit316_i('plan%sent.shape',[-1])
+    end if
+    if(allocated(plan%received)) then
+       call audit316_i('plan%received.shape',shape(plan%received))
+    else
+       call audit316_i('plan%received.shape',[-1])
+    end if
+    if(allocated(plan%request)) then
+       call audit316_i('plan%request.shape',shape(plan%request))
+    else
+       call audit316_i('plan%request.shape',[-1])
+    end if
+    call audit316_end()
   end subroutine
 
   subroutine collect_boundary(catalog,block,context)
@@ -759,6 +1098,7 @@ contains
     type(Transform_Route),intent(inout) :: route
     real(dp),intent(inout) :: values(:,:)
     state=state+1
+    if(audit316_enabled()) call audit316_i('transform.call322',[1,route%phase,size(values,1),size(values,2)])
     call exchange_rhs_values(route%exchange,generation,masks,route%phase,state,values,exchange_scratch)
     call count_route(route%exchange)
   end subroutine
@@ -767,6 +1107,7 @@ contains
     integer,intent(in) :: component
     logical,intent(in) :: include_fixed
     integer :: i,p,q
+    if(audit316_enabled()) call audit316_i('transform.call322',[2,component,merge(1,0,include_fixed),size(save_node)])
     do i=1,size(save_node)
        p=save_node(i);q=save_index(p)
        if(component==1) then
@@ -803,6 +1144,11 @@ contains
     logical,intent(in) :: commit
     integer :: i,j,k,p,q,d,e,l
     if(generation<0.or.context==MPI_COMM_NULL) error stop 'unprepared resident transform'
+    if(audit316_enabled()) then
+       call audit316_begin('transform.execute',generation)
+       call audit316_i64('masks',[masks])
+       call audit316_l('commit',[commit])
+    end if
     sent_values=0;received_values=0;messages=0;rounds=0
     call detail_enter(DP_TRANSFORM_INPUT)
     state=state+1
@@ -842,25 +1188,33 @@ contains
        scalar(p,:)=fixed_scalar(q,:);vector(3*p-2:3*p,:)=fixed_vector(3*q-2:3*q,:)
     end do
     call detail_enter(DP_TRANSFORM_EXCHANGE)
+    if(audit316_enabled()) call audit316_i('transform.call322',[7,1,0,0])
     call read_transform_adapter(scalar_adapter,context,scaling,scalar)
+    if(audit316_enabled()) call audit316_i('transform.call322',[7,2,0,0])
     call read_transform_adapter(vector_adapter,context,scaling,vector)
     call count_adapter(scalar_adapter);call count_adapter(vector_adapter)
     call detail_leave(DP_TRANSFORM_EXCHANGE)
     call communicate(scalar_initial,scalar)
     call communicate(vector_initial,vector)
     if(allocated(checked_forward_vector)) checked_forward_vector=vector(:3*nnode,:)
+    if(audit316_enabled()) call audit_transform_values322(1)
     call detail_leave(DP_TRANSFORM_INPUT)
     call detail_enter(DP_TRANSFORM_FORWARD)
     scalar_wavelet=0.0_dp;vector_wavelet=0.0_dp
     do i=1,size(placement%program%scalar)
+       if(audit316_enabled()) call audit316_i('transform.call322',[4,i,0,0])
        call execute_transform_scalar(placement%program%scalar(i),scalar,scalar_wavelet,.false.)
     end do
     do l=level_end-1,level_start,-1
        do i=1,size(placement%program%outer)
           if(placement%program%outer(i)%level/=l) cycle
+          if(audit316_enabled()) call audit316_i('transform.call322',[5,i,0,l])
           call execute_transform_outer(placement%program%outer(i),vector,vector_wavelet,.false.)
           j=forward_inner(i)
-          if(j>0) call execute_transform_inner(placement%program%inner(j),vector,vector_wavelet,.false.)
+          if(j>0) then
+             if(audit316_enabled()) call audit316_i('transform.call322',[6,j,0,l])
+             call execute_transform_inner(placement%program%inner(j),vector,vector_wavelet,.false.)
+          end if
        end do
     end do
     if(allocated(checked_wavelet_vector)) checked_wavelet_vector=vector_wavelet(:3*nnode,:)
@@ -877,6 +1231,7 @@ contains
        end if
     end do
     if(commit) call commit_interiors(BLOCK_PAYLOAD_WAV_COEFF)
+    if(audit316_enabled()) call audit_transform_values322(2)
     call detail_leave(DP_TRANSFORM_FORWARD)
     call detail_enter(DP_TRANSFORM_INVERSE)
     call reset_aliases(1,.false.);call reset_aliases(2,.false.)
@@ -890,6 +1245,7 @@ contains
        do i=1,size(placement%program%scalar)
           associate(op=>placement%program%scalar(i))
           if(op%level/=l.or.op%phase/=1) cycle
+          if(audit316_enabled()) call audit316_i('transform.call322',[4,i,1,l])
           call execute_transform_scalar(op,scalar,scalar_wavelet,.true.)
           if(op%inverse_active/=0) call save_scalar_target(op%target)
           end associate
@@ -898,6 +1254,7 @@ contains
        call reset_aliases(2,.true.);call communicate(vector_halo(l),vector)
        do i=1,size(placement%program%outer)
           if(placement%program%outer(i)%level/=l) cycle
+          if(audit316_enabled()) call audit316_i('transform.call322',[5,i,1,l])
           call execute_transform_outer(placement%program%outer(i),vector,vector_wavelet,.true.)
        end do
        call communicate(outer_halo(l+1),vector)
@@ -908,6 +1265,7 @@ contains
        do i=1,size(placement%program%scalar)
           associate(op=>placement%program%scalar(i))
           if(op%level/=l.or.op%phase/=2) cycle
+          if(audit316_enabled()) call audit316_i('transform.call322',[4,i,1,l])
           call execute_transform_scalar(op,scalar,scalar_wavelet,.true.)
           call save_scalar_target(op%target)
           end associate
@@ -916,6 +1274,7 @@ contains
        do i=1,size(placement%program%inner)
           associate(op=>placement%program%inner(i))
           if(op%level/=l) cycle
+          if(audit316_enabled()) call audit316_i('transform.call322',[6,i,1,l])
           call execute_transform_inner(op,vector,vector_wavelet,.true.)
           do j=1,6
              call save_vector_target(op%target(j))
@@ -927,19 +1286,39 @@ contains
     call reset_aliases(1,.true.);call reset_aliases(2,.true.)
     call communicate(scalar_halo(level_start-2),scalar)
     call communicate(vector_halo(level_start-2),vector)
+    if(audit316_enabled()) call audit_transform_values322(3)
     call detail_leave(DP_TRANSFORM_INVERSE)
     call detail_enter(DP_TRANSFORM_OUTPUT)
     if(commit) call commit_interiors(BLOCK_PAYLOAD_SOL)
     call communicate(scalar_publication,scalar);call communicate(vector_publication,vector)
     completed=completed+1
+    if(audit316_enabled()) call audit_transform_values322(4)
     if(.not.commit) then
        call detail_leave(DP_TRANSFORM_OUTPUT)
+       if(audit316_enabled()) call audit316_end()
        return
     end if
     call install_transform_outputs(scaling)
     call audit_transform_execution(.false.)
     call detail_leave(DP_TRANSFORM_OUTPUT)
+    if(audit316_enabled()) call audit316_end()
   end subroutine
+
+  subroutine audit_transform_values322(phase)
+    integer,intent(in) :: phase
+    call audit316_begin('transform.values322',generation)
+    call audit316_i('transform.phase',[phase,nnode,nrow,nfixed])
+    call audit316_i64('transform.state',[state,completed])
+    call audit316_i('transform.scalar.shape',shape(scalar))
+    call audit316_i('transform.vector.shape',shape(vector))
+    call audit316_i('transform.scalar_wavelet.shape',shape(scalar_wavelet))
+    call audit316_i('transform.vector_wavelet.shape',shape(vector_wavelet))
+    call audit316_r('transform.scalar',reshape(scalar,[size(scalar)]))
+    call audit316_r('transform.vector',reshape(vector,[size(vector)]))
+    call audit316_r('transform.scalar_wavelet',reshape(scalar_wavelet,[size(scalar_wavelet)]))
+    call audit316_r('transform.vector_wavelet',reshape(vector_wavelet,[size(vector_wavelet)]))
+    call audit316_end()
+  end subroutine audit_transform_values322
 
   subroutine install_checked_transform(scaling)
     ! The independent path has checked every canonical/adapter result. Restore
@@ -977,6 +1356,11 @@ contains
     end do
     call transfer_local_block_inverse_routes(boundary_address,BLOCK_PAYLOAD_SOL,2,.true.,wire)
     scaling%bdry_uptodate=.true.
+    if(audit316_enabled()) then
+       call audit316_begin('transform.installed322',generation)
+       call audit_domain_fields322(scaling,30,generation)
+       call audit316_end()
+    end if
   end subroutine
 
   subroutine count_route(route)
@@ -1078,6 +1462,7 @@ contains
   subroutine commit_interiors(family)
     integer,intent(in) :: family
     integer :: i,p,q,k
+    if(audit316_enabled()) call audit316_i('transform.call322',[3,family,size(interior_node),0])
     do i=1,size(interior_node)
        p=interior_node(i);q=p
        if(family==BLOCK_PAYLOAD_SOL.and.save_index(p)>0) q=save_index(p)

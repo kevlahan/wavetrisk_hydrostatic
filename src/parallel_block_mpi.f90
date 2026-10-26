@@ -1,6 +1,11 @@
 module parallel_block_mpi_mod
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
+  use boundary310_mod, only: b310_enter,b310_leave
+  use parallel_block_rhs_compile_mod,only : balance_mode_295,early_plan_295,early_work_295, &
+       clear_balance_295,scan_work_295
+  use wavelet_mod, only : subdivision_inverse_oracle
   use parallel_block_rhs_backend_mod, only : connected_rhs_enabled,retain_connected_rhs
-  use arch_mod, only : check_parallel_task_capacity
+  use arch_mod, only : check_parallel_task_capacity, block_subdivision_mode, block_subdivision_tasks, block_cuts
   use parallel_block_scalar_storage_mod
   use parallel_block_profile_mod
   use parallel_block_mass_mod, only : native_mass, mass_work
@@ -23,7 +28,7 @@ module parallel_block_mpi_mod
        compare_native_inverse, publish_native_inverse, native_inverse_seconds, &
        capture_native_inverse_consumer_aliases, &
        native_inverse_calls, native_inverse_messages, native_inverse_bytes
-  use parallel_block_inverse_mod, only : stage203_inverse, begin_inverse203, end_inverse203, &
+  use parallel_block_inverse_mod, only : seed_cut_phase_oracle, stage203_inverse, begin_inverse203, end_inverse203, &
        scalar_inverse203, inner_inverse203, install_inverse203, work203, ledger203, publish_canonical_inverse203, &
        inverse203_installation_count
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
@@ -38,7 +43,7 @@ module parallel_block_mpi_mod
        scalars, S_MASS, S_TEMP, S_VELO, &
        ADJZONE, TOLRNZ, RESTRCT, TRSK, c_p, compressible, grav_accel, kappa, &
        a_vert, a_vert_mass, b_vert, b_vert_mass, level_end, &
-       level_fill, level_start, p_0, p_top, threshold, zlevels
+       level_fill, level_start, p_0, p_top, threshold, zlevels, ghost_time297 => time
 
   use domain_mod, only : chd_offs, Domain, Float_Field, &
        ed_idx, get_offs_Domain, grid, &
@@ -46,7 +51,7 @@ module parallel_block_mpi_mod
        idx, sol, sol_mean, tke, &
        topography, trend, &
        wav_coeff, wav_tke, &
-       subtree_weight_Domain
+       subtree_weight_Domain, count_subtree_patches_Domain, block_child_Domain
 
   use patch_mod, only : LAST, PATCH_SIZE
 
@@ -139,6 +144,13 @@ module parallel_block_mpi_mod
   implicit none
 
   private
+  public :: snapshot_groups312, audit_transport_footer322
+  integer(int64),save :: transport_calls322(4)=0_int64
+
+  ! Ownership units survive execution/storage coalescing for the current catalogue
+  ! lifetime. They contain metadata only; physical payloads follow block_catalog.
+  type(Parallel_Block),allocatable :: ownership_catalog_294(:)
+  integer,allocatable :: ownership_execution_294(:)
 
   real(dp), parameter :: BLOCK_GHOST_POISON = &
        -0.25_dp*huge(0.0_dp)
@@ -294,6 +306,7 @@ module parallel_block_mpi_mod
   type :: Block_Ghost_Exchange_Plan
      integer :: n_request = 0
      integer :: n_local_request = 0
+     integer,allocatable :: local_order297(:),local_start297(:)
      integer :: n_remote_send = 0
      integer :: n_remote_recv = 0
      integer, allocatable :: source_block(:)
@@ -1186,6 +1199,42 @@ module parallel_block_mpi_mod
 
   public :: begin_resident_transform_trial,end_resident_transform_trial,try_resident_provisional_transform
 contains
+  subroutine audit_transport_begin322(kind,family,component)
+    integer,intent(in) :: kind,family,component
+    integer :: values(4),width,full_width
+    if(.not.audit316_enabled()) return
+    transport_calls322(kind)=transport_calls322(kind)+1_int64
+    call audit316_begin('transport.event322',transport_calls322(kind))
+    call audit316_i('transport.identity322',[kind,family,component])
+    call audit316_i64('transport.epoch322',[block_writeback_plan_generation])
+    values=0
+    if(kind==1) then
+       values=[sum(ghost_exchange_plan%scalar_send_count),sum(ghost_exchange_plan%scalar_recv_count), &
+            ghost_exchange_plan%n_request,ghost_exchange_plan%n_local_request]
+    else if(kind==2) then
+       values=[sum(ghost_exchange_plan%vector_send_count),sum(ghost_exchange_plan%vector_recv_count), &
+            ghost_exchange_plan%n_request,ghost_exchange_plan%n_local_request]
+    else
+       values=[sum(block_writeback_plan%scalar_send_count),sum(block_writeback_plan%scalar_recv_count), &
+            sum(block_writeback_plan%vector_send_count),sum(block_writeback_plan%vector_recv_count)]
+       if(component==BLOCK_WRITEBACK_VECTOR) values(:2)=0
+       if(component==BLOCK_WRITEBACK_SCALAR) values(3:)=0
+       if(component==BLOCK_WRITEBACK_TEMPERATURE) then
+          width=zlevels*PATCH_SIZE**2;full_width=block_writeback_plan%scalar_patch_nvalue
+          values(:2)=width*(values(:2)/full_width);values(3:)=0
+       end if
+       if(kind==4) values=values([2,1,4,3])
+    end if
+    call audit316_i('transport.count322',values)
+  end subroutine
+
+  subroutine audit_transport_footer322
+    if(.not.audit316_enabled()) return
+    call audit316_begin('transport.footer322',0_int64)
+    call audit316_i64('transport.calls322',transport_calls322)
+    call audit316_end()
+  end subroutine
+
   subroutine try_resident_provisional_transform(scaling,wavelet,handled)
     type(Float_Field),intent(inout) :: scaling(N_VARIABLE,zlevels),wavelet(N_VARIABLE,zlevels)
     logical,intent(out) :: handled
@@ -1199,8 +1248,12 @@ contains
     if(.not.local_block_tendency_commit_checkpoint_is_ready()) call fail('resident transform lost rollback state')
     before=block_domain_production_writeback_count()
     call detail_enter(DP_WT_DRIVER)
+    call b310_enter(5)
     call prepare_resident_transform(block_writeback_plan_generation)
+    call b310_leave(5)
+    call b310_enter(6)
     call execute_resident_transform(scaling,wavelet,.true.)
+    call b310_leave(6)
     call detail_leave(DP_WT_DRIVER)
     if(block_domain_production_writeback_count()/=before) call fail('resident transform entered Domain writeback')
     production_inverse_completed_mode=1
@@ -1211,8 +1264,12 @@ contains
   subroutine begin_resident_transform_trial(scaling,wavelet)
     type(Float_Field),intent(inout) :: scaling(N_VARIABLE,zlevels),wavelet(N_VARIABLE,zlevels)
     if(.not.resident_transform_check_enabled()) return
+    call b310_enter(5)
     call prepare_resident_transform(block_writeback_plan_generation)
+    call b310_leave(5)
+    call b310_enter(6)
     call execute_resident_transform(scaling,wavelet,.false.)
+    call b310_leave(6)
   end subroutine
   subroutine end_resident_transform_trial(scaling)
     type(Float_Field),intent(inout) :: scaling(N_VARIABLE,zlevels)
@@ -1230,6 +1287,7 @@ contains
     implicit none
 
     call release_backend
+    call clear_balance_295()
     call clear_block_adaptation_decisions
     call clear_block_velocity_source_transport
     call clear_block_vertical_remap_storage
@@ -1241,7 +1299,10 @@ contains
     production_grid_change_pending = .false.
     production_inverse_consumer_aliases_pending = .false.
 
+    if (allocated(ownership_catalog_294)) deallocate(ownership_catalog_294)
+    if (allocated(ownership_execution_294)) deallocate(ownership_execution_294)
     if (allocated(block_catalog)) deallocate(block_catalog)
+    if (allocated(block_cuts)) deallocate(block_cuts)
 
     if (local_block_store_ready()) then
        call fail("local block store remained ready after reset")
@@ -1957,15 +2018,20 @@ contains
        select case(trim(value))
        case('','0')
           detail_enabled=.false.
-       case('1')
+       case('1','2')
           detail_enabled=.true.
        case default
-          call fail('WAVETRISK_PROFILE_BLOCK_DETAIL must be 0 or 1')
+          call fail('WAVETRISK_PROFILE_BLOCK_DETAIL must be 0, 1 or 2')
        end select
+       call detail_configure_attribution(trim(value)=='2')
        local_enabled=merge(1,0,detail_enabled)
+       if(detail_attribution) local_enabled=n_process+1
        call MPI_Allreduce(local_enabled,enabled_count,1,MPI_INTEGER,MPI_SUM,comm,ierr)
        call check_mpi(ierr,'detail profiling option')
-       if (enabled_count/=0.and.enabled_count/=n_process) call fail('inconsistent detail profiling option')
+       if (enabled_count/=0.and.enabled_count/=n_process.and.enabled_count/=n_process*(n_process+1)) &
+            call fail('inconsistent detail profiling option')
+       if(detail_attribution.and.rank==0) write(6,'(a)') &
+            'Stage301 attribution: wall-only major regions; no per-halo clocks or audit census'
        if (detail_enabled.and..not.block_profile) call fail('detail profiling requires parallel-block profiling')
        if (block_profile .and. rank == 0) write(6,'(a)') &
             "Parallel-block profiling enabled"
@@ -2180,14 +2246,15 @@ contains
   end subroutine record_parallel_block_topology
 
 
-  subroutine report_parallel_block_profile (reset)
+  subroutine report_parallel_block_profile (reset,after_trajectory)
     ! Perform the only profiling reductions.  Times are inclusive: this makes
     ! high-level driver cost and individual block-component cost visible in
     ! the same report without adding synchronization around timed regions.
 
     implicit none
 
-    logical, optional, intent(in) :: reset
+    logical, optional, intent(in) :: reset,after_trajectory
+    logical :: final_report
 
     integer :: ierr
     integer :: phase
@@ -2235,7 +2302,18 @@ contains
     real(dp) :: seconds_min(BLOCK_PROFILE_PHASE_COUNT)
     real(dp) :: seconds_sum(BLOCK_PROFILE_PHASE_COUNT)
 
+    ! Lean attribution must never flush or reset inside the measured trajectory,
+    ! even at save-data events. The climate driver releases the bounded buffer
+    ! only after its final outer stop_timing and print_log. Other modes retain
+    ! their existing report schedule; the new terminal call does nothing there.
+    final_report=.false.
+    if (present(after_trajectory)) final_report=after_trajectory
+    if (detail_attribution.neqv.final_report) return
     if (.not. parallel_block_profile_enabled()) return
+    if (final_report.and..not.detail_idle()) &
+         call fail("buffered profile flush inside active timestep")
+    if (final_report.and.rank==0) write(6,'(a)') &
+         'Stage302 buffered attribution: reporting after timed trajectory' 
     if (any(block_profile_depth /= 0)) &
          call fail("parallel-block profile report found an active phase")
     clear_after = .false.
@@ -2547,7 +2625,11 @@ contains
     if (rank==0) then
        write(6,'(/,a)') 'Block detail profile: self times exclude nested instrumented regions; inclusive times overlap.'
        write(6,'(a,i0)') '  detail schema = 2; regions = ',DP_COUNT
-       write(6,'(a)') '  CPU is process CPU, including MPI spin. MPI wait is not necessarily network cost.'
+       if(detail_attribution) then
+          write(6,'(a)') '  Stage301: CPU samples disabled; execution regions include exchanges; storage census disabled.'
+       else
+          write(6,'(a)') '  CPU is process CPU, including MPI spin. MPI wait is not necessarily network cost.'
+       end if
        write(6,'(a)') '  id/region: self-wall avg/min/max, self-CPU avg/on-max-wall-rank, ' // &
             'inclusive-wall avg, max-rank, calls(global)'
        do p=1,DP_COUNT
@@ -2840,7 +2922,7 @@ contains
       local_patch = local_patch+1
       n_patch = n_patch+1
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child > 0) call stage_local_decision_subtree( &
               d,p_child,b,local_patch,n_patch)
       end do
@@ -2864,7 +2946,7 @@ contains
       pos = pos+BLOCK_ADAPTATION_PATCH_NVALUE
       n_patch = n_patch+1
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child > 0) call stage_received_decision_subtree( &
               d,p_child,pos,n_patch)
       end do
@@ -4414,7 +4496,7 @@ contains
       pos = pos+BLOCK_VERTICAL_REMAP_METADATA_COUNT
       patch_count = patch_count+1
       do c = 1,N_CHDRN
-         child = grid(d)%patch%elts(p+1)%children(c)
+         child = block_child_Domain(grid(d),p,c)
          if (child <= 0) cycle
          call pack_vertical_remap_metadata_subtree( &
               d,child,value,pos,patch_count)
@@ -4522,7 +4604,7 @@ contains
            catalog_index,patch_index,metadata)
       patch_index = patch_index+1
       do c = 1,N_CHDRN
-         child = grid(d)%patch%elts(p+1)%children(c)
+         child = block_child_Domain(grid(d),p,c)
          if (child <= 0) cycle
          call install_retained_mask_subtree( &
               d,child,catalog_index,patch_index)
@@ -4958,6 +5040,1223 @@ contains
   end function block_remap_mean_scalar_value
 
 
+  subroutine balance_metadata_295(candidates,packed,stride,before)
+    type(Parallel_Block),intent(in) :: candidates(:)
+    integer,intent(inout) :: packed(:)
+    integer,intent(in) :: stride,before
+    integer,allocatable :: unit_of(:),root_unit(:),counts(:,:),edges(:,:),group_edges(:,:),work(:),interval_edges(:,:,:)
+    integer(int64),allocatable :: group_mask(:)
+    integer :: d,i,j,k,n,first,last,c,q,u
+    if(stride/=60.and.stride/=316) error stop 'balance metadata stride'
+    do d=1,size(grid)
+       first=0;last=0
+       do i=1,size(candidates)
+          if(candidates(i)%root_domain/=glo_id(rank+1,d)) cycle
+          if(first==0) first=i
+          last=i
+       end do
+       n=last-first+1
+       if(first==0.or.n>16) error stop 'balance candidate Domain extent'
+       allocate(unit_of(grid(d)%node%length),work(grid(d)%node%length), &
+            root_unit(0:grid(d)%patch%length-1),counts(14,n),edges(n,n),group_edges(n,n),group_mask(n))
+       ! Match existing connected RHS scaffold ownership: the first unit of
+       ! each geometric Domain owns addresses outside catalogue interiors.
+       unit_of=1;root_unit=0
+       do i=first,last
+          root_unit(candidates(i)%root_patch)=i-first+1
+       end do
+       call map_tree(1,1)
+       do i=last,first,-1
+          u=i-first+1;group_mask(u)=ibset(0_int64,u-1)
+          do c=1,4
+             q=grid(d)%patch%elts(candidates(i)%root_patch+1)%children(c)
+             if(q<=0) cycle
+             j=root_unit(q)
+             if(j>0) group_mask(u)=ior(group_mask(u),group_mask(j))
+          end do
+       end do
+       if(stride==316) then
+          allocate(interval_edges(n,n,n))
+          call scan_work_295(early_plan_295(d),work,unit_of,counts,edges,group_mask,group_edges,interval_edges)
+       else
+          call scan_work_295(early_plan_295(d),work,unit_of,counts,edges,group_mask,group_edges)
+       end if
+       if(any(work/=early_work_295(d)%node)) error stop 'balance work changed during construction'
+       do i=first,last
+          j=i-first+1;k=stride*(i-1)
+          packed(k+9:k+22)=counts(:,j)
+          packed(k+23)=count(unit_of==j)
+          packed(k+24)=before+first
+          packed(k+25:k+56)=0
+          packed(k+25:k+24+n)=edges(j,:)
+          packed(k+41:k+40+n)=group_edges(j,:)
+          if(stride==316) then
+             packed(k+57:k+312)=0
+             do u=j,n
+                packed(k+57+16*(u-1):k+56+16*(u-1)+n)=interval_edges(j,u,:)
+             end do
+          end if
+       end do
+       if(allocated(interval_edges)) deallocate(interval_edges)
+       deallocate(unit_of,work,root_unit,counts,edges,group_edges,group_mask)
+    end do
+  contains
+    recursive subroutine map_tree(p,unit)
+      integer,intent(in) :: p,unit
+      integer :: c,q,u,a
+      if(grid(d)%patch%elts(p+1)%deleted) return
+      u=unit
+      if(root_unit(p)>0) u=root_unit(p)
+      a=grid(d)%patch%elts(p+1)%elts_start
+      unit_of(a+1:a+PATCH_SIZE**2)=u
+      do c=1,N_CHDRN
+         q=grid(d)%patch%elts(p+1)%children(c)
+         if(q>0) call map_tree(q,u)
+      end do
+    end subroutine
+  end subroutine
+
+  subroutine partition_295(weight,np,owners)
+    ! Exact contiguous minimax by feasibility bisection, O(N log(total work)).
+    integer(int64),intent(in) :: weight(:)
+    integer,intent(in) :: np
+    integer,intent(out) :: owners(:)
+    integer(int64) :: lo,hi,mid,load
+    integer :: i,r,needed,n
+    n=size(weight)
+    if(n<np.or.np<1.or.size(owners)/=n.or.any(weight<=0)) error stop 'balance partition input'
+    lo=maxval(weight);hi=sum(weight)
+    do while(lo<hi)
+       mid=lo+(hi-lo)/2;needed=1;load=0
+       do i=1,n
+          if(load+weight(i)>mid) then
+             needed=needed+1;load=0
+          end if
+          load=load+weight(i)
+       end do
+       if(needed<=np) then
+          hi=mid
+       else
+          lo=mid+1
+       end if
+    end do
+    ! Reverse construction leaves at least one unit on every rank.
+    r=np-1;load=0
+    do i=n,1,-1
+       if(load+weight(i)>lo.or.i<=r) then
+          r=r-1;load=0
+       end if
+       owners(i)=r;load=load+weight(i)
+    end do
+    if(minval(owners)/=0.or.maxval(owners)/=np-1) error stop 'balance empty rank'
+  end subroutine
+
+  subroutine select_owners_295(packed,stride,np,selected)
+    ! Bounded deterministic proposals in catalogue (spatial traversal) order.
+    ! Explicit sensitivity models, NOT seconds or a complete halo byte model.
+    integer,intent(in) :: packed(:),stride,np
+    integer,intent(out) :: selected(:)
+    integer,allocatable :: base(:),coarse(:),leaf(:),proposal(:),target(:),boundary(:), &
+         desired(:),physical(:),children(:,:),home(:),state(:),trial(:),order(:)
+    integer(int64),allocatable :: cost(:,:),coarse_cost(:),loads(:,:)
+    real(dp) :: reference(36),best(36),value(36),pure(4),refpure(4),bestpure(4)
+    integer(int64) :: refremote,reflocal,remote,local,refstate,peakstate,reffoot,foot
+    integer :: i,j,k,n,nb,model,r,h,b,e,pick,ng,refng,u,frame,accepted,first,c
+    integer,save :: capture=0
+    real(dp) :: merit,bestmerit,proposals299(12,40)
+    integer :: nproposal299,bestgroups299
+    character(8) :: audit
+    character(80) :: filename
+    n=size(selected)
+    if((stride/=60.and.stride/=316).or.size(packed)/=n*stride.or.n<np) error stop 'balance planner extent'
+    allocate(base(n),coarse(n),leaf(n),proposal(n),target(n),boundary(0:np),desired(0:np), &
+         physical(n),children(4,n),home(n),state(n),trial(n),order(max(1,np-1)),cost(4,n), &
+         coarse_cost(n),loads(4,np))
+    nb=0
+    do i=1,n
+       k=stride*(i-1)
+       if(i==1) then
+          nb=1
+       else if(packed(k+2)/=packed(k-stride+2).or.packed(k+7)/=packed(k-stride+7)) then
+          nb=nb+1
+       end if
+       base(i)=nb;leaf(nb)=packed(k+8);home(i)=packed(k+5);state(i)=packed(k+23)
+       if(any(packed(k+9:k+22)<0).or.state(i)<0.or.home(i)<0.or.home(i)>=np) &
+            error stop 'balance negative census or invalid home'
+       cost(:,i)=int(sum(packed(k+9:k+22)),int64)+int(state(i),int64)
+       cost(2,i)=cost(2,i)+7_int64*sum(int(packed(k+11:k+12),int64))
+       cost(3,i)=cost(3,i)+7_int64*int(packed(k+13)+packed(k+19),int64)
+       cost(4,i)=cost(4,i)+7_int64*int(packed(k+18)+packed(k+20)+packed(k+22),int64)
+       cost(:,i)=max(1_int64,cost(:,i));children(:,i)=packed(k+stride-3:k+stride)
+       do c=1,4
+          j=children(c,i)
+          if(j<0.or.j>n) error stop 'balance child index'
+          if(j>0) then
+             if(j<=i) error stop 'balance child order'
+             if(packed(stride*(j-1)+2)/=packed(k+2)) error stop 'balance child Domain'
+          end if
+       end do
+       if(any(children(:,i)>0).and..not.all(children(:,i)>0)) error stop 'balance partial children'
+       first=packed(k+24)
+       if(first<1.or.first>i) error stop 'balance edge origin'
+       do j=1,16
+          e=first+j-1
+          if(packed(k+40+j)<packed(k+24+j)) error stop 'balance subtree union smaller than own reads'
+          if(packed(k+24+j)==0.and.packed(k+40+j)==0) cycle
+          if(e>n.or.e<1) error stop 'balance edge target'
+          if(packed(stride*(e-1)+2)/=packed(k+2)) error stop 'balance edge Domain'
+          if(packed(k+24+j)<0.or.packed(k+40+j)<0) error stop 'balance negative interface'
+       end do
+    end do
+    if(nb<np) error stop 'selective trial requires original units at least ranks'
+    call original_assignment_293(leaf(:nb),coarse(:nb))
+    do i=1,n
+       selected(i)=coarse(base(i))
+    end do
+    call evaluate(selected,reference,refpure,refremote,reflocal,refstate,reffoot,refng)
+    best=reference;bestpure=refpure;bestmerit=sum(best/reference);accepted=0
+    bestgroups299=refng;nproposal299=0;proposals299=0
+    ! First compare whole-original-unit weighted partitions. This is also the
+    ! mode1 control, using identical compilation and scoring without cuts.
+    do model=1,4
+       coarse_cost=0
+       do i=1,n
+          coarse_cost(base(i))=coarse_cost(base(i))+cost(model,i)
+       end do
+       call partition_295(coarse_cost(:nb),np,coarse(:nb))
+       do i=1,n
+          proposal(i)=coarse(base(i))
+       end do
+       call consider(proposal)
+    end do
+    if(balance_mode_295()>=2.and.n>nb) then
+       do model=1,4
+          call partition_295(cost(model,:),np,target)
+          call consider(target)
+          ! Only the eight most loaded adjacent rank pairs get an independent
+          ! boundary proposal. Bounded 32 partial proposals, no N^2 graph/search.
+          call boundaries(selected,boundary);call boundaries(target,desired)
+          loads=0
+          do i=1,n
+             loads(:,selected(i)+1)=loads(:,selected(i)+1)+cost(:,i)
+          end do
+          do r=1,np-1
+             order(r)=r
+          end do
+          do h=1,min(8,np-1)
+             pick=h
+             do j=h+1,np-1
+                if(maxval(loads(:,order(j):order(j)+1))>maxval(loads(:,order(pick):order(pick)+1))) pick=j
+             end do
+             r=order(h);order(h)=order(pick);order(pick)=r;r=order(h)
+             call boundaries(selected,boundary)
+             b=boundary(r);e=max(boundary(r-1)+1,min(boundary(r+1)-1,desired(r)))
+             if(e==b) cycle
+             trial=selected
+             if(e>b) then
+                trial(b+1:e)=r-1
+             else
+                trial(e+1:b)=r
+             end if
+             call consider(trial)
+          end do
+       end do
+    end if
+    capture=capture+1;frame=capture
+    audit='';call get_environment_variable('WAVETRISK_BALANCE_AUDIT',audit)
+    if(trim(audit)=='1'.and.rank==0) then
+       call evaluate(selected,value,pure,remote,local,peakstate,foot,ng)
+       write(filename,'(a,i0,a)') 'balance295-frame-',frame,'.txt'
+       open(newunit=u,file=trim(filename),status='new')
+       write(u,*) 'H',frame,np,n,nb,accepted,balance_mode_295()
+       write(u,*) 'R',refpure,refremote,reflocal,refstate,reffoot,refng
+       write(u,*) 'S',pure,remote,local,peakstate,foot,ng
+       write(u,*) 'V',reference
+       write(u,*) 'W',value
+       do i=1,nproposal299
+          write(u,*) 'P',i,proposals299(:,i)
+       end do
+       do i=1,n
+          k=stride*(i-1)
+          write(u,*) 'B',i,base(i),selected(i),packed(k+1:k+stride)
+       end do
+       close(u)
+    end if
+  contains
+    subroutine boundaries(map,cuts)
+      integer,intent(in) :: map(:)
+      integer,intent(out) :: cuts(0:)
+      integer :: x
+      cuts=0;cuts(np)=n
+      do x=1,n
+         cuts(map(x)+1)=x
+      end do
+    end subroutine
+    subroutine consider(map)
+      integer,intent(in) :: map(:)
+      integer :: rr
+      if(any(map<0).or.any(map>=np)) error stop 'balance proposed owner range'
+      if(any(map(2:)<map(:n-1))) error stop 'balance noncontiguous assignment'
+      do rr=0,np-1
+         if(.not.any(map==rr)) error stop 'balance proposal empty rank'
+      end do
+      call evaluate(map,value,pure,remote,local,peakstate,foot,ng)
+      nproposal299=nproposal299+1
+      if(nproposal299>40) error stop 'proposal audit bound'
+      proposals299(:,nproposal299)=[pure,real(remote,dp),real(local,dp),real(peakstate,dp),real(foot,dp), &
+           real(ng,dp),maxval(value/reference),sum(value/reference),0.0_dp]
+      ! Storage includes one patch-equivalent per physical group, a bounded
+      ! proxy for fixed metadata/ghost overhead. Actual RSS is a separate gate.
+      if(peakstate>ceiling(1.05_dp*real(refstate,dp),kind=int64)) then
+         proposals299(12,nproposal299)=1;return
+      end if
+      if(foot>ceiling(1.05_dp*real(reffoot,dp),kind=int64)) then
+         proposals299(12,nproposal299)=2;return
+      end if
+      if(ng>refng+max(4,np)) then
+         proposals299(12,nproposal299)=3;return
+      end if
+      if(remote>ceiling(1.05_dp*real(refremote,dp),kind=int64)) then
+         proposals299(12,nproposal299)=4;return
+      end if
+      if(any(value>reference*(1.0_dp+1.e-12_dp))) then
+         proposals299(12,nproposal299)=5;return
+      end if
+      if(pure(1)>0.99_dp*refpure(1)) then
+         proposals299(12,nproposal299)=6;return
+      end if
+      ! Do not add execution groups when finer ownership offers no additional
+      ! primary peak-work reduction over the already selected whole-unit choice.
+      if(stride==316.and.ng>bestgroups299.and.pure(1)>=bestpure(1)) then
+         proposals299(12,nproposal299)=8;return
+      end if
+      merit=sum(value/reference)
+      if(merit>=bestmerit-1.e-10_dp) then
+         proposals299(12,nproposal299)=7;return
+      end if
+      selected=map;best=value;bestpure=pure;bestmerit=merit;accepted=accepted+1;bestgroups299=ng
+    end subroutine
+    subroutine evaluate(map,score,peaks,remote_total,local_total,maxstate,footprint,groups)
+      integer,intent(in) :: map(:)
+      real(dp),intent(out) :: score(36),peaks(4)
+      integer(int64),intent(out) :: remote_total,local_total,maxstate,footprint
+      integer,intent(out) :: groups
+      integer(int64) :: work(4,np),fixed(4,np),local_work(np),remote_work(np),storage(np),supply(np)
+      integer :: x,y,z,k,model,f,p,v,root,representative(n),physical_group(n),floor(3),penalty(3)
+      logical :: complete(n)
+      integer :: last(n),extent
+      floor=[0,10,25];penalty=[0,1,4]
+      work=0;fixed=0;local_work=0;remote_work=0;storage=0;supply=0
+      representative=[(x,x=1,n)];complete=.true.
+      do x=n,1,-1
+         if(.not.all(children(:,x)>0)) cycle
+         do y=1,4
+            z=children(y,x)
+            if(.not.complete(z).or.map(z)/=map(x)) complete(x)=.false.
+         end do
+         if(stride==316) then
+            do y=1,4
+               z=children(y,x)
+               if(map(z)==map(x)) representative(z)=x
+            end do
+         else
+            if(complete(x)) representative(children(:,x))=x
+         end if
+      end do
+      groups=0;last=0
+      do x=1,n
+         root=x
+         do while(representative(root)/=root)
+            root=representative(root)
+         end do
+         physical_group(x)=root;last(root)=x
+         if(root==x) then
+            groups=groups+1;storage(map(x)+1)=storage(map(x)+1)+PATCH_SIZE**2
+         end if
+         work(:,map(x)+1)=work(:,map(x)+1)+cost(:,x)
+         fixed(:,home(x)+1)=fixed(:,home(x)+1)+cost(:,x)
+         storage(map(x)+1)=storage(map(x)+1)+state(x)
+         if(map(x)/=home(x)) then
+            supply(map(x)+1)=supply(map(x)+1)+state(x)
+            supply(home(x)+1)=supply(home(x)+1)+state(x)
+         end if
+      end do
+      remote_total=0;local_total=0
+      do x=1,n
+         if(physical_group(x)/=x) cycle
+         k=stride*(x-1)
+         do y=1,16
+            z=packed(k+24)+y-1
+            if(stride==316) then
+               ! Contiguous rank assignments make each connected component a
+               ! contiguous fine-unit interval. Reject unsupported layouts.
+               if(any(physical_group(x:last(x))/=x)) error stop 'noncontiguous partial component'
+               extent=last(x)-packed(k+24)+1
+               if(extent<1.or.extent>16) error stop 'partial interval extent'
+               v=packed(k+56+16*(extent-1)+y)
+            else if(complete(x)) then
+               v=packed(k+40+y) ! Union across all co-owned target descendants.
+            else
+               v=packed(k+24+y) ! Retained parent alone; children are separate groups.
+            end if
+            if(v==0) cycle
+            if(map(x)/=map(z)) then
+               remote_total=remote_total+v
+               remote_work(map(x)+1)=remote_work(map(x)+1)+v
+               remote_work(map(z)+1)=remote_work(map(z)+1)+v
+            else if(physical_group(x)/=physical_group(z)) then
+               local_total=local_total+v;local_work(map(x)+1)=local_work(map(x)+1)+v
+            end if
+         end do
+      end do
+      maxstate=maxval(storage);footprint=sum(storage);v=0
+      do model=1,4
+         peaks(model)=real(maxval(work(model,:)),dp)
+         do f=1,3
+            do p=1,3
+               v=v+1
+               score(v)=maxval(real(work(model,:),dp)+0.01_dp*floor(f)*real(fixed(model,:),dp)+ &
+                    penalty(p)*real(local_work+remote_work+supply,dp))
+            end do
+         end do
+      end do
+    end subroutine
+  end subroutine
+
+  subroutine shortlist_296(work,np,splittable,chosen)
+    ! Coarse-only opportunity screen, not a time prediction. Only large units
+    ! on near-critical ranks after coarse minimax can justify detailed cuts.
+    integer(int64),intent(in) :: work(:)
+    integer,intent(in) :: np
+    logical,intent(in) :: splittable(:)
+    logical,intent(out) :: chosen(:)
+    integer :: owners(size(work)),i,k,pick
+    integer(int64) :: loads(np),peak,total
+    if(size(chosen)/=size(work).or.size(splittable)/=size(work)) error stop 'coarse shortlist extent'
+    if(any(work<=0).or.np<1.or.size(work)<np) error stop 'coarse shortlist work'
+    call partition_295(work,np,owners)
+    loads=0;chosen=.false.;total=sum(work)
+    do i=1,size(work)
+       loads(owners(i)+1)=loads(owners(i)+1)+work(i)
+    end do
+    peak=maxval(loads)
+    ! At most eight original units. Half an ideal rank load is an experimental
+    ! granularity screen; it may miss smaller useful cuts, and is not a theorem.
+    do k=1,min(8,np)
+       pick=0
+       do i=1,size(work)
+          if(chosen(i).or..not.splittable(i)) cycle
+          if(2_int64*np*work(i)<total) cycle
+          if(100_int64*loads(owners(i)+1)<99_int64*peak) cycle
+          if(pick>0) then
+             if(work(i)<=work(pick)) cycle
+          end if
+          pick=i
+       end do
+       if(pick==0) exit
+       chosen(pick)=.true.
+    end do
+  end subroutine
+
+  subroutine construct_candidates(candidates)
+    type(Parallel_Block),allocatable,intent(out) :: candidates(:)
+    type :: Domain_Cut
+       integer,allocatable :: cost(:),roots(:),weight(:),work(:),offer(:)
+       logical,allocatable :: eligible(:)
+       integer :: count=0,capacity=0
+    end type
+    type(Domain_Cut),allocatable :: cut(:)
+    integer :: d,p,c,q,i,j,best,total,global_total,threshold_count,n,mode,ierr
+    integer :: base_count,original_cost,remaining,frame,unit,r,gd,slot,ncoarse,u
+    integer(int64),allocatable :: coarse_local(:,:),coarse_global(:,:),coarse_work(:)
+    integer,allocatable :: coarse_slot(:)
+    logical,allocatable :: splittable(:),chosen(:)
+    integer,save :: capture=0
+    integer,allocatable :: covered(:)
+    character(80) :: filename
+    mode=block_subdivision_mode()
+    allocate(cut(size(grid)))
+    total=0;n=0
+    do d=1,size(grid)
+       allocate(cut(d)%cost(0:grid(d)%patch%length-1));cut(d)%cost=0
+       allocate(cut(d)%work(0:grid(d)%patch%length-1));cut(d)%work=0
+       allocate(cut(d)%eligible(0:grid(d)%patch%length-1));cut(d)%eligible=.true.
+       original_cost=count_patch(1)
+       base_count=1
+       if(all(grid(d)%patch%elts(2)%children>0)) base_count=N_CHDRN
+       cut(d)%capacity=base_count
+       if(mode==2) cut(d)%capacity=max(5,4*base_count)
+       allocate(cut(d)%roots(cut(d)%capacity),cut(d)%weight(cut(d)%capacity),cut(d)%offer(cut(d)%capacity))
+       cut(d)%count=base_count
+       if(base_count==1) then
+          cut(d)%roots(1)=1
+       else
+          cut(d)%roots(1:base_count)=grid(d)%patch%elts(2)%children
+       end if
+       do i=1,base_count
+          p=cut(d)%roots(i);cut(d)%weight(i)=cut(d)%cost(p)
+          cut(d)%offer(i)=cut(d)%weight(i)
+          if(balance_mode_295()>0) cut(d)%offer(i)=cut(d)%work(p)
+          total=total+cut(d)%offer(i)
+       end do
+    end do
+    global_total=total
+    if(mode==2.and.balance_mode_295()==3) then
+       ! Replace the existing total-work collective, do not add a round.
+       ! Fixed slots are indexed by global Domain and original child. Every
+       ! geometric Domain has exactly one contributor, including when P>D.
+       allocate(coarse_local(5,4*N_GLO_DOMAIN),coarse_global(5,4*N_GLO_DOMAIN))
+       coarse_local=0
+       do d=1,size(grid)
+          gd=glo_id(rank+1,d)
+          do i=1,cut(d)%count
+             p=cut(d)%roots(i);slot=4*gd+i
+             coarse_local(:,slot)=[int(cut(d)%cost(p),int64),int(cut(d)%work(p),int64), &
+                  int(cut(d)%cost(p),int64)*PATCH_SIZE**2, &
+                  int(merge(1,0,all(grid(d)%patch%elts(p+1)%children>0)),int64),int(p,int64)]
+          end do
+          ! Include retained scaffold/state on the same first unit as the
+          ! detailed planner. The split opportunity remains its physical root.
+          slot=4*gd+1
+          coarse_local(2,slot)=coarse_local(2,slot)+sum(int(early_work_295(d)%node,int64))- &
+               sum(coarse_local(2,4*gd+1:4*gd+cut(d)%count))
+          coarse_local(3,slot)=coarse_local(3,slot)+grid(d)%node%length- &
+               sum(coarse_local(3,4*gd+1:4*gd+cut(d)%count))
+       end do
+       call MPI_Allreduce(coarse_local,coarse_global,size(coarse_local),MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,'coarse work opportunity summary')
+       ncoarse=count(coarse_global(1,:)>0)
+       allocate(coarse_work(ncoarse),coarse_slot(ncoarse),splittable(ncoarse),chosen(ncoarse))
+       u=0
+       ! Match catalogue traversal, which is geometric rank/Domain/child order.
+       do r=1,n_process
+          do j=1,n_domain(r)
+             gd=glo_id(r,j)
+             do i=1,4
+                slot=4*gd+i
+                if(coarse_global(1,slot)==0) cycle
+                u=u+1;coarse_slot(u)=slot
+                coarse_work(u)=max(1_int64,sum(coarse_global(2:3,slot)))
+                splittable(u)=coarse_global(4,slot)==1
+             end do
+          end do
+       end do
+       if(u/=ncoarse) error stop 'coarse summary catalogue order'
+       call shortlist_296(coarse_work,n_process,splittable,chosen)
+       do d=1,size(grid)
+          cut(d)%eligible=.false.;gd=glo_id(rank+1,d)
+          do u=1,ncoarse
+             if(.not.chosen(u).or.(coarse_slot(u)-1)/4/=gd) cycle
+             p=int(coarse_global(5,coarse_slot(u)))
+             call mark_eligible(p)
+          end do
+       end do
+       global_total=int(sum(coarse_global(2,:)))
+       threshold_count=max(5,(global_total+2*n_process-1)/(2*n_process))
+    else
+       if(mode==2) then
+          call MPI_Allreduce(total,global_total,1,MPI_INTEGER,MPI_SUM,comm,ierr)
+          call check_mpi(ierr,'subdivision total work')
+       end if
+       threshold_count=max(5,(global_total+2*block_subdivision_tasks()-1)/(2*block_subdivision_tasks()))
+    end if
+    do d=1,size(grid)
+       original_cost=sum(cut(d)%weight(:cut(d)%count))
+       if(mode==2.and.balance_mode_295()/=1) then
+          do while(cut(d)%count+N_CHDRN<=cut(d)%capacity)
+             best=0
+             do i=1,cut(d)%count
+                p=cut(d)%roots(i)
+                if(.not.cut(d)%eligible(p)) cycle
+                if(cut(d)%offer(i)<=threshold_count) cycle
+                if(.not.all(grid(d)%patch%elts(p+1)%children>0)) cycle
+                if(best>0) then
+                   if(cut(d)%offer(i)<=cut(d)%offer(best)) cycle
+                end if
+                best=i
+             end do
+             if(best==0) exit
+             p=cut(d)%roots(best)
+             cut(d)%weight(best)=1 ! Parent retained as an authoritative unit.
+             cut(d)%offer(best)=0
+             do c=1,N_CHDRN
+                q=grid(d)%patch%elts(p+1)%children(c)
+                if(cut(d)%cost(q)<=0) error stop 'subdivision empty child'
+                cut(d)%count=cut(d)%count+1;i=cut(d)%count
+                cut(d)%roots(i)=q;cut(d)%weight(i)=cut(d)%cost(q)
+                cut(d)%offer(i)=cut(d)%weight(i)
+                if(balance_mode_295()>0) cut(d)%offer(i)=cut(d)%work(q)
+             end do
+          end do
+       end if
+       if(sum(cut(d)%weight(:cut(d)%count))/=original_cost) error stop 'subdivision work conservation'
+       n=n+cut(d)%count
+    end do
+    allocate(candidates(n));j=0
+    do d=1,size(grid)
+       allocate(covered(0:grid(d)%patch%length-1));covered=0
+       call emit(1)
+       remaining=0
+       do i=1,cut(d)%count
+          call cover(cut(d)%roots(i),.true.)
+       end do
+       do p=0,grid(d)%patch%length-1
+          if(covered(p)>1) error stop 'overlapping subdivision interiors'
+          if(covered(p)==1) remaining=remaining+1
+       end do
+       if(remaining/=sum(cut(d)%weight(:cut(d)%count))) error stop 'subdivision omitted parent state'
+       deallocate(covered)
+    end do
+    if(j/=n) error stop 'subdivision emission count'
+    ! One small structural audit per construction, excluded from bare timing
+    ! unless explicitly requested; no extra collective or numerical traversal.
+    if(mode>0) then
+       capture=capture+1;frame=capture
+       block
+         character(8) :: audit
+         audit='';call get_environment_variable('WAVETRISK_SUBDIVISION_AUDIT',audit)
+         if(trim(audit)=='1') then
+            write(filename,'(a,i0,a,i0,a)') 'cuts292-rank-',rank,'-frame-',frame,'.txt'
+            open(newunit=unit,file=trim(filename),status='new')
+            write(unit,*) 'H',mode,n_process,block_subdivision_tasks(),threshold_count,n,total
+            do i=1,n
+               write(unit,*) 'B',candidates(i)%root_domain,candidates(i)%root_patch, &
+                    candidates(i)%level,candidates(i)%weight
+            end do
+            close(unit)
+         end if
+       end block
+    end if
+  contains
+    recursive subroutine mark_eligible(p)
+      integer,intent(in) :: p
+      integer :: c,q
+      cut(d)%eligible(p)=.true.
+      do c=1,N_CHDRN
+         q=grid(d)%patch%elts(p+1)%children(c)
+         if(q>0) call mark_eligible(q)
+      end do
+    end subroutine
+    recursive integer function count_patch(p) result(counted)
+      integer,intent(in) :: p
+      integer :: c,q,a
+      counted=0
+      if(grid(d)%patch%elts(p+1)%deleted) return
+      counted=1
+      if(balance_mode_295()>0) then
+         a=grid(d)%patch%elts(p+1)%elts_start
+         cut(d)%work(p)=sum(early_work_295(d)%node(a+1:a+PATCH_SIZE**2))
+      end if
+      do c=1,N_CHDRN
+         q=grid(d)%patch%elts(p+1)%children(c)
+         if(q>0) then
+            counted=counted+count_patch(q)
+            cut(d)%work(p)=cut(d)%work(p)+cut(d)%work(q)
+         end if
+      end do
+      cut(d)%cost(p)=counted
+    end function
+    recursive subroutine emit(p)
+      integer,intent(in) :: p
+      integer :: c,q,i
+      if(grid(d)%patch%elts(p+1)%deleted) return
+      do i=1,cut(d)%count
+         if(cut(d)%roots(i)/=p) cycle
+         j=j+1
+         candidates(j)%root_domain=glo_id(rank+1,d)
+         candidates(j)%root_patch=p
+         candidates(j)%level=grid(d)%patch%elts(p+1)%level
+         candidates(j)%owner=rank
+         candidates(j)%weight=cut(d)%weight(i)*PATCH_SIZE**2
+         if(mode==0) candidates(j)%weight=subtree_weight_Domain(grid(d),p)
+      end do
+      do c=1,N_CHDRN
+         q=grid(d)%patch%elts(p+1)%children(c)
+         if(q>0) call emit(q)
+      end do
+    end subroutine
+    recursive subroutine cover(p,is_root)
+      integer,intent(in) :: p
+      logical,intent(in) :: is_root
+      integer :: c,q
+      if(.not.is_root) then
+         if(any(cut(d)%roots(:cut(d)%count)==p)) return
+      end if
+      if(grid(d)%patch%elts(p+1)%deleted) return
+      covered(p)=covered(p)+1
+      do c=1,N_CHDRN
+         q=grid(d)%patch%elts(p+1)%children(c)
+         if(q>0) call cover(q,.false.)
+      end do
+    end subroutine
+  end subroutine construct_candidates
+
+
+  logical function fixed_parent_293() result(enabled)
+    logical,save :: read_option=.false.,chosen=.false.
+    character(8) :: option
+    integer :: status
+    if(.not.read_option) then
+       option='';call get_environment_variable('WAVETRISK_SUBDIVISION_FIXED_PARENT',option,status=status)
+       if(status/=0.and.status/=1) error stop 'fixed-parent selector read'
+       select case(trim(option))
+       case('','0');chosen=.false.
+       case('1');chosen=.true.
+       case default;error stop 'fixed-parent selector requires 0 or 1'
+       end select
+       read_option=.true.
+    end if
+    enabled=chosen
+  end function
+
+  subroutine parent_metadata_293(candidates,packed,stride)
+    type(Parallel_Block),intent(in) :: candidates(:)
+    integer,intent(inout) :: packed(:)
+    integer,intent(in) :: stride
+    integer,allocatable :: roots(:),weights(:)
+    integer :: d,c,p,i,base,weight
+    do d=1,size(grid)
+       allocate(roots(0:grid(d)%patch%length-1),weights(0:grid(d)%patch%length-1))
+       roots=-1;weights=0
+       if(all(grid(d)%patch%elts(2)%children>0)) then
+          do c=1,N_CHDRN
+             base=grid(d)%patch%elts(2)%children(c)
+             weight=subtree_weight_Domain(grid(d),base)
+             call mark(base)
+          end do
+       else
+          base=1;weight=subtree_weight_Domain(grid(d),base);call mark(base)
+       end if
+       do i=1,size(candidates)
+          if(candidates(i)%root_domain/=glo_id(rank+1,d)) cycle
+          p=candidates(i)%root_patch
+          if(roots(p)<0.or.weights(p)<=0) error stop 'missing original parent'
+          packed(stride*(i-1)+7:stride*(i-1)+8)=[roots(p),weights(p)]
+       end do
+       deallocate(roots,weights)
+    end do
+  contains
+    recursive subroutine mark(p)
+      integer,intent(in) :: p
+      integer :: c,q
+      if(grid(d)%patch%elts(p+1)%deleted) return
+      if(roots(p)/=-1) error stop 'overlapping original parents'
+      roots(p)=base;weights(p)=weight
+      do c=1,N_CHDRN
+         q=grid(d)%patch%elts(p+1)%children(c)
+         if(q>0) call mark(q)
+      end do
+    end subroutine
+  end subroutine
+
+  subroutine original_assignment_293(weights,block_owner_new)
+    integer,intent(in) :: weights(:)
+    integer,intent(out) :: block_owner_new(:)
+    integer :: load_proposed(n_process),n_assigned,r
+    real(dp) :: balanced_weight,imbalance_goal
+    real(dp),parameter :: init_goal=0.05_dp,incr_goal=1.20_dp
+    call check_parallel_task_capacity(size(weights))
+    if(any(weights<=0).or.size(block_owner_new)/=size(weights)) error stop 'original assignment extent'
+    balanced_weight=real(sum(weights),dp)/real(n_process,dp)
+  n_assigned     = 0
+  imbalance_goal = init_goal
+
+  do while (n_assigned < size(weights))
+
+     n_assigned      = 0
+     load_proposed   = 0
+     block_owner_new = -1
+
+     do r = 1, n_process
+
+        do while ( &
+             real(load_proposed(r),kind=dp) < balanced_weight .and. &
+             size(weights) - n_assigned > n_process - r)
+
+           block_owner_new(n_assigned+1) = r - 1
+
+           load_proposed(r) = load_proposed(r) + &
+                weights(n_assigned+1)
+
+           n_assigned = n_assigned + 1
+
+        end do
+
+        !
+        ! If the final block makes this rank too heavy,
+        ! move that block to the next rank.
+        !
+        if (n_assigned > 0) then
+
+           if (real(load_proposed(r),kind=dp) > &
+                balanced_weight * (1.0_dp + imbalance_goal)) then
+
+              load_proposed(r) = load_proposed(r) - &
+                   weights(n_assigned)
+
+              block_owner_new(n_assigned) = -1
+
+              n_assigned = n_assigned - 1
+
+           end if
+
+        end if
+
+     end do
+
+     !
+     ! If all blocks could not be assigned, relax the allowed imbalance.
+     !
+     if (n_assigned < size(weights)) then
+        imbalance_goal = imbalance_goal * incr_goal
+     end if
+
+  end do
+
+    if(any(block_owner_new<0).or.any(block_owner_new>=n_process)) error stop 'original assignment incomplete'
+  end subroutine
+
+  subroutine hold_parent_owners_293(packed,stride,new_owner)
+    integer,intent(in) :: packed(:),stride
+    integer,intent(out) :: new_owner(:)
+    integer,allocatable :: group(:),weights(:),owners(:),domains(:),roots(:)
+    integer :: i,k,n,gd,root,weight,unit
+    integer,save :: frame=0
+    character(16) :: option
+    character(80) :: filename
+    allocate(group(size(new_owner)),weights(size(new_owner)),owners(size(new_owner)), &
+         domains(size(new_owner)),roots(size(new_owner)))
+    n=0
+    do i=1,size(new_owner)
+       k=stride*(i-1);gd=packed(k+2);root=packed(k+7);weight=packed(k+8)
+       if(n>0) then
+          if(domains(n)==gd.and.roots(n)==root) then
+             if(weights(n)/=weight) error stop 'parent weight differs within group'
+             group(i)=n;cycle
+          end if
+          if(any(domains(:n)==gd.and.roots(:n)==root)) error stop 'noncontiguous parent group'
+       end if
+       if(packed(k+3)/=root) error stop 'group starts without retained parent'
+       n=n+1;domains(n)=gd;roots(n)=root;weights(n)=weight;group(i)=n
+    end do
+    call original_assignment_293(weights(:n),owners(:n))
+    do i=1,size(new_owner)
+       new_owner(i)=owners(group(i))
+    end do
+    frame=frame+1
+    option='';call get_environment_variable('WAVETRISK_FIXED_PARENT_AUDIT',option)
+    if(trim(option)=='1'.and.rank==0) then
+       call detail_enter(DP_ORACLE)
+       write(filename,'(a,i0,a)') 'owners293-frame-',frame,'.txt'
+       open(newunit=unit,file=trim(filename),status='new')
+       write(unit,*) 'H',frame,n_process,n,size(new_owner)
+       do i=1,n
+          write(unit,*) 'P',i,domains(i),roots(i),weights(i),owners(i)
+       end do
+       do i=1,size(new_owner)
+          k=stride*(i-1)
+          write(unit,*) 'B',i,packed(k+2),packed(k+3),group(i),new_owner(i)
+       end do
+       close(unit)
+       call detail_leave(DP_ORACLE)
+    end if
+  end subroutine
+
+  logical function groups_294() result(enabled)
+    logical,save :: read_option=.false.,chosen=.false.
+    character(8) :: option
+    integer :: status
+    if(.not.read_option) then
+       option='';call get_environment_variable('WAVETRISK_COOWNED_SUBTREE_GROUPS',option,status=status)
+       if(status/=0.and.status/=1) error stop 'coowned group selector read'
+       select case(trim(option))
+       case('','0');chosen=.false.
+       case('1');chosen=.true.
+       case default;error stop 'coowned group selector requires 0 or 1'
+       end select
+       read_option=.true.
+    end if
+    enabled=chosen
+  end function
+
+  logical function group_audit_294() result(enabled)
+    logical,save :: read_option=.false.,chosen=.false.
+    character(8) :: option
+    integer :: status
+    if(.not.read_option) then
+       option='';call get_environment_variable('WAVETRISK_GROUP_AUDIT',option,status=status)
+       if(status/=0.and.status/=1) error stop 'group audit selector read'
+       select case(trim(option))
+       case('','0');chosen=.false.
+       case('1');chosen=.true.
+       case default;error stop 'group audit selector requires 0 or 1'
+       end select
+       read_option=.true.
+    end if
+    enabled=chosen
+  end function
+
+  subroutine child_metadata_294(candidates,packed,stride,before)
+    type(Parallel_Block),intent(in) :: candidates(:)
+    integer,intent(inout) :: packed(:)
+    integer,intent(in) :: stride,before
+    integer,allocatable :: index(:)
+    integer :: d,i,c,p,q,k
+    ! Only immediate child candidates, not arbitrary descendants, permit merging.
+    ! The map is bounded by the already present local geometric patch capacity.
+    do i=1,size(candidates)
+       k=stride*i;packed(k-3:k)=0
+    end do
+    do d=1,size(grid)
+       allocate(index(0:grid(d)%patch%length-1));index=0
+       do i=1,size(candidates)
+          if(candidates(i)%root_domain/=glo_id(rank+1,d)) cycle
+          p=candidates(i)%root_patch
+          if(index(p)/=0) error stop 'duplicate ownership root'
+          index(p)=before+i
+       end do
+       do i=1,size(candidates)
+          if(candidates(i)%root_domain/=glo_id(rank+1,d)) cycle
+          p=candidates(i)%root_patch;k=stride*(i-1)+stride-4
+          do c=1,4
+             q=grid(d)%patch%elts(p+1)%children(c)
+             if(q>0) packed(k+c)=index(q)
+          end do
+       end do
+       deallocate(index)
+    end do
+  end subroutine
+
+  logical function partial_groups_298() result(enabled)
+    logical,save :: read_once=.false.,value=.false.
+    character(8) :: option
+    integer :: status
+    if(.not.read_once) then
+       option='';call get_environment_variable('WAVETRISK_PARTIAL_COOWNED_GROUPS',option,status=status)
+       if(status/=0.and.status/=1) error stop 'partial group selector read'
+       if(trim(option)/=''.and.trim(option)/='0'.and.trim(option)/='1') error stop 'partial group selector'
+       value=trim(option)=='1';read_once=.true.
+       if(value) then
+          if(.not.groups_294()) error stop 'partial groups require coowned grouping'
+       end if
+    end if
+    enabled=value
+  end function
+
+  subroutine coalesce_294(fine,children,physical,mapping,partial)
+    type(Parallel_Block),intent(in) :: fine(:)
+    integer,intent(in) :: children(:,:)
+    type(Parallel_Block),allocatable,intent(out) :: physical(:)
+    integer,allocatable,intent(out) :: mapping(:)
+    logical,optional,intent(in) :: partial
+    logical :: merge_partial
+    integer :: i,j,c,n,m,root
+    integer,allocatable :: parent(:),representative(:),compact(:),weights(:)
+    logical,allocatable :: complete(:),alive(:)
+    merge_partial=.false.
+    if(present(partial)) merge_partial=partial
+    n=size(fine)
+    if(size(children,1)/=4.or.size(children,2)/=n) error stop 'coalescing child extent'
+    allocate(parent(n),representative(n),compact(n),weights(n),complete(n),alive(n),mapping(n))
+    parent=0;compact=0;weights=fine%weight;alive=.true.;complete=.false.
+    if(any(weights<=0)) error stop 'coalescing invalid weight'
+    do i=1,n
+       representative(i)=i
+       if(any(children(:,i)<0).or.any(children(:,i)>n)) error stop 'coalescing child range'
+       if(all(children(:,i)==0)) cycle
+       if(any(children(:,i)==0)) error stop 'coalescing partial quartet'
+       do c=1,4
+          j=children(c,i)
+          if(j<=i) error stop 'coalescing requires preorder'
+          if(parent(j)/=0) error stop 'coalescing duplicate child'
+          if(fine(j)%root_domain/=fine(i)%root_domain.or.fine(j)%level/=fine(i)%level+1) &
+               error stop 'coalescing invalid child geometry'
+          parent(j)=i
+       end do
+    end do
+    do i=n,1,-1
+       if(all(children(:,i)==0)) then
+          complete(i)=.true.;cycle
+       end if
+       ! Complete mode preserves294. Partial mode contracts only same-owner
+       ! parent-child edges. Other roots remain cuts, including remote grandchildren.
+       ! No traversal crosses a remote-owned intermediate fragment.
+       if(.not.merge_partial) then
+          if(.not.all(complete(children(:,i)))) cycle
+          if(any(fine(children(:,i))%owner/=fine(i)%owner)) cycle
+       end if
+       complete(i)=.true.
+       do c=1,4
+          j=children(c,i)
+          if(merge_partial.and.fine(j)%owner/=fine(i)%owner) cycle
+          if(.not.alive(j)) error stop 'coalescing child already consumed'
+          alive(j)=.false.;representative(j)=i
+          weights(i)=weights(i)+weights(j)
+       end do
+    end do
+    m=count(alive);allocate(physical(m));m=0
+    do i=1,n
+       if(.not.alive(i)) cycle
+       m=m+1;physical(m)=fine(i);physical(m)%id=m-1;physical(m)%weight=weights(i);compact(i)=m
+    end do
+    do i=1,n
+       root=i
+       do while(representative(root)/=root)
+          root=representative(root)
+       end do
+       mapping(i)=compact(root)
+       if(mapping(i)<1) error stop 'coalescing missing representative'
+       if(physical(mapping(i))%owner/=fine(i)%owner) error stop 'coalescing changed numerical owner'
+    end do
+    if(sum(int(physical%weight,int64))/=sum(int(fine%weight,int64))) error stop 'coalescing lost weight'
+  end subroutine
+
+  subroutine snapshot_groups312(label)
+    character(*),intent(in) :: label
+    integer :: u,i
+    call record_owner_bridge322(label)
+    if(rank/=0) return
+    if(.not.allocated(ownership_catalog_294)) error stop 'Stage312 missing subdivision catalogue'
+    open(newunit=u,file='groups312-'//trim(label)//'.txt',status='new')
+    write(u,*) 'H',n_process,size(ownership_catalog_294),size(block_catalog)
+    do i=1,size(ownership_catalog_294)
+       write(u,*) 'L',i,ownership_catalog_294(i)%root_domain,ownership_catalog_294(i)%root_patch, &
+            ownership_catalog_294(i)%level,ownership_catalog_294(i)%owner,ownership_catalog_294(i)%weight, &
+            ownership_execution_294(i)
+    end do
+    do i=1,size(block_catalog)
+       write(u,*) 'E',i,block_catalog(i)%root_domain,block_catalog(i)%root_patch,block_catalog(i)%level, &
+            block_catalog(i)%owner,block_catalog(i)%weight
+    end do
+    close(u)
+  end subroutine
+
+  subroutine install_groups_294(packed,stride)
+    integer,intent(in) :: packed(:),stride
+    integer,allocatable :: children(:,:)
+    type(Parallel_Block),allocatable :: physical(:)
+    integer :: i,k,unit
+    integer,save :: frame=0
+    character(80) :: filename
+    if(allocated(ownership_catalog_294).or.allocated(ownership_execution_294)) error stop 'stale ownership groups'
+    allocate(ownership_catalog_294(size(block_catalog)),children(4,size(block_catalog)))
+    ownership_catalog_294(:)=block_catalog
+    do i=1,size(block_catalog)
+       k=stride*i;children(:,i)=packed(k-3:k)
+    end do
+    call coalesce_294(ownership_catalog_294,children,physical,ownership_execution_294,partial_groups_298())
+    call move_alloc(physical,block_catalog)
+    call check_parallel_task_capacity(size(block_catalog))
+    frame=frame+1
+    if(group_audit_294().and.rank==0) then
+       write(filename,'(a,i0,a)') 'groups294-frame-',frame,'.txt'
+       open(newunit=unit,file=trim(filename),status='new')
+       write(unit,*) 'H',frame,n_process,size(ownership_catalog_294),size(block_catalog)
+       do i=1,size(ownership_catalog_294)
+          write(unit,*) 'L',i,ownership_catalog_294(i)%root_domain,ownership_catalog_294(i)%root_patch, &
+               ownership_catalog_294(i)%level,ownership_catalog_294(i)%owner,ownership_catalog_294(i)%weight, &
+               ownership_execution_294(i),children(:,i)
+       end do
+       do i=1,size(block_catalog)
+          write(unit,*) 'E',i,block_catalog(i)%root_domain,block_catalog(i)%root_patch, &
+               block_catalog(i)%level,block_catalog(i)%owner,block_catalog(i)%weight
+       end do
+       close(unit)
+    end if
+  end subroutine
+
+  subroutine ghost_routes_294(family,payload,nvalue,nlocal,nrequest,sends,receives)
+    integer,intent(in) :: family,payload,nvalue,nlocal,nrequest,sends(:),receives(:)
+    integer,save :: unit=0,sequence=0
+    character(80) :: filename
+    if(.not.group_audit_294()) return
+    if(unit==0) then
+       write(filename,'(a,i0,a)') 'ghost-routes294-rank-',rank,'.txt'
+       open(newunit=unit,file=trim(filename),status='new')
+    end if
+    if(sends(rank+1)/=0.or.receives(rank+1)/=0) error stop 'local ghost route unexpectedly uses MPI'
+    if(int(sum(receives),int64)/=int(nvalue,int64)*int(nrequest-nlocal,int64)) &
+         error stop 'remote ghost route count mismatch'
+    sequence=sequence+1
+    ! Values handled, not DRAM bytes. Send and receive describe the same network
+    ! payload at opposite endpoints; never add them to estimate wire traffic.
+    write(unit,*) sequence,family,payload,int(nvalue,int64)*int(nlocal,int64), &
+         sum(int(sends,int64)),sum(int(receives,int64)),nlocal,nrequest-nlocal
+  end subroutine
+
+  ! Stage322 sealed owner bridge. This is an experimental placement only.
+  ! MPI comm and all production planner/capacity checks stay unchanged.
+  integer function owner_bridge322_mode() result(mode)
+    logical,save :: read_once=.false.
+    integer,save :: value=0
+    character(16) :: option
+    integer :: status
+    if(.not.read_once) then
+       option=''
+       call get_environment_variable('WAVETRISK_OWNER_MAP322',option,status=status)
+       if(status/=0.and.status/=1) error stop 'Stage322 owner bridge selector read'
+       select case(trim(option))
+       case('','off');value=0
+       case('A160');value=1
+       case('B256');value=2
+       case('C256');value=3
+       case default;error stop 'Stage322 owner map requires off, A160, B256, or C256'
+       end select
+       read_once=.true.
+    end if
+    mode=value
+  end function
+
+  integer function selected_owner322(i,mode) result(r)
+    integer,intent(in) :: i,mode
+    integer,parameter :: native256(640)=[ &
+       0,0,0,1,1,1,2,2,2,3,3,3,4,4,4,5, &
+       5,5,6,6,6,7,7,7,8,8,8,9,9,9,10,10, &
+       10,11,11,11,12,12,12,13,13,13,14,14,14,15,15,15, &
+       16,16,16,17,17,17,18,18,18,19,19,19,20,20,20,21, &
+       21,21,22,22,22,23,23,23,24,24,24,25,25,25,26,26, &
+       26,27,27,27,28,28,28,29,29,29,30,30,30,31,31,31, &
+       32,32,32,33,33,33,34,34,34,35,35,35,36,36,36,37, &
+       37,37,38,38,38,39,39,39,40,40,40,41,41,41,42,42, &
+       42,43,43,43,44,44,44,45,45,45,46,46,46,47,47,47, &
+       48,48,48,49,49,49,50,50,50,51,51,51,52,52,52,53, &
+       53,53,54,54,54,55,55,55,56,56,56,57,57,57,58,58, &
+       58,59,59,59,60,60,60,61,61,61,62,62,62,63,63,63, &
+       64,64,64,65,65,65,66,66,66,67,67,67,68,68,68,69, &
+       69,69,70,70,70,71,71,71,72,72,72,73,73,73,74,74, &
+       74,75,75,75,76,76,76,77,77,77,78,78,78,79,79,79, &
+       80,80,80,81,81,81,82,82,82,83,83,83,84,84,84,85, &
+       85,85,86,86,86,87,87,87,88,88,88,89,89,89,90,90, &
+       90,91,91,91,92,92,92,93,93,93,94,94,94,95,95,95, &
+       96,96,96,97,97,97,98,98,98,99,99,99,100,100,100,101, &
+       101,101,102,102,102,103,103,103,104,104,104,105,105,105,106,106, &
+       106,107,107,107,108,108,108,109,109,109,110,110,110,111,111,111, &
+       112,112,112,113,113,113,114,114,114,115,115,115,116,116,116,117, &
+       117,117,118,118,118,119,119,119,120,120,120,121,121,121,122,122, &
+       122,123,123,123,124,124,124,125,125,125,126,126,126,127,127,127, &
+       128,128,128,129,129,129,130,130,130,131,131,131,132,132,132,133, &
+       133,133,134,134,134,135,135,135,136,136,136,137,137,137,138,138, &
+       138,139,139,139,140,140,140,141,141,141,142,142,142,143,143,143, &
+       144,144,144,145,145,145,146,146,146,147,147,147,148,148,148,149, &
+       149,149,150,150,150,151,151,151,152,152,152,153,153,153,154,154, &
+       154,155,155,155,156,156,156,157,157,157,158,158,158,159,159,159, &
+       160,160,160,161,161,161,162,162,162,163,163,163,164,164,164,165, &
+       165,165,166,166,166,167,167,167,168,168,168,169,169,169,170,170, &
+       170,171,171,171,172,172,172,173,173,173,174,174,174,175,175,175, &
+       176,176,176,177,177,177,178,178,178,179,179,179,180,180,180,181, &
+       181,181,182,182,182,183,183,183,184,184,184,185,185,185,186,186, &
+       186,187,187,187,188,188,188,189,189,189,190,190,190,191,191,191, &
+       192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207, &
+       208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223, &
+       224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239, &
+       240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255 ]
+    if(mode==3) then
+       r=native256(i)
+    else
+       r=(i-1)/4
+    end if
+  end function
+
+  subroutine check_owner_bridge322_catalog(require_bridge)
+    use shared_mod, only : min_level,max_level,tol,resume,mode_split,timeint_type, &
+         physics_model,physics_type,NCAR_topo,sso,test_case
+    logical,intent(in) :: require_bridge
+    integer :: i,d,p,mode
+    mode=owner_bridge322_mode()
+    if((mode==1.and.n_process/=160).or.((mode==2.or.mode==3).and.n_process/=256)) &
+         error stop 'Stage322 owner bridge rank count'
+    if(N_GLO_DOMAIN/=160.or.min_level/=5.or.max_level/=5.or.level_start/=5.or.level_end/=5) &
+         error stop 'Stage322 owner bridge level configuration'
+    if(.not.ieee_is_finite(tol)) error stop 'Stage322 owner bridge nonfinite tolerance'
+    if(.not.(tol<=0.0_dp.and.tol>=0.0_dp).or.resume<0.or.zlevels/=30) &
+         error stop 'Stage322 owner bridge input configuration'
+    if(trim(test_case)/='climate'.or..not.compressible.or.mode_split.or.trim(timeint_type)/='RK4') &
+         error stop 'Stage322 owner bridge dynamics configuration'
+    if(.not.physics_model.or.trim(physics_type)/='Simple'.or.NCAR_topo.or.sso) &
+         error stop 'Stage322 owner bridge physics configuration'
+    if(block_subdivision_mode()/=2.or.block_subdivision_tasks()/=n_process.or.balance_mode_295()/=1) &
+         error stop 'Stage322 owner bridge planner configuration'
+    if(.not.groups_294().or..not.partial_groups_298().or.fixed_parent_293()) &
+         error stop 'Stage322 owner bridge group configuration'
+    if(.not.connected_rhs_enabled().or..not.resident_transform_enabled()) &
+         error stop 'Stage322 owner bridge execution configuration'
+    if(.not.allocated(block_catalog)) error stop 'Stage322 owner bridge absent catalogue'
+    if(size(block_catalog)/=640) error stop 'Stage322 owner bridge catalogue extent'
+    ! Check the measured 640-entry physical identity, including source ownership.
+    do i=1,640
+       d=(i-1)/4;p=2+mod(i-1,4)
+       if(block_catalog(i)%id/=i-1.or.block_catalog(i)%root_domain/=d.or. &
+            block_catalog(i)%root_patch/=p.or.block_catalog(i)%level/=5.or.block_catalog(i)%weight/=16) &
+            error stop 'Stage322 owner bridge catalogue identity'
+       if(owner(d+1)/=d) error stop 'Stage322 owner bridge geometric owner changed'
+       if(require_bridge) then
+          if(block_catalog(i)%owner/=selected_owner322(i,mode)) &
+               error stop 'Stage322 owner bridge committed owner changed'
+       end if
+    end do
+  end subroutine
+
+  subroutine apply_owner_bridge322(packed,stride,selected)
+    integer,intent(in) :: packed(:),stride
+    integer,intent(inout) :: selected(:)
+    integer :: i,k,mode,native_mode,local_mode(2),global_mode(2),ierr
+    logical,save :: mode_agreed=.false.
+    mode=owner_bridge322_mode()
+    if(.not.mode_agreed) then
+       ! All ranks participate, including off, so a mixed selector fails closed.
+       ! This one new collective occurs in the initial catalogue, outside timing.
+       local_mode=[mode,-mode]
+       call MPI_Allreduce(local_mode,global_mode,2,MPI_INTEGER,MPI_MAX,comm,ierr)
+       if(ierr/=MPI_SUCCESS) error stop 'Stage322 owner bridge selector consensus failed'
+       if(global_mode(1)/=-global_mode(2)) error stop 'Stage322 owner bridge selectors differ across ranks'
+       mode_agreed=.true.
+    end if
+    if(mode==0) return
+    call check_owner_bridge322_catalog(.false.)
+    if(size(selected)/=640.or.stride/=60.or.size(packed)/=640*stride) &
+         error stop 'Stage322 owner bridge packed extent'
+    native_mode=1
+    if(n_process==256) native_mode=3
+    do i=1,640
+       k=stride*i
+       if(any(packed(k-3:k)/=0)) error stop 'Stage322 owner bridge unexpected child catalogue'
+       if(selected(i)/=selected_owner322(i,native_mode)) error stop 'Stage322 native planner differs from sealed map'
+       selected(i)=selected_owner322(i,mode)
+    end do
+  end subroutine
+
+  subroutine record_owner_bridge322(label)
+    character(*),intent(in),optional :: label
+    integer,save :: frame=0
+    integer :: i,u,mode
+    character(80) :: filename
+    mode=owner_bridge322_mode()
+    if(mode==0) return
+    call check_owner_bridge322_catalog(.true.)
+    if(.not.allocated(ownership_catalog_294).or..not.allocated(ownership_execution_294)) &
+         error stop 'Stage322 owner bridge absent group catalogue'
+    if(size(ownership_catalog_294)/=640.or.size(ownership_execution_294)/=640) &
+         error stop 'Stage322 owner bridge group extent'
+    do i=1,640
+       if(ownership_execution_294(i)/=i.or.ownership_catalog_294(i)%owner/=selected_owner322(i,mode)) &
+            error stop 'Stage322 owner bridge group identity'
+    end do
+    if(.not.present(label)) then
+       frame=frame+1
+       return
+    end if
+    if(rank/=0) return
+    if(label/='initial'.and.label/='final') error stop 'Stage322 owner bridge snapshot label'
+    filename='owner-bridge322-'//trim(label)//'.txt'
+    open(newunit=u,file=trim(filename),status='new')
+    write(u,*) 'H',frame,n_process,mode,640
+    do i=1,640
+       write(u,*) 'E',i,block_catalog(i)%root_domain,block_catalog(i)%root_patch, &
+            block_catalog(i)%level,block_catalog(i)%owner,block_catalog(i)%weight
+    end do
+    close(u)
+  end subroutine
+
   subroutine build_parallel_block_catalog
   ! Construct the parallel-block decomposition of all locally owned
   ! geometric root domains, build the replicated global block catalogue,
@@ -4972,7 +6271,7 @@ contains
 
   implicit none
 
-  integer, parameter :: N_BLOCK_DATA = 6
+  integer :: N_BLOCK_DATA
 
   integer :: b, c, d, i, k, p, p_chd, r
   integer :: n_block_local, n_block_before, n_block_total
@@ -4994,7 +6293,11 @@ contains
   real(dp) :: balanced_weight
   real(dp) :: imbalance_goal
 
-  logical :: detailed_diagnostics
+  logical :: detailed_diagnostics,screen_profile
+  real(dp) :: screen_start,screen_construct,screen_metadata,screen_select,screen_t
+  character(8) :: screen_option
+  integer,save :: screen_frame=0,screen_unit=0
+  character(80) :: screen_file
 
   real(dp), parameter :: init_goal = 0.05_dp
   real(dp), parameter :: incr_goal = 1.20_dp
@@ -5002,10 +6305,42 @@ contains
   type(Parallel_Block), allocatable :: block_loc(:)
 
   call detail_enter(DP_CATALOG)
+  screen_option='';call get_environment_variable('WAVETRISK_COARSE_FIRST_PROFILE',screen_option)
+  screen_profile=trim(screen_option)=='1';screen_start=0;screen_construct=0;screen_metadata=0;screen_select=0
+  if(screen_profile) screen_start=MPI_Wtime()
+  N_BLOCK_DATA=6
+  if(fixed_parent_293()) then
+     if(block_subdivision_mode()==1) error stop 'fixed-parent control requires original or cut mode'
+     N_BLOCK_DATA=8
+  end if
+  if(balance_mode_295()>0) then
+     if(.not.groups_294().or.fixed_parent_293()) error stop 'selective balance needs grouped free owners'
+     if(.not.allocated(early_plan_295)) error stop 'balance compiler not prepared'
+     N_BLOCK_DATA=56 ! Identity/parent,14 records,state,origin,16 own+16 subtree-union edges.
+     if(balance_mode_295()==4) then
+        if(.not.partial_groups_298()) error stop 'partial cost model requires partial execution groups'
+        N_BLOCK_DATA=312 ! Above plus16*16 bounded interval/source counts; children remain last.
+     end if
+  end if
+  if(partial_groups_298()) then
+     if(.not.groups_294()) error stop 'partial groups need grouping'
+  end if
+  if(groups_294()) then
+     if(block_subdivision_mode()/=2) error stop 'coowned groups require cut mode'
+     N_BLOCK_DATA=N_BLOCK_DATA+4
+  end if
     if (local_block_store_ready()) then
      call fail("existing local block store was not reset")
   end if
 
+  if (allocated(block_cuts)) error stop 'stale subdivision cut map'
+  if (block_subdivision_mode()>0) then
+     if(.not.connected_rhs_enabled().or..not.resident_transform_enabled()) &
+          error stop 'subdivision requires connected RHS and resident transforms'
+  end if
+  ! One postorder count per local Domain. A cut retains its parent patch and
+  ! creates four disjoint children; every original catalogue patch survives.
+  if(block_subdivision_mode()==0) then
   !
   ! Count local candidate blocks.
   !
@@ -5071,12 +6406,19 @@ contains
           "build_parallel_block_catalog: local block count mismatch"
   end if
 
+  else
+  call construct_candidates(block_loc)
+  n_block_local=size(block_loc)
+  end if
+  if(screen_profile) screen_construct=MPI_Wtime()-screen_start
+
   !
   ! Determine the number of candidate blocks preceding those on
   ! this rank. This gives globally unique contiguous block IDs.
   !
   n_block_before = 0
 
+  call detail_enter(DP_CATALOG_GATHER)
   call MPI_Exscan( &
        n_block_local, n_block_before, &
        1, MPI_INTEGER, MPI_SUM, comm, ierr)
@@ -5122,6 +6464,7 @@ contains
      error stop "build_parallel_block_catalog: MPI_Allgather failed"
   end if
 
+  call detail_leave(DP_CATALOG_GATHER)
   if (sum(block_count) /= n_block_total) then
      error stop &
           "build_parallel_block_catalog: inconsistent global block count"
@@ -5140,7 +6483,7 @@ contains
 
   do i = 1, n_block_local
 
-     send_data(k+1:k+N_BLOCK_DATA) = [ &
+     send_data(k+1:k+6) = [ &
           block_loc(i)%id, &
           block_loc(i)%root_domain, &
           block_loc(i)%root_patch, &
@@ -5151,6 +6494,14 @@ contains
      k = k + N_BLOCK_DATA
 
   end do
+
+  call detail_enter(DP_CATALOG_METADATA)
+  if(screen_profile) screen_t=MPI_Wtime()
+  if(fixed_parent_293().or.balance_mode_295()>0) call parent_metadata_293(block_loc,send_data,N_BLOCK_DATA)
+  if(balance_mode_295()>0) call balance_metadata_295(block_loc,send_data,N_BLOCK_DATA,n_block_before)
+  if(groups_294()) call child_metadata_294(block_loc,send_data,N_BLOCK_DATA,n_block_before)
+  if(screen_profile) screen_metadata=MPI_Wtime()-screen_t
+  call detail_leave(DP_CATALOG_METADATA)
 
   if (k /= n_data_local) then
      error stop &
@@ -5178,11 +6529,13 @@ contains
   !
   ! Every rank receives the complete packed candidate-block catalogue.
   !
+  call detail_enter(DP_CATALOG_GATHER)
   call MPI_Allgatherv( &
        send_data, n_data_local, MPI_INTEGER, &
        recv_data, recv_count, recv_disp, MPI_INTEGER, &
        comm, ierr)
 
+  call detail_leave(DP_CATALOG_GATHER)
   if (ierr /= MPI_SUCCESS) then
      error stop "build_parallel_block_catalog: MPI_Allgatherv failed"
   end if
@@ -5251,13 +6604,14 @@ contains
           "build_parallel_block_catalog: one or more root domains missing"
   end if
 
-  if (any(domain_count /= 1 .and. domain_count /= N_CHDRN)) then
+  if (block_subdivision_mode()/=2.and.any(domain_count /= 1 .and. domain_count /= N_CHDRN)) then
      error stop &
           "build_parallel_block_catalog: invalid number of blocks per root domain"
   end if
 
   !
   ! ---------------------------------------------------------------
+
   ! Compute the target load balancing of candidate parallel blocks.
   ! ---------------------------------------------------------------
   !
@@ -5298,6 +6652,15 @@ contains
   ! Use the same next-fit strategy as distribute_grid(), but apply it
   ! only to the prospective candidate blocks.
   !
+  if(balance_mode_295()>0) then
+     if(screen_profile) screen_t=MPI_Wtime()
+     call detail_enter(DP_CATALOG_SELECT)
+     call select_owners_295(recv_data,N_BLOCK_DATA,n_process,block_owner_new)
+     call detail_leave(DP_CATALOG_SELECT)
+     if(screen_profile) screen_select=MPI_Wtime()-screen_t
+  else if(fixed_parent_293()) then
+     call hold_parent_owners_293(recv_data,N_BLOCK_DATA,block_owner_new)
+  else
   n_assigned     = 0
   imbalance_goal = init_goal
 
@@ -5352,11 +6715,16 @@ contains
      end if
 
   end do
+  end if
 
   if (any(block_owner_new < 0)) then
      error stop &
           "build_parallel_block_catalog: one or more candidate blocks unassigned"
   end if
+
+  ! Stage322 changes only the prospective owners after the unmodified planner.
+  ! All downstream grouping, migration, and route construction see this map.
+  call apply_owner_bridge322(recv_data,N_BLOCK_DATA,block_owner_new)
 
   !
   ! Independently reconstruct proposed rank loads from the owner map.
@@ -5449,6 +6817,26 @@ contains
 
   end if
 
+  call detail_enter(DP_CATALOG_GROUPS)
+  if(groups_294()) call install_groups_294(recv_data,N_BLOCK_DATA)
+  call detail_leave(DP_CATALOG_GROUPS)
+  call record_owner_bridge322()
+  if(block_subdivision_mode()==2) then
+     allocate(block_cuts(N_GLO_DOMAIN))
+     do d=1,size(grid)
+        r=glo_id(rank+1,d)+1
+        allocate(block_cuts(r)%root(0:grid(d)%patch%length-1))
+        block_cuts(r)%root=.false.
+     end do
+     do i=1,size(block_catalog)
+        r=block_catalog(i)%root_domain+1
+        if(.not.allocated(block_cuts(r)%root)) cycle
+        p=block_catalog(i)%root_patch
+        if(block_cuts(r)%root(p)) error stop 'duplicate cut root'
+        block_cuts(r)%root(p)=.true.
+     end do
+  end if
+
   !
   ! Cleanup temporary arrays.
   !
@@ -5464,10 +6852,1018 @@ contains
   deallocate(load_current)
   deallocate(load_proposed)
 
+    if(audit316_enabled()) call audit_catalog316
     call detail_leave(DP_CATALOG)
 
+  if(screen_profile) then
+     screen_frame=screen_frame+1
+     if(screen_unit==0) then
+        write(screen_file,'(a,i0,a)') 'construction296-rank-',rank,'.txt'
+        open(newunit=screen_unit,file=trim(screen_file),status='new')
+     end if
+     write(screen_unit,*) screen_frame,n_block_local,n_block_total,N_BLOCK_DATA, &
+          screen_construct,screen_metadata,screen_select,MPI_Wtime()-screen_start
+     flush(screen_unit)
+  end if
 end subroutine build_parallel_block_catalog
 
+
+  ! Stage316 compares physical execution only. Speculative candidate catalogues
+  ! and rejected proposal arrays intentionally do not enter this stream.
+  subroutine audit_catalog316
+    integer(int64),save :: epoch=0
+    integer :: i,d
+    integer,allocatable :: rows(:,:)
+    epoch=epoch+1
+    call audit316_begin('catalog.executed',epoch)
+    allocate(rows(6,size(block_catalog)))
+    do i=1,size(block_catalog)
+       associate(b=>block_catalog(i))
+       rows(:,i)=[b%id,b%root_domain,b%root_patch,b%level,b%owner,b%weight]
+       end associate
+    end do
+    call audit316_i('physical.shape',shape(rows))
+    call audit316_i('physical',reshape(rows,[size(rows)]))
+    call audit316_i('domain.owner',owner)
+    call audit316_i('domain.loc_id',loc_id)
+    call audit316_i('domain.local_glo_id',glo_id(rank+1,:size(grid)))
+    do d=1,size(grid)
+       call audit316_i('catalog.domain_extent322',[d,glo_id(rank+1,d),grid(d)%node%length, &
+            grid(d)%patch%length,grid(d)%bdry_patch%length])
+    end do
+    if(allocated(block_cuts)) then
+       do d=1,size(grid)
+          i=glo_id(rank+1,d)+1
+          call audit316_i('cut.domain',[i])
+          call audit316_l('cut.root',block_cuts(i)%root)
+       end do
+    end if
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_migration316(plan)
+    type(Block_Migration_Manifest),intent(in) :: plan
+    call audit316_begin('migration.routes',block_writeback_plan_generation)
+    call audit316_i('extent',[plan%n_send,plan%n_recv,plan%max_send_nbyte,plan%max_recv_nbyte])
+    call audit316_i64('bytes',[plan%total_send_nbyte,plan%total_recv_nbyte])
+    if(allocated(plan%send_count)) then
+       call audit316_i('plan%send_count.shape',shape(plan%send_count))
+       call audit316_i('plan%send_count',plan%send_count)
+    else
+       call audit316_i('plan%send_count.shape',[-1])
+    end if
+    if(allocated(plan%recv_count)) then
+       call audit316_i('plan%recv_count.shape',shape(plan%recv_count))
+       call audit316_i('plan%recv_count',plan%recv_count)
+    else
+       call audit316_i('plan%recv_count.shape',[-1])
+    end if
+    if(allocated(plan%send_displ)) then
+       call audit316_i('plan%send_displ.shape',shape(plan%send_displ))
+       call audit316_i('plan%send_displ',plan%send_displ)
+    else
+       call audit316_i('plan%send_displ.shape',[-1])
+    end if
+    if(allocated(plan%recv_displ)) then
+       call audit316_i('plan%recv_displ.shape',shape(plan%recv_displ))
+       call audit316_i('plan%recv_displ',plan%recv_displ)
+    else
+       call audit316_i('plan%recv_displ.shape',[-1])
+    end if
+    if(allocated(plan%send_block)) then
+       call audit316_i('plan%send_block.shape',shape(plan%send_block))
+       call audit316_i('plan%send_block',plan%send_block)
+    else
+       call audit316_i('plan%send_block.shape',[-1])
+    end if
+    if(allocated(plan%recv_block)) then
+       call audit316_i('plan%recv_block.shape',shape(plan%recv_block))
+       call audit316_i('plan%recv_block',plan%recv_block)
+    else
+       call audit316_i('plan%recv_block.shape',[-1])
+    end if
+    if(allocated(plan%send_nbyte)) then
+       call audit316_i('plan%send_nbyte.shape',shape(plan%send_nbyte))
+       call audit316_i('plan%send_nbyte',plan%send_nbyte)
+    else
+       call audit316_i('plan%send_nbyte.shape',[-1])
+    end if
+    if(allocated(plan%recv_nbyte)) then
+       call audit316_i('plan%recv_nbyte.shape',shape(plan%recv_nbyte))
+       call audit316_i('plan%recv_nbyte',plan%recv_nbyte)
+    else
+       call audit316_i('plan%recv_nbyte.shape',[-1])
+    end if
+    if(allocated(plan%send_byte_count)) then
+       call audit316_i('plan%send_byte_count.shape',shape(plan%send_byte_count))
+       call audit316_i('plan%send_byte_count',plan%send_byte_count)
+    else
+       call audit316_i('plan%send_byte_count.shape',[-1])
+    end if
+    if(allocated(plan%recv_byte_count)) then
+       call audit316_i('plan%recv_byte_count.shape',shape(plan%recv_byte_count))
+       call audit316_i('plan%recv_byte_count',plan%recv_byte_count)
+    else
+       call audit316_i('plan%recv_byte_count.shape',[-1])
+    end if
+    if(allocated(plan%send_byte_displ)) then
+       call audit316_i('plan%send_byte_displ.shape',shape(plan%send_byte_displ))
+       call audit316_i('plan%send_byte_displ',plan%send_byte_displ)
+    else
+       call audit316_i('plan%send_byte_displ.shape',[-1])
+    end if
+    if(allocated(plan%recv_byte_displ)) then
+       call audit316_i('plan%recv_byte_displ.shape',shape(plan%recv_byte_displ))
+       call audit316_i('plan%recv_byte_displ',plan%recv_byte_displ)
+    else
+       call audit316_i('plan%recv_byte_displ.shape',[-1])
+    end if
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_installed316
+    integer :: context
+    call audit316_begin('storage.installed',block_writeback_plan_generation)
+    context=0
+    call apply_local_block_field_consumer(audit_block316,context)
+    call audit_ghost316
+    call audit_writeback316
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_block316(catalog,block,context)
+    integer,intent(in) :: catalog
+    type(Block_Data),intent(in) :: block
+    class(*),intent(inout) :: context
+    integer :: i,j
+    integer,allocatable :: rows(:,:)
+    real(dp),allocatable :: coordinates(:,:)
+    call audit316_begin('block',int(catalog,int64))
+    call audit316_i('identity',[block%id,block%root_domain,block%root_patch,block%level, &
+         block%scalar_variable,block%n_scalar_variable,block%vector_variable,block%field_level, &
+         block%n_field_level,block%scalar_mult,block%vector_mult,block%tke_level,block%n_tke_level])
+    allocate(rows(5+N_CHDRN+N_BDRY,size(block%patch)));rows=0
+    do i=1,size(block%patch)
+       associate(p=>block%patch(i))
+       rows(1,i)=merge(1,0,p%deleted)
+       if(.not.p%deleted) rows(2:,i)=[p%elts_start,p%level,p%active,0,p%children,p%neigh]
+       end associate
+    end do
+    call audit316_i('patch.shape',shape(rows))
+    call audit316_i('patch',reshape(rows,[size(rows)]))
+    deallocate(rows)
+    if(allocated(block%node)) then
+       allocate(coordinates(3,size(block%node)))
+       do i=1,size(block%node)
+          coordinates(:,i)=[block%node(i)%x,block%node(i)%y,block%node(i)%z]
+       end do
+       call audit316_i('node.shape',shape(coordinates))
+       call audit316_r('node',reshape(coordinates,[size(coordinates)]))
+       deallocate(coordinates)
+    else
+       call audit316_i('node.shape',[-1])
+    end if
+    if(allocated(block%bdry_node)) then
+       allocate(coordinates(3,size(block%bdry_node)))
+       do i=1,size(block%bdry_node)
+          coordinates(:,i)=[block%bdry_node(i)%x,block%bdry_node(i)%y,block%bdry_node(i)%z]
+       end do
+       call audit316_i('bdry_node.shape',shape(coordinates))
+       call audit316_r('bdry_node',reshape(coordinates,[size(coordinates)]))
+       deallocate(coordinates)
+    else
+       call audit316_i('bdry_node.shape',[-1])
+    end if
+    if(allocated(block%ghost_node)) then
+       allocate(coordinates(3,size(block%ghost_node)))
+       do i=1,size(block%ghost_node)
+          coordinates(:,i)=[block%ghost_node(i)%x,block%ghost_node(i)%y,block%ghost_node(i)%z]
+       end do
+       call audit316_i('ghost_node.shape',shape(coordinates))
+       call audit316_r('ghost_node',reshape(coordinates,[size(coordinates)]))
+       deallocate(coordinates)
+    else
+       call audit316_i('ghost_node.shape',[-1])
+    end if
+    if(allocated(block%neigh_class)) then
+       call audit316_i('block%neigh_class.shape',shape(block%neigh_class))
+       call audit316_i('block%neigh_class',reshape(block%neigh_class,[size(block%neigh_class)]))
+    else
+       call audit316_i('block%neigh_class.shape',[-1])
+    end if
+    if(allocated(block%block_bdry)) then
+       allocate(rows(17,size(block%block_bdry)))
+       do i=1,size(block%block_bdry)
+          associate(a=>block%block_bdry(i))
+          rows(:,i)=[a%patch,a%side,a%class,a%root_domain,a%neigh_patch,a%source_bdry,a%elts_start, &
+               a%bdry_side,a%bdry_neigh,a%dims,a%n_node,a%storage_id,a%source_block,a%source_block_id,a%source_owner,a%ghost_id]
+          end associate
+       end do
+       call audit316_i('block_bdry.shape',shape(rows))
+       call audit316_i('block_bdry',reshape(rows,[size(rows)]))
+       deallocate(rows)
+    else
+       call audit316_i('block_bdry.shape',[-1])
+    end if
+    if(allocated(block%bdry_storage)) then
+       allocate(rows(7,size(block%bdry_storage)))
+       do i=1,size(block%bdry_storage)
+          associate(a=>block%bdry_storage(i))
+          rows(:,i)=[a%source_bdry,a%level,a%elts_start,a%dims,a%n_node,a%local_start]
+          end associate
+       end do
+       call audit316_i('bdry_storage.shape',shape(rows))
+       call audit316_i('bdry_storage',reshape(rows,[size(rows)]))
+       deallocate(rows)
+    else
+       call audit316_i('bdry_storage.shape',[-1])
+    end if
+    if(allocated(block%ghost_storage)) then
+       allocate(rows(10,size(block%ghost_storage)))
+       do i=1,size(block%ghost_storage)
+          associate(a=>block%ghost_storage(i))
+          rows(:,i)=[a%source_patch,a%source_level,a%elts_start,a%local_start,a%n_node,a%source_domain,a%source_block, &
+               a%source_block_id,a%source_owner,a%source_local_patch]
+          end associate
+       end do
+       call audit316_i('ghost_storage.shape',shape(rows))
+       call audit316_i('ghost_storage',reshape(rows,[size(rows)]))
+       deallocate(rows)
+    else
+       call audit316_i('ghost_storage.shape',[-1])
+    end if
+
+    if(allocated(block%stencil)) then
+       allocate(rows(5,size(block%stencil)))
+       do j=1,size(block%stencil,2)
+          do i=1,size(block%stencil,1)
+             associate(a=>block%stencil(i,j))
+             rows(:,i+size(block%stencil,1)*(j-1))=[a%storage,a%id,a%offset,a%dims]
+             end associate
+          end do
+       end do
+       call audit316_i('stencil.shape',shape(block%stencil))
+       call audit316_i('stencil',reshape(rows,[size(rows)]))
+       deallocate(rows)
+    else
+       call audit316_i('stencil.shape',[-1])
+    end if
+    if(allocated(block%scalar)) then
+       call audit316_i('block%scalar.shape',shape(block%scalar))
+    else
+       call audit316_i('block%scalar.shape',[-1])
+    end if
+    if(allocated(block%vector)) then
+       call audit316_i('block%vector.shape',shape(block%vector))
+    else
+       call audit316_i('block%vector.shape',[-1])
+    end if
+    if(allocated(block%wavelet_scalar)) then
+       call audit316_i('block%wavelet_scalar.shape',shape(block%wavelet_scalar))
+    else
+       call audit316_i('block%wavelet_scalar.shape',[-1])
+    end if
+    if(allocated(block%wavelet_vector)) then
+       call audit316_i('block%wavelet_vector.shape',shape(block%wavelet_vector))
+    else
+       call audit316_i('block%wavelet_vector.shape',[-1])
+    end if
+    if(allocated(block%scalar_mean)) then
+       call audit316_i('block%scalar_mean.shape',shape(block%scalar_mean))
+    else
+       call audit316_i('block%scalar_mean.shape',[-1])
+    end if
+    if(allocated(block%vector_mean)) then
+       call audit316_i('block%vector_mean.shape',shape(block%vector_mean))
+    else
+       call audit316_i('block%vector_mean.shape',[-1])
+    end if
+    if(allocated(block%tke)) then
+       call audit316_i('block%tke.shape',shape(block%tke))
+    else
+       call audit316_i('block%tke.shape',[-1])
+    end if
+    if(allocated(block%wavelet_tke)) then
+       call audit316_i('block%wavelet_tke.shape',shape(block%wavelet_tke))
+    else
+       call audit316_i('block%wavelet_tke.shape',[-1])
+    end if
+    if(allocated(block%topography)) then
+       call audit316_i('block%topography.shape',shape(block%topography))
+    else
+       call audit316_i('block%topography.shape',[-1])
+    end if
+    if(allocated(block%bdry_scalar)) then
+       call audit316_i('block%bdry_scalar.shape',shape(block%bdry_scalar))
+    else
+       call audit316_i('block%bdry_scalar.shape',[-1])
+    end if
+    if(allocated(block%bdry_vector)) then
+       call audit316_i('block%bdry_vector.shape',shape(block%bdry_vector))
+    else
+       call audit316_i('block%bdry_vector.shape',[-1])
+    end if
+    if(allocated(block%bdry_wavelet_scalar)) then
+       call audit316_i('block%bdry_wavelet_scalar.shape',shape(block%bdry_wavelet_scalar))
+    else
+       call audit316_i('block%bdry_wavelet_scalar.shape',[-1])
+    end if
+    if(allocated(block%bdry_wavelet_vector)) then
+       call audit316_i('block%bdry_wavelet_vector.shape',shape(block%bdry_wavelet_vector))
+    else
+       call audit316_i('block%bdry_wavelet_vector.shape',[-1])
+    end if
+    if(allocated(block%bdry_scalar_mean)) then
+       call audit316_i('block%bdry_scalar_mean.shape',shape(block%bdry_scalar_mean))
+    else
+       call audit316_i('block%bdry_scalar_mean.shape',[-1])
+    end if
+    if(allocated(block%bdry_vector_mean)) then
+       call audit316_i('block%bdry_vector_mean.shape',shape(block%bdry_vector_mean))
+    else
+       call audit316_i('block%bdry_vector_mean.shape',[-1])
+    end if
+    if(allocated(block%bdry_tke)) then
+       call audit316_i('block%bdry_tke.shape',shape(block%bdry_tke))
+    else
+       call audit316_i('block%bdry_tke.shape',[-1])
+    end if
+    if(allocated(block%bdry_wavelet_tke)) then
+       call audit316_i('block%bdry_wavelet_tke.shape',shape(block%bdry_wavelet_tke))
+    else
+       call audit316_i('block%bdry_wavelet_tke.shape',[-1])
+    end if
+    if(allocated(block%bdry_topography)) then
+       call audit316_i('block%bdry_topography.shape',shape(block%bdry_topography))
+    else
+       call audit316_i('block%bdry_topography.shape',[-1])
+    end if
+    if(allocated(block%ghost_scalar)) then
+       call audit316_i('block%ghost_scalar.shape',shape(block%ghost_scalar))
+    else
+       call audit316_i('block%ghost_scalar.shape',[-1])
+    end if
+    if(allocated(block%ghost_vector)) then
+       call audit316_i('block%ghost_vector.shape',shape(block%ghost_vector))
+    else
+       call audit316_i('block%ghost_vector.shape',[-1])
+    end if
+    if(allocated(block%ghost_wavelet_scalar)) then
+       call audit316_i('block%ghost_wavelet_scalar.shape',shape(block%ghost_wavelet_scalar))
+    else
+       call audit316_i('block%ghost_wavelet_scalar.shape',[-1])
+    end if
+    if(allocated(block%ghost_wavelet_vector)) then
+       call audit316_i('block%ghost_wavelet_vector.shape',shape(block%ghost_wavelet_vector))
+    else
+       call audit316_i('block%ghost_wavelet_vector.shape',[-1])
+    end if
+    if(allocated(block%ghost_scalar_mean)) then
+       call audit316_i('block%ghost_scalar_mean.shape',shape(block%ghost_scalar_mean))
+    else
+       call audit316_i('block%ghost_scalar_mean.shape',[-1])
+    end if
+    if(allocated(block%ghost_vector_mean)) then
+       call audit316_i('block%ghost_vector_mean.shape',shape(block%ghost_vector_mean))
+    else
+       call audit316_i('block%ghost_vector_mean.shape',[-1])
+    end if
+    if(allocated(block%ghost_tke)) then
+       call audit316_i('block%ghost_tke.shape',shape(block%ghost_tke))
+    else
+       call audit316_i('block%ghost_tke.shape',[-1])
+    end if
+    if(allocated(block%ghost_wavelet_tke)) then
+       call audit316_i('block%ghost_wavelet_tke.shape',shape(block%ghost_wavelet_tke))
+    else
+       call audit316_i('block%ghost_wavelet_tke.shape',[-1])
+    end if
+    if(allocated(block%ghost_topography)) then
+       call audit316_i('block%ghost_topography.shape',shape(block%ghost_topography))
+    else
+       call audit316_i('block%ghost_topography.shape',[-1])
+    end if
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_ghost316
+    call audit316_begin('ghost.plan',block_writeback_plan_generation)
+    if(allocated(ghost_exchange_plan%local_order297)) then
+       call audit316_i('ghost_exchange_plan%local_order297.shape',shape(ghost_exchange_plan%local_order297))
+       call audit316_i('ghost_exchange_plan%local_order297',ghost_exchange_plan%local_order297)
+    else
+       call audit316_i('ghost_exchange_plan%local_order297.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%local_start297)) then
+       call audit316_i('ghost_exchange_plan%local_start297.shape',shape(ghost_exchange_plan%local_start297))
+       call audit316_i('ghost_exchange_plan%local_start297',ghost_exchange_plan%local_start297)
+    else
+       call audit316_i('ghost_exchange_plan%local_start297.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%source_block)) then
+       call audit316_i('ghost_exchange_plan%source_block.shape',shape(ghost_exchange_plan%source_block))
+       call audit316_i('ghost_exchange_plan%source_block',ghost_exchange_plan%source_block)
+    else
+       call audit316_i('ghost_exchange_plan%source_block.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%source_local_patch)) then
+       call audit316_i('ghost_exchange_plan%source_local_patch.shape',shape(ghost_exchange_plan%source_local_patch))
+       call audit316_i('ghost_exchange_plan%source_local_patch',ghost_exchange_plan%source_local_patch)
+    else
+       call audit316_i('ghost_exchange_plan%source_local_patch.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%source_patch_level)) then
+       call audit316_i('ghost_exchange_plan%source_patch_level.shape',shape(ghost_exchange_plan%source_patch_level))
+       call audit316_i('ghost_exchange_plan%source_patch_level',ghost_exchange_plan%source_patch_level)
+    else
+       call audit316_i('ghost_exchange_plan%source_patch_level.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%source_owner)) then
+       call audit316_i('ghost_exchange_plan%source_owner.shape',shape(ghost_exchange_plan%source_owner))
+       call audit316_i('ghost_exchange_plan%source_owner',ghost_exchange_plan%source_owner)
+    else
+       call audit316_i('ghost_exchange_plan%source_owner.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%destination_block)) then
+       call audit316_i('ghost_exchange_plan%destination_block.shape',shape(ghost_exchange_plan%destination_block))
+       call audit316_i('ghost_exchange_plan%destination_block',ghost_exchange_plan%destination_block)
+    else
+       call audit316_i('ghost_exchange_plan%destination_block.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%destination_ghost)) then
+       call audit316_i('ghost_exchange_plan%destination_ghost.shape',shape(ghost_exchange_plan%destination_ghost))
+       call audit316_i('ghost_exchange_plan%destination_ghost',ghost_exchange_plan%destination_ghost)
+    else
+       call audit316_i('ghost_exchange_plan%destination_ghost.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%send_record_count)) then
+       call audit316_i('ghost_exchange_plan%send_record_count.shape',shape(ghost_exchange_plan%send_record_count))
+       call audit316_i('ghost_exchange_plan%send_record_count',ghost_exchange_plan%send_record_count)
+    else
+       call audit316_i('ghost_exchange_plan%send_record_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%recv_record_count)) then
+       call audit316_i('ghost_exchange_plan%recv_record_count.shape',shape(ghost_exchange_plan%recv_record_count))
+       call audit316_i('ghost_exchange_plan%recv_record_count',ghost_exchange_plan%recv_record_count)
+    else
+       call audit316_i('ghost_exchange_plan%recv_record_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%send_record_displ)) then
+       call audit316_i('ghost_exchange_plan%send_record_displ.shape',shape(ghost_exchange_plan%send_record_displ))
+       call audit316_i('ghost_exchange_plan%send_record_displ',ghost_exchange_plan%send_record_displ)
+    else
+       call audit316_i('ghost_exchange_plan%send_record_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%recv_record_displ)) then
+       call audit316_i('ghost_exchange_plan%recv_record_displ.shape',shape(ghost_exchange_plan%recv_record_displ))
+       call audit316_i('ghost_exchange_plan%recv_record_displ',ghost_exchange_plan%recv_record_displ)
+    else
+       call audit316_i('ghost_exchange_plan%recv_record_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%send_data)) then
+       call audit316_i('ghost_exchange_plan%send_data.shape',shape(ghost_exchange_plan%send_data))
+       call audit316_i('ghost_exchange_plan%send_data',ghost_exchange_plan%send_data)
+    else
+       call audit316_i('ghost_exchange_plan%send_data.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%recv_data)) then
+       call audit316_i('ghost_exchange_plan%recv_data.shape',shape(ghost_exchange_plan%recv_data))
+       call audit316_i('ghost_exchange_plan%recv_data',ghost_exchange_plan%recv_data)
+    else
+       call audit316_i('ghost_exchange_plan%recv_data.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%request_index)) then
+       call audit316_i('ghost_exchange_plan%request_index.shape',shape(ghost_exchange_plan%request_index))
+       call audit316_i('ghost_exchange_plan%request_index',ghost_exchange_plan%request_index)
+    else
+       call audit316_i('ghost_exchange_plan%request_index.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%local_level_count)) then
+       call audit316_i('ghost_exchange_plan%local_level_count.shape',shape(ghost_exchange_plan%local_level_count))
+       call audit316_i('ghost_exchange_plan%local_level_count',ghost_exchange_plan%local_level_count)
+    else
+       call audit316_i('ghost_exchange_plan%local_level_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%local_level_displ)) then
+       call audit316_i('ghost_exchange_plan%local_level_displ.shape',shape(ghost_exchange_plan%local_level_displ))
+       call audit316_i('ghost_exchange_plan%local_level_displ',ghost_exchange_plan%local_level_displ)
+    else
+       call audit316_i('ghost_exchange_plan%local_level_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%local_level_request)) then
+       call audit316_i('ghost_exchange_plan%local_level_request.shape',shape(ghost_exchange_plan%local_level_request))
+       call audit316_i('ghost_exchange_plan%local_level_request',ghost_exchange_plan%local_level_request)
+    else
+       call audit316_i('ghost_exchange_plan%local_level_request.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%send_level_count)) then
+       call audit316_i('ghost_exchange_plan%send_level_count.shape',shape(ghost_exchange_plan%send_level_count))
+       call audit316_i('ghost_exchange_plan%send_level_count', &
+            reshape(ghost_exchange_plan%send_level_count,[size(ghost_exchange_plan%send_level_count)]))
+    else
+       call audit316_i('ghost_exchange_plan%send_level_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%send_level_displ)) then
+       call audit316_i('ghost_exchange_plan%send_level_displ.shape',shape(ghost_exchange_plan%send_level_displ))
+       call audit316_i('ghost_exchange_plan%send_level_displ', &
+            reshape(ghost_exchange_plan%send_level_displ,[size(ghost_exchange_plan%send_level_displ)]))
+    else
+       call audit316_i('ghost_exchange_plan%send_level_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%send_level_base)) then
+       call audit316_i('ghost_exchange_plan%send_level_base.shape',shape(ghost_exchange_plan%send_level_base))
+       call audit316_i('ghost_exchange_plan%send_level_base',ghost_exchange_plan%send_level_base)
+    else
+       call audit316_i('ghost_exchange_plan%send_level_base.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%send_level_record)) then
+       call audit316_i('ghost_exchange_plan%send_level_record.shape',shape(ghost_exchange_plan%send_level_record))
+       call audit316_i('ghost_exchange_plan%send_level_record',ghost_exchange_plan%send_level_record)
+    else
+       call audit316_i('ghost_exchange_plan%send_level_record.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%recv_level_count)) then
+       call audit316_i('ghost_exchange_plan%recv_level_count.shape',shape(ghost_exchange_plan%recv_level_count))
+       call audit316_i('ghost_exchange_plan%recv_level_count', &
+            reshape(ghost_exchange_plan%recv_level_count,[size(ghost_exchange_plan%recv_level_count)]))
+    else
+       call audit316_i('ghost_exchange_plan%recv_level_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%recv_level_displ)) then
+       call audit316_i('ghost_exchange_plan%recv_level_displ.shape',shape(ghost_exchange_plan%recv_level_displ))
+       call audit316_i('ghost_exchange_plan%recv_level_displ', &
+            reshape(ghost_exchange_plan%recv_level_displ,[size(ghost_exchange_plan%recv_level_displ)]))
+    else
+       call audit316_i('ghost_exchange_plan%recv_level_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%recv_level_base)) then
+       call audit316_i('ghost_exchange_plan%recv_level_base.shape',shape(ghost_exchange_plan%recv_level_base))
+       call audit316_i('ghost_exchange_plan%recv_level_base',ghost_exchange_plan%recv_level_base)
+    else
+       call audit316_i('ghost_exchange_plan%recv_level_base.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%recv_level_record)) then
+       call audit316_i('ghost_exchange_plan%recv_level_record.shape',shape(ghost_exchange_plan%recv_level_record))
+       call audit316_i('ghost_exchange_plan%recv_level_record',ghost_exchange_plan%recv_level_record)
+    else
+       call audit316_i('ghost_exchange_plan%recv_level_record.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%scalar_send_count)) then
+       call audit316_i('ghost_exchange_plan%scalar_send_count.shape',shape(ghost_exchange_plan%scalar_send_count))
+       call audit316_i('ghost_exchange_plan%scalar_send_count',ghost_exchange_plan%scalar_send_count)
+    else
+       call audit316_i('ghost_exchange_plan%scalar_send_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%scalar_recv_count)) then
+       call audit316_i('ghost_exchange_plan%scalar_recv_count.shape',shape(ghost_exchange_plan%scalar_recv_count))
+       call audit316_i('ghost_exchange_plan%scalar_recv_count',ghost_exchange_plan%scalar_recv_count)
+    else
+       call audit316_i('ghost_exchange_plan%scalar_recv_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%scalar_send_displ)) then
+       call audit316_i('ghost_exchange_plan%scalar_send_displ.shape',shape(ghost_exchange_plan%scalar_send_displ))
+       call audit316_i('ghost_exchange_plan%scalar_send_displ',ghost_exchange_plan%scalar_send_displ)
+    else
+       call audit316_i('ghost_exchange_plan%scalar_send_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%scalar_recv_displ)) then
+       call audit316_i('ghost_exchange_plan%scalar_recv_displ.shape',shape(ghost_exchange_plan%scalar_recv_displ))
+       call audit316_i('ghost_exchange_plan%scalar_recv_displ',ghost_exchange_plan%scalar_recv_displ)
+    else
+       call audit316_i('ghost_exchange_plan%scalar_recv_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%vector_send_count)) then
+       call audit316_i('ghost_exchange_plan%vector_send_count.shape',shape(ghost_exchange_plan%vector_send_count))
+       call audit316_i('ghost_exchange_plan%vector_send_count',ghost_exchange_plan%vector_send_count)
+    else
+       call audit316_i('ghost_exchange_plan%vector_send_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%vector_recv_count)) then
+       call audit316_i('ghost_exchange_plan%vector_recv_count.shape',shape(ghost_exchange_plan%vector_recv_count))
+       call audit316_i('ghost_exchange_plan%vector_recv_count',ghost_exchange_plan%vector_recv_count)
+    else
+       call audit316_i('ghost_exchange_plan%vector_recv_count.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%vector_send_displ)) then
+       call audit316_i('ghost_exchange_plan%vector_send_displ.shape',shape(ghost_exchange_plan%vector_send_displ))
+       call audit316_i('ghost_exchange_plan%vector_send_displ',ghost_exchange_plan%vector_send_displ)
+    else
+       call audit316_i('ghost_exchange_plan%vector_send_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%vector_recv_displ)) then
+       call audit316_i('ghost_exchange_plan%vector_recv_displ.shape',shape(ghost_exchange_plan%vector_recv_displ))
+       call audit316_i('ghost_exchange_plan%vector_recv_displ',ghost_exchange_plan%vector_recv_displ)
+    else
+       call audit316_i('ghost_exchange_plan%vector_recv_displ.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%scalar_send_buffer)) then
+       call audit316_i('ghost_exchange_plan%scalar_send_buffer.shape',shape(ghost_exchange_plan%scalar_send_buffer))
+    else
+       call audit316_i('ghost_exchange_plan%scalar_send_buffer.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%scalar_recv_buffer)) then
+       call audit316_i('ghost_exchange_plan%scalar_recv_buffer.shape',shape(ghost_exchange_plan%scalar_recv_buffer))
+    else
+       call audit316_i('ghost_exchange_plan%scalar_recv_buffer.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%scalar_patch_buffer)) then
+       call audit316_i('ghost_exchange_plan%scalar_patch_buffer.shape',shape(ghost_exchange_plan%scalar_patch_buffer))
+    else
+       call audit316_i('ghost_exchange_plan%scalar_patch_buffer.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%vector_send_buffer)) then
+       call audit316_i('ghost_exchange_plan%vector_send_buffer.shape',shape(ghost_exchange_plan%vector_send_buffer))
+    else
+       call audit316_i('ghost_exchange_plan%vector_send_buffer.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%vector_recv_buffer)) then
+       call audit316_i('ghost_exchange_plan%vector_recv_buffer.shape',shape(ghost_exchange_plan%vector_recv_buffer))
+    else
+       call audit316_i('ghost_exchange_plan%vector_recv_buffer.shape',[-1])
+    end if
+    if(allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       call audit316_i('ghost_exchange_plan%vector_patch_buffer.shape',shape(ghost_exchange_plan%vector_patch_buffer))
+    else
+       call audit316_i('ghost_exchange_plan%vector_patch_buffer.shape',[-1])
+    end if
+    call audit316_i('n_request',[ghost_exchange_plan%n_request])
+    call audit316_i('n_local_request',[ghost_exchange_plan%n_local_request])
+    call audit316_i('n_remote_send',[ghost_exchange_plan%n_remote_send])
+    call audit316_i('n_remote_recv',[ghost_exchange_plan%n_remote_recv])
+    call audit316_i('route_level_start',[ghost_exchange_plan%route_level_start])
+    call audit316_i('route_level_count',[ghost_exchange_plan%route_level_count])
+    call audit316_i('scalar_n_value',[ghost_exchange_plan%scalar_n_value])
+    call audit316_i('vector_n_value',[ghost_exchange_plan%vector_n_value])
+    call audit316_end()
+  end subroutine
+
+  subroutine audit_writeback316
+    call audit316_begin('writeback.plan',block_writeback_plan_generation)
+    if(allocated(block_writeback_plan%send_count)) then
+       call audit316_i('block_writeback_plan%send_count.shape',shape(block_writeback_plan%send_count))
+       call audit316_i('block_writeback_plan%send_count',block_writeback_plan%send_count)
+    else
+       call audit316_i('block_writeback_plan%send_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_count)) then
+       call audit316_i('block_writeback_plan%recv_count.shape',shape(block_writeback_plan%recv_count))
+       call audit316_i('block_writeback_plan%recv_count',block_writeback_plan%recv_count)
+    else
+       call audit316_i('block_writeback_plan%recv_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_displ)) then
+       call audit316_i('block_writeback_plan%send_displ.shape',shape(block_writeback_plan%send_displ))
+       call audit316_i('block_writeback_plan%send_displ',block_writeback_plan%send_displ)
+    else
+       call audit316_i('block_writeback_plan%send_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_displ)) then
+       call audit316_i('block_writeback_plan%recv_displ.shape',shape(block_writeback_plan%recv_displ))
+       call audit316_i('block_writeback_plan%recv_displ',block_writeback_plan%recv_displ)
+    else
+       call audit316_i('block_writeback_plan%recv_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_block)) then
+       call audit316_i('block_writeback_plan%send_block.shape',shape(block_writeback_plan%send_block))
+       call audit316_i('block_writeback_plan%send_block',block_writeback_plan%send_block)
+    else
+       call audit316_i('block_writeback_plan%send_block.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_block)) then
+       call audit316_i('block_writeback_plan%recv_block.shape',shape(block_writeback_plan%recv_block))
+       call audit316_i('block_writeback_plan%recv_block',block_writeback_plan%recv_block)
+    else
+       call audit316_i('block_writeback_plan%recv_block.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_patch_count)) then
+       call audit316_i('block_writeback_plan%send_patch_count.shape',shape(block_writeback_plan%send_patch_count))
+       call audit316_i('block_writeback_plan%send_patch_count',block_writeback_plan%send_patch_count)
+    else
+       call audit316_i('block_writeback_plan%send_patch_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_patch_count)) then
+       call audit316_i('block_writeback_plan%recv_patch_count.shape',shape(block_writeback_plan%recv_patch_count))
+       call audit316_i('block_writeback_plan%recv_patch_count',block_writeback_plan%recv_patch_count)
+    else
+       call audit316_i('block_writeback_plan%recv_patch_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_scalar_nvalue)) then
+       call audit316_i('block_writeback_plan%send_scalar_nvalue.shape',shape(block_writeback_plan%send_scalar_nvalue))
+       call audit316_i('block_writeback_plan%send_scalar_nvalue',block_writeback_plan%send_scalar_nvalue)
+    else
+       call audit316_i('block_writeback_plan%send_scalar_nvalue.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_scalar_nvalue)) then
+       call audit316_i('block_writeback_plan%recv_scalar_nvalue.shape',shape(block_writeback_plan%recv_scalar_nvalue))
+       call audit316_i('block_writeback_plan%recv_scalar_nvalue',block_writeback_plan%recv_scalar_nvalue)
+    else
+       call audit316_i('block_writeback_plan%recv_scalar_nvalue.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_vector_nvalue)) then
+       call audit316_i('block_writeback_plan%send_vector_nvalue.shape',shape(block_writeback_plan%send_vector_nvalue))
+       call audit316_i('block_writeback_plan%send_vector_nvalue',block_writeback_plan%send_vector_nvalue)
+    else
+       call audit316_i('block_writeback_plan%send_vector_nvalue.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_vector_nvalue)) then
+       call audit316_i('block_writeback_plan%recv_vector_nvalue.shape',shape(block_writeback_plan%recv_vector_nvalue))
+       call audit316_i('block_writeback_plan%recv_vector_nvalue',block_writeback_plan%recv_vector_nvalue)
+    else
+       call audit316_i('block_writeback_plan%recv_vector_nvalue.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_boundary_count)) then
+       call audit316_i('block_writeback_plan%send_boundary_count.shape',shape(block_writeback_plan%send_boundary_count))
+       call audit316_i('block_writeback_plan%send_boundary_count',block_writeback_plan%send_boundary_count)
+    else
+       call audit316_i('block_writeback_plan%send_boundary_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_boundary_count)) then
+       call audit316_i('block_writeback_plan%recv_boundary_count.shape',shape(block_writeback_plan%recv_boundary_count))
+       call audit316_i('block_writeback_plan%recv_boundary_count',block_writeback_plan%recv_boundary_count)
+    else
+       call audit316_i('block_writeback_plan%recv_boundary_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_boundary_displ)) then
+       call audit316_i('block_writeback_plan%send_boundary_displ.shape',shape(block_writeback_plan%send_boundary_displ))
+       call audit316_i('block_writeback_plan%send_boundary_displ',block_writeback_plan%send_boundary_displ)
+    else
+       call audit316_i('block_writeback_plan%send_boundary_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_boundary_displ)) then
+       call audit316_i('block_writeback_plan%recv_boundary_displ.shape',shape(block_writeback_plan%recv_boundary_displ))
+       call audit316_i('block_writeback_plan%recv_boundary_displ',block_writeback_plan%recv_boundary_displ)
+    else
+       call audit316_i('block_writeback_plan%recv_boundary_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_boundary_source)) then
+       call audit316_i('block_writeback_plan%send_boundary_source.shape',shape(block_writeback_plan%send_boundary_source))
+       call audit316_i('block_writeback_plan%send_boundary_source',block_writeback_plan%send_boundary_source)
+    else
+       call audit316_i('block_writeback_plan%send_boundary_source.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_boundary_source)) then
+       call audit316_i('block_writeback_plan%recv_boundary_source.shape',shape(block_writeback_plan%recv_boundary_source))
+       call audit316_i('block_writeback_plan%recv_boundary_source',block_writeback_plan%recv_boundary_source)
+    else
+       call audit316_i('block_writeback_plan%recv_boundary_source.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_boundary_level)) then
+       call audit316_i('block_writeback_plan%send_boundary_level.shape',shape(block_writeback_plan%send_boundary_level))
+       call audit316_i('block_writeback_plan%send_boundary_level',block_writeback_plan%send_boundary_level)
+    else
+       call audit316_i('block_writeback_plan%send_boundary_level.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_boundary_level)) then
+       call audit316_i('block_writeback_plan%recv_boundary_level.shape',shape(block_writeback_plan%recv_boundary_level))
+       call audit316_i('block_writeback_plan%recv_boundary_level',block_writeback_plan%recv_boundary_level)
+    else
+       call audit316_i('block_writeback_plan%recv_boundary_level.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_boundary_nnode)) then
+       call audit316_i('block_writeback_plan%send_boundary_nnode.shape',shape(block_writeback_plan%send_boundary_nnode))
+       call audit316_i('block_writeback_plan%send_boundary_nnode',block_writeback_plan%send_boundary_nnode)
+    else
+       call audit316_i('block_writeback_plan%send_boundary_nnode.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_boundary_nnode)) then
+       call audit316_i('block_writeback_plan%recv_boundary_nnode.shape',shape(block_writeback_plan%recv_boundary_nnode))
+       call audit316_i('block_writeback_plan%recv_boundary_nnode',block_writeback_plan%recv_boundary_nnode)
+    else
+       call audit316_i('block_writeback_plan%recv_boundary_nnode.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_boundary_scalar_nvalue)) then
+       call audit316_i('block_writeback_plan%send_boundary_scalar_nvalue.shape', &
+            shape(block_writeback_plan%send_boundary_scalar_nvalue))
+       call audit316_i('block_writeback_plan%send_boundary_scalar_nvalue',block_writeback_plan%send_boundary_scalar_nvalue)
+    else
+       call audit316_i('block_writeback_plan%send_boundary_scalar_nvalue.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_boundary_scalar_nvalue)) then
+       call audit316_i('block_writeback_plan%recv_boundary_scalar_nvalue.shape', &
+            shape(block_writeback_plan%recv_boundary_scalar_nvalue))
+       call audit316_i('block_writeback_plan%recv_boundary_scalar_nvalue',block_writeback_plan%recv_boundary_scalar_nvalue)
+    else
+       call audit316_i('block_writeback_plan%recv_boundary_scalar_nvalue.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%send_boundary_vector_nvalue)) then
+       call audit316_i('block_writeback_plan%send_boundary_vector_nvalue.shape', &
+            shape(block_writeback_plan%send_boundary_vector_nvalue))
+       call audit316_i('block_writeback_plan%send_boundary_vector_nvalue',block_writeback_plan%send_boundary_vector_nvalue)
+    else
+       call audit316_i('block_writeback_plan%send_boundary_vector_nvalue.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%recv_boundary_vector_nvalue)) then
+       call audit316_i('block_writeback_plan%recv_boundary_vector_nvalue.shape', &
+            shape(block_writeback_plan%recv_boundary_vector_nvalue))
+       call audit316_i('block_writeback_plan%recv_boundary_vector_nvalue',block_writeback_plan%recv_boundary_vector_nvalue)
+    else
+       call audit316_i('block_writeback_plan%recv_boundary_vector_nvalue.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%scalar_send_count)) then
+       call audit316_i('block_writeback_plan%scalar_send_count.shape',shape(block_writeback_plan%scalar_send_count))
+       call audit316_i('block_writeback_plan%scalar_send_count',block_writeback_plan%scalar_send_count)
+    else
+       call audit316_i('block_writeback_plan%scalar_send_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%scalar_recv_count)) then
+       call audit316_i('block_writeback_plan%scalar_recv_count.shape',shape(block_writeback_plan%scalar_recv_count))
+       call audit316_i('block_writeback_plan%scalar_recv_count',block_writeback_plan%scalar_recv_count)
+    else
+       call audit316_i('block_writeback_plan%scalar_recv_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%scalar_send_displ)) then
+       call audit316_i('block_writeback_plan%scalar_send_displ.shape',shape(block_writeback_plan%scalar_send_displ))
+       call audit316_i('block_writeback_plan%scalar_send_displ',block_writeback_plan%scalar_send_displ)
+    else
+       call audit316_i('block_writeback_plan%scalar_send_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%scalar_recv_displ)) then
+       call audit316_i('block_writeback_plan%scalar_recv_displ.shape',shape(block_writeback_plan%scalar_recv_displ))
+       call audit316_i('block_writeback_plan%scalar_recv_displ',block_writeback_plan%scalar_recv_displ)
+    else
+       call audit316_i('block_writeback_plan%scalar_recv_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%vector_send_count)) then
+       call audit316_i('block_writeback_plan%vector_send_count.shape',shape(block_writeback_plan%vector_send_count))
+       call audit316_i('block_writeback_plan%vector_send_count',block_writeback_plan%vector_send_count)
+    else
+       call audit316_i('block_writeback_plan%vector_send_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%vector_recv_count)) then
+       call audit316_i('block_writeback_plan%vector_recv_count.shape',shape(block_writeback_plan%vector_recv_count))
+       call audit316_i('block_writeback_plan%vector_recv_count',block_writeback_plan%vector_recv_count)
+    else
+       call audit316_i('block_writeback_plan%vector_recv_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%vector_send_displ)) then
+       call audit316_i('block_writeback_plan%vector_send_displ.shape',shape(block_writeback_plan%vector_send_displ))
+       call audit316_i('block_writeback_plan%vector_send_displ',block_writeback_plan%vector_send_displ)
+    else
+       call audit316_i('block_writeback_plan%vector_send_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%vector_recv_displ)) then
+       call audit316_i('block_writeback_plan%vector_recv_displ.shape',shape(block_writeback_plan%vector_recv_displ))
+       call audit316_i('block_writeback_plan%vector_recv_displ',block_writeback_plan%vector_recv_displ)
+    else
+       call audit316_i('block_writeback_plan%vector_recv_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%scalar_send_buffer)) then
+       call audit316_i('block_writeback_plan%scalar_send_buffer.shape',shape(block_writeback_plan%scalar_send_buffer))
+    else
+       call audit316_i('block_writeback_plan%scalar_send_buffer.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%scalar_recv_buffer)) then
+       call audit316_i('block_writeback_plan%scalar_recv_buffer.shape',shape(block_writeback_plan%scalar_recv_buffer))
+    else
+       call audit316_i('block_writeback_plan%scalar_recv_buffer.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%vector_send_buffer)) then
+       call audit316_i('block_writeback_plan%vector_send_buffer.shape',shape(block_writeback_plan%vector_send_buffer))
+    else
+       call audit316_i('block_writeback_plan%vector_send_buffer.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%vector_recv_buffer)) then
+       call audit316_i('block_writeback_plan%vector_recv_buffer.shape',shape(block_writeback_plan%vector_recv_buffer))
+    else
+       call audit316_i('block_writeback_plan%vector_recv_buffer.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_scalar_domain_send_count)) then
+       call audit316_i('block_writeback_plan%boundary_scalar_domain_send_count.shape', &
+            shape(block_writeback_plan%boundary_scalar_domain_send_count))
+       call audit316_i('block_writeback_plan%boundary_scalar_domain_send_count', &
+            block_writeback_plan%boundary_scalar_domain_send_count)
+    else
+       call audit316_i('block_writeback_plan%boundary_scalar_domain_send_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_scalar_domain_send_displ)) then
+       call audit316_i('block_writeback_plan%boundary_scalar_domain_send_displ.shape', &
+            shape(block_writeback_plan%boundary_scalar_domain_send_displ))
+       call audit316_i('block_writeback_plan%boundary_scalar_domain_send_displ', &
+            block_writeback_plan%boundary_scalar_domain_send_displ)
+    else
+       call audit316_i('block_writeback_plan%boundary_scalar_domain_send_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_scalar_block_recv_count)) then
+       call audit316_i('block_writeback_plan%boundary_scalar_block_recv_count.shape', &
+            shape(block_writeback_plan%boundary_scalar_block_recv_count))
+       call audit316_i('block_writeback_plan%boundary_scalar_block_recv_count', &
+            block_writeback_plan%boundary_scalar_block_recv_count)
+    else
+       call audit316_i('block_writeback_plan%boundary_scalar_block_recv_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_scalar_block_recv_displ)) then
+       call audit316_i('block_writeback_plan%boundary_scalar_block_recv_displ.shape', &
+            shape(block_writeback_plan%boundary_scalar_block_recv_displ))
+       call audit316_i('block_writeback_plan%boundary_scalar_block_recv_displ', &
+            block_writeback_plan%boundary_scalar_block_recv_displ)
+    else
+       call audit316_i('block_writeback_plan%boundary_scalar_block_recv_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_vector_domain_send_count)) then
+       call audit316_i('block_writeback_plan%boundary_vector_domain_send_count.shape', &
+            shape(block_writeback_plan%boundary_vector_domain_send_count))
+       call audit316_i('block_writeback_plan%boundary_vector_domain_send_count', &
+            block_writeback_plan%boundary_vector_domain_send_count)
+    else
+       call audit316_i('block_writeback_plan%boundary_vector_domain_send_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_vector_domain_send_displ)) then
+       call audit316_i('block_writeback_plan%boundary_vector_domain_send_displ.shape', &
+            shape(block_writeback_plan%boundary_vector_domain_send_displ))
+       call audit316_i('block_writeback_plan%boundary_vector_domain_send_displ', &
+            block_writeback_plan%boundary_vector_domain_send_displ)
+    else
+       call audit316_i('block_writeback_plan%boundary_vector_domain_send_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_vector_block_recv_count)) then
+       call audit316_i('block_writeback_plan%boundary_vector_block_recv_count.shape', &
+            shape(block_writeback_plan%boundary_vector_block_recv_count))
+       call audit316_i('block_writeback_plan%boundary_vector_block_recv_count', &
+            block_writeback_plan%boundary_vector_block_recv_count)
+    else
+       call audit316_i('block_writeback_plan%boundary_vector_block_recv_count.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_vector_block_recv_displ)) then
+       call audit316_i('block_writeback_plan%boundary_vector_block_recv_displ.shape', &
+            shape(block_writeback_plan%boundary_vector_block_recv_displ))
+       call audit316_i('block_writeback_plan%boundary_vector_block_recv_displ', &
+            block_writeback_plan%boundary_vector_block_recv_displ)
+    else
+       call audit316_i('block_writeback_plan%boundary_vector_block_recv_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_scalar_domain_send_buffer)) then
+       call audit316_i('block_writeback_plan%boundary_scalar_domain_send_buffer.shape', &
+            shape(block_writeback_plan%boundary_scalar_domain_send_buffer))
+    else
+       call audit316_i('block_writeback_plan%boundary_scalar_domain_send_buffer.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_scalar_block_recv_buffer)) then
+       call audit316_i('block_writeback_plan%boundary_scalar_block_recv_buffer.shape', &
+            shape(block_writeback_plan%boundary_scalar_block_recv_buffer))
+    else
+       call audit316_i('block_writeback_plan%boundary_scalar_block_recv_buffer.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_vector_domain_send_buffer)) then
+       call audit316_i('block_writeback_plan%boundary_vector_domain_send_buffer.shape', &
+            shape(block_writeback_plan%boundary_vector_domain_send_buffer))
+    else
+       call audit316_i('block_writeback_plan%boundary_vector_domain_send_buffer.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%boundary_vector_block_recv_buffer)) then
+       call audit316_i('block_writeback_plan%boundary_vector_block_recv_buffer.shape', &
+            shape(block_writeback_plan%boundary_vector_block_recv_buffer))
+    else
+       call audit316_i('block_writeback_plan%boundary_vector_block_recv_buffer.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%domain_patch_displ)) then
+       call audit316_i('block_writeback_plan%domain_patch_displ.shape',shape(block_writeback_plan%domain_patch_displ))
+       call audit316_i('block_writeback_plan%domain_patch_displ',block_writeback_plan%domain_patch_displ)
+    else
+       call audit316_i('block_writeback_plan%domain_patch_displ.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%scalar_domain_stage)) then
+       call audit316_i('block_writeback_plan%scalar_domain_stage.shape',shape(block_writeback_plan%scalar_domain_stage))
+    else
+       call audit316_i('block_writeback_plan%scalar_domain_stage.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%vector_domain_stage)) then
+       call audit316_i('block_writeback_plan%vector_domain_stage.shape',shape(block_writeback_plan%vector_domain_stage))
+    else
+       call audit316_i('block_writeback_plan%vector_domain_stage.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%native_scalar_stage)) then
+       call audit316_i('block_writeback_plan%native_scalar_stage.shape',shape(block_writeback_plan%native_scalar_stage))
+    else
+       call audit316_i('block_writeback_plan%native_scalar_stage.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%native_vector_stage)) then
+       call audit316_i('block_writeback_plan%native_vector_stage.shape',shape(block_writeback_plan%native_vector_stage))
+    else
+       call audit316_i('block_writeback_plan%native_vector_stage.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%domain_patch_covered)) then
+       call audit316_i('block_writeback_plan%domain_patch_covered.shape',shape(block_writeback_plan%domain_patch_covered))
+    else
+       call audit316_i('block_writeback_plan%domain_patch_covered.shape',[-1])
+    end if
+    if(allocated(block_writeback_plan%domain_patch_reconstructed)) then
+       call audit316_i('block_writeback_plan%domain_patch_reconstructed.shape', &
+            shape(block_writeback_plan%domain_patch_reconstructed))
+    else
+       call audit316_i('block_writeback_plan%domain_patch_reconstructed.shape',[-1])
+    end if
+    call audit316_i('catalog_size',[block_writeback_plan%catalog_size])
+    call audit316_i('domain_count',[block_writeback_plan%domain_count])
+    call audit316_i('installed_block_count',[block_writeback_plan%installed_block_count])
+    call audit316_i('n_send',[block_writeback_plan%n_send])
+    call audit316_i('n_recv',[block_writeback_plan%n_recv])
+    call audit316_i('n_retained',[block_writeback_plan%n_retained])
+    call audit316_i('scalar_patch_nvalue',[block_writeback_plan%scalar_patch_nvalue])
+    call audit316_i('vector_patch_nvalue',[block_writeback_plan%vector_patch_nvalue])
+    call audit316_i('n_send_boundary',[block_writeback_plan%n_send_boundary])
+    call audit316_i('n_recv_boundary',[block_writeback_plan%n_recv_boundary])
+    call audit316_end()
+  end subroutine
 
   subroutine capture_parallel_block_allocation_snapshot (snapshot)
 
@@ -5915,6 +8311,7 @@ end subroutine build_parallel_block_catalog
          BLOCK_PROFILE_TOPOLOGY,migration_send_peer_count, &
          migration_send_byte_count,migration_send_block_count)
 
+    if(audit316_enabled()) call audit_migration316(manifest)
     call clear_block_staging
     call clear_block_migration_manifest(manifest)
 
@@ -5952,6 +8349,7 @@ end subroutine build_parallel_block_catalog
     if (run_full_validation .or. print_local) &
          call check_parallel_block_scaling(print_local)
 
+    if(audit316_enabled()) call audit_installed316
     call detail_leave(DP_MIGRATE)
 
   end subroutine migrate_blocks
@@ -6576,12 +8974,85 @@ end subroutine build_parallel_block_catalog
   end subroutine check_block_ghost_source_addresses
 
 
+  logical function ghost_share_297() result(enabled)
+    logical,save :: read_once=.false.,value=.false.
+    character(8) :: option
+    if(.not.read_once) then
+       option='';call get_environment_variable('WAVETRISK_SHARED_GHOST_SOURCE',option)
+       if(trim(option)/=''.and.trim(option)/='0'.and.trim(option)/='1') error stop 'shared ghost selector'
+       value=trim(option)=='1';read_once=.true.
+    end if
+    enabled=value
+  end function
+
+  logical function ghost_profile_297() result(enabled)
+    logical,save :: read_once=.false.,value=.false.
+    character(8) :: option
+    if(.not.read_once) then
+       option='';call get_environment_variable('WAVETRISK_SHARED_GHOST_PROFILE',option)
+       value=trim(option)=='1';read_once=.true.
+    end if
+    enabled=value
+  end function
+
+  subroutine group_local_297(source,patch,owner,myrank,patch_count,order,starts)
+    ! Dense lookup over LOCAL owned patches, O(requests + local patches).
+    ! Only metadata persists; no per-source numerical cache is introduced.
+    integer,intent(in) :: source(:),patch(:),owner(:),myrank,patch_count(:)
+    integer,allocatable,intent(out) :: order(:),starts(:)
+    integer,allocatable :: offset(:),counts(:),group(:),cursor(:)
+    integer :: n,b,i,key,g,ng,nlocal
+    n=size(source)
+    if(size(patch)/=n.or.size(owner)/=n.or.any(patch_count<0)) error stop 'ghost source grouping extent'
+    allocate(offset(size(patch_count)+1));offset(1)=0
+    do b=1,size(patch_count)
+       offset(b+1)=offset(b)+patch_count(b)
+    end do
+    allocate(counts(offset(size(offset))),group(offset(size(offset))))
+    counts=0;group=0;nlocal=0
+    do i=1,n
+       if(owner(i)/=myrank) cycle
+       b=source(i)
+       if(b<1.or.b>size(patch_count)) error stop 'ghost source grouping block'
+       if(patch(i)<0.or.patch(i)>=patch_count(b)) error stop 'ghost source grouping patch'
+       key=offset(b)+patch(i)+1;counts(key)=counts(key)+1;nlocal=nlocal+1
+    end do
+    ng=count(counts>0);allocate(order(nlocal),starts(ng+1),cursor(ng));starts(1)=1;g=0
+    do key=1,size(counts)
+       if(counts(key)==0) cycle
+       g=g+1;group(key)=g;starts(g+1)=starts(g)+counts(key)
+    end do
+    cursor=starts(:ng)
+    do i=1,n
+       if(owner(i)/=myrank) cycle
+       key=offset(source(i))+patch(i)+1;g=group(key)
+       order(cursor(g))=i;cursor(g)=cursor(g)+1
+    end do
+    if(starts(ng+1)/=nlocal+1) error stop 'ghost source grouping coverage'
+  end subroutine
+
+  subroutine build_local_groups_297()
+    integer,allocatable :: patches(:)
+    integer :: b
+    allocate(patches(size(block_catalog)));patches=0
+    do b=1,size(block_catalog)
+       if(block_catalog(b)%owner==rank) patches(b)=local_block_patch_count(b)
+    end do
+    call group_local_297(ghost_exchange_plan%source_block,ghost_exchange_plan%source_local_patch, &
+         ghost_exchange_plan%source_owner,rank,patches,ghost_exchange_plan%local_order297, &
+         ghost_exchange_plan%local_start297)
+    if(size(ghost_exchange_plan%local_order297)/=ghost_exchange_plan%n_local_request) &
+         error stop 'ghost source grouping local extent'
+  end subroutine
+
   subroutine clear_block_ghost_exchange_plan
     ! Release field-independent block-ghost routing metadata. The plan is
     ! invalid whenever a checkpoint restart replaces the installed blocks.
 
     implicit none
 
+    if(allocated(ghost_exchange_plan%local_order297)) deallocate(ghost_exchange_plan%local_order297)
+    if(allocated(ghost_exchange_plan%local_start297)) deallocate(ghost_exchange_plan%local_start297)
     if (allocated(ghost_exchange_plan%source_block)) then
        deallocate(ghost_exchange_plan%source_block)
     end if
@@ -7028,11 +9499,13 @@ end subroutine build_parallel_block_catalog
     ghost_exchange_plan%vector_recv_buffer = 0.0_dp
     ghost_exchange_plan%vector_patch_buffer = 0.0_dp
 
+    if(ghost_share_297()) call build_local_groups_297()
     ghost_exchange_plan%ready = .true.
     ghost_exchange_plan%allocation_count = &
          ghost_exchange_plan%allocation_count + 1_int64
     ghost_exchange_plan%build_count = &
          ghost_exchange_plan%build_count + 1_int64
+    if(group_audit_294()) call apply_local_block_field_consumer(destination_state_298,ghost_exchange_plan%build_count)
 
     deallocate(fill)
     deallocate(recv_count)
@@ -7042,6 +9515,37 @@ end subroutine build_parallel_block_catalog
 
   end subroutine build_block_ghost_exchange_plan
 
+
+  subroutine destination_state_298(catalog_index,block,context)
+    integer,intent(in) :: catalog_index
+    type(Block_Data),intent(in) :: block
+    class(*),intent(inout) :: context
+    integer,save :: unit298=0
+    character(80) :: filename
+    integer(int64) :: owned,boundary,ghost,bytes
+    if(unit298==0) then
+       write(filename,'(a,i0,a)') 'destination298-rank-',rank,'.txt'
+       open(newunit=unit298,file=trim(filename),status='new')
+    end if
+    bytes=int(storage_size(0.0_dp)/8,int64)
+    owned=int(size(block%scalar),int64)+size(block%vector)+size(block%wavelet_scalar)+ &
+         size(block%wavelet_vector)+size(block%scalar_mean)+size(block%vector_mean)+ &
+         size(block%tke)+size(block%wavelet_tke)+size(block%topography)
+    boundary=int(size(block%bdry_scalar),int64)+size(block%bdry_vector)+size(block%bdry_wavelet_scalar)+ &
+         size(block%bdry_wavelet_vector)+size(block%bdry_scalar_mean)+size(block%bdry_vector_mean)+ &
+         size(block%bdry_tke)+size(block%bdry_wavelet_tke)+size(block%bdry_topography)
+    ghost=int(size(block%ghost_scalar),int64)+size(block%ghost_vector)+size(block%ghost_wavelet_scalar)+ &
+         size(block%ghost_wavelet_vector)+size(block%ghost_scalar_mean)+size(block%ghost_vector_mean)+ &
+         size(block%ghost_tke)+size(block%ghost_wavelet_tke)+size(block%ghost_topography)
+    select type(context)
+    type is(integer(int64))
+       write(unit298,*) context,ghost_time297,catalog_index,rank,block%root_domain,block%root_patch, &
+            size(block%patch),size(block%node),size(block%bdry_node),size(block%ghost_node), &
+            bytes*owned,bytes*boundary,bytes*ghost,size(block%ghost_storage)
+    class default
+       error stop 'destination state audit context'
+    end select
+  end subroutine
 
   subroutine build_block_ghost_level_subplans
     ! Partition the persistent ghost manifest once by source grid level.
@@ -9910,10 +12414,12 @@ end subroutine build_parallel_block_catalog
     if (present(payload_family)) family = payload_family
     component = BLOCK_WRITEBACK_BOTH
     if (present(component_family)) component = component_family
+    if(audit316_enabled()) call audit_transport_begin322(3,family,component)
     if (component == BLOCK_WRITEBACK_TEMPERATURE) then
        if (family /= BLOCK_PAYLOAD_SOL) call fail("temperature publication payload family is invalid")
        call exchange_temperature_writeback_payloads()
        call detail_leave(DP_WRITEBACK)
+       if(audit316_enabled()) call audit316_end()
        return
     end if
     if (family /= BLOCK_PAYLOAD_SOL .and. &
@@ -10017,6 +12523,7 @@ end subroutine build_parallel_block_catalog
 
     call detail_leave(DP_WRITEBACK)
 
+    if(audit316_enabled()) call audit316_end()
   end subroutine exchange_block_writeback_payloads
 
 
@@ -10351,6 +12858,9 @@ end subroutine build_parallel_block_catalog
        call fail("vector-only Domain-to-block tags are invalid")
     end if
 
+    if(audit316_enabled()) call audit_transport_begin322(4,payload_family, &
+         merge(BLOCK_WRITEBACK_VECTOR,BLOCK_WRITEBACK_BOTH,transfer_vector_only))
+    if(audit316_enabled()) call audit316_l('transport.flags322',[use_tags,transfer_vector_only,present(domain_sol)])
     if (.not. transfer_vector_only) &
          block_writeback_plan%scalar_recv_buffer = 0.0_dp
     block_writeback_plan%vector_recv_buffer = 0.0_dp
@@ -10447,6 +12957,7 @@ end subroutine build_parallel_block_catalog
          MPI_DOUBLE_PRECISION,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv Domain-to-block vector payload")
 
+    if(audit316_enabled()) call audit316_end()
   end subroutine exchange_domain_to_block_payloads
 
 
@@ -10694,7 +13205,7 @@ end subroutine build_parallel_block_catalog
       end if
       n_patch = n_patch + 1
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child <= 0) cycle
          call count_retained_subtree(d,p_child,n_patch)
       end do
@@ -10744,7 +13255,7 @@ end subroutine build_parallel_block_catalog
       local_patch = local_patch + 1
 
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child <= 0) cycle
          call import_retained_subtree(d,p_child,b,local_patch)
       end do
@@ -14756,6 +17267,7 @@ end subroutine build_parallel_block_catalog
     integer :: inverse_level
     integer :: ierr
 
+    integer(int64) :: cut_oracle_count(4)
     integer(int64) :: scalar_count_global(4)
     integer(int64) :: scalar_count_local(4)
     integer(int64) :: outer_count(4)
@@ -14832,9 +17344,20 @@ end subroutine build_parallel_block_catalog
             target_level=inverse_level,phase=1)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
        call detail_enter(DP_SCALAR_INVERSE_KERNEL)
+       if(validate_oracle.and.block_subdivision_mode()==2) &
+            call seed_cut_phase_oracle(domain_scaling,domain_wavelet)
        call scalar_inverse203(inverse_level,scalar_statistics%phase)
-       if (.not.stage203_inverse.or.validate_oracle) call apply_local_block_field_producer( &
-            reconstruct_block_scalar_level,scalar_statistics)
+       if(validate_oracle.and.block_subdivision_mode()==2) then
+          call subdivision_inverse_oracle(domain_wavelet,domain_scaling,inverse_level,scalar_statistics%phase, &
+               cut_oracle_count)
+          scalar_statistics%parent_patch_count=cut_oracle_count(1)
+          scalar_statistics%candidate_count=cut_oracle_count(2)
+          scalar_statistics%produced_count=cut_oracle_count(3)
+          scalar_statistics%frozen_count=cut_oracle_count(4)
+          call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_SOL,domain_scaling,preserve_checkpoint=checkpoint_ready)
+       else if(.not.stage203_inverse.or.validate_oracle) then
+          call apply_local_block_field_producer(reconstruct_block_scalar_level,scalar_statistics)
+       end if
        call detail_leave(DP_SCALAR_INVERSE_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
        scalar_count_local = scalar_count_local + [ &
@@ -14861,9 +17384,20 @@ end subroutine build_parallel_block_catalog
             target_level=inverse_level,phase=2)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
        call detail_enter(DP_SCALAR_INVERSE_KERNEL)
+       if(validate_oracle.and.block_subdivision_mode()==2) &
+            call seed_cut_phase_oracle(domain_scaling,domain_wavelet)
        call scalar_inverse203(inverse_level,scalar_statistics%phase)
-       if (.not.stage203_inverse.or.validate_oracle) call apply_local_block_field_producer( &
-            reconstruct_block_scalar_level,scalar_statistics)
+       if(validate_oracle.and.block_subdivision_mode()==2) then
+          call subdivision_inverse_oracle(domain_wavelet,domain_scaling,inverse_level,scalar_statistics%phase, &
+               cut_oracle_count)
+          scalar_statistics%parent_patch_count=cut_oracle_count(1)
+          scalar_statistics%candidate_count=cut_oracle_count(2)
+          scalar_statistics%produced_count=cut_oracle_count(3)
+          scalar_statistics%frozen_count=cut_oracle_count(4)
+          call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_SOL,domain_scaling,preserve_checkpoint=checkpoint_ready)
+       else if(.not.stage203_inverse.or.validate_oracle) then
+          call apply_local_block_field_producer(reconstruct_block_scalar_level,scalar_statistics)
+       end if
        call detail_leave(DP_SCALAR_INVERSE_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
        scalar_count_local = scalar_count_local + [ &
@@ -14878,9 +17412,17 @@ end subroutine build_parallel_block_catalog
             target_level=inverse_level)
        call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
        call detail_enter(DP_INNER_VECTOR_KERNEL)
+       if(validate_oracle.and.block_subdivision_mode()==2) &
+            call seed_cut_phase_oracle(domain_scaling,domain_wavelet)
        call inner_inverse203(inverse_level)
-       if (.not.stage203_inverse.or.validate_oracle) call apply_local_block_field_producer( &
-            reconstruct_block_inner_vector_level,vector_statistics)
+       if(validate_oracle.and.block_subdivision_mode()==2) then
+          call subdivision_inverse_oracle(domain_wavelet,domain_scaling,inverse_level,3,cut_oracle_count)
+          vector_statistics%cell_count=cut_oracle_count(2)
+          vector_statistics%inner_edge_count=cut_oracle_count(3)
+          call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_SOL,domain_scaling,preserve_checkpoint=checkpoint_ready)
+       else if(.not.stage203_inverse.or.validate_oracle) then
+          call apply_local_block_field_producer(reconstruct_block_inner_vector_level,vector_statistics)
+       end if
        call detail_leave(DP_INNER_VECTOR_KERNEL)
        call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
        vector_count_local(5:6) = vector_count_local(5:6) + [ &
@@ -17242,7 +19784,7 @@ end subroutine build_parallel_block_catalog
       patch_index = patch_index + 1
 
       do c = 1,N_CHDRN
-         child = grid(d)%patch%elts(p+1)%children(c)
+         child = block_child_Domain(grid(d),p,c)
          if (child <= 0) cycle
          call install_retained_subtree( &
               d,child,catalog_index,patch_index)
@@ -17561,7 +20103,7 @@ end subroutine build_parallel_block_catalog
            p,patch_index,block_sample_start,storage_index)
       patch_index = patch_index + 1
       do c = 1,N_CHDRN
-         child = grid(domain_index)%patch%elts(p+1)%children(c)
+         child = block_child_Domain(grid(domain_index),p,c)
          if (child <= 0) cycle
          call capture_subtree( &
               child,catalog_index,patch_index,block_sample_start, &
@@ -18105,7 +20647,7 @@ end subroutine build_parallel_block_catalog
       patch_index = patch_index + 1
 
       do c = 1,N_CHDRN
-         child = grid(d)%patch%elts(p+1)%children(c)
+         child = block_child_Domain(grid(d),p,c)
          if (child <= 0) cycle
          call install_retained_subtree( &
               d,child,catalog_index,patch_index)
@@ -18401,7 +20943,7 @@ end subroutine build_parallel_block_catalog
     ! fields directly in the actual wire layout, including rebuild stages.
     block_scalar_divergence_plan%producer_buffer = 0.0_dp
     if (block_scalar_divergence_plan%full_transport) call seed_scalar_producer_geometry
-    if (detail_enabled) call sample_scalar_working_storage
+    if (detail_enabled.and..not.detail_attribution) call sample_scalar_working_storage
 
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION,int(n_local,int64))
@@ -21007,7 +23549,7 @@ end subroutine build_parallel_block_catalog
       domain_patch_block_patch(patch_index) = next_index
       next_index = next_index+1
       do c = 1,N_CHDRN
-         child = grid(d_source)%patch%elts(p+1)%children(c)
+         child = block_child_Domain(grid(d_source),p,c)
          if (child <= 0) cycle
          call map_source_block_subtree( &
               d_source,child,source_block,next_index)
@@ -21249,7 +23791,7 @@ end subroutine build_parallel_block_catalog
       block_scalar_capture_domain(d)%storage(p+1) = storage
       next_patch = next_patch+1
       do c = 1,N_CHDRN
-         child = grid(d)%patch%elts(p+1)%children(c)
+         child = block_child_Domain(grid(d),p,c)
          if (child <= 0) cycle
          call map_subtree(d,child,storage,first,next_patch)
       end do
@@ -21616,7 +24158,7 @@ end subroutine build_parallel_block_catalog
       patch_index = patch_index + 1
 
       do c = 1,N_CHDRN
-         child = grid(d)%patch%elts(p+1)%children(c)
+         child = block_child_Domain(grid(d),p,c)
          if (child <= 0) cycle
          call capture_subtree( &
               d,child,b,patch_index,block_sample_start,storage_index)
@@ -25163,7 +27705,7 @@ end subroutine build_parallel_block_catalog
       end do
       next_patch=next_patch+1
       do ch=1,N_CHDRN
-         child=grid(d)%patch%elts(patch+1)%children(ch)
+         child=block_child_Domain(grid(d),patch,ch)
          if (child > 0) call map_patch(child)
       end do
     end subroutine
@@ -28717,7 +31259,7 @@ end subroutine build_parallel_block_catalog
         patch_index = patch_index + 1
 
         do c = 1,N_CHDRN
-           child = grid(d)%patch%elts(p+1)%children(c)
+           child = block_child_Domain(grid(d),p,c)
            if (child <= 0) cycle
            call complete_subtree( &
                 d,child,patch_index,block_sample_start,storage_index)
@@ -29259,7 +31801,7 @@ end subroutine build_parallel_block_catalog
       validated_patch_count = validated_patch_count + 1_int64
 
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child <= 0) cycle
          call assert_retained_subtree( &
               d,p_child,b,local_patch_index)
@@ -29618,7 +32160,7 @@ end subroutine build_parallel_block_catalog
       local_patch_index = local_patch_index + 1
 
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child <= 0) cycle
          call assert_retained_subtree( &
               d,p_child,b,local_patch_index)
@@ -29664,7 +32206,7 @@ end subroutine build_parallel_block_catalog
       local_patch = local_patch + 1
 
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child <= 0) cycle
          call import_retained_subtree(d,p_child,b,local_patch)
       end do
@@ -30513,7 +33055,7 @@ end subroutine build_parallel_block_catalog
     n_patch = n_patch + 1
 
     do c = 1,N_CHDRN
-       p_child = grid(d)%patch%elts(p+1)%children(c)
+       p_child = block_child_Domain(grid(d),p,c)
        if (p_child <= 0) cycle
        call pack_domain_subtree_prognostic( &
             d,p_child,payload_family,scalar_payload,scalar_pos, &
@@ -31792,7 +34334,7 @@ end subroutine build_parallel_block_catalog
       n_patch = n_patch + 1
 
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child <= 0) cycle
          call stage_local_subtree( &
               d,p_child,b,payload_family,local_patch,n_patch)
@@ -31860,7 +34402,7 @@ end subroutine build_parallel_block_catalog
       n_patch = n_patch + 1
 
       do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
+         p_child = block_child_Domain(grid(d),p,c)
          if (p_child <= 0) cycle
          call stage_buffer_subtree( &
               d,p_child,scalar_payload,scalar_pos,scalar_limit, &
@@ -32903,7 +35445,11 @@ end subroutine build_parallel_block_catalog
     logical, intent(in) :: verify_installation
     integer, intent(in) :: payload_family
 
-    integer :: destination
+    integer :: destination,j,g,niter,unique_sources,metadata_ints
+    logical :: shared_source,profile297,load_source
+    real(dp) :: t297,remote_pack297,mpi297,local297,remote_install297
+    integer,save :: profile_unit297=0,call297=0
+    character(80) :: profile_file297
     integer :: field_level
     integer :: fill_record
     integer :: i
@@ -32931,6 +35477,9 @@ end subroutine build_parallel_block_catalog
 
     call detail_enter(DP_GHOST)
     payload_name = ""
+    shared_source=ghost_share_297();profile297=ghost_profile_297()
+    remote_pack297=0;mpi297=0;local297=0;remote_install297=0;t297=0
+
 
     select case (payload_family)
     case (BLOCK_PAYLOAD_SOL)
@@ -32965,6 +35514,7 @@ end subroutine build_parallel_block_catalog
        call fail("persistent scalar ghost payload size changed")
     end if
 
+    if(audit316_enabled()) call audit_transport_begin322(1,payload_family,1)
     call block_profile_enter(BLOCK_PROFILE_BOUNDARY_GHOST)
 
     do i = 1, n_request
@@ -32977,6 +35527,7 @@ end subroutine build_parallel_block_catalog
 
     if (verify_installation) allocate(expected(n_value))
 
+    if(profile297) t297=MPI_Wtime()
     do r = 1, n_process
        do i = 0, ghost_exchange_plan%recv_record_count(r)-1
           pos = BLOCK_GHOST_REQUEST_SIZE*( &
@@ -33006,6 +35557,8 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
+    if(profile297) remote_pack297=MPI_Wtime()-t297
+    if(profile297) t297=MPI_Wtime()
     call detail_enter(DP_GHOST_MPI)
     call MPI_Alltoallv( &
          ghost_exchange_plan%scalar_send_buffer,ghost_exchange_plan%scalar_send_count,ghost_exchange_plan%scalar_send_displ, &
@@ -33013,6 +35566,7 @@ end subroutine build_parallel_block_catalog
          ghost_exchange_plan%scalar_recv_displ,MPI_DOUBLE_PRECISION,comm,ierr)
     call detail_leave(DP_GHOST_MPI)
     call check_mpi(ierr,"MPI_Alltoallv scalar ghost payloads")
+    if(profile297) mpi297=MPI_Wtime()-t297
 
     if (verify_installation) then
        do i = 1, n_request
@@ -33059,7 +35613,16 @@ end subroutine build_parallel_block_catalog
             payload_family,BLOCK_GHOST_POISON)
     end if
 
-    do i = 1, n_request
+    niter=n_request;g=1
+    if(shared_source) niter=size(ghost_exchange_plan%local_order297)
+    if(profile297) t297=MPI_Wtime()
+    do j = 1, niter
+       i=j;load_source=.true.
+       if(shared_source) then
+          i=ghost_exchange_plan%local_order297(j)
+          if(j==ghost_exchange_plan%local_start297(g+1)) g=g+1
+          load_source=j==ghost_exchange_plan%local_start297(g)
+       end if
        if (ghost_exchange_plan%source_owner(i) /= rank) cycle
 
        if (verify_installation) then
@@ -33072,7 +35635,9 @@ end subroutine build_parallel_block_catalog
           end if
        end if
 
-       call get_local_block_scalar_patch_family_values( &
+       ! get reads owned scalar/wavelet arrays; set writes distinct ghost arrays.
+       ! Reuse only within this call and payload family, never across phases.
+       if(load_source) call get_local_block_scalar_patch_family_values( &
             ghost_exchange_plan%source_block(i), &
             ghost_exchange_plan%source_local_patch(i), &
             payload_family,ghost_exchange_plan%scalar_patch_buffer)
@@ -33092,6 +35657,9 @@ end subroutine build_parallel_block_catalog
           end if
        end if
     end do
+
+    if(profile297) local297=MPI_Wtime()-t297
+    if(profile297) t297=MPI_Wtime()
 
     do r = 1, n_process
        do i = 0, ghost_exchange_plan%send_record_count(r)-1
@@ -33131,6 +35699,22 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
+    if(profile297) then
+       remote_install297=MPI_Wtime()-t297
+       unique_sources=n_local_request;metadata_ints=0
+       if(shared_source) then
+          unique_sources=size(ghost_exchange_plan%local_start297)-1
+          metadata_ints=size(ghost_exchange_plan%local_order297)+size(ghost_exchange_plan%local_start297)
+       end if
+       if(profile_unit297==0) then
+          write(profile_file297,'(a,i0,a)') 'ghost297-rank-',rank,'.txt'
+          open(newunit=profile_unit297,file=trim(profile_file297),status='new')
+       end if
+       call297=call297+1
+       write(profile_unit297,*) call297,payload_family,n_local_request,unique_sources,n_value,metadata_ints, &
+            remote_pack297,mpi297,local297,remote_install297,merge(1,0,verify_installation), &
+            ghost_exchange_plan%build_count,sum(ghost_exchange_plan%scalar_send_count),ghost_time297
+    end if
     if (print_summary) then
        local_value_count = int(n_value,int64)*int(n_request,int64)
        count_local(1) = int(n_local_request,int64)
@@ -33182,7 +35766,10 @@ end subroutine build_parallel_block_catalog
     call block_profile_leave(BLOCK_PROFILE_BOUNDARY_GHOST)
 
     call detail_leave(DP_GHOST)
+    call ghost_routes_294(1,payload_family,n_value,n_local_request,n_request, &
+         ghost_exchange_plan%scalar_send_count,ghost_exchange_plan%scalar_recv_count)
 
+    if(audit316_enabled()) call audit316_end()
   end subroutine exchange_block_scalar_ghost_payloads
 
 
@@ -33281,6 +35868,7 @@ end subroutine build_parallel_block_catalog
        call fail("persistent vector ghost payload size changed")
     end if
 
+    if(audit316_enabled()) call audit_transport_begin322(2,payload_family,2)
     call block_profile_enter(BLOCK_PROFILE_BOUNDARY_GHOST)
 
     do i = 1, n_request
@@ -33498,7 +36086,10 @@ end subroutine build_parallel_block_catalog
     call block_profile_leave(BLOCK_PROFILE_BOUNDARY_GHOST)
 
     call detail_leave(DP_GHOST)
+    call ghost_routes_294(2,payload_family,n_value,n_local_request,n_request, &
+         ghost_exchange_plan%vector_send_count,ghost_exchange_plan%vector_recv_count)
 
+    if(audit316_enabled()) call audit316_end()
   end subroutine exchange_block_vector_ghost_payloads
 
 
@@ -36392,7 +38983,7 @@ end subroutine build_parallel_block_catalog
 
     do c = 1, N_CHDRN
 
-       p_child = grid(d)%patch%elts(p+1)%children(c)
+       p_child = block_child_Domain(grid(d),p,c)
        if (p_child == 0) cycle
 
        call accumulate_domain_subtree_fields( &
@@ -36549,7 +39140,7 @@ end subroutine build_parallel_block_catalog
 
     do c = 1, N_CHDRN
 
-       p_child = grid(d)%patch%elts(p+1)%children(c)
+       p_child = block_child_Domain(grid(d),p,c)
        if (p_child == 0) cycle
 
        if (present(domain_sol)) then

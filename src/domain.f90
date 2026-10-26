@@ -1,5 +1,7 @@
 module domain_mod
-
+  use iso_fortran_env, only : int64
+  use shared_mod, only : POLE,NORTHWEST
+  use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_r,audit316_l
   use kind_mod,   only : dp
 
   use shared_mod, only : AT_NODE, AT_EDGE, BDRY_THICKNESS, b_vert, b_vert_mass, compressible, &
@@ -9,7 +11,7 @@ module domain_mod
        split_mean_perturbation, scalars, zlevels, zmin
 
   use patch_mod, only : BDRY_PATCH, Patch, PATCH_SIZE
-  use arch_mod,  only : n_glo_block, n_process, rank
+  use arch_mod,  only : n_glo_block, n_process, rank, glo_id, is_block_cut
 
   use dyn_arrays, only : Areas_Array, Bdry_Patch_Array, Coord_Array, Float_Array, Int_Array, &
        Iu_Wgt_Array, Logical_Array, Overl_Area_Array, Patch_Array, RF_Wgt_Array, Topo_Array, &
@@ -18,6 +20,7 @@ module domain_mod
   implicit none
 
   private
+  public :: audit_domain_fields322
   public :: Domain, Float_Field, Int_Field, Logical_Field
   public :: init_field, sides_dims, chd_offs
   public :: grid, topography, topography_data, sso_param, exner_fun, horiz_flux, penal_node, penal_edge, Kv, Kt, tke
@@ -33,6 +36,7 @@ module domain_mod
   
   public :: count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, subtree_weight_Domain
   public :: compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain, renumber_subtree_neigh_Domain
+  public :: block_child_Domain
   public :: get_bdry_dims_Domain
 
 
@@ -143,6 +147,43 @@ module domain_mod
 
 
 contains
+
+  subroutine audit_domain_fields322(field,family,epoch)
+    ! Exact initialized Float_Array logical lengths, never spare capacity or
+    ! derived-type bytes. Includes boundaries/poles as well as interiors.
+    type(Float_Field),intent(in) :: field(:,:)
+    integer,intent(in) :: family
+    integer(int64),intent(in) :: epoch
+    integer :: d,v,k,n,p
+    if(.not.audit316_enabled()) return
+    call audit316_begin('domain.fields322',epoch)
+    call audit316_i('fields.header',[family,size(field,1),size(field,2),size(grid)])
+    do d=1,size(grid)
+       n=grid(d)%node%length
+       call audit316_i('fields.domain',[d,glo_id(rank+1,d),n,grid(d)%patch%length,grid(d)%bdry_patch%length])
+       call audit316_i('fields.node_level',grid(d)%level%elts(:n))
+       call audit316_i('fields.node_mask',grid(d)%mask_n%elts(:n))
+       call audit316_i('fields.edge_mask',grid(d)%mask_e%elts(:3*n))
+       call audit316_l('fields.poles',[grid(d)%penta(SOUTHEAST).and.grid(d)%neigh(SOUTHEAST)==POLE, &
+            grid(d)%penta(NORTHWEST).and.grid(d)%neigh(NORTHWEST)==POLE])
+       do p=1,grid(d)%patch%length
+          call audit316_i('fields.patch',[p-1,grid(d)%patch%elts(p)%level,grid(d)%patch%elts(p)%elts_start, &
+               merge(1,0,grid(d)%patch%elts(p)%deleted),grid(d)%patch%elts(p)%children])
+       end do
+       do k=1,size(field,2)
+          do v=1,size(field,1)
+             if(.not.allocated(field(v,k)%data)) error stop 'Stage322 field data is not allocated'
+             if(size(field(v,k)%data)/=size(grid)) error stop 'Stage322 field domain extent'
+             n=field(v,k)%data(d)%length
+             if(n<0.or.n>size(field(v,k)%data(d)%elts)) error stop 'Stage322 field logical length'
+             call audit316_i('fields.coordinate',[d,k,v,field(v,k)%pos,field(v,k)%bdry_tag,n])
+             call audit316_l('fields.boundary_current',[field(v,k)%bdry_uptodate])
+             call audit316_r('fields.values',field(v,k)%data(d)%elts(:n))
+          end do
+       end do
+    end do
+    call audit316_end()
+  end subroutine audit_domain_fields322
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -394,12 +435,21 @@ contains
 
   end subroutine copy_subtree_nodes_Domain
 
-  recursive integer function subtree_depth_Domain (dom, p) result(depth)
+  integer function block_child_Domain(dom,p,c) result(child)
+    type(Domain),intent(in) :: dom
+    integer,intent(in) :: p,c
+    child=dom%patch%elts(p+1)%children(c)
+    if(child<=0) return
+    if(is_block_cut(glo_id(rank+1,dom%id+1),child)) child=0
+  end function
+
+  recursive integer function subtree_depth_Domain (dom, p, respect_cuts) result(depth)
     implicit none
 
     type(Domain), intent(in) :: dom
     integer,      intent(in) :: p
 
+    logical,optional,intent(in) :: respect_cuts
     integer :: c, p_chd
 
     if (p < 0 .or. p >= dom%patch%length) then
@@ -415,9 +465,12 @@ contains
 
     do c = 1, N_CHDRN
        p_chd = dom%patch%elts(p+1)%children(c)
+       if(present(respect_cuts)) then
+          if(respect_cuts) p_chd=block_child_Domain(dom,p,c)
+       end if
 
        if (p_chd > 0) then
-          depth = max(depth, 1 + subtree_depth_Domain(dom, p_chd))
+          depth = max(depth, 1 + subtree_depth_Domain(dom, p_chd, respect_cuts))
        end if
     end do
 
@@ -461,7 +514,7 @@ contains
   end function subtree_weight_Domain
 
 
-  recursive integer function count_subtree_patches_Domain (dom, p) result(n_patch)
+  recursive integer function count_subtree_patches_Domain (dom, p, respect_cuts) result(n_patch)
     ! Number of non-deleted patches in the subtree rooted at p.
 
     implicit none
@@ -469,6 +522,7 @@ contains
     type(Domain), intent(in) :: dom
     integer,      intent(in) :: p
 
+    logical,optional,intent(in) :: respect_cuts
     integer :: c, p_chd
 
     if (p < 0 .or. p >= dom%patch%length) then
@@ -484,17 +538,20 @@ contains
 
     do c = 1, N_CHDRN
        p_chd = dom%patch%elts(p+1)%children(c)
+       if(present(respect_cuts)) then
+          if(respect_cuts) p_chd=block_child_Domain(dom,p,c)
+       end if
 
        if (p_chd > 0) then
           n_patch = n_patch + &
-               count_subtree_patches_Domain(dom, p_chd)
+               count_subtree_patches_Domain(dom, p_chd, respect_cuts)
        end if
     end do
 
   end function count_subtree_patches_Domain
 
 
-  subroutine extract_subtree_patches_Domain (dom, p_root, patch_out, old_to_new)
+  subroutine extract_subtree_patches_Domain (dom, p_root, patch_out, old_to_new, respect_cuts)
     ! Copy the patch hierarchy rooted at p_root into patch_out().
     !
     ! Original patch indices are mapped to new 0-based indices through
@@ -511,10 +568,11 @@ contains
     type(Patch), allocatable, intent(out) :: patch_out(:)
     integer,     allocatable, intent(out) :: old_to_new(:)
 
+    logical,optional,intent(in) :: respect_cuts
     integer :: n_patch
     integer :: next_patch
 
-    n_patch = count_subtree_patches_Domain(dom, p_root)
+    n_patch = count_subtree_patches_Domain(dom, p_root, respect_cuts)
 
     if (n_patch <= 0) then
        error stop "extract_subtree_patches_Domain: empty subtree"
@@ -574,6 +632,9 @@ contains
       do c = 1, N_CHDRN
 
          p_chd_old = dom%patch%elts(p_old+1)%children(c)
+         if(present(respect_cuts)) then
+            if(respect_cuts) p_chd_old=block_child_Domain(dom,p_old,c)
+         end if
 
          if (p_chd_old <= 0) cycle
          if (dom%patch%elts(p_chd_old+1)%deleted) cycle

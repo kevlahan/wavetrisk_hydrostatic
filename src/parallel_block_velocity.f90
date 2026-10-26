@@ -12,7 +12,7 @@ module parallel_block_velocity_mod
   public :: Velocity_Gradient_Stencil, Velocity_Level_Program
   public :: VELOCITY_DIRECT, VELOCITY_RESTRICT
   public :: validate_velocity_program, execute_velocity_sources, execute_velocity_gradients
-  public :: Native_Velocity_Workspace, native_velocity, native_velocity_work
+  public :: Velocity_Program, Native_Velocity_Workspace, native_velocity, native_velocity_work
   public :: native_velocity_transaction, native_velocity_oracle
   public :: copy_native_velocity_tendency, native_velocity_rk
 
@@ -47,14 +47,19 @@ module parallel_block_velocity_mod
      type(Velocity_Restriction_Stencil), allocatable :: restriction(:)
   end type
 
-  type :: Native_Velocity_Workspace
+  ! The connected compiler accepts this structural type, never its numerical
+  ! extension. physics_address is an optional legacy-only callback address map.
+  type :: Velocity_Program
      integer(int64) :: generation = -1_int64
+     integer :: nnode=0
      type(Velocity_Level_Program), allocatable :: level(:)
      type(Velocity_Gradient_Stencil), allocatable :: gradient(:)
      integer, allocatable :: physics_address(:,:)
+     logical, allocatable :: active_mask(:), restriction_mask(:)
+  end type
+  type, extends(Velocity_Program) :: Native_Velocity_Workspace
      real(dp), allocatable :: source(:,:), physics(:,:), tendency(:,:), rk(:,:), rho(:), rho_theta(:)
      logical, allocatable :: physics_ready(:), ready(:)
-     logical, allocatable :: active_mask(:), restriction_mask(:)
   end type
   type(Native_Velocity_Workspace), allocatable, target, save :: native_velocity(:)
   integer(int64), save :: native_velocity_work(9) = 0_int64
