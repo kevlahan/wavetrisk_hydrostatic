@@ -1,4 +1,5 @@
 module parallel_block_rhs_exchange_mod
+  use audit316_mod, only: work325_enabled,work325_record
   use audit316_mod, only : audit316_i,audit316_i64,audit316_l,audit316_begin,audit316_end
   use parallel_block_profile_mod, only : detail_enter,detail_leave,rhs_detail_enter,rhs_detail_leave, &
        DP_RHS_EXCHANGE,DP_RHS_PACK,DP_RHS_POST,DP_RHS_WAIT,DP_RHS_INSTALL
@@ -130,6 +131,10 @@ contains
     allocate(received(width,sum(rc)))
     call MPI_Alltoallv(packed,width*sc,width*sd,MPI_INTEGER,received,width*rc,width*rd,MPI_INTEGER,comm,ierr)
     call mpi_check(comm,ierr,'metadata delivery')
+    if(work325_enabled()) call work325_record('directory.deliver',width, &
+         [int(size(record,2),int64),int(size(received,2),int64)], &
+         4_int64*int(width,int64)*int(sc,int64), &
+         4_int64*int(width,int64)*int(rc,int64))
   end subroutine
 
   integer function rank_slot_bucket(key,n) result(h)
@@ -210,6 +215,11 @@ contains
     call MPI_Alltoallv(reply,nc*rc,nc*rd,MPI_DOUBLE_PRECISION,received,nc*sc,nc*sd, &
          MPI_DOUBLE_PRECISION,comm,ierr)
     call mpi_check(comm,ierr,'indexed metadata reply')
+    if(work325_enabled()) call work325_record('metadata.indexed',phase, &
+         [int(nq,int64),int(u,int64),int(nc,int64), &
+         int(size(reply),int64),int(size(received),int64),int(size(values),int64)], &
+         8_int64*int(nc,int64)*int(rc,int64), &
+         8_int64*int(nc,int64)*int(sc,int64))
     if(present(remote_values)) then
        call MPI_Comm_rank(comm,me,ierr);call mpi_check(comm,ierr,'indexed metadata rank')
        remote_values=int(nc,int64)*[int(sum(rc)-rc(me+1),int64),int(sum(sc)-sc(me+1),int64)]
@@ -716,6 +726,15 @@ contains
        if(size(plan%send)<ns.or.size(plan%received)<nr) call die(plan%comm,'missing exchange scratch')
        sent=>plan%send;received=>plan%received
     end if
+    if(work325_enabled()) call work325_record('route.exchange',phase, &
+         [int(columns,int64), &
+         int(columns,int64)*int(sum(plan%sc),int64),int(columns,int64)*int(sum(plan%rc),int64), &
+         int(columns,int64)*int(plan%sc(plan%me+1),int64),int(columns,int64)*int(size(plan%target),int64), &
+         int(ns,int64)+int(nr,int64),int(size(plan%requests),int64), &
+         int(count(plan%sc>0)-merge(1,0,plan%sc(plan%me+1)>0),int64), &
+         int(count(plan%rc>0)-merge(1,0,plan%rc(plan%me+1)>0),int64)], &
+         8_int64*(int(columns,int64)*int(plan%sc,int64)+int(merge(1,0,plan%sc>0),int64)), &
+         8_int64*(int(columns,int64)*int(plan%rc,int64)+int(merge(1,0,plan%rc>0),int64)))
     call detail_enter(plan%profile_region)
     call rhs_detail_enter(DP_RHS_PACK)
     ! Snapshot ALL sends before modifying any destination, including local

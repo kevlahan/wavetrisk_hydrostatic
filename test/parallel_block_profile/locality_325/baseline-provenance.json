@@ -1,0 +1,9 @@
+{
+  "parent_git_commit": "0d8bc228",
+  "source_manifest_sha256": "8d5882a1bb24e2c74bc5ca5ca4f04d387ad3636a49c4208e6f3160b63404fbc5",
+  "source_file_count": 258,
+  "qualification_job": 55567,
+  "timing_job": 55568,
+  "accepted_solver_promoted": false,
+  "snapshot_commit": "462600109b281af30e34e5f71832fe61cc2a51fb"
+}

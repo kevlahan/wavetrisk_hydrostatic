@@ -1,0 +1,44 @@
+{
+  "passed": true,
+  "scope": "Final local initialization framing and recorded peer conservation only",
+  "captures": [
+    {
+      "rank": 0,
+      "records": 13409,
+      "physical_bytes": 892770,
+      "logical_payload_bytes": 953928,
+      "real_digest_records": 482,
+      "stream_sha256": "d95c02df740ce8c191b40b74ede334487870aaeda3836f0641acc76bdc350aa6",
+      "file": "execution316-rank-0.bin.gz"
+    },
+    {
+      "rank": 1,
+      "records": 13407,
+      "physical_bytes": 893436,
+      "logical_payload_bytes": 954644,
+      "real_digest_records": 482,
+      "stream_sha256": "43e526424f5df8c8ca9055de9a9f34eaffe5e33da5f0a467a94df2d39e843494",
+      "file": "execution316-rank-1.bin.gz"
+    },
+    {
+      "rank": 2,
+      "records": 13340,
+      "physical_bytes": 889572,
+      "logical_payload_bytes": 952470,
+      "real_digest_records": 482,
+      "stream_sha256": "68e86e681a46f9be59540eeb32bcd14932f8bd5bf72e01ae89bafcd8afe443df",
+      "file": "execution316-rank-2.bin.gz"
+    },
+    {
+      "rank": 3,
+      "records": 13208,
+      "physical_bytes": 880330,
+      "logical_payload_bytes": 946558,
+      "real_digest_records": 482,
+      "stream_sha256": "b9f032d735af9660b68be381f793bd1123ce03de705a4105285ab781fd5fd619",
+      "file": "execution316-rank-3.bin.gz"
+    }
+  ],
+  "ledger_bytes": 31618,
+  "native_qualification": false
+}

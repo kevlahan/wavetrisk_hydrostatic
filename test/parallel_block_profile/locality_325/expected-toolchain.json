@@ -1,0 +1,21 @@
+{
+  "gcc_version": "13.2.0",
+  "gcc_compiler": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-11.4.1/gcc-13.2.0-ek6dfg5fvq74hcaoj3zylsq4obfgwvfh/bin/gfortran",
+  "mpi_root": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/mvapich-4.0-77wizbn4c4yyou5sdfxw2ggzizrc2yos",
+  "mpi_version": "4.0",
+  "required_modules": [
+    "gcc/13.2.0-gcc-11.4.1",
+    "mvapich/4.0-gcc-13.2.0",
+    "netlib-lapack/3.11.0-gcc-13.2.0",
+    "netcdf-fortran/4.6.1-gcc-13.2.0"
+  ],
+  "observed_job": 55551,
+  "compiler_output": "GNU Fortran (Spack GCC) 13.2.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "mpi_wrapper": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-11.4.1/gcc-13.2.0-ek6dfg5fvq74hcaoj3zylsq4obfgwvfh/bin/gfortran -Wl,-rpath,/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-11.4.1/gcc-13.2.0-ek6dfg5fvq74hcaoj3zylsq4obfgwvfh/lib/gcc/x86_64-pc-linux-gnu/13.2.0 -Wl,-rpath,/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-11.4.1/gcc-13.2.0-ek6dfg5fvq74hcaoj3zylsq4obfgwvfh/lib64 -I/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/mvapich-4.0-77wizbn4c4yyou5sdfxw2ggzizrc2yos/include -I/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/mvapich-4.0-77wizbn4c4yyou5sdfxw2ggzizrc2yos/include -L/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/mvapich-4.0-77wizbn4c4yyou5sdfxw2ggzizrc2yos/lib -lmpifort -Wl,-rpath -Wl,/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/mvapich-4.0-77wizbn4c4yyou5sdfxw2ggzizrc2yos/lib -lmpi\n",
+  "build_dependencies": {
+    "NETLIB_LAPACK_ROOT": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/netlib-lapack-3.11.0-nzpefmscoyxgu5bdeenwfqki3i7ytsvf",
+    "NF_CONFIG": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/netcdf-fortran-4.6.1-otnqpaycopzboegfgc6svy5ufhkirhjc/bin/nf-config",
+    "NC_CONFIG": "/2/sw/spack/opt/spack/linux-rocky9-x86_64_v3/gcc-13.2.0/netcdf-c-4.9.2-2s3sqo6k54ofy3sgxv2cjrqg7bdoxl23/bin/nc-config",
+    "LAPACK": "-llapack"
+  }
+}

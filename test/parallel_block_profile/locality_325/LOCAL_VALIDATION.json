@@ -1,0 +1,55 @@
+{
+  "stage": 325,
+  "date": "2026-10-26",
+  "local_validation_passed": true,
+  "baseline_snapshot_commit": "462600109b281af30e34e5f71832fe61cc2a51fb",
+  "native_qualification_passed": false,
+  "native_qualification_pending": true,
+  "performance_qualified": false,
+  "local_compiler": "GCC 15 / OpenMPI; does not replace exact GCC 13.2.0 / MVAPICH 4.0 gate",
+  "solver_build_invocations": 5,
+  "solver_initialization_smokes": 2,
+  "local_max_ranks": 4,
+  "local_steps": 0,
+  "final_checked_binary_sha256": "23f8430b5c1aa889c8d38d6000021bfaa689a054d20121f7adf4a273e71f7594",
+  "final_initialization_seconds": 21.076418583747,
+  "offline_tests_passed": 60,
+  "source_files": 258,
+  "changed_source_files": [
+    "src/audit316.f90",
+    "src/audit_compress322.c",
+    "src/parallel_block.f90",
+    "src/parallel_block_mpi.f90",
+    "src/parallel_block_rhs_backend.f90",
+    "src/parallel_block_rhs_distribute.f90",
+    "src/parallel_block_rhs_exchange.f90",
+    "src/parallel_block_rhs_state.f90",
+    "src/parallel_block_transform_adapter.f90",
+    "src/parallel_block_transform_backend.f90",
+    "src/parallel_block_transform_placement.f90"
+  ],
+  "exact_frozen_source_patch_reproduction": true,
+  "evidence_sha256": {
+    "validation/checked-build.log": "bf6c205239aa133d4b2294ccc515a524918e9b2b5ebc8b59ec9cd240da080b07",
+    "validation/independent-provider-review.md": "8a4cfeb4c2083248885067df5d3b27f8cd32bdf9f740d25e2f254a4f67de4ee5",
+    "validation/init-smoke-records.json": "e25d2418161df568992c0b6b74038c6235fba0186bdf7f8fbce596a2e5d31d1d",
+    "validation/init-smoke-status.json": "6b4a22a4bfb46f98d04cebce3b2acdae4ef4fc8ba2d015fac61762972bdcb451",
+    "validation/offline-tests.log": "1eb434f991d010168b5e15ab1244a1539fd179e304851d4b0217ffe6948a4a3a",
+    "validation/owner-codec-gate.json": "fe7003344dd1c8b2e3b50641d6207d6d4778c05318977adc44197d6e19b46786",
+    "validation/source-files.json": "92b74542aaf992aa6ca9de9b0ffc26e7ee053e18d4d6d2ba60f3162eb70687e7"
+  },
+  "native_submissions": 0,
+  "native_plan": {
+    "full_serial_builds": 2,
+    "solver_launches": 3,
+    "ranks": 256,
+    "steps": 4,
+    "performance_launches": 0,
+    "wall_cap_minutes": 45
+  },
+  "limits": [
+    "Local initialization does not activate L256 or prove native correctness.",
+    "Digest identity and work counts do not establish elapsed-time causation or speedup.",
+    "A native failure must be reviewed before further runs; no automatic retry or performance continuation."
+  ]
+}

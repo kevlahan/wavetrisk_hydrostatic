@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "selectors": 5,
+  "invalid_selector_rejected": true,
+  "sha256_vectors": 20,
+  "nonfinite_cases": 3,
+  "fortran_codec_noncontiguous_and_empty": true,
+  "physical_footer_verified": true,
+  "current_home_blocks": 6,
+  "candidate_home_blocks": 400,
+  "compiled_source_sha256": {
+    "parallel_block_mpi.f90": "c915cc2b6529b38ec7a74d41afb74bdb5caddd8c7731cb15ed76c8ea89755027",
+    "audit316.f90": "9730d800f3c36d0e67c3cc756db3b08bca52327072a9b0ebfb9fac158bb8861a",
+    "audit_compress322.c": "60cee8715e1205f5a0d151aad1653f0aa6c159f16fc980699f2b057f65114918"
+  },
+  "native_qualification": false
+}

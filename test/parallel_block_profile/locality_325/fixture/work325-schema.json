@@ -1,0 +1,298 @@
+{
+  "schema": "stage325-work-patch-v1",
+  "files": {
+    "audit316.f90": "63821eef0cae814a195fc71bd00c8e3e8a6a1b840458c7222a7b75191ddb02aa",
+    "parallel_block_mpi.f90": "ed9ea526a06957d025489901119d335b4be685f8caa2d3994c2d7c97d76c0f03",
+    "parallel_block.f90": "3fa21c0975fb48336d97099b86cec051126de818d8bed81d5ce2ac13942af3e1",
+    "parallel_block_rhs_distribute.f90": "b5f7d5e8684ae7429caf4d332de1de2fcbe5ef35d52c60cfc6e6f5457a9d8e19",
+    "parallel_block_transform_placement.f90": "46b18fea22c1ae1d5c9821eb18a22d72f4e1f9de2b9bef134d4e10fb77fc5ba0",
+    "parallel_block_rhs_exchange.f90": "2d970052e7cb9980f0a2df1919c1a441715a2f7a08f2f3783ed29aaf1145a33c",
+    "parallel_block_transform_adapter.f90": "24cecd477fc87bcab211453557693b6a8f2c753f2759b069ca236cf162523e26",
+    "parallel_block_transform_backend.f90": "e0d2143386fe1881056551db01d913db01954a6e953d89e45a7e50fa18a809a4"
+  },
+  "hooks": [
+    {
+      "file": "audit316.f90",
+      "anchor_sha256": "8222bac8ff347f1de212162c596162db8bdaa9b5fd056128a1d71ea9d5d37018"
+    },
+    {
+      "file": "audit316.f90",
+      "anchor_sha256": "beeb20fbd67695085c26c5dfa7b5ece4d1985d201cb6f0dd9aa66a36ed987ce5"
+    },
+    {
+      "file": "audit316.f90",
+      "anchor_sha256": "536accf3df0de35600223f37a9966baf8916733ea3aae007eb88fd7df43e2341"
+    },
+    {
+      "file": "audit316.f90",
+      "anchor_sha256": "05df65d86f7f05813fd0ca3eaec6a9f35e2be97a0bfa50e14ec26dfaf8ab1e88"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "7a32670919e669dec2c07c631b1e94b6e2f0aac5aa7853a509ccd5b22630c17a"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "2c7e7c62160478bf53ac9a8b47f1e7afb4a808d5c0260d92e6c6da0142b14fcb"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "60cbff65cb92f99d57095df1f1cbbf25cefc8a7a41da8f10924d02ec5bbb1422"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "b96dc39facd3f3ad08948ae73e597c44de1fcc8dfcddd5ec9a50afe1babc60a6"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "807914e353de98f2f99aa0968d1be806d707c5ab61f62455337652a7538e22f1"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "a41c5610b59ed17a8266ac9ca440159baea27826946a9fb7000aee8c26e3705a"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "93d119c11c7eefda6ca9f46773af888ebf1c15bc10d35d6936f3e149f303816f"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "8a231a774833427aa10233904d2064e961e1d5e16896b1c606899a784775b556"
+    },
+    {
+      "file": "parallel_block_mpi.f90",
+      "anchor_sha256": "68c5d67bf9ea4173a3c6e1752219be8e90d24bc30bc35fb0c22a839456cd63d0"
+    },
+    {
+      "file": "parallel_block.f90",
+      "anchor_sha256": "3baeef3ed31ca16e3551926c9c577e5d98a8d0b4182033a9487069c9bc9c6e85"
+    },
+    {
+      "file": "parallel_block.f90",
+      "anchor_sha256": "3bae4036f1ff15b8673f44178fb094edee20540eb126d473f811c17a925bee57"
+    },
+    {
+      "file": "parallel_block_rhs_distribute.f90",
+      "anchor_sha256": "b5f1579ea3d13aae2cd8a8a6a7cfe2c6def143f653c287622d0e8f42907a976b"
+    },
+    {
+      "file": "parallel_block_rhs_distribute.f90",
+      "anchor_sha256": "6e12a4d955b40a18553aa1e28ac9ac8b906d3ccb18f40ea10ee4522d0ced85af"
+    },
+    {
+      "file": "parallel_block_transform_placement.f90",
+      "anchor_sha256": "46878b754149bee1b32da1ad43db34fca5f1e0d042d3490b5fa1c3aa3e34b882"
+    },
+    {
+      "file": "parallel_block_transform_placement.f90",
+      "anchor_sha256": "0d3a846399afdd5b009e961e109901fd90f8f9dec2d466370e69df8ef67fe9d9"
+    },
+    {
+      "file": "parallel_block_rhs_exchange.f90",
+      "anchor_sha256": "35b09e8cc093c5888f934e29cbc637724b491f67d157f27906bd61947d2c6927"
+    },
+    {
+      "file": "parallel_block_rhs_exchange.f90",
+      "anchor_sha256": "f2799fffa0967c1c8f911dc949665f0c516df7ac48f1e02de2cc1a5ffc4d9dec"
+    },
+    {
+      "file": "parallel_block_rhs_exchange.f90",
+      "anchor_sha256": "de164ae0e29d56350a72b28162e9d5161cbb2552163184c11d8ea712231b78e6"
+    },
+    {
+      "file": "parallel_block_rhs_exchange.f90",
+      "anchor_sha256": "8e6cf38f18dfaaddbe8dbf5a451b18d1358636f83a0af678559448e92f6f916e"
+    },
+    {
+      "file": "parallel_block_transform_adapter.f90",
+      "anchor_sha256": "59641a042bd1f4d1c844bd81f60b3d30ea1e14889111041da5430bf20fe35487"
+    },
+    {
+      "file": "parallel_block_transform_adapter.f90",
+      "anchor_sha256": "76f84423a1b00a1b30edfb28ad3c45ceb5ee4f91c73e1144a190b075855e8db3"
+    },
+    {
+      "file": "parallel_block_transform_backend.f90",
+      "anchor_sha256": "b2bd5b0da2fdb4c964e1eec2859a52152dc5363118fbed3880116aba885eb300"
+    },
+    {
+      "file": "parallel_block_transform_backend.f90",
+      "anchor_sha256": "15dbd9961bafb814b0dacc8c859af133823c52f560ebe19c012e89c5afb991ca"
+    }
+  ],
+  "records": {
+    "selector.consensus": {
+      "fields": [
+        "collectives",
+        "payload_bytes"
+      ],
+      "peer_unit": null
+    },
+    "selector.call": {
+      "fields": [
+        "native_catalogue_entries",
+        "overridden_entries"
+      ],
+      "peer_unit": null
+    },
+    "migration": {
+      "fields": [
+        "source_blocks",
+        "retained_blocks",
+        "remote_send_blocks",
+        "remote_receive_blocks",
+        "packed_copy_checksum_send_bytes",
+        "unpack_checksum_receive_bytes",
+        "storage_moves",
+        "direct_collectives",
+        "live_aggregate_payload_bytes"
+      ],
+      "peer_unit": "bytes"
+    },
+    "migration.source": {
+      "fields": [
+        "serialized_equivalent_bytes",
+        "remote_flag"
+      ],
+      "peer_unit": null
+    },
+    "writeback.scalar": {
+      "fields": [
+        "gather_values",
+        "receive_values"
+      ],
+      "peer_unit": "bytes"
+    },
+    "writeback.vector": {
+      "fields": [
+        "gather_values",
+        "receive_values"
+      ],
+      "peer_unit": "bytes"
+    },
+    "reverse.scalar": {
+      "fields": [
+        "gather_values",
+        "receive_values"
+      ],
+      "peer_unit": "bytes"
+    },
+    "reverse.vector": {
+      "fields": [
+        "gather_values",
+        "receive_values"
+      ],
+      "peer_unit": "bytes"
+    },
+    "reverse.local": {
+      "fields": [
+        "patches",
+        "scalar_direct_install_values",
+        "vector_direct_install_values"
+      ],
+      "peer_unit": null
+    },
+    "writeback.local": {
+      "fields": [
+        "direct_staged_patches"
+      ],
+      "peer_unit": null
+    },
+    "storage.move": {
+      "fields": [
+        "move_alloc_calls"
+      ],
+      "peer_unit": null
+    },
+    "rhs.geometry": {
+      "fields": [
+        "selection_pack_packets",
+        "all_packed_bytes",
+        "all_incoming_bytes",
+        "self_packed_bytes",
+        "self_incoming_bytes"
+      ],
+      "peer_unit": "bytes"
+    },
+    "transform.geometry": {
+      "fields": [
+        "all_packed_bytes",
+        "all_incoming_bytes",
+        "self_packed_bytes",
+        "self_incoming_bytes",
+        "source_scalar_ops",
+        "source_inner_ops",
+        "source_outer_ops",
+        "emission_passes"
+      ],
+      "peer_unit": "bytes"
+    },
+    "directory.deliver": {
+      "fields": [
+        "sent_records",
+        "received_records"
+      ],
+      "peer_unit": "bytes"
+    },
+    "metadata.indexed": {
+      "fields": [
+        "requested_rows",
+        "deduplicated_rows",
+        "columns",
+        "source_gather_values",
+        "reply_buffer_values",
+        "expanded_values"
+      ],
+      "peer_unit": "bytes"
+    },
+    "route.exchange": {
+      "fields": [
+        "columns",
+        "snapshot_values",
+        "received_values",
+        "self_copy_values",
+        "installed_values",
+        "active_scratch_values",
+        "request_capacity",
+        "remote_send_requests",
+        "remote_receive_requests"
+      ],
+      "peer_unit": "bytes"
+    },
+    "transform.adapter": {
+      "fields": [
+        "source_rows",
+        "target_rows",
+        "gather_values",
+        "self_copy_values",
+        "installed_values",
+        "buffer_values",
+        "request_capacity"
+      ],
+      "peer_unit": "bytes"
+    },
+    "transform.workspace": {
+      "fields": [
+        "canonical_rows",
+        "total_rows",
+        "noncanonical_rows",
+        "publication_requests",
+        "domain_requests",
+        "block_boundary_requests",
+        "fixed_rows",
+        "live_value_slots",
+        "wavelet_value_slots",
+        "exchange_scratch_values",
+        "wire_values"
+      ],
+      "peer_unit": null
+    }
+  },
+  "limitations": [
+    "Integer counts and serialized-equivalent sizes are not elapsed attribution.",
+    "Counts aggregate by tag and phase across the complete qualified lifecycle; no phase costs are added.",
+    "Payload-only scratch excludes compiler descriptors, MPI internals, and transient heap peak.",
+    "Diagnostic retained packed-size queries add qualification overhead; performance must disable ledger.",
+    "The 17 direct migration collective count is source-certified; nested validation collectives are excluded."
+  ]
+}

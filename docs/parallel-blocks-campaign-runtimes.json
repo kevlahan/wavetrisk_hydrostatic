@@ -820,6 +820,39 @@
       "completed_solver_runs": 60,
       "measurement_runs_completed": 49,
       "returned_archive_sha256": "436126e96c274d6be75ea3395a13fb8e214f3608c5cc3e0410986649754eb835"
+    },
+    {
+      "stage": 325,
+      "name": "exact256-owner locality qualification",
+      "full_solver_builds": 2,
+      "solver_runs": 3,
+      "ranks": 256,
+      "steps": 4,
+      "estimated_minutes": [
+        15,
+        30
+      ],
+      "allocation_cap_minutes": 45,
+      "performance_runs": 0,
+      "submitted": false,
+      "cost_uncertainty": "Compact native validation CPU/I/O cost unmeasured; fixed budget, no automatic extension"
+    }
+  ],
+  "local_investigations": [
+    {
+      "stage": 325,
+      "date": "2026-10-26",
+      "status": "locally_validated_native_qualification_pending",
+      "solver_build_invocations": 5,
+      "initial_compile_failure_fixed": true,
+      "solver_smoke_runs": 2,
+      "local_ranks": 4,
+      "steps": 0,
+      "native_submissions": 0,
+      "native_runs": 0,
+      "performance_runs": 0,
+      "final_smoke_seconds": 21.076418583747,
+      "scope": "Separate exact-map implementation and compact qualification tooling"
     }
   ]
 }

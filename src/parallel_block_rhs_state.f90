@@ -1,5 +1,5 @@
 module parallel_block_rhs_state_mod
-  use audit316_mod, only : audit316_i,audit316_i64,audit316_l
+  use audit316_mod, only : audit316_i,audit316_i64,audit316_l,audit316_enabled
   ! Resident interior inputs plus the explicitly bounded compatibility alias
   ! adapter. Geometric state is read only for uncatalogued boundary/scaffold
   ! sources requested by the compiled post-halo footprint.
@@ -27,6 +27,7 @@ module parallel_block_rhs_state_mod
      type(Rhs_Exchange) :: scalar_route,mean_route,vector_route
      integer(int64) :: topology=-1,masks=-1,adapter_values=0,resident_values=0
      integer :: nprovider=0,nslot=0
+     integer,allocatable :: audit_provider_key325(:,:),audit_physical_key325(:,:)
      logical :: means=.true.
      integer,allocatable :: local_provider(:),address(:,:),adapter_provider(:),adapter_domain(:),adapter_node(:)
      real(dp),allocatable :: scalar(:,:),mean(:,:),vector(:,:),read_scalar(:,:),read_mean(:,:),read_vector(:,:)
@@ -36,6 +37,10 @@ contains
     type(Rhs_Resident_Input),intent(in) :: input
     call audit316_i64('input.epoch',[input%topology,input%masks])
     call audit316_i('input.extent',[input%nprovider,input%nslot])
+    call audit316_i('input.provider_key325.shape',shape(input%audit_provider_key325))
+    call audit316_i('input.provider_key325',reshape(input%audit_provider_key325,[size(input%audit_provider_key325)]))
+    call audit316_i('input.physical_key325.shape',shape(input%audit_physical_key325))
+    call audit316_i('input.physical_key325',reshape(input%audit_physical_key325,[size(input%audit_physical_key325)]))
     call audit316_l('input.means',[input%means])
     call audit316_i('input.local_provider',input%local_provider)
     call audit316_i('input.address.shape',shape(input%address))
@@ -138,6 +143,9 @@ contains
        end do
     end do
     input%nprovider=np;input%nslot=nd;input%topology=topology;input%masks=masks
+    if(audit316_enabled()) then
+       input%audit_provider_key325=provider_key;input%audit_physical_key325=physical_key
+    end if
     do mode=1,3
        if(mode==3.and..not.input%means) cycle
        ! Scalar perturbation and velocity use the exact accepted NONE halo.

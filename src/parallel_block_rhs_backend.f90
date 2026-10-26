@@ -360,6 +360,10 @@ contains
     if(audit316_enabled()) then
        call audit316_begin('rhs.rk_values322',rk_epoch)
        call audit316_i('rk.adapter.shape',shape(adapter_value))
+       call audit316_i('rk.adapter.numeric.shape',shape(adapter_value(:n,:)))
+       call audit316_i('rk.adapter.domain.shape',shape(adapter_value(n+1:,:)))
+       call audit316_r('rk.adapter.numeric',reshape(adapter_value(:n,:),[size(adapter_value(:n,:))]))
+       call audit316_r('rk.adapter.domain',reshape(adapter_value(n+1:,:),[size(adapter_value(n+1:,:))]))
        call audit316_i('rk.value.shape',shape(rk_value))
        call audit316_i('rk.scalar.shape',shape(rk_scalar))
        call audit316_i('rk.mean.shape',shape(rk_mean))

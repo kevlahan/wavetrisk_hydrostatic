@@ -1,0 +1,9220 @@
+{
+  "schema": "stage322-level5-source-inventory-v1",
+  "sources": {
+    "src/parallel_block_rhs_distributed.f90": "1ac23c35f58767d96225e048ee3117c5cc9f1331827f66863c8a79c4b8ee59b6",
+    "src/adapt.f90": "3c7cbe6c49fc41667a918ebd7f7b79359a7c0dc28a2e9e9eeff6493559d450f5",
+    "src/parallel_block_transform_backend.f90": "015120a9b03248b97ca6ec79d20d436373b245658c4dda4203a8d80094c29a13",
+    "src/parallel_block_rhs_backend.f90": "fa47c9634f3e937977771f95105c4f731edd73f18fb463010d6aa3924d27f57d",
+    "src/domain.f90": "54a09b07a979ba54d9695ea23d1b6ea76096893cf1106f9c73acc49f05f27ecd",
+    "src/parallel_block_rhs_state.f90": "db634a876b4f7badb82d529846b3a5f4c00fb89a72bd83e46d78ec75418d5a8f",
+    "src/main.f90": "d19f921138a3cd32dcde2622a318d662e6f7d76e92ea197643ab3a1ee73652af",
+    "src/parallel_block_inverse.f90": "65b936677196c97fabf0f4ec8363132c3e48e9e4ff1f17ba4e789d7781d60db0",
+    "src/parallel_block_mpi.f90": "678a2b451126cefeb52e01a37ed9233c090d311c409fbc10296682e011cf2c9e",
+    "src/parallel_block_rhs_compile.f90": "e5f6faf39aec9da0983674802bf18290bd1fee3bab1064c028961826008e5c82",
+    "src/parallel_block_rhs_retention.f90": "b50dfa3fa75166df70a6f64c57226ffb6342f600e8b311246c243e4c83028f41",
+    "src/parallel_block_rhs_exchange.f90": "c27cd6d6da016ed512ec7ad9d1aa3758fa71c4b33848029a05ebf992917f83a9",
+    "src/time_integr.f90": "94a1e8b9919959e9c48807d0a8b0ffe5db6b243e40685b4abe2ac5ba0fd73a16",
+    "src/physics/physics_simple.f90": "5287f6a0a74747920ed2d671b2b91a98162b3e9963bb3429248063e75454beea",
+    "test/climate/climate.f90": "2bbcf112f11c553c1d77ae0178401d0203e5bff308160f2c8365f27bceff55c7"
+  },
+  "literal_sites": {
+    "placement.key.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        46
+      ]
+    ],
+    "placement.key": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        47
+      ]
+    ],
+    "placement.base": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        48
+      ]
+    ],
+    "placement.owned": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        49
+      ]
+    ],
+    "transport.epoch": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        52
+      ]
+    ],
+    "transport.route.bounds": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        53
+      ]
+    ],
+    "transport.bound": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        54
+      ]
+    ],
+    "transport.route_phase": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        55
+      ]
+    ],
+    "transport.route_level": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        56
+      ]
+    ],
+    "transport.scratch.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        57
+      ]
+    ],
+    "transport.route.coordinate": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        61
+      ]
+    ],
+    "executor.scalar_rhs.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        66
+      ]
+    ],
+    "executor.velocity_rhs.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        67
+      ]
+    ],
+    "workspace.lower.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        68
+      ]
+    ],
+    "workspace.phi.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        69
+      ]
+    ],
+    "workspace.pressure.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        70
+      ]
+    ],
+    "workspace.midpoint.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        71
+      ]
+    ],
+    "workspace.exner.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        72
+      ]
+    ],
+    "workspace.thermodynamic.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        73
+      ]
+    ],
+    "workspace.flux.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        74
+      ]
+    ],
+    "workspace.pv.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        75
+      ]
+    ],
+    "workspace.ke.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        76
+      ]
+    ],
+    "workspace.bernoulli.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        77
+      ]
+    ],
+    "workspace.vorticity.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        78
+      ]
+    ],
+    "workspace.diffusion_flux.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        79
+      ]
+    ],
+    "workspace.laplacian.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        80
+      ]
+    ],
+    "workspace.divu.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        81
+      ]
+    ],
+    "workspace.lap_divu.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        82
+      ]
+    ],
+    "workspace.rotation.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        83
+      ]
+    ],
+    "workspace.source.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        84
+      ]
+    ],
+    "workspace.physics.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        85
+      ]
+    ],
+    "workspace.scalar_rhs.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        86
+      ]
+    ],
+    "workspace.velocity_rhs.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        87
+      ]
+    ],
+    "workspace.scalar_physics.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        88
+      ]
+    ],
+    "workspace.sw_physics.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        89
+      ]
+    ],
+    "execution.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        431
+      ]
+    ],
+    "execution.order": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        432
+      ]
+    ],
+    "execution.constants": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        433
+      ]
+    ],
+    "execution.nu.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        434
+      ]
+    ],
+    "execution.nu": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        435
+      ]
+    ],
+    "execution.nu_pentagon": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        436
+      ]
+    ],
+    "execution.state.begin": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        437
+      ]
+    ],
+    "execution.halo.shape": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        449
+      ]
+    ],
+    "execution.halo.order": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        450
+      ]
+    ],
+    "execution.state.end": [
+      [
+        "parallel_block_rhs_distributed.f90",
+        451
+      ]
+    ],
+    "adapt322": [
+      [
+        "adapt.f90",
+        208
+      ]
+    ],
+    "adapt.options": [
+      [
+        "adapt.f90",
+        209
+      ]
+    ],
+    "adapt.operation": [
+      [
+        "adapt.f90",
+        210
+      ],
+      [
+        "adapt.f90",
+        215
+      ],
+      [
+        "adapt.f90",
+        222
+      ],
+      [
+        "adapt.f90",
+        226
+      ],
+      [
+        "adapt.f90",
+        234
+      ],
+      [
+        "adapt.f90",
+        238
+      ],
+      [
+        "adapt.f90",
+        242
+      ],
+      [
+        "adapt.f90",
+        248
+      ],
+      [
+        "adapt.f90",
+        252
+      ],
+      [
+        "adapt.f90",
+        256
+      ],
+      [
+        "adapt.f90",
+        260
+      ],
+      [
+        "adapt.f90",
+        264
+      ]
+    ],
+    "adapt.refined": [
+      [
+        "adapt.f90",
+        244
+      ]
+    ],
+    "transform.plan": [
+      [
+        "parallel_block_transform_backend.f90",
+        440
+      ]
+    ],
+    "masks": [
+      [
+        "parallel_block_transform_backend.f90",
+        441
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1149
+      ]
+    ],
+    "extent": [
+      [
+        "parallel_block_transform_backend.f90",
+        442
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        689
+      ],
+      [
+        "parallel_block_inverse.f90",
+        641
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6907
+      ]
+    ],
+    "placement%key.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        444
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        447
+      ]
+    ],
+    "placement%key": [
+      [
+        "parallel_block_transform_backend.f90",
+        445
+      ]
+    ],
+    "placement%owner.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        450
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        453
+      ]
+    ],
+    "placement%owner": [
+      [
+        "parallel_block_transform_backend.f90",
+        451
+      ]
+    ],
+    "placement%state_key.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        456
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        459
+      ]
+    ],
+    "placement%state_key": [
+      [
+        "parallel_block_transform_backend.f90",
+        457
+      ]
+    ],
+    "placement%level.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        462
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        465
+      ]
+    ],
+    "placement%level": [
+      [
+        "parallel_block_transform_backend.f90",
+        463
+      ]
+    ],
+    "placement%mask.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        468
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        471
+      ]
+    ],
+    "placement%mask": [
+      [
+        "parallel_block_transform_backend.f90",
+        469
+      ]
+    ],
+    "placement%owned.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        474
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        477
+      ]
+    ],
+    "placement%owned": [
+      [
+        "parallel_block_transform_backend.f90",
+        475
+      ]
+    ],
+    "placement%scalar_order.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        480
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        483
+      ]
+    ],
+    "placement%scalar_order": [
+      [
+        "parallel_block_transform_backend.f90",
+        481
+      ]
+    ],
+    "placement%inner_order.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        486
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        489
+      ]
+    ],
+    "placement%inner_order": [
+      [
+        "parallel_block_transform_backend.f90",
+        487
+      ]
+    ],
+    "placement%outer_order.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        492
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        495
+      ]
+    ],
+    "placement%outer_order": [
+      [
+        "parallel_block_transform_backend.f90",
+        493
+      ]
+    ],
+    "info.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        498
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        501
+      ]
+    ],
+    "info": [
+      [
+        "parallel_block_transform_backend.f90",
+        499
+      ]
+    ],
+    "interior_address.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        504
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        507
+      ]
+    ],
+    "interior_address": [
+      [
+        "parallel_block_transform_backend.f90",
+        505
+      ]
+    ],
+    "boundary_address.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        510
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        513
+      ]
+    ],
+    "boundary_address": [
+      [
+        "parallel_block_transform_backend.f90",
+        511
+      ]
+    ],
+    "save_node.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        516
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        519
+      ]
+    ],
+    "save_node": [
+      [
+        "parallel_block_transform_backend.f90",
+        517
+      ]
+    ],
+    "save_index.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        522
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        525
+      ]
+    ],
+    "save_index": [
+      [
+        "parallel_block_transform_backend.f90",
+        523
+      ]
+    ],
+    "fixed_node.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        528
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        531
+      ]
+    ],
+    "fixed_node": [
+      [
+        "parallel_block_transform_backend.f90",
+        529
+      ]
+    ],
+    "fixed_index.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        534
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        537
+      ]
+    ],
+    "fixed_index": [
+      [
+        "parallel_block_transform_backend.f90",
+        535
+      ]
+    ],
+    "interior_node.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        540
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        543
+      ]
+    ],
+    "interior_node": [
+      [
+        "parallel_block_transform_backend.f90",
+        541
+      ]
+    ],
+    "publication_domain.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        546
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        549
+      ]
+    ],
+    "publication_domain": [
+      [
+        "parallel_block_transform_backend.f90",
+        547
+      ]
+    ],
+    "publication_node.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        552
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        555
+      ]
+    ],
+    "publication_node": [
+      [
+        "parallel_block_transform_backend.f90",
+        553
+      ]
+    ],
+    "publication_row.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        558
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        561
+      ]
+    ],
+    "publication_row": [
+      [
+        "parallel_block_transform_backend.f90",
+        559
+      ]
+    ],
+    "forward_inner.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        564
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        567
+      ]
+    ],
+    "forward_inner": [
+      [
+        "parallel_block_transform_backend.f90",
+        565
+      ]
+    ],
+    "base.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        570
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        573
+      ]
+    ],
+    "base": [
+      [
+        "parallel_block_transform_backend.f90",
+        571
+      ]
+    ],
+    "fixed_domain.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        576
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        579
+      ]
+    ],
+    "fixed_domain": [
+      [
+        "parallel_block_transform_backend.f90",
+        577
+      ]
+    ],
+    "fixed_physical_node.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        582
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        585
+      ]
+    ],
+    "fixed_physical_node": [
+      [
+        "parallel_block_transform_backend.f90",
+        583
+      ]
+    ],
+    "scalar.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        588
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        590
+      ]
+    ],
+    "vector.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        593
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        595
+      ]
+    ],
+    "scalar_wavelet.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        598
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        600
+      ]
+    ],
+    "vector_wavelet.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        603
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        605
+      ]
+    ],
+    "fixed_scalar.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        608
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        610
+      ]
+    ],
+    "fixed_vector.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        613
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        615
+      ]
+    ],
+    "wire.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        618
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        620
+      ]
+    ],
+    "exchange_scratch.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        623
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        625
+      ]
+    ],
+    "scalar.program.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        636
+      ],
+      [
+        "parallel_block_inverse.f90",
+        808
+      ]
+    ],
+    "scalar.program": [
+      [
+        "parallel_block_transform_backend.f90",
+        637
+      ],
+      [
+        "parallel_block_inverse.f90",
+        809
+      ]
+    ],
+    "scalar.coefficients": [
+      [
+        "parallel_block_transform_backend.f90",
+        638
+      ]
+    ],
+    "inner.program.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        647
+      ],
+      [
+        "parallel_block_inverse.f90",
+        819
+      ]
+    ],
+    "inner.program": [
+      [
+        "parallel_block_transform_backend.f90",
+        648
+      ],
+      [
+        "parallel_block_inverse.f90",
+        820
+      ]
+    ],
+    "inner.coefficients": [
+      [
+        "parallel_block_transform_backend.f90",
+        649
+      ]
+    ],
+    "outer.program.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        658
+      ],
+      [
+        "parallel_block_inverse.f90",
+        797
+      ]
+    ],
+    "outer.program": [
+      [
+        "parallel_block_transform_backend.f90",
+        659
+      ],
+      [
+        "parallel_block_inverse.f90",
+        798
+      ]
+    ],
+    "outer.coefficients": [
+      [
+        "parallel_block_transform_backend.f90",
+        660
+      ],
+      [
+        "parallel_block_inverse.f90",
+        799
+      ]
+    ],
+    "transform.level": [
+      [
+        "parallel_block_transform_backend.f90",
+        662
+      ]
+    ],
+    "scalar.boundary.key": [
+      [
+        "parallel_block_transform_backend.f90",
+        663
+      ]
+    ],
+    "scalar.boundary.sign": [
+      [
+        "parallel_block_transform_backend.f90",
+        664
+      ]
+    ],
+    "vector.boundary.key": [
+      [
+        "parallel_block_transform_backend.f90",
+        665
+      ]
+    ],
+    "vector.boundary.sign": [
+      [
+        "parallel_block_transform_backend.f90",
+        666
+      ]
+    ],
+    "plan%sc.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        691
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        694
+      ],
+      [
+        "parallel_block_inverse.f90",
+        841
+      ],
+      [
+        "parallel_block_inverse.f90",
+        844
+      ],
+      [
+        "parallel_block_inverse.f90",
+        910
+      ],
+      [
+        "parallel_block_inverse.f90",
+        913
+      ]
+    ],
+    "plan%sc": [
+      [
+        "parallel_block_transform_backend.f90",
+        692
+      ],
+      [
+        "parallel_block_inverse.f90",
+        842
+      ],
+      [
+        "parallel_block_inverse.f90",
+        911
+      ]
+    ],
+    "plan%sd.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        697
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        700
+      ],
+      [
+        "parallel_block_inverse.f90",
+        847
+      ],
+      [
+        "parallel_block_inverse.f90",
+        850
+      ],
+      [
+        "parallel_block_inverse.f90",
+        916
+      ],
+      [
+        "parallel_block_inverse.f90",
+        919
+      ]
+    ],
+    "plan%sd": [
+      [
+        "parallel_block_transform_backend.f90",
+        698
+      ],
+      [
+        "parallel_block_inverse.f90",
+        848
+      ],
+      [
+        "parallel_block_inverse.f90",
+        917
+      ]
+    ],
+    "plan%rc.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        703
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        706
+      ],
+      [
+        "parallel_block_inverse.f90",
+        853
+      ],
+      [
+        "parallel_block_inverse.f90",
+        856
+      ],
+      [
+        "parallel_block_inverse.f90",
+        922
+      ],
+      [
+        "parallel_block_inverse.f90",
+        925
+      ]
+    ],
+    "plan%rc": [
+      [
+        "parallel_block_transform_backend.f90",
+        704
+      ],
+      [
+        "parallel_block_inverse.f90",
+        854
+      ],
+      [
+        "parallel_block_inverse.f90",
+        923
+      ]
+    ],
+    "plan%rd.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        709
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        712
+      ],
+      [
+        "parallel_block_inverse.f90",
+        859
+      ],
+      [
+        "parallel_block_inverse.f90",
+        862
+      ],
+      [
+        "parallel_block_inverse.f90",
+        928
+      ],
+      [
+        "parallel_block_inverse.f90",
+        931
+      ]
+    ],
+    "plan%rd": [
+      [
+        "parallel_block_transform_backend.f90",
+        710
+      ],
+      [
+        "parallel_block_inverse.f90",
+        860
+      ],
+      [
+        "parallel_block_inverse.f90",
+        929
+      ]
+    ],
+    "plan%source.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        715
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        718
+      ],
+      [
+        "parallel_block_inverse.f90",
+        934
+      ],
+      [
+        "parallel_block_inverse.f90",
+        937
+      ]
+    ],
+    "plan%source": [
+      [
+        "parallel_block_transform_backend.f90",
+        716
+      ],
+      [
+        "parallel_block_inverse.f90",
+        935
+      ]
+    ],
+    "plan%index.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        721
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        724
+      ]
+    ],
+    "plan%index": [
+      [
+        "parallel_block_transform_backend.f90",
+        722
+      ]
+    ],
+    "plan%target.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        727
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        730
+      ]
+    ],
+    "plan%target": [
+      [
+        "parallel_block_transform_backend.f90",
+        728
+      ]
+    ],
+    "plan%sign.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        733
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        736
+      ]
+    ],
+    "plan%sign": [
+      [
+        "parallel_block_transform_backend.f90",
+        734
+      ]
+    ],
+    "plan%send_peer.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        739
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        742
+      ]
+    ],
+    "plan%send_peer": [
+      [
+        "parallel_block_transform_backend.f90",
+        740
+      ]
+    ],
+    "plan%receive_peer.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        745
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        748
+      ]
+    ],
+    "plan%receive_peer": [
+      [
+        "parallel_block_transform_backend.f90",
+        746
+      ]
+    ],
+    "plan%sent.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        751
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        753
+      ]
+    ],
+    "plan%received.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        756
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        758
+      ]
+    ],
+    "plan%request.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        761
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        763
+      ]
+    ],
+    "transform.call322": [
+      [
+        "parallel_block_transform_backend.f90",
+        1101
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1110
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1191
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1193
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1205
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1211
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1215
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1248
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1257
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1268
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1277
+      ],
+      [
+        "parallel_block_transform_backend.f90",
+        1465
+      ]
+    ],
+    "transform.execute": [
+      [
+        "parallel_block_transform_backend.f90",
+        1148
+      ]
+    ],
+    "commit": [
+      [
+        "parallel_block_transform_backend.f90",
+        1150
+      ]
+    ],
+    "transform.values322": [
+      [
+        "parallel_block_transform_backend.f90",
+        1309
+      ]
+    ],
+    "transform.phase": [
+      [
+        "parallel_block_transform_backend.f90",
+        1310
+      ]
+    ],
+    "transform.state": [
+      [
+        "parallel_block_transform_backend.f90",
+        1311
+      ]
+    ],
+    "transform.scalar.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        1312
+      ]
+    ],
+    "transform.vector.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        1313
+      ]
+    ],
+    "transform.scalar_wavelet.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        1314
+      ]
+    ],
+    "transform.vector_wavelet.shape": [
+      [
+        "parallel_block_transform_backend.f90",
+        1315
+      ]
+    ],
+    "transform.scalar": [
+      [
+        "parallel_block_transform_backend.f90",
+        1316
+      ]
+    ],
+    "transform.vector": [
+      [
+        "parallel_block_transform_backend.f90",
+        1317
+      ]
+    ],
+    "transform.scalar_wavelet": [
+      [
+        "parallel_block_transform_backend.f90",
+        1318
+      ]
+    ],
+    "transform.vector_wavelet": [
+      [
+        "parallel_block_transform_backend.f90",
+        1319
+      ]
+    ],
+    "transform.installed322": [
+      [
+        "parallel_block_transform_backend.f90",
+        1360
+      ]
+    ],
+    "rhs.prepare_check": [
+      [
+        "parallel_block_rhs_backend.f90",
+        79
+      ]
+    ],
+    "prepare_check.generation": [
+      [
+        "parallel_block_rhs_backend.f90",
+        80
+      ]
+    ],
+    "prepare_check.rebuild": [
+      [
+        "parallel_block_rhs_backend.f90",
+        81
+      ]
+    ],
+    "rhs.prepare": [
+      [
+        "parallel_block_rhs_backend.f90",
+        179
+      ]
+    ],
+    "backend.generation": [
+      [
+        "parallel_block_rhs_backend.f90",
+        180
+      ]
+    ],
+    "backend.geometry.base": [
+      [
+        "parallel_block_rhs_backend.f90",
+        181
+      ]
+    ],
+    "backend.input": [
+      [
+        "parallel_block_rhs_backend.f90",
+        183
+      ]
+    ],
+    "backend.rk_input": [
+      [
+        "parallel_block_rhs_backend.f90",
+        186
+      ]
+    ],
+    "backend.adapter_domain": [
+      [
+        "parallel_block_rhs_backend.f90",
+        191
+      ]
+    ],
+    "backend.adapter_node": [
+      [
+        "parallel_block_rhs_backend.f90",
+        192
+      ]
+    ],
+    "backend.rk_domain": [
+      [
+        "parallel_block_rhs_backend.f90",
+        193
+      ]
+    ],
+    "backend.rk_node": [
+      [
+        "parallel_block_rhs_backend.f90",
+        194
+      ]
+    ],
+    "backend.owned": [
+      [
+        "parallel_block_rhs_backend.f90",
+        195
+      ]
+    ],
+    "backend.mask.domains": [
+      [
+        "parallel_block_rhs_backend.f90",
+        196
+      ]
+    ],
+    "backend.mask.domain": [
+      [
+        "parallel_block_rhs_backend.f90",
+        198
+      ]
+    ],
+    "backend.mask.node": [
+      [
+        "parallel_block_rhs_backend.f90",
+        199
+      ]
+    ],
+    "backend.mask.edge": [
+      [
+        "parallel_block_rhs_backend.f90",
+        200
+      ]
+    ],
+    "backend.surface": [
+      [
+        "parallel_block_rhs_backend.f90",
+        202
+      ]
+    ],
+    "backend.scalar.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        203
+      ]
+    ],
+    "backend.mean.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        204
+      ]
+    ],
+    "backend.velocity.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        205
+      ]
+    ],
+    "backend.adapter_value.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        206
+      ]
+    ],
+    "backend.rk_value.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        207
+      ]
+    ],
+    "backend.rk_scalar.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        208
+      ]
+    ],
+    "backend.rk_mean.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        209
+      ]
+    ],
+    "backend.rk_velocity.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        210
+      ]
+    ],
+    "rhs.evaluate": [
+      [
+        "parallel_block_rhs_backend.f90",
+        270
+      ]
+    ],
+    "evaluate.epoch": [
+      [
+        "parallel_block_rhs_backend.f90",
+        271
+      ]
+    ],
+    "evaluate.first_after_prepare": [
+      [
+        "parallel_block_rhs_backend.f90",
+        272
+      ]
+    ],
+    "rhs.prepared_state": [
+      [
+        "parallel_block_rhs_backend.f90",
+        279
+      ]
+    ],
+    "state.scalar.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        280
+      ]
+    ],
+    "state.mean.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        281
+      ]
+    ],
+    "state.velocity.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        282
+      ]
+    ],
+    "state.scalar": [
+      [
+        "parallel_block_rhs_backend.f90",
+        283
+      ]
+    ],
+    "state.mean": [
+      [
+        "parallel_block_rhs_backend.f90",
+        284
+      ]
+    ],
+    "state.velocity": [
+      [
+        "parallel_block_rhs_backend.f90",
+        285
+      ]
+    ],
+    "state.surface": [
+      [
+        "parallel_block_rhs_backend.f90",
+        286
+      ]
+    ],
+    "rhs.output322": [
+      [
+        "parallel_block_rhs_backend.f90",
+        296
+      ]
+    ],
+    "output.scalar.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        297
+      ]
+    ],
+    "output.velocity.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        298
+      ]
+    ],
+    "output.scalar": [
+      [
+        "parallel_block_rhs_backend.f90",
+        299
+      ]
+    ],
+    "output.velocity": [
+      [
+        "parallel_block_rhs_backend.f90",
+        300
+      ]
+    ],
+    "rhs.retain": [
+      [
+        "parallel_block_rhs_backend.f90",
+        311
+      ]
+    ],
+    "retain.epoch": [
+      [
+        "parallel_block_rhs_backend.f90",
+        312
+      ]
+    ],
+    "rhs.rk_prepare": [
+      [
+        "parallel_block_rhs_backend.f90",
+        330
+      ]
+    ],
+    "rk_prepare.epoch": [
+      [
+        "parallel_block_rhs_backend.f90",
+        331
+      ]
+    ],
+    "rk_prepare.h": [
+      [
+        "parallel_block_rhs_backend.f90",
+        332
+      ]
+    ],
+    "rhs.rk_values322": [
+      [
+        "parallel_block_rhs_backend.f90",
+        361
+      ]
+    ],
+    "rk.adapter.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        362
+      ]
+    ],
+    "rk.value.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        363
+      ]
+    ],
+    "rk.scalar.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        364
+      ]
+    ],
+    "rk.mean.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        365
+      ]
+    ],
+    "rk.velocity.shape": [
+      [
+        "parallel_block_rhs_backend.f90",
+        366
+      ]
+    ],
+    "rk.adapter": [
+      [
+        "parallel_block_rhs_backend.f90",
+        367
+      ]
+    ],
+    "rk.value": [
+      [
+        "parallel_block_rhs_backend.f90",
+        368
+      ]
+    ],
+    "rk.scalar": [
+      [
+        "parallel_block_rhs_backend.f90",
+        369
+      ]
+    ],
+    "rk.mean": [
+      [
+        "parallel_block_rhs_backend.f90",
+        370
+      ]
+    ],
+    "rk.velocity": [
+      [
+        "parallel_block_rhs_backend.f90",
+        371
+      ]
+    ],
+    "rhs.rk_install": [
+      [
+        "parallel_block_rhs_backend.f90",
+        504
+      ]
+    ],
+    "rk_install.epoch": [
+      [
+        "parallel_block_rhs_backend.f90",
+        505
+      ]
+    ],
+    "rk_install.validate": [
+      [
+        "parallel_block_rhs_backend.f90",
+        506
+      ]
+    ],
+    "rhs.rk_installed322": [
+      [
+        "parallel_block_rhs_backend.f90",
+        529
+      ]
+    ],
+    "installed.extent": [
+      [
+        "parallel_block_rhs_backend.f90",
+        530
+      ]
+    ],
+    "installed.adapter": [
+      [
+        "parallel_block_rhs_backend.f90",
+        533
+      ]
+    ],
+    "installed.values": [
+      [
+        "parallel_block_rhs_backend.f90",
+        535
+      ]
+    ],
+    "installed.resident": [
+      [
+        "parallel_block_rhs_backend.f90",
+        541
+      ]
+    ],
+    "installed.temperature": [
+      [
+        "parallel_block_rhs_backend.f90",
+        543
+      ]
+    ],
+    "domain.fields322": [
+      [
+        "domain.f90",
+        159
+      ]
+    ],
+    "fields.header": [
+      [
+        "domain.f90",
+        160
+      ]
+    ],
+    "fields.domain": [
+      [
+        "domain.f90",
+        163
+      ]
+    ],
+    "fields.node_level": [
+      [
+        "domain.f90",
+        164
+      ]
+    ],
+    "fields.node_mask": [
+      [
+        "domain.f90",
+        165
+      ]
+    ],
+    "fields.edge_mask": [
+      [
+        "domain.f90",
+        166
+      ]
+    ],
+    "fields.poles": [
+      [
+        "domain.f90",
+        167
+      ]
+    ],
+    "fields.patch": [
+      [
+        "domain.f90",
+        170
+      ]
+    ],
+    "fields.coordinate": [
+      [
+        "domain.f90",
+        179
+      ]
+    ],
+    "fields.boundary_current": [
+      [
+        "domain.f90",
+        180
+      ]
+    ],
+    "fields.values": [
+      [
+        "domain.f90",
+        181
+      ]
+    ],
+    "input.epoch": [
+      [
+        "parallel_block_rhs_state.f90",
+        37
+      ]
+    ],
+    "input.extent": [
+      [
+        "parallel_block_rhs_state.f90",
+        38
+      ]
+    ],
+    "input.means": [
+      [
+        "parallel_block_rhs_state.f90",
+        39
+      ]
+    ],
+    "input.local_provider": [
+      [
+        "parallel_block_rhs_state.f90",
+        40
+      ]
+    ],
+    "input.address.shape": [
+      [
+        "parallel_block_rhs_state.f90",
+        41
+      ]
+    ],
+    "input.address": [
+      [
+        "parallel_block_rhs_state.f90",
+        42
+      ]
+    ],
+    "input.adapter_provider": [
+      [
+        "parallel_block_rhs_state.f90",
+        43
+      ]
+    ],
+    "input.adapter_domain": [
+      [
+        "parallel_block_rhs_state.f90",
+        44
+      ]
+    ],
+    "input.adapter_node": [
+      [
+        "parallel_block_rhs_state.f90",
+        45
+      ]
+    ],
+    "input.scalar.shape": [
+      [
+        "parallel_block_rhs_state.f90",
+        49
+      ]
+    ],
+    "input.mean.shape": [
+      [
+        "parallel_block_rhs_state.f90",
+        50
+      ]
+    ],
+    "input.vector.shape": [
+      [
+        "parallel_block_rhs_state.f90",
+        51
+      ]
+    ],
+    "input.read_scalar.shape": [
+      [
+        "parallel_block_rhs_state.f90",
+        52
+      ]
+    ],
+    "input.read_mean.shape": [
+      [
+        "parallel_block_rhs_state.f90",
+        53
+      ]
+    ],
+    "input.read_vector.shape": [
+      [
+        "parallel_block_rhs_state.f90",
+        54
+      ]
+    ],
+    "main.boundary322": [
+      [
+        "main.f90",
+        759
+      ]
+    ],
+    "main.identity": [
+      [
+        "main.f90",
+        760
+      ]
+    ],
+    "main.time": [
+      [
+        "main.f90",
+        762
+      ]
+    ],
+    "main.integer_time": [
+      [
+        "main.f90",
+        763
+      ]
+    ],
+    "main.active": [
+      [
+        "main.f90",
+        764
+      ]
+    ],
+    "main.decisions": [
+      [
+        "main.f90",
+        765
+      ]
+    ],
+    "step322": [
+      [
+        "main.f90",
+        821
+      ]
+    ],
+    "step.output_decisions": [
+      [
+        "main.f90",
+        1107
+      ]
+    ],
+    "cfl322": [
+      [
+        "main.f90",
+        1278
+      ]
+    ],
+    "cfl.adaptive": [
+      [
+        "main.f90",
+        1279
+      ]
+    ],
+    "cfl.visits": [
+      [
+        "main.f90",
+        1295
+      ]
+    ],
+    "cfl.active_nodes": [
+      [
+        "main.f90",
+        1296
+      ]
+    ],
+    "cfl.active_edges": [
+      [
+        "main.f90",
+        1297
+      ]
+    ],
+    "cfl.result": [
+      [
+        "main.f90",
+        1298
+      ]
+    ],
+    "cfl.visit": [
+      [
+        "main.f90",
+        1330
+      ]
+    ],
+    "inverse.prepare": [
+      [
+        "parallel_block_inverse.f90",
+        548
+      ]
+    ],
+    "first_level": [
+      [
+        "parallel_block_inverse.f90",
+        549
+      ]
+    ],
+    "inverse.plan": [
+      [
+        "parallel_block_inverse.f90",
+        640
+      ]
+    ],
+    "options": [
+      [
+        "parallel_block_inverse.f90",
+        642
+      ],
+      [
+        "parallel_block_inverse.f90",
+        2282
+      ]
+    ],
+    "inverse.node_map": [
+      [
+        "parallel_block_inverse.f90",
+        644
+      ]
+    ],
+    "slot": [
+      [
+        "parallel_block_inverse.f90",
+        645
+      ]
+    ],
+    "key.shape": [
+      [
+        "parallel_block_inverse.f90",
+        646
+      ]
+    ],
+    "key": [
+      [
+        "parallel_block_inverse.f90",
+        647
+      ]
+    ],
+    "node_domain.shape": [
+      [
+        "parallel_block_inverse.f90",
+        651
+      ],
+      [
+        "parallel_block_inverse.f90",
+        654
+      ]
+    ],
+    "node_domain": [
+      [
+        "parallel_block_inverse.f90",
+        652
+      ]
+    ],
+    "node_id.shape": [
+      [
+        "parallel_block_inverse.f90",
+        657
+      ],
+      [
+        "parallel_block_inverse.f90",
+        660
+      ]
+    ],
+    "node_id": [
+      [
+        "parallel_block_inverse.f90",
+        658
+      ]
+    ],
+    "operation_first.shape": [
+      [
+        "parallel_block_inverse.f90",
+        663
+      ],
+      [
+        "parallel_block_inverse.f90",
+        666
+      ]
+    ],
+    "operation_first": [
+      [
+        "parallel_block_inverse.f90",
+        664
+      ]
+    ],
+    "operation_last.shape": [
+      [
+        "parallel_block_inverse.f90",
+        669
+      ],
+      [
+        "parallel_block_inverse.f90",
+        672
+      ]
+    ],
+    "operation_last": [
+      [
+        "parallel_block_inverse.f90",
+        670
+      ]
+    ],
+    "scaffold_slot.shape": [
+      [
+        "parallel_block_inverse.f90",
+        675
+      ],
+      [
+        "parallel_block_inverse.f90",
+        678
+      ]
+    ],
+    "scaffold_slot": [
+      [
+        "parallel_block_inverse.f90",
+        676
+      ]
+    ],
+    "consumer_alias_slot.shape": [
+      [
+        "parallel_block_inverse.f90",
+        681
+      ],
+      [
+        "parallel_block_inverse.f90",
+        684
+      ]
+    ],
+    "consumer_alias_slot": [
+      [
+        "parallel_block_inverse.f90",
+        682
+      ]
+    ],
+    "node_flags.shape": [
+      [
+        "parallel_block_inverse.f90",
+        687
+      ],
+      [
+        "parallel_block_inverse.f90",
+        690
+      ]
+    ],
+    "node_flags": [
+      [
+        "parallel_block_inverse.f90",
+        688
+      ]
+    ],
+    "restore203_index.shape": [
+      [
+        "parallel_block_inverse.f90",
+        693
+      ],
+      [
+        "parallel_block_inverse.f90",
+        696
+      ]
+    ],
+    "restore203_index": [
+      [
+        "parallel_block_inverse.f90",
+        694
+      ]
+    ],
+    "restore203_slot.shape": [
+      [
+        "parallel_block_inverse.f90",
+        699
+      ],
+      [
+        "parallel_block_inverse.f90",
+        702
+      ]
+    ],
+    "restore203_slot": [
+      [
+        "parallel_block_inverse.f90",
+        700
+      ]
+    ],
+    "value.shape": [
+      [
+        "parallel_block_inverse.f90",
+        705
+      ],
+      [
+        "parallel_block_inverse.f90",
+        707
+      ]
+    ],
+    "consumer_alias_value.shape": [
+      [
+        "parallel_block_inverse.f90",
+        710
+      ],
+      [
+        "parallel_block_inverse.f90",
+        712
+      ]
+    ],
+    "scaffold_value.shape": [
+      [
+        "parallel_block_inverse.f90",
+        715
+      ],
+      [
+        "parallel_block_inverse.f90",
+        717
+      ]
+    ],
+    "restore203.shape": [
+      [
+        "parallel_block_inverse.f90",
+        720
+      ],
+      [
+        "parallel_block_inverse.f90",
+        722
+      ]
+    ],
+    "saved203.shape": [
+      [
+        "parallel_block_inverse.f90",
+        725
+      ],
+      [
+        "parallel_block_inverse.f90",
+        727
+      ]
+    ],
+    "publication_tile.shape": [
+      [
+        "parallel_block_inverse.f90",
+        730
+      ],
+      [
+        "parallel_block_inverse.f90",
+        732
+      ]
+    ],
+    "transfer_send.shape": [
+      [
+        "parallel_block_inverse.f90",
+        735
+      ],
+      [
+        "parallel_block_inverse.f90",
+        737
+      ]
+    ],
+    "transfer_recv.shape": [
+      [
+        "parallel_block_inverse.f90",
+        740
+      ],
+      [
+        "parallel_block_inverse.f90",
+        742
+      ]
+    ],
+    "alias_send.shape": [
+      [
+        "parallel_block_inverse.f90",
+        745
+      ],
+      [
+        "parallel_block_inverse.f90",
+        747
+      ]
+    ],
+    "alias_recv.shape": [
+      [
+        "parallel_block_inverse.f90",
+        750
+      ],
+      [
+        "parallel_block_inverse.f90",
+        752
+      ]
+    ],
+    "requests.shape": [
+      [
+        "parallel_block_inverse.f90",
+        755
+      ],
+      [
+        "parallel_block_inverse.f90",
+        757
+      ]
+    ],
+    "inverse.level": [
+      [
+        "parallel_block_inverse.f90",
+        763
+      ]
+    ],
+    "component": [
+      [
+        "parallel_block_inverse.f90",
+        765
+      ],
+      [
+        "parallel_block_inverse.f90",
+        775
+      ]
+    ],
+    "inverse.outer_level": [
+      [
+        "parallel_block_inverse.f90",
+        772
+      ]
+    ],
+    "inverse.local_alias": [
+      [
+        "parallel_block_inverse.f90",
+        781
+      ]
+    ],
+    "source": [
+      [
+        "parallel_block_inverse.f90",
+        782
+      ]
+    ],
+    "dest": [
+      [
+        "parallel_block_inverse.f90",
+        783
+      ]
+    ],
+    "range": [
+      [
+        "parallel_block_inverse.f90",
+        785
+      ]
+    ],
+    "publication.program.shape": [
+      [
+        "parallel_block_inverse.f90",
+        828
+      ]
+    ],
+    "publication.program": [
+      [
+        "parallel_block_inverse.f90",
+        829
+      ]
+    ],
+    "edgewise": [
+      [
+        "parallel_block_inverse.f90",
+        839
+      ]
+    ],
+    "plan%key.shape": [
+      [
+        "parallel_block_inverse.f90",
+        865
+      ],
+      [
+        "parallel_block_inverse.f90",
+        868
+      ]
+    ],
+    "plan%key": [
+      [
+        "parallel_block_inverse.f90",
+        866
+      ]
+    ],
+    "plan%slot.shape": [
+      [
+        "parallel_block_inverse.f90",
+        871
+      ],
+      [
+        "parallel_block_inverse.f90",
+        874
+      ]
+    ],
+    "plan%slot": [
+      [
+        "parallel_block_inverse.f90",
+        872
+      ]
+    ],
+    "plan%source_info.shape": [
+      [
+        "parallel_block_inverse.f90",
+        877
+      ],
+      [
+        "parallel_block_inverse.f90",
+        880
+      ]
+    ],
+    "plan%source_info": [
+      [
+        "parallel_block_inverse.f90",
+        878
+      ]
+    ],
+    "plan%target_info.shape": [
+      [
+        "parallel_block_inverse.f90",
+        883
+      ],
+      [
+        "parallel_block_inverse.f90",
+        886
+      ]
+    ],
+    "plan%target_info": [
+      [
+        "parallel_block_inverse.f90",
+        884
+      ]
+    ],
+    "plan%address.shape": [
+      [
+        "parallel_block_inverse.f90",
+        889
+      ],
+      [
+        "parallel_block_inverse.f90",
+        892
+      ]
+    ],
+    "plan%address": [
+      [
+        "parallel_block_inverse.f90",
+        890
+      ]
+    ],
+    "plan%self_slot.shape": [
+      [
+        "parallel_block_inverse.f90",
+        896
+      ],
+      [
+        "parallel_block_inverse.f90",
+        899
+      ]
+    ],
+    "plan%self_slot": [
+      [
+        "parallel_block_inverse.f90",
+        897
+      ]
+    ],
+    "plan%dest.shape": [
+      [
+        "parallel_block_inverse.f90",
+        940
+      ],
+      [
+        "parallel_block_inverse.f90",
+        943
+      ]
+    ],
+    "plan%dest": [
+      [
+        "parallel_block_inverse.f90",
+        941
+      ]
+    ],
+    "plan%install_order.shape": [
+      [
+        "parallel_block_inverse.f90",
+        946
+      ],
+      [
+        "parallel_block_inverse.f90",
+        949
+      ]
+    ],
+    "plan%install_order": [
+      [
+        "parallel_block_inverse.f90",
+        947
+      ]
+    ],
+    "inverse.scalar": [
+      [
+        "parallel_block_inverse.f90",
+        975
+      ]
+    ],
+    "level_phase": [
+      [
+        "parallel_block_inverse.f90",
+        976
+      ]
+    ],
+    "selected_and_active": [
+      [
+        "parallel_block_inverse.f90",
+        977
+      ]
+    ],
+    "coefficients": [
+      [
+        "parallel_block_inverse.f90",
+        978
+      ],
+      [
+        "parallel_block_inverse.f90",
+        1007
+      ]
+    ],
+    "inverse.inner": [
+      [
+        "parallel_block_inverse.f90",
+        1004
+      ]
+    ],
+    "level": [
+      [
+        "parallel_block_inverse.f90",
+        1005
+      ],
+      [
+        "parallel_block_inverse.f90",
+        1251
+      ],
+      [
+        "parallel_block_inverse.f90",
+        1289
+      ],
+      [
+        "parallel_block_inverse.f90",
+        2202
+      ]
+    ],
+    "selected": [
+      [
+        "parallel_block_inverse.f90",
+        1006
+      ]
+    ],
+    "inverse.gather": [
+      [
+        "parallel_block_inverse.f90",
+        1248
+      ]
+    ],
+    "family": [
+      [
+        "parallel_block_inverse.f90",
+        1249
+      ],
+      [
+        "parallel_block_inverse.f90",
+        1287
+      ]
+    ],
+    "flags": [
+      [
+        "parallel_block_inverse.f90",
+        1250
+      ],
+      [
+        "parallel_block_inverse.f90",
+        1288
+      ]
+    ],
+    "inverse.scatter": [
+      [
+        "parallel_block_inverse.f90",
+        1286
+      ]
+    ],
+    "inverse.boundary": [
+      [
+        "parallel_block_inverse.f90",
+        1656
+      ]
+    ],
+    "family_and_range": [
+      [
+        "parallel_block_inverse.f90",
+        1657
+      ]
+    ],
+    "inverse.publish322": [
+      [
+        "parallel_block_inverse.f90",
+        1881
+      ],
+      [
+        "parallel_block_inverse.f90",
+        1932
+      ]
+    ],
+    "publication.mode": [
+      [
+        "parallel_block_inverse.f90",
+        1882
+      ],
+      [
+        "parallel_block_inverse.f90",
+        1933
+      ]
+    ],
+    "inverse.outer": [
+      [
+        "parallel_block_inverse.f90",
+        2201
+      ]
+    ],
+    "operation_range": [
+      [
+        "parallel_block_inverse.f90",
+        2203
+      ]
+    ],
+    "inverse.values322": [
+      [
+        "parallel_block_inverse.f90",
+        2257
+      ]
+    ],
+    "inverse.phase": [
+      [
+        "parallel_block_inverse.f90",
+        2258
+      ]
+    ],
+    "inverse.value.shape": [
+      [
+        "parallel_block_inverse.f90",
+        2259
+      ]
+    ],
+    "inverse.value": [
+      [
+        "parallel_block_inverse.f90",
+        2260
+      ]
+    ],
+    "inverse.scaffold.shape": [
+      [
+        "parallel_block_inverse.f90",
+        2261
+      ]
+    ],
+    "inverse.scaffold": [
+      [
+        "parallel_block_inverse.f90",
+        2262
+      ]
+    ],
+    "inverse.alias.shape": [
+      [
+        "parallel_block_inverse.f90",
+        2263
+      ]
+    ],
+    "inverse.alias": [
+      [
+        "parallel_block_inverse.f90",
+        2264
+      ]
+    ],
+    "inverse.restore.shape": [
+      [
+        "parallel_block_inverse.f90",
+        2266
+      ],
+      [
+        "parallel_block_inverse.f90",
+        2269
+      ]
+    ],
+    "inverse.restore": [
+      [
+        "parallel_block_inverse.f90",
+        2267
+      ]
+    ],
+    "inverse.begin": [
+      [
+        "parallel_block_inverse.f90",
+        2281
+      ]
+    ],
+    "inverse.end": [
+      [
+        "parallel_block_inverse.f90",
+        2290
+      ]
+    ],
+    "work": [
+      [
+        "parallel_block_inverse.f90",
+        2291
+      ]
+    ],
+    "transport.event322": [
+      [
+        "parallel_block_mpi.f90",
+        1207
+      ]
+    ],
+    "transport.identity322": [
+      [
+        "parallel_block_mpi.f90",
+        1208
+      ]
+    ],
+    "transport.epoch322": [
+      [
+        "parallel_block_mpi.f90",
+        1209
+      ]
+    ],
+    "transport.count322": [
+      [
+        "parallel_block_mpi.f90",
+        1228
+      ]
+    ],
+    "transport.footer322": [
+      [
+        "parallel_block_mpi.f90",
+        1233
+      ]
+    ],
+    "transport.calls322": [
+      [
+        "parallel_block_mpi.f90",
+        1234
+      ]
+    ],
+    "catalog.executed": [
+      [
+        "parallel_block_mpi.f90",
+        6878
+      ]
+    ],
+    "physical.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6885
+      ]
+    ],
+    "physical": [
+      [
+        "parallel_block_mpi.f90",
+        6886
+      ]
+    ],
+    "domain.owner": [
+      [
+        "parallel_block_mpi.f90",
+        6887
+      ]
+    ],
+    "domain.loc_id": [
+      [
+        "parallel_block_mpi.f90",
+        6888
+      ]
+    ],
+    "domain.local_glo_id": [
+      [
+        "parallel_block_mpi.f90",
+        6889
+      ]
+    ],
+    "catalog.domain_extent322": [
+      [
+        "parallel_block_mpi.f90",
+        6891
+      ]
+    ],
+    "cut.domain": [
+      [
+        "parallel_block_mpi.f90",
+        6897
+      ]
+    ],
+    "cut.root": [
+      [
+        "parallel_block_mpi.f90",
+        6898
+      ]
+    ],
+    "migration.routes": [
+      [
+        "parallel_block_mpi.f90",
+        6906
+      ]
+    ],
+    "bytes": [
+      [
+        "parallel_block_mpi.f90",
+        6908
+      ]
+    ],
+    "plan%send_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6910
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6913
+      ]
+    ],
+    "plan%send_count": [
+      [
+        "parallel_block_mpi.f90",
+        6911
+      ]
+    ],
+    "plan%recv_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6916
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6919
+      ]
+    ],
+    "plan%recv_count": [
+      [
+        "parallel_block_mpi.f90",
+        6917
+      ]
+    ],
+    "plan%send_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6922
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6925
+      ]
+    ],
+    "plan%send_displ": [
+      [
+        "parallel_block_mpi.f90",
+        6923
+      ]
+    ],
+    "plan%recv_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6928
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6931
+      ]
+    ],
+    "plan%recv_displ": [
+      [
+        "parallel_block_mpi.f90",
+        6929
+      ]
+    ],
+    "plan%send_block.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6934
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6937
+      ]
+    ],
+    "plan%send_block": [
+      [
+        "parallel_block_mpi.f90",
+        6935
+      ]
+    ],
+    "plan%recv_block.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6940
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6943
+      ]
+    ],
+    "plan%recv_block": [
+      [
+        "parallel_block_mpi.f90",
+        6941
+      ]
+    ],
+    "plan%send_nbyte.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6946
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6949
+      ]
+    ],
+    "plan%send_nbyte": [
+      [
+        "parallel_block_mpi.f90",
+        6947
+      ]
+    ],
+    "plan%recv_nbyte.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6952
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6955
+      ]
+    ],
+    "plan%recv_nbyte": [
+      [
+        "parallel_block_mpi.f90",
+        6953
+      ]
+    ],
+    "plan%send_byte_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6958
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6961
+      ]
+    ],
+    "plan%send_byte_count": [
+      [
+        "parallel_block_mpi.f90",
+        6959
+      ]
+    ],
+    "plan%recv_byte_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6964
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6967
+      ]
+    ],
+    "plan%recv_byte_count": [
+      [
+        "parallel_block_mpi.f90",
+        6965
+      ]
+    ],
+    "plan%send_byte_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6970
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6973
+      ]
+    ],
+    "plan%send_byte_displ": [
+      [
+        "parallel_block_mpi.f90",
+        6971
+      ]
+    ],
+    "plan%recv_byte_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        6976
+      ],
+      [
+        "parallel_block_mpi.f90",
+        6979
+      ]
+    ],
+    "plan%recv_byte_displ": [
+      [
+        "parallel_block_mpi.f90",
+        6977
+      ]
+    ],
+    "storage.installed": [
+      [
+        "parallel_block_mpi.f90",
+        6986
+      ]
+    ],
+    "block": [
+      [
+        "parallel_block_mpi.f90",
+        7001
+      ]
+    ],
+    "identity": [
+      [
+        "parallel_block_mpi.f90",
+        7002
+      ]
+    ],
+    "patch.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7012
+      ]
+    ],
+    "patch": [
+      [
+        "parallel_block_mpi.f90",
+        7013
+      ]
+    ],
+    "node.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7020
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7024
+      ]
+    ],
+    "node": [
+      [
+        "parallel_block_mpi.f90",
+        7021
+      ]
+    ],
+    "bdry_node.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7031
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7035
+      ]
+    ],
+    "bdry_node": [
+      [
+        "parallel_block_mpi.f90",
+        7032
+      ]
+    ],
+    "ghost_node.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7042
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7046
+      ]
+    ],
+    "ghost_node": [
+      [
+        "parallel_block_mpi.f90",
+        7043
+      ]
+    ],
+    "block%neigh_class.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7049
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7052
+      ]
+    ],
+    "block%neigh_class": [
+      [
+        "parallel_block_mpi.f90",
+        7050
+      ]
+    ],
+    "block_bdry.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7062
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7066
+      ]
+    ],
+    "block_bdry": [
+      [
+        "parallel_block_mpi.f90",
+        7063
+      ]
+    ],
+    "bdry_storage.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7075
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7079
+      ]
+    ],
+    "bdry_storage": [
+      [
+        "parallel_block_mpi.f90",
+        7076
+      ]
+    ],
+    "ghost_storage.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7089
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7093
+      ]
+    ],
+    "ghost_storage": [
+      [
+        "parallel_block_mpi.f90",
+        7090
+      ]
+    ],
+    "stencil.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7105
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7109
+      ]
+    ],
+    "stencil": [
+      [
+        "parallel_block_mpi.f90",
+        7106
+      ]
+    ],
+    "block%scalar.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7112
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7114
+      ]
+    ],
+    "block%vector.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7117
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7119
+      ]
+    ],
+    "block%wavelet_scalar.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7122
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7124
+      ]
+    ],
+    "block%wavelet_vector.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7127
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7129
+      ]
+    ],
+    "block%scalar_mean.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7132
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7134
+      ]
+    ],
+    "block%vector_mean.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7137
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7139
+      ]
+    ],
+    "block%tke.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7142
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7144
+      ]
+    ],
+    "block%wavelet_tke.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7147
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7149
+      ]
+    ],
+    "block%topography.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7152
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7154
+      ]
+    ],
+    "block%bdry_scalar.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7157
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7159
+      ]
+    ],
+    "block%bdry_vector.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7162
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7164
+      ]
+    ],
+    "block%bdry_wavelet_scalar.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7167
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7169
+      ]
+    ],
+    "block%bdry_wavelet_vector.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7172
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7174
+      ]
+    ],
+    "block%bdry_scalar_mean.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7177
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7179
+      ]
+    ],
+    "block%bdry_vector_mean.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7182
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7184
+      ]
+    ],
+    "block%bdry_tke.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7187
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7189
+      ]
+    ],
+    "block%bdry_wavelet_tke.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7192
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7194
+      ]
+    ],
+    "block%bdry_topography.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7197
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7199
+      ]
+    ],
+    "block%ghost_scalar.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7202
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7204
+      ]
+    ],
+    "block%ghost_vector.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7207
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7209
+      ]
+    ],
+    "block%ghost_wavelet_scalar.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7212
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7214
+      ]
+    ],
+    "block%ghost_wavelet_vector.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7217
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7219
+      ]
+    ],
+    "block%ghost_scalar_mean.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7222
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7224
+      ]
+    ],
+    "block%ghost_vector_mean.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7227
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7229
+      ]
+    ],
+    "block%ghost_tke.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7232
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7234
+      ]
+    ],
+    "block%ghost_wavelet_tke.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7237
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7239
+      ]
+    ],
+    "block%ghost_topography.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7242
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7244
+      ]
+    ],
+    "ghost.plan": [
+      [
+        "parallel_block_mpi.f90",
+        7250
+      ]
+    ],
+    "ghost_exchange_plan%local_order297.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7252
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7255
+      ]
+    ],
+    "ghost_exchange_plan%local_order297": [
+      [
+        "parallel_block_mpi.f90",
+        7253
+      ]
+    ],
+    "ghost_exchange_plan%local_start297.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7258
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7261
+      ]
+    ],
+    "ghost_exchange_plan%local_start297": [
+      [
+        "parallel_block_mpi.f90",
+        7259
+      ]
+    ],
+    "ghost_exchange_plan%source_block.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7264
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7267
+      ]
+    ],
+    "ghost_exchange_plan%source_block": [
+      [
+        "parallel_block_mpi.f90",
+        7265
+      ]
+    ],
+    "ghost_exchange_plan%source_local_patch.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7270
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7273
+      ]
+    ],
+    "ghost_exchange_plan%source_local_patch": [
+      [
+        "parallel_block_mpi.f90",
+        7271
+      ]
+    ],
+    "ghost_exchange_plan%source_patch_level.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7276
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7279
+      ]
+    ],
+    "ghost_exchange_plan%source_patch_level": [
+      [
+        "parallel_block_mpi.f90",
+        7277
+      ]
+    ],
+    "ghost_exchange_plan%source_owner.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7282
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7285
+      ]
+    ],
+    "ghost_exchange_plan%source_owner": [
+      [
+        "parallel_block_mpi.f90",
+        7283
+      ]
+    ],
+    "ghost_exchange_plan%destination_block.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7288
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7291
+      ]
+    ],
+    "ghost_exchange_plan%destination_block": [
+      [
+        "parallel_block_mpi.f90",
+        7289
+      ]
+    ],
+    "ghost_exchange_plan%destination_ghost.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7294
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7297
+      ]
+    ],
+    "ghost_exchange_plan%destination_ghost": [
+      [
+        "parallel_block_mpi.f90",
+        7295
+      ]
+    ],
+    "ghost_exchange_plan%send_record_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7300
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7303
+      ]
+    ],
+    "ghost_exchange_plan%send_record_count": [
+      [
+        "parallel_block_mpi.f90",
+        7301
+      ]
+    ],
+    "ghost_exchange_plan%recv_record_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7306
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7309
+      ]
+    ],
+    "ghost_exchange_plan%recv_record_count": [
+      [
+        "parallel_block_mpi.f90",
+        7307
+      ]
+    ],
+    "ghost_exchange_plan%send_record_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7312
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7315
+      ]
+    ],
+    "ghost_exchange_plan%send_record_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7313
+      ]
+    ],
+    "ghost_exchange_plan%recv_record_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7318
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7321
+      ]
+    ],
+    "ghost_exchange_plan%recv_record_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7319
+      ]
+    ],
+    "ghost_exchange_plan%send_data.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7324
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7327
+      ]
+    ],
+    "ghost_exchange_plan%send_data": [
+      [
+        "parallel_block_mpi.f90",
+        7325
+      ]
+    ],
+    "ghost_exchange_plan%recv_data.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7330
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7333
+      ]
+    ],
+    "ghost_exchange_plan%recv_data": [
+      [
+        "parallel_block_mpi.f90",
+        7331
+      ]
+    ],
+    "ghost_exchange_plan%request_index.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7336
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7339
+      ]
+    ],
+    "ghost_exchange_plan%request_index": [
+      [
+        "parallel_block_mpi.f90",
+        7337
+      ]
+    ],
+    "ghost_exchange_plan%local_level_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7342
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7345
+      ]
+    ],
+    "ghost_exchange_plan%local_level_count": [
+      [
+        "parallel_block_mpi.f90",
+        7343
+      ]
+    ],
+    "ghost_exchange_plan%local_level_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7348
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7351
+      ]
+    ],
+    "ghost_exchange_plan%local_level_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7349
+      ]
+    ],
+    "ghost_exchange_plan%local_level_request.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7354
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7357
+      ]
+    ],
+    "ghost_exchange_plan%local_level_request": [
+      [
+        "parallel_block_mpi.f90",
+        7355
+      ]
+    ],
+    "ghost_exchange_plan%send_level_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7360
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7364
+      ]
+    ],
+    "ghost_exchange_plan%send_level_count": [
+      [
+        "parallel_block_mpi.f90",
+        7361
+      ]
+    ],
+    "ghost_exchange_plan%send_level_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7367
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7371
+      ]
+    ],
+    "ghost_exchange_plan%send_level_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7368
+      ]
+    ],
+    "ghost_exchange_plan%send_level_base.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7374
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7377
+      ]
+    ],
+    "ghost_exchange_plan%send_level_base": [
+      [
+        "parallel_block_mpi.f90",
+        7375
+      ]
+    ],
+    "ghost_exchange_plan%send_level_record.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7380
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7383
+      ]
+    ],
+    "ghost_exchange_plan%send_level_record": [
+      [
+        "parallel_block_mpi.f90",
+        7381
+      ]
+    ],
+    "ghost_exchange_plan%recv_level_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7386
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7390
+      ]
+    ],
+    "ghost_exchange_plan%recv_level_count": [
+      [
+        "parallel_block_mpi.f90",
+        7387
+      ]
+    ],
+    "ghost_exchange_plan%recv_level_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7393
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7397
+      ]
+    ],
+    "ghost_exchange_plan%recv_level_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7394
+      ]
+    ],
+    "ghost_exchange_plan%recv_level_base.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7400
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7403
+      ]
+    ],
+    "ghost_exchange_plan%recv_level_base": [
+      [
+        "parallel_block_mpi.f90",
+        7401
+      ]
+    ],
+    "ghost_exchange_plan%recv_level_record.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7406
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7409
+      ]
+    ],
+    "ghost_exchange_plan%recv_level_record": [
+      [
+        "parallel_block_mpi.f90",
+        7407
+      ]
+    ],
+    "ghost_exchange_plan%scalar_send_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7412
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7415
+      ]
+    ],
+    "ghost_exchange_plan%scalar_send_count": [
+      [
+        "parallel_block_mpi.f90",
+        7413
+      ]
+    ],
+    "ghost_exchange_plan%scalar_recv_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7418
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7421
+      ]
+    ],
+    "ghost_exchange_plan%scalar_recv_count": [
+      [
+        "parallel_block_mpi.f90",
+        7419
+      ]
+    ],
+    "ghost_exchange_plan%scalar_send_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7424
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7427
+      ]
+    ],
+    "ghost_exchange_plan%scalar_send_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7425
+      ]
+    ],
+    "ghost_exchange_plan%scalar_recv_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7430
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7433
+      ]
+    ],
+    "ghost_exchange_plan%scalar_recv_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7431
+      ]
+    ],
+    "ghost_exchange_plan%vector_send_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7436
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7439
+      ]
+    ],
+    "ghost_exchange_plan%vector_send_count": [
+      [
+        "parallel_block_mpi.f90",
+        7437
+      ]
+    ],
+    "ghost_exchange_plan%vector_recv_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7442
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7445
+      ]
+    ],
+    "ghost_exchange_plan%vector_recv_count": [
+      [
+        "parallel_block_mpi.f90",
+        7443
+      ]
+    ],
+    "ghost_exchange_plan%vector_send_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7448
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7451
+      ]
+    ],
+    "ghost_exchange_plan%vector_send_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7449
+      ]
+    ],
+    "ghost_exchange_plan%vector_recv_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7454
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7457
+      ]
+    ],
+    "ghost_exchange_plan%vector_recv_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7455
+      ]
+    ],
+    "ghost_exchange_plan%scalar_send_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7460
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7462
+      ]
+    ],
+    "ghost_exchange_plan%scalar_recv_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7465
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7467
+      ]
+    ],
+    "ghost_exchange_plan%scalar_patch_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7470
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7472
+      ]
+    ],
+    "ghost_exchange_plan%vector_send_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7475
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7477
+      ]
+    ],
+    "ghost_exchange_plan%vector_recv_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7480
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7482
+      ]
+    ],
+    "ghost_exchange_plan%vector_patch_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7485
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7487
+      ]
+    ],
+    "n_request": [
+      [
+        "parallel_block_mpi.f90",
+        7489
+      ]
+    ],
+    "n_local_request": [
+      [
+        "parallel_block_mpi.f90",
+        7490
+      ]
+    ],
+    "n_remote_send": [
+      [
+        "parallel_block_mpi.f90",
+        7491
+      ]
+    ],
+    "n_remote_recv": [
+      [
+        "parallel_block_mpi.f90",
+        7492
+      ]
+    ],
+    "route_level_start": [
+      [
+        "parallel_block_mpi.f90",
+        7493
+      ]
+    ],
+    "route_level_count": [
+      [
+        "parallel_block_mpi.f90",
+        7494
+      ]
+    ],
+    "scalar_n_value": [
+      [
+        "parallel_block_mpi.f90",
+        7495
+      ]
+    ],
+    "vector_n_value": [
+      [
+        "parallel_block_mpi.f90",
+        7496
+      ]
+    ],
+    "writeback.plan": [
+      [
+        "parallel_block_mpi.f90",
+        7501
+      ]
+    ],
+    "block_writeback_plan%send_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7503
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7506
+      ]
+    ],
+    "block_writeback_plan%send_count": [
+      [
+        "parallel_block_mpi.f90",
+        7504
+      ]
+    ],
+    "block_writeback_plan%recv_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7509
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7512
+      ]
+    ],
+    "block_writeback_plan%recv_count": [
+      [
+        "parallel_block_mpi.f90",
+        7510
+      ]
+    ],
+    "block_writeback_plan%send_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7515
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7518
+      ]
+    ],
+    "block_writeback_plan%send_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7516
+      ]
+    ],
+    "block_writeback_plan%recv_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7521
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7524
+      ]
+    ],
+    "block_writeback_plan%recv_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7522
+      ]
+    ],
+    "block_writeback_plan%send_block.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7527
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7530
+      ]
+    ],
+    "block_writeback_plan%send_block": [
+      [
+        "parallel_block_mpi.f90",
+        7528
+      ]
+    ],
+    "block_writeback_plan%recv_block.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7533
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7536
+      ]
+    ],
+    "block_writeback_plan%recv_block": [
+      [
+        "parallel_block_mpi.f90",
+        7534
+      ]
+    ],
+    "block_writeback_plan%send_patch_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7539
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7542
+      ]
+    ],
+    "block_writeback_plan%send_patch_count": [
+      [
+        "parallel_block_mpi.f90",
+        7540
+      ]
+    ],
+    "block_writeback_plan%recv_patch_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7545
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7548
+      ]
+    ],
+    "block_writeback_plan%recv_patch_count": [
+      [
+        "parallel_block_mpi.f90",
+        7546
+      ]
+    ],
+    "block_writeback_plan%send_scalar_nvalue.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7551
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7554
+      ]
+    ],
+    "block_writeback_plan%send_scalar_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7552
+      ]
+    ],
+    "block_writeback_plan%recv_scalar_nvalue.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7557
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7560
+      ]
+    ],
+    "block_writeback_plan%recv_scalar_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7558
+      ]
+    ],
+    "block_writeback_plan%send_vector_nvalue.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7563
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7566
+      ]
+    ],
+    "block_writeback_plan%send_vector_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7564
+      ]
+    ],
+    "block_writeback_plan%recv_vector_nvalue.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7569
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7572
+      ]
+    ],
+    "block_writeback_plan%recv_vector_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7570
+      ]
+    ],
+    "block_writeback_plan%send_boundary_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7575
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7578
+      ]
+    ],
+    "block_writeback_plan%send_boundary_count": [
+      [
+        "parallel_block_mpi.f90",
+        7576
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7581
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7584
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_count": [
+      [
+        "parallel_block_mpi.f90",
+        7582
+      ]
+    ],
+    "block_writeback_plan%send_boundary_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7587
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7590
+      ]
+    ],
+    "block_writeback_plan%send_boundary_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7588
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7593
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7596
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7594
+      ]
+    ],
+    "block_writeback_plan%send_boundary_source.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7599
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7602
+      ]
+    ],
+    "block_writeback_plan%send_boundary_source": [
+      [
+        "parallel_block_mpi.f90",
+        7600
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_source.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7605
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7608
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_source": [
+      [
+        "parallel_block_mpi.f90",
+        7606
+      ]
+    ],
+    "block_writeback_plan%send_boundary_level.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7611
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7614
+      ]
+    ],
+    "block_writeback_plan%send_boundary_level": [
+      [
+        "parallel_block_mpi.f90",
+        7612
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_level.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7617
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7620
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_level": [
+      [
+        "parallel_block_mpi.f90",
+        7618
+      ]
+    ],
+    "block_writeback_plan%send_boundary_nnode.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7623
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7626
+      ]
+    ],
+    "block_writeback_plan%send_boundary_nnode": [
+      [
+        "parallel_block_mpi.f90",
+        7624
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_nnode.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7629
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7632
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_nnode": [
+      [
+        "parallel_block_mpi.f90",
+        7630
+      ]
+    ],
+    "block_writeback_plan%send_boundary_scalar_nvalue.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7635
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7639
+      ]
+    ],
+    "block_writeback_plan%send_boundary_scalar_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7637
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_scalar_nvalue.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7642
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7646
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_scalar_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7644
+      ]
+    ],
+    "block_writeback_plan%send_boundary_vector_nvalue.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7649
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7653
+      ]
+    ],
+    "block_writeback_plan%send_boundary_vector_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7651
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_vector_nvalue.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7656
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7660
+      ]
+    ],
+    "block_writeback_plan%recv_boundary_vector_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7658
+      ]
+    ],
+    "block_writeback_plan%scalar_send_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7663
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7666
+      ]
+    ],
+    "block_writeback_plan%scalar_send_count": [
+      [
+        "parallel_block_mpi.f90",
+        7664
+      ]
+    ],
+    "block_writeback_plan%scalar_recv_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7669
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7672
+      ]
+    ],
+    "block_writeback_plan%scalar_recv_count": [
+      [
+        "parallel_block_mpi.f90",
+        7670
+      ]
+    ],
+    "block_writeback_plan%scalar_send_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7675
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7678
+      ]
+    ],
+    "block_writeback_plan%scalar_send_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7676
+      ]
+    ],
+    "block_writeback_plan%scalar_recv_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7681
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7684
+      ]
+    ],
+    "block_writeback_plan%scalar_recv_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7682
+      ]
+    ],
+    "block_writeback_plan%vector_send_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7687
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7690
+      ]
+    ],
+    "block_writeback_plan%vector_send_count": [
+      [
+        "parallel_block_mpi.f90",
+        7688
+      ]
+    ],
+    "block_writeback_plan%vector_recv_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7693
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7696
+      ]
+    ],
+    "block_writeback_plan%vector_recv_count": [
+      [
+        "parallel_block_mpi.f90",
+        7694
+      ]
+    ],
+    "block_writeback_plan%vector_send_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7699
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7702
+      ]
+    ],
+    "block_writeback_plan%vector_send_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7700
+      ]
+    ],
+    "block_writeback_plan%vector_recv_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7705
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7708
+      ]
+    ],
+    "block_writeback_plan%vector_recv_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7706
+      ]
+    ],
+    "block_writeback_plan%scalar_send_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7711
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7713
+      ]
+    ],
+    "block_writeback_plan%scalar_recv_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7716
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7718
+      ]
+    ],
+    "block_writeback_plan%vector_send_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7721
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7723
+      ]
+    ],
+    "block_writeback_plan%vector_recv_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7726
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7728
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7731
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7736
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_count": [
+      [
+        "parallel_block_mpi.f90",
+        7733
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7739
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7744
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7741
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7747
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7752
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_count": [
+      [
+        "parallel_block_mpi.f90",
+        7749
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7755
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7760
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7757
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7763
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7768
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_count": [
+      [
+        "parallel_block_mpi.f90",
+        7765
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7771
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7776
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7773
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_count.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7779
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7784
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_count": [
+      [
+        "parallel_block_mpi.f90",
+        7781
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7787
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7792
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7789
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7795
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7798
+      ]
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7801
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7804
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7807
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7810
+      ]
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_buffer.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7813
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7816
+      ]
+    ],
+    "block_writeback_plan%domain_patch_displ.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7819
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7822
+      ]
+    ],
+    "block_writeback_plan%domain_patch_displ": [
+      [
+        "parallel_block_mpi.f90",
+        7820
+      ]
+    ],
+    "block_writeback_plan%scalar_domain_stage.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7825
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7827
+      ]
+    ],
+    "block_writeback_plan%vector_domain_stage.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7830
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7832
+      ]
+    ],
+    "block_writeback_plan%native_scalar_stage.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7835
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7837
+      ]
+    ],
+    "block_writeback_plan%native_vector_stage.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7840
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7842
+      ]
+    ],
+    "block_writeback_plan%domain_patch_covered.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7845
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7847
+      ]
+    ],
+    "block_writeback_plan%domain_patch_reconstructed.shape": [
+      [
+        "parallel_block_mpi.f90",
+        7850
+      ],
+      [
+        "parallel_block_mpi.f90",
+        7853
+      ]
+    ],
+    "catalog_size": [
+      [
+        "parallel_block_mpi.f90",
+        7855
+      ]
+    ],
+    "domain_count": [
+      [
+        "parallel_block_mpi.f90",
+        7856
+      ]
+    ],
+    "installed_block_count": [
+      [
+        "parallel_block_mpi.f90",
+        7857
+      ]
+    ],
+    "n_send": [
+      [
+        "parallel_block_mpi.f90",
+        7858
+      ]
+    ],
+    "n_recv": [
+      [
+        "parallel_block_mpi.f90",
+        7859
+      ]
+    ],
+    "n_retained": [
+      [
+        "parallel_block_mpi.f90",
+        7860
+      ]
+    ],
+    "scalar_patch_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7861
+      ]
+    ],
+    "vector_patch_nvalue": [
+      [
+        "parallel_block_mpi.f90",
+        7862
+      ]
+    ],
+    "n_send_boundary": [
+      [
+        "parallel_block_mpi.f90",
+        7863
+      ]
+    ],
+    "n_recv_boundary": [
+      [
+        "parallel_block_mpi.f90",
+        7864
+      ]
+    ],
+    "transport.flags322": [
+      [
+        "parallel_block_mpi.f90",
+        12863
+      ]
+    ],
+    "program.header": [
+      [
+        "parallel_block_rhs_compile.f90",
+        74
+      ]
+    ],
+    "program.surface_visits": [
+      [
+        "parallel_block_rhs_compile.f90",
+        75
+      ]
+    ],
+    "gradient.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        77
+      ]
+    ],
+    "gradient.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        86
+      ]
+    ],
+    "gradient.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        87
+      ]
+    ],
+    "gradient.l": [
+      [
+        "parallel_block_rhs_compile.f90",
+        88
+      ]
+    ],
+    "program.level": [
+      [
+        "parallel_block_rhs_compile.f90",
+        91
+      ]
+    ],
+    "pressure.patch.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        93
+      ]
+    ],
+    "pressure.patch.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        100
+      ]
+    ],
+    "pressure.node": [
+      [
+        "parallel_block_rhs_compile.f90",
+        102
+      ]
+    ],
+    "pressure.producer_ordinal": [
+      [
+        "parallel_block_rhs_compile.f90",
+        103
+      ]
+    ],
+    "diffusion.producer.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        105
+      ]
+    ],
+    "diffusion.producer.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        115
+      ]
+    ],
+    "diffusion.producer.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        116
+      ]
+    ],
+    "diffusion.producer.l": [
+      [
+        "parallel_block_rhs_compile.f90",
+        117
+      ]
+    ],
+    "diffusion.restriction.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        120
+      ]
+    ],
+    "diffusion.restriction.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        130
+      ]
+    ],
+    "diffusion.restriction.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        131
+      ]
+    ],
+    "diffusion.restriction.l": [
+      [
+        "parallel_block_rhs_compile.f90",
+        132
+      ]
+    ],
+    "diffusion.divergence.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        135
+      ]
+    ],
+    "diffusion.divergence.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        143
+      ]
+    ],
+    "diffusion.divergence.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        144
+      ]
+    ],
+    "rotation.curl.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        147
+      ]
+    ],
+    "rotation.curl.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        156
+      ]
+    ],
+    "rotation.curl.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        157
+      ]
+    ],
+    "rotation.curl.l": [
+      [
+        "parallel_block_rhs_compile.f90",
+        158
+      ]
+    ],
+    "rotation.pentagon.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        161
+      ]
+    ],
+    "rotation.pentagon.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        170
+      ]
+    ],
+    "rotation.pentagon.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        171
+      ]
+    ],
+    "dynamics.divergence.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        174
+      ]
+    ],
+    "dynamics.divergence.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        183
+      ]
+    ],
+    "dynamics.divergence.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        184
+      ]
+    ],
+    "dynamics.divergence.l": [
+      [
+        "parallel_block_rhs_compile.f90",
+        185
+      ]
+    ],
+    "dynamics.physics.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        188
+      ]
+    ],
+    "dynamics.physics.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        197
+      ]
+    ],
+    "dynamics.physics.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        198
+      ]
+    ],
+    "dynamics.physics.l": [
+      [
+        "parallel_block_rhs_compile.f90",
+        199
+      ]
+    ],
+    "dynamics.injection.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        201
+      ]
+    ],
+    "dynamics.injection": [
+      [
+        "parallel_block_rhs_compile.f90",
+        202
+      ]
+    ],
+    "dynamics.source.action": [
+      [
+        "parallel_block_rhs_compile.f90",
+        203
+      ]
+    ],
+    "dynamics.source.operand": [
+      [
+        "parallel_block_rhs_compile.f90",
+        204
+      ]
+    ],
+    "dynamics.source.direct.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        206
+      ]
+    ],
+    "dynamics.source.direct.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        215
+      ]
+    ],
+    "dynamics.source.direct.r": [
+      [
+        "parallel_block_rhs_compile.f90",
+        216
+      ]
+    ],
+    "dynamics.source.direct.l": [
+      [
+        "parallel_block_rhs_compile.f90",
+        217
+      ]
+    ],
+    "dynamics.source.restriction.shape": [
+      [
+        "parallel_block_rhs_compile.f90",
+        220
+      ]
+    ],
+    "dynamics.source.restriction.i": [
+      [
+        "parallel_block_rhs_compile.f90",
+        228
+      ]
+    ],
+    "dynamics.source.restriction.l": [
+      [
+        "parallel_block_rhs_compile.f90",
+        229
+      ]
+    ],
+    "retention.blocks": [
+      [
+        "parallel_block_rhs_retention.f90",
+        40
+      ]
+    ],
+    "retention.block": [
+      [
+        "parallel_block_rhs_retention.f90",
+        43
+      ]
+    ],
+    "retention.node": [
+      [
+        "parallel_block_rhs_retention.f90",
+        44
+      ]
+    ],
+    "retention.length.shape": [
+      [
+        "parallel_block_rhs_retention.f90",
+        45
+      ]
+    ],
+    "retention.length": [
+      [
+        "parallel_block_rhs_retention.f90",
+        46
+      ]
+    ],
+    "retention.column": [
+      [
+        "parallel_block_rhs_retention.f90",
+        48
+      ]
+    ],
+    "retention.ready.shape": [
+      [
+        "parallel_block_rhs_retention.f90",
+        49
+      ]
+    ],
+    "retention.exner.shape": [
+      [
+        "parallel_block_rhs_retention.f90",
+        50
+      ]
+    ],
+    "retention.theta.shape": [
+      [
+        "parallel_block_rhs_retention.f90",
+        51
+      ]
+    ],
+    "retention.ready": [
+      [
+        "parallel_block_rhs_retention.f90",
+        52
+      ]
+    ],
+    "rhs.retained322": [
+      [
+        "parallel_block_rhs_retention.f90",
+        164
+      ]
+    ],
+    "retained.block": [
+      [
+        "parallel_block_rhs_retention.f90",
+        165
+      ]
+    ],
+    "retained.scalar": [
+      [
+        "parallel_block_rhs_retention.f90",
+        166
+      ]
+    ],
+    "retained.velocity": [
+      [
+        "parallel_block_rhs_retention.f90",
+        167
+      ]
+    ],
+    "route.allocated": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        46
+      ]
+    ],
+    "route.epoch": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        51
+      ]
+    ],
+    "route.header": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        52
+      ]
+    ],
+    "route.flags": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        53
+      ]
+    ],
+    "route.sc": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        54
+      ]
+    ],
+    "route.sd": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        55
+      ]
+    ],
+    "route.rc": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        56
+      ]
+    ],
+    "route.rd": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        57
+      ]
+    ],
+    "route.source": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        58
+      ]
+    ],
+    "route.target": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        59
+      ]
+    ],
+    "route.address": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        60
+      ]
+    ],
+    "route.orientation": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        61
+      ]
+    ],
+    "route.send_peer": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        62
+      ]
+    ],
+    "route.receive_peer": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        63
+      ]
+    ],
+    "route.target_peer": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        64
+      ]
+    ],
+    "route.allocations": [
+      [
+        "parallel_block_rhs_exchange.f90",
+        65
+      ]
+    ],
+    "rk.provisional322": [
+      [
+        "time_integr.f90",
+        254
+      ]
+    ],
+    "rk.stage": [
+      [
+        "time_integr.f90",
+        255
+      ],
+      [
+        "time_integr.f90",
+        528
+      ]
+    ],
+    "rk.final322": [
+      [
+        "time_integr.f90",
+        527
+      ]
+    ],
+    "physics322": [
+      [
+        "physics_simple.f90",
+        45
+      ]
+    ],
+    "physics.time": [
+      [
+        "physics_simple.f90",
+        46
+      ]
+    ],
+    "physics.firstcall": [
+      [
+        "physics_simple.f90",
+        47
+      ]
+    ],
+    "physics.visits": [
+      [
+        "physics_simple.f90",
+        58
+      ]
+    ],
+    "physics.column322": [
+      [
+        "physics_simple.f90",
+        171
+      ]
+    ],
+    "physics.column": [
+      [
+        "physics_simple.f90",
+        172
+      ]
+    ],
+    "physics.coordinates": [
+      [
+        "physics_simple.f90",
+        173
+      ]
+    ],
+    "physics.input": [
+      [
+        "physics_simple.f90",
+        174
+      ]
+    ],
+    "physics.output": [
+      [
+        "physics_simple.f90",
+        184
+      ]
+    ],
+    "initialization": [
+      [
+        "climate.f90",
+        125
+      ]
+    ],
+    "step": [
+      [
+        "climate.f90",
+        163
+      ]
+    ],
+    "driver.steps": [
+      [
+        "climate.f90",
+        190
+      ]
+    ]
+  },
+  "field_kinds": {
+    "placement.key.shape": [
+      1
+    ],
+    "placement.key": [
+      1
+    ],
+    "placement.base": [
+      1
+    ],
+    "placement.owned": [
+      4
+    ],
+    "transport.epoch": [
+      2
+    ],
+    "transport.route.bounds": [
+      1
+    ],
+    "transport.bound": [
+      4
+    ],
+    "transport.route_phase": [
+      1
+    ],
+    "transport.route_level": [
+      1
+    ],
+    "transport.scratch.shape": [
+      1
+    ],
+    "transport.route.coordinate": [
+      1
+    ],
+    "executor.scalar_rhs.shape": [
+      1
+    ],
+    "executor.velocity_rhs.shape": [
+      1
+    ],
+    "workspace.lower.shape": [
+      1
+    ],
+    "workspace.phi.shape": [
+      1
+    ],
+    "workspace.pressure.shape": [
+      1
+    ],
+    "workspace.midpoint.shape": [
+      1
+    ],
+    "workspace.exner.shape": [
+      1
+    ],
+    "workspace.thermodynamic.shape": [
+      1
+    ],
+    "workspace.flux.shape": [
+      1
+    ],
+    "workspace.pv.shape": [
+      1
+    ],
+    "workspace.ke.shape": [
+      1
+    ],
+    "workspace.bernoulli.shape": [
+      1
+    ],
+    "workspace.vorticity.shape": [
+      1
+    ],
+    "workspace.diffusion_flux.shape": [
+      1
+    ],
+    "workspace.laplacian.shape": [
+      1
+    ],
+    "workspace.divu.shape": [
+      1
+    ],
+    "workspace.lap_divu.shape": [
+      1
+    ],
+    "workspace.rotation.shape": [
+      1
+    ],
+    "workspace.source.shape": [
+      1
+    ],
+    "workspace.physics.shape": [
+      1
+    ],
+    "workspace.scalar_rhs.shape": [
+      1
+    ],
+    "workspace.velocity_rhs.shape": [
+      1
+    ],
+    "workspace.scalar_physics.shape": [
+      1
+    ],
+    "workspace.sw_physics.shape": [
+      1
+    ],
+    "execution.shape": [
+      1
+    ],
+    "execution.order": [
+      1
+    ],
+    "execution.constants": [
+      3
+    ],
+    "execution.nu.shape": [
+      1
+    ],
+    "execution.nu": [
+      3
+    ],
+    "execution.nu_pentagon": [
+      3
+    ],
+    "execution.state.begin": [
+      2
+    ],
+    "execution.halo.shape": [
+      1
+    ],
+    "execution.halo.order": [
+      1
+    ],
+    "execution.state.end": [
+      2
+    ],
+    "adapt.options": [
+      4
+    ],
+    "adapt.operation": [
+      1
+    ],
+    "adapt.refined": [
+      4
+    ],
+    "masks": [
+      2
+    ],
+    "extent": [
+      1
+    ],
+    "placement%key.shape": [
+      1
+    ],
+    "placement%key": [
+      1
+    ],
+    "placement%owner.shape": [
+      1
+    ],
+    "placement%owner": [
+      1
+    ],
+    "placement%state_key.shape": [
+      1
+    ],
+    "placement%state_key": [
+      1
+    ],
+    "placement%level.shape": [
+      1
+    ],
+    "placement%level": [
+      1
+    ],
+    "placement%mask.shape": [
+      1
+    ],
+    "placement%mask": [
+      1
+    ],
+    "placement%owned.shape": [
+      1
+    ],
+    "placement%owned": [
+      4
+    ],
+    "placement%scalar_order.shape": [
+      1
+    ],
+    "placement%scalar_order": [
+      1
+    ],
+    "placement%inner_order.shape": [
+      1
+    ],
+    "placement%inner_order": [
+      1
+    ],
+    "placement%outer_order.shape": [
+      1
+    ],
+    "placement%outer_order": [
+      1
+    ],
+    "info.shape": [
+      1
+    ],
+    "info": [
+      1
+    ],
+    "interior_address.shape": [
+      1
+    ],
+    "interior_address": [
+      1
+    ],
+    "boundary_address.shape": [
+      1
+    ],
+    "boundary_address": [
+      1
+    ],
+    "save_node.shape": [
+      1
+    ],
+    "save_node": [
+      1
+    ],
+    "save_index.shape": [
+      1
+    ],
+    "save_index": [
+      1
+    ],
+    "fixed_node.shape": [
+      1
+    ],
+    "fixed_node": [
+      1
+    ],
+    "fixed_index.shape": [
+      1
+    ],
+    "fixed_index": [
+      1
+    ],
+    "interior_node.shape": [
+      1
+    ],
+    "interior_node": [
+      1
+    ],
+    "publication_domain.shape": [
+      1
+    ],
+    "publication_domain": [
+      1
+    ],
+    "publication_node.shape": [
+      1
+    ],
+    "publication_node": [
+      1
+    ],
+    "publication_row.shape": [
+      1
+    ],
+    "publication_row": [
+      1
+    ],
+    "forward_inner.shape": [
+      1
+    ],
+    "forward_inner": [
+      1
+    ],
+    "base.shape": [
+      1
+    ],
+    "base": [
+      1
+    ],
+    "fixed_domain.shape": [
+      1
+    ],
+    "fixed_domain": [
+      1
+    ],
+    "fixed_physical_node.shape": [
+      1
+    ],
+    "fixed_physical_node": [
+      1
+    ],
+    "scalar.shape": [
+      1
+    ],
+    "vector.shape": [
+      1
+    ],
+    "scalar_wavelet.shape": [
+      1
+    ],
+    "vector_wavelet.shape": [
+      1
+    ],
+    "fixed_scalar.shape": [
+      1
+    ],
+    "fixed_vector.shape": [
+      1
+    ],
+    "wire.shape": [
+      1
+    ],
+    "exchange_scratch.shape": [
+      1
+    ],
+    "scalar.program.shape": [
+      1
+    ],
+    "scalar.program": [
+      1
+    ],
+    "scalar.coefficients": [
+      3
+    ],
+    "inner.program.shape": [
+      1
+    ],
+    "inner.program": [
+      1
+    ],
+    "inner.coefficients": [
+      3
+    ],
+    "outer.program.shape": [
+      1
+    ],
+    "outer.program": [
+      1
+    ],
+    "outer.coefficients": [
+      3
+    ],
+    "scalar.boundary.key": [
+      1
+    ],
+    "scalar.boundary.sign": [
+      1
+    ],
+    "vector.boundary.key": [
+      1
+    ],
+    "vector.boundary.sign": [
+      1
+    ],
+    "plan%sc.shape": [
+      1
+    ],
+    "plan%sc": [
+      1
+    ],
+    "plan%sd.shape": [
+      1
+    ],
+    "plan%sd": [
+      1
+    ],
+    "plan%rc.shape": [
+      1
+    ],
+    "plan%rc": [
+      1
+    ],
+    "plan%rd.shape": [
+      1
+    ],
+    "plan%rd": [
+      1
+    ],
+    "plan%source.shape": [
+      1
+    ],
+    "plan%source": [
+      1
+    ],
+    "plan%index.shape": [
+      1
+    ],
+    "plan%index": [
+      1
+    ],
+    "plan%target.shape": [
+      1
+    ],
+    "plan%target": [
+      1
+    ],
+    "plan%sign.shape": [
+      1
+    ],
+    "plan%sign": [
+      1
+    ],
+    "plan%send_peer.shape": [
+      1
+    ],
+    "plan%send_peer": [
+      1
+    ],
+    "plan%receive_peer.shape": [
+      1
+    ],
+    "plan%receive_peer": [
+      1
+    ],
+    "plan%sent.shape": [
+      1
+    ],
+    "plan%received.shape": [
+      1
+    ],
+    "plan%request.shape": [
+      1
+    ],
+    "transform.call322": [
+      1
+    ],
+    "commit": [
+      4
+    ],
+    "transform.phase": [
+      1
+    ],
+    "transform.state": [
+      2
+    ],
+    "transform.scalar.shape": [
+      1
+    ],
+    "transform.vector.shape": [
+      1
+    ],
+    "transform.scalar_wavelet.shape": [
+      1
+    ],
+    "transform.vector_wavelet.shape": [
+      1
+    ],
+    "transform.scalar": [
+      3
+    ],
+    "transform.vector": [
+      3
+    ],
+    "transform.scalar_wavelet": [
+      3
+    ],
+    "transform.vector_wavelet": [
+      3
+    ],
+    "prepare_check.generation": [
+      2
+    ],
+    "prepare_check.rebuild": [
+      4
+    ],
+    "backend.generation": [
+      2
+    ],
+    "backend.geometry.base": [
+      1
+    ],
+    "backend.adapter_domain": [
+      1
+    ],
+    "backend.adapter_node": [
+      1
+    ],
+    "backend.rk_domain": [
+      1
+    ],
+    "backend.rk_node": [
+      1
+    ],
+    "backend.owned": [
+      1
+    ],
+    "backend.mask.domains": [
+      1
+    ],
+    "backend.mask.domain": [
+      1
+    ],
+    "backend.mask.node": [
+      1
+    ],
+    "backend.mask.edge": [
+      1
+    ],
+    "backend.surface": [
+      3
+    ],
+    "backend.scalar.shape": [
+      1
+    ],
+    "backend.mean.shape": [
+      1
+    ],
+    "backend.velocity.shape": [
+      1
+    ],
+    "backend.adapter_value.shape": [
+      1
+    ],
+    "backend.rk_value.shape": [
+      1
+    ],
+    "backend.rk_scalar.shape": [
+      1
+    ],
+    "backend.rk_mean.shape": [
+      1
+    ],
+    "backend.rk_velocity.shape": [
+      1
+    ],
+    "evaluate.epoch": [
+      2
+    ],
+    "evaluate.first_after_prepare": [
+      4
+    ],
+    "state.scalar.shape": [
+      1
+    ],
+    "state.mean.shape": [
+      1
+    ],
+    "state.velocity.shape": [
+      1
+    ],
+    "state.scalar": [
+      3
+    ],
+    "state.mean": [
+      3
+    ],
+    "state.velocity": [
+      3
+    ],
+    "state.surface": [
+      3
+    ],
+    "output.scalar.shape": [
+      1
+    ],
+    "output.velocity.shape": [
+      1
+    ],
+    "output.scalar": [
+      3
+    ],
+    "output.velocity": [
+      3
+    ],
+    "retain.epoch": [
+      2
+    ],
+    "rk_prepare.epoch": [
+      2
+    ],
+    "rk_prepare.h": [
+      3
+    ],
+    "rk.adapter.shape": [
+      1
+    ],
+    "rk.value.shape": [
+      1
+    ],
+    "rk.scalar.shape": [
+      1
+    ],
+    "rk.mean.shape": [
+      1
+    ],
+    "rk.velocity.shape": [
+      1
+    ],
+    "rk.adapter": [
+      3
+    ],
+    "rk.value": [
+      3
+    ],
+    "rk.scalar": [
+      3
+    ],
+    "rk.mean": [
+      3
+    ],
+    "rk.velocity": [
+      3
+    ],
+    "rk_install.epoch": [
+      2
+    ],
+    "rk_install.validate": [
+      4
+    ],
+    "installed.extent": [
+      1
+    ],
+    "installed.adapter": [
+      1
+    ],
+    "installed.values": [
+      3
+    ],
+    "installed.resident": [
+      1
+    ],
+    "installed.temperature": [
+      3
+    ],
+    "fields.header": [
+      1
+    ],
+    "fields.domain": [
+      1
+    ],
+    "fields.node_level": [
+      1
+    ],
+    "fields.node_mask": [
+      1
+    ],
+    "fields.edge_mask": [
+      1
+    ],
+    "fields.poles": [
+      4
+    ],
+    "fields.patch": [
+      1
+    ],
+    "fields.coordinate": [
+      1
+    ],
+    "fields.boundary_current": [
+      4
+    ],
+    "fields.values": [
+      3
+    ],
+    "input.epoch": [
+      2
+    ],
+    "input.extent": [
+      1
+    ],
+    "input.means": [
+      4
+    ],
+    "input.local_provider": [
+      1
+    ],
+    "input.address.shape": [
+      1
+    ],
+    "input.address": [
+      1
+    ],
+    "input.adapter_provider": [
+      1
+    ],
+    "input.adapter_domain": [
+      1
+    ],
+    "input.adapter_node": [
+      1
+    ],
+    "input.scalar.shape": [
+      1
+    ],
+    "input.mean.shape": [
+      1
+    ],
+    "input.vector.shape": [
+      1
+    ],
+    "input.read_scalar.shape": [
+      1
+    ],
+    "input.read_mean.shape": [
+      1
+    ],
+    "input.read_vector.shape": [
+      1
+    ],
+    "main.identity": [
+      1
+    ],
+    "main.time": [
+      3
+    ],
+    "main.integer_time": [
+      2
+    ],
+    "main.active": [
+      1
+    ],
+    "main.decisions": [
+      4
+    ],
+    "step.output_decisions": [
+      4
+    ],
+    "cfl.adaptive": [
+      4
+    ],
+    "cfl.visits": [
+      2
+    ],
+    "cfl.active_nodes": [
+      1
+    ],
+    "cfl.active_edges": [
+      1
+    ],
+    "cfl.result": [
+      3
+    ],
+    "cfl.visit": [
+      1
+    ],
+    "first_level": [
+      1
+    ],
+    "options": [
+      4
+    ],
+    "slot": [
+      1
+    ],
+    "key.shape": [
+      1
+    ],
+    "key": [
+      1
+    ],
+    "node_domain.shape": [
+      1
+    ],
+    "node_domain": [
+      1
+    ],
+    "node_id.shape": [
+      1
+    ],
+    "node_id": [
+      1
+    ],
+    "operation_first.shape": [
+      1
+    ],
+    "operation_first": [
+      1
+    ],
+    "operation_last.shape": [
+      1
+    ],
+    "operation_last": [
+      1
+    ],
+    "scaffold_slot.shape": [
+      1
+    ],
+    "scaffold_slot": [
+      1
+    ],
+    "consumer_alias_slot.shape": [
+      1
+    ],
+    "consumer_alias_slot": [
+      1
+    ],
+    "node_flags.shape": [
+      1
+    ],
+    "node_flags": [
+      1
+    ],
+    "restore203_index.shape": [
+      1
+    ],
+    "restore203_index": [
+      1
+    ],
+    "restore203_slot.shape": [
+      1
+    ],
+    "restore203_slot": [
+      1
+    ],
+    "value.shape": [
+      1
+    ],
+    "consumer_alias_value.shape": [
+      1
+    ],
+    "scaffold_value.shape": [
+      1
+    ],
+    "restore203.shape": [
+      1
+    ],
+    "saved203.shape": [
+      1
+    ],
+    "publication_tile.shape": [
+      1
+    ],
+    "transfer_send.shape": [
+      1
+    ],
+    "transfer_recv.shape": [
+      1
+    ],
+    "alias_send.shape": [
+      1
+    ],
+    "alias_recv.shape": [
+      1
+    ],
+    "requests.shape": [
+      1
+    ],
+    "component": [
+      1
+    ],
+    "source": [
+      1
+    ],
+    "dest": [
+      1
+    ],
+    "range": [
+      1
+    ],
+    "publication.program.shape": [
+      1
+    ],
+    "publication.program": [
+      1
+    ],
+    "edgewise": [
+      4
+    ],
+    "plan%key.shape": [
+      1
+    ],
+    "plan%key": [
+      1
+    ],
+    "plan%slot.shape": [
+      1
+    ],
+    "plan%slot": [
+      1
+    ],
+    "plan%source_info.shape": [
+      1
+    ],
+    "plan%source_info": [
+      1
+    ],
+    "plan%target_info.shape": [
+      1
+    ],
+    "plan%target_info": [
+      1
+    ],
+    "plan%address.shape": [
+      1
+    ],
+    "plan%address": [
+      1
+    ],
+    "plan%self_slot.shape": [
+      1
+    ],
+    "plan%self_slot": [
+      1
+    ],
+    "plan%dest.shape": [
+      1
+    ],
+    "plan%dest": [
+      1
+    ],
+    "plan%install_order.shape": [
+      1
+    ],
+    "plan%install_order": [
+      1
+    ],
+    "level_phase": [
+      1
+    ],
+    "selected_and_active": [
+      1
+    ],
+    "coefficients": [
+      3
+    ],
+    "level": [
+      1
+    ],
+    "selected": [
+      1
+    ],
+    "family": [
+      1
+    ],
+    "flags": [
+      4
+    ],
+    "family_and_range": [
+      1
+    ],
+    "publication.mode": [
+      1
+    ],
+    "operation_range": [
+      1
+    ],
+    "inverse.phase": [
+      1
+    ],
+    "inverse.value.shape": [
+      1
+    ],
+    "inverse.value": [
+      3
+    ],
+    "inverse.scaffold.shape": [
+      1
+    ],
+    "inverse.scaffold": [
+      3
+    ],
+    "inverse.alias.shape": [
+      1
+    ],
+    "inverse.alias": [
+      3
+    ],
+    "inverse.restore.shape": [
+      1
+    ],
+    "inverse.restore": [
+      3
+    ],
+    "work": [
+      2
+    ],
+    "transport.identity322": [
+      1
+    ],
+    "transport.epoch322": [
+      2
+    ],
+    "transport.count322": [
+      1
+    ],
+    "transport.calls322": [
+      2
+    ],
+    "physical.shape": [
+      1
+    ],
+    "physical": [
+      1
+    ],
+    "domain.owner": [
+      1
+    ],
+    "domain.loc_id": [
+      1
+    ],
+    "domain.local_glo_id": [
+      1
+    ],
+    "catalog.domain_extent322": [
+      1
+    ],
+    "cut.domain": [
+      1
+    ],
+    "cut.root": [
+      4
+    ],
+    "bytes": [
+      2
+    ],
+    "plan%send_count.shape": [
+      1
+    ],
+    "plan%send_count": [
+      1
+    ],
+    "plan%recv_count.shape": [
+      1
+    ],
+    "plan%recv_count": [
+      1
+    ],
+    "plan%send_displ.shape": [
+      1
+    ],
+    "plan%send_displ": [
+      1
+    ],
+    "plan%recv_displ.shape": [
+      1
+    ],
+    "plan%recv_displ": [
+      1
+    ],
+    "plan%send_block.shape": [
+      1
+    ],
+    "plan%send_block": [
+      1
+    ],
+    "plan%recv_block.shape": [
+      1
+    ],
+    "plan%recv_block": [
+      1
+    ],
+    "plan%send_nbyte.shape": [
+      1
+    ],
+    "plan%send_nbyte": [
+      1
+    ],
+    "plan%recv_nbyte.shape": [
+      1
+    ],
+    "plan%recv_nbyte": [
+      1
+    ],
+    "plan%send_byte_count.shape": [
+      1
+    ],
+    "plan%send_byte_count": [
+      1
+    ],
+    "plan%recv_byte_count.shape": [
+      1
+    ],
+    "plan%recv_byte_count": [
+      1
+    ],
+    "plan%send_byte_displ.shape": [
+      1
+    ],
+    "plan%send_byte_displ": [
+      1
+    ],
+    "plan%recv_byte_displ.shape": [
+      1
+    ],
+    "plan%recv_byte_displ": [
+      1
+    ],
+    "identity": [
+      1
+    ],
+    "patch.shape": [
+      1
+    ],
+    "patch": [
+      1
+    ],
+    "node.shape": [
+      1
+    ],
+    "node": [
+      3
+    ],
+    "bdry_node.shape": [
+      1
+    ],
+    "bdry_node": [
+      3
+    ],
+    "ghost_node.shape": [
+      1
+    ],
+    "ghost_node": [
+      3
+    ],
+    "block%neigh_class.shape": [
+      1
+    ],
+    "block%neigh_class": [
+      1
+    ],
+    "block_bdry.shape": [
+      1
+    ],
+    "block_bdry": [
+      1
+    ],
+    "bdry_storage.shape": [
+      1
+    ],
+    "bdry_storage": [
+      1
+    ],
+    "ghost_storage.shape": [
+      1
+    ],
+    "ghost_storage": [
+      1
+    ],
+    "stencil.shape": [
+      1
+    ],
+    "stencil": [
+      1
+    ],
+    "block%scalar.shape": [
+      1
+    ],
+    "block%vector.shape": [
+      1
+    ],
+    "block%wavelet_scalar.shape": [
+      1
+    ],
+    "block%wavelet_vector.shape": [
+      1
+    ],
+    "block%scalar_mean.shape": [
+      1
+    ],
+    "block%vector_mean.shape": [
+      1
+    ],
+    "block%tke.shape": [
+      1
+    ],
+    "block%wavelet_tke.shape": [
+      1
+    ],
+    "block%topography.shape": [
+      1
+    ],
+    "block%bdry_scalar.shape": [
+      1
+    ],
+    "block%bdry_vector.shape": [
+      1
+    ],
+    "block%bdry_wavelet_scalar.shape": [
+      1
+    ],
+    "block%bdry_wavelet_vector.shape": [
+      1
+    ],
+    "block%bdry_scalar_mean.shape": [
+      1
+    ],
+    "block%bdry_vector_mean.shape": [
+      1
+    ],
+    "block%bdry_tke.shape": [
+      1
+    ],
+    "block%bdry_wavelet_tke.shape": [
+      1
+    ],
+    "block%bdry_topography.shape": [
+      1
+    ],
+    "block%ghost_scalar.shape": [
+      1
+    ],
+    "block%ghost_vector.shape": [
+      1
+    ],
+    "block%ghost_wavelet_scalar.shape": [
+      1
+    ],
+    "block%ghost_wavelet_vector.shape": [
+      1
+    ],
+    "block%ghost_scalar_mean.shape": [
+      1
+    ],
+    "block%ghost_vector_mean.shape": [
+      1
+    ],
+    "block%ghost_tke.shape": [
+      1
+    ],
+    "block%ghost_wavelet_tke.shape": [
+      1
+    ],
+    "block%ghost_topography.shape": [
+      1
+    ],
+    "ghost_exchange_plan%local_order297.shape": [
+      1
+    ],
+    "ghost_exchange_plan%local_order297": [
+      1
+    ],
+    "ghost_exchange_plan%local_start297.shape": [
+      1
+    ],
+    "ghost_exchange_plan%local_start297": [
+      1
+    ],
+    "ghost_exchange_plan%source_block.shape": [
+      1
+    ],
+    "ghost_exchange_plan%source_block": [
+      1
+    ],
+    "ghost_exchange_plan%source_local_patch.shape": [
+      1
+    ],
+    "ghost_exchange_plan%source_local_patch": [
+      1
+    ],
+    "ghost_exchange_plan%source_patch_level.shape": [
+      1
+    ],
+    "ghost_exchange_plan%source_patch_level": [
+      1
+    ],
+    "ghost_exchange_plan%source_owner.shape": [
+      1
+    ],
+    "ghost_exchange_plan%source_owner": [
+      1
+    ],
+    "ghost_exchange_plan%destination_block.shape": [
+      1
+    ],
+    "ghost_exchange_plan%destination_block": [
+      1
+    ],
+    "ghost_exchange_plan%destination_ghost.shape": [
+      1
+    ],
+    "ghost_exchange_plan%destination_ghost": [
+      1
+    ],
+    "ghost_exchange_plan%send_record_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%send_record_count": [
+      1
+    ],
+    "ghost_exchange_plan%recv_record_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%recv_record_count": [
+      1
+    ],
+    "ghost_exchange_plan%send_record_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%send_record_displ": [
+      1
+    ],
+    "ghost_exchange_plan%recv_record_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%recv_record_displ": [
+      1
+    ],
+    "ghost_exchange_plan%send_data.shape": [
+      1
+    ],
+    "ghost_exchange_plan%send_data": [
+      1
+    ],
+    "ghost_exchange_plan%recv_data.shape": [
+      1
+    ],
+    "ghost_exchange_plan%recv_data": [
+      1
+    ],
+    "ghost_exchange_plan%request_index.shape": [
+      1
+    ],
+    "ghost_exchange_plan%request_index": [
+      1
+    ],
+    "ghost_exchange_plan%local_level_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%local_level_count": [
+      1
+    ],
+    "ghost_exchange_plan%local_level_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%local_level_displ": [
+      1
+    ],
+    "ghost_exchange_plan%local_level_request.shape": [
+      1
+    ],
+    "ghost_exchange_plan%local_level_request": [
+      1
+    ],
+    "ghost_exchange_plan%send_level_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%send_level_count": [
+      1
+    ],
+    "ghost_exchange_plan%send_level_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%send_level_displ": [
+      1
+    ],
+    "ghost_exchange_plan%send_level_base.shape": [
+      1
+    ],
+    "ghost_exchange_plan%send_level_base": [
+      1
+    ],
+    "ghost_exchange_plan%send_level_record.shape": [
+      1
+    ],
+    "ghost_exchange_plan%send_level_record": [
+      1
+    ],
+    "ghost_exchange_plan%recv_level_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%recv_level_count": [
+      1
+    ],
+    "ghost_exchange_plan%recv_level_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%recv_level_displ": [
+      1
+    ],
+    "ghost_exchange_plan%recv_level_base.shape": [
+      1
+    ],
+    "ghost_exchange_plan%recv_level_base": [
+      1
+    ],
+    "ghost_exchange_plan%recv_level_record.shape": [
+      1
+    ],
+    "ghost_exchange_plan%recv_level_record": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_send_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_send_count": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_recv_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_recv_count": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_send_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_send_displ": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_recv_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_recv_displ": [
+      1
+    ],
+    "ghost_exchange_plan%vector_send_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%vector_send_count": [
+      1
+    ],
+    "ghost_exchange_plan%vector_recv_count.shape": [
+      1
+    ],
+    "ghost_exchange_plan%vector_recv_count": [
+      1
+    ],
+    "ghost_exchange_plan%vector_send_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%vector_send_displ": [
+      1
+    ],
+    "ghost_exchange_plan%vector_recv_displ.shape": [
+      1
+    ],
+    "ghost_exchange_plan%vector_recv_displ": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_send_buffer.shape": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_recv_buffer.shape": [
+      1
+    ],
+    "ghost_exchange_plan%scalar_patch_buffer.shape": [
+      1
+    ],
+    "ghost_exchange_plan%vector_send_buffer.shape": [
+      1
+    ],
+    "ghost_exchange_plan%vector_recv_buffer.shape": [
+      1
+    ],
+    "ghost_exchange_plan%vector_patch_buffer.shape": [
+      1
+    ],
+    "n_request": [
+      1
+    ],
+    "n_local_request": [
+      1
+    ],
+    "n_remote_send": [
+      1
+    ],
+    "n_remote_recv": [
+      1
+    ],
+    "route_level_start": [
+      1
+    ],
+    "route_level_count": [
+      1
+    ],
+    "scalar_n_value": [
+      1
+    ],
+    "vector_n_value": [
+      1
+    ],
+    "block_writeback_plan%send_count.shape": [
+      1
+    ],
+    "block_writeback_plan%send_count": [
+      1
+    ],
+    "block_writeback_plan%recv_count.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_count": [
+      1
+    ],
+    "block_writeback_plan%send_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%send_displ": [
+      1
+    ],
+    "block_writeback_plan%recv_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_displ": [
+      1
+    ],
+    "block_writeback_plan%send_block.shape": [
+      1
+    ],
+    "block_writeback_plan%send_block": [
+      1
+    ],
+    "block_writeback_plan%recv_block.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_block": [
+      1
+    ],
+    "block_writeback_plan%send_patch_count.shape": [
+      1
+    ],
+    "block_writeback_plan%send_patch_count": [
+      1
+    ],
+    "block_writeback_plan%recv_patch_count.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_patch_count": [
+      1
+    ],
+    "block_writeback_plan%send_scalar_nvalue.shape": [
+      1
+    ],
+    "block_writeback_plan%send_scalar_nvalue": [
+      1
+    ],
+    "block_writeback_plan%recv_scalar_nvalue.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_scalar_nvalue": [
+      1
+    ],
+    "block_writeback_plan%send_vector_nvalue.shape": [
+      1
+    ],
+    "block_writeback_plan%send_vector_nvalue": [
+      1
+    ],
+    "block_writeback_plan%recv_vector_nvalue.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_vector_nvalue": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_count.shape": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_count": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_count.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_count": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_displ": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_displ": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_source.shape": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_source": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_source.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_source": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_level.shape": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_level": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_level.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_level": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_nnode.shape": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_nnode": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_nnode.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_nnode": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_scalar_nvalue.shape": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_scalar_nvalue": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_scalar_nvalue.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_scalar_nvalue": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_vector_nvalue.shape": [
+      1
+    ],
+    "block_writeback_plan%send_boundary_vector_nvalue": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_vector_nvalue.shape": [
+      1
+    ],
+    "block_writeback_plan%recv_boundary_vector_nvalue": [
+      1
+    ],
+    "block_writeback_plan%scalar_send_count.shape": [
+      1
+    ],
+    "block_writeback_plan%scalar_send_count": [
+      1
+    ],
+    "block_writeback_plan%scalar_recv_count.shape": [
+      1
+    ],
+    "block_writeback_plan%scalar_recv_count": [
+      1
+    ],
+    "block_writeback_plan%scalar_send_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%scalar_send_displ": [
+      1
+    ],
+    "block_writeback_plan%scalar_recv_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%scalar_recv_displ": [
+      1
+    ],
+    "block_writeback_plan%vector_send_count.shape": [
+      1
+    ],
+    "block_writeback_plan%vector_send_count": [
+      1
+    ],
+    "block_writeback_plan%vector_recv_count.shape": [
+      1
+    ],
+    "block_writeback_plan%vector_recv_count": [
+      1
+    ],
+    "block_writeback_plan%vector_send_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%vector_send_displ": [
+      1
+    ],
+    "block_writeback_plan%vector_recv_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%vector_recv_displ": [
+      1
+    ],
+    "block_writeback_plan%scalar_send_buffer.shape": [
+      1
+    ],
+    "block_writeback_plan%scalar_recv_buffer.shape": [
+      1
+    ],
+    "block_writeback_plan%vector_send_buffer.shape": [
+      1
+    ],
+    "block_writeback_plan%vector_recv_buffer.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_count.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_count": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_displ": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_count.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_count": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_displ": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_count.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_count": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_displ": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_count.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_count": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_displ": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_domain_send_buffer.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_scalar_block_recv_buffer.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_domain_send_buffer.shape": [
+      1
+    ],
+    "block_writeback_plan%boundary_vector_block_recv_buffer.shape": [
+      1
+    ],
+    "block_writeback_plan%domain_patch_displ.shape": [
+      1
+    ],
+    "block_writeback_plan%domain_patch_displ": [
+      1
+    ],
+    "block_writeback_plan%scalar_domain_stage.shape": [
+      1
+    ],
+    "block_writeback_plan%vector_domain_stage.shape": [
+      1
+    ],
+    "block_writeback_plan%native_scalar_stage.shape": [
+      1
+    ],
+    "block_writeback_plan%native_vector_stage.shape": [
+      1
+    ],
+    "block_writeback_plan%domain_patch_covered.shape": [
+      1
+    ],
+    "block_writeback_plan%domain_patch_reconstructed.shape": [
+      1
+    ],
+    "catalog_size": [
+      1
+    ],
+    "domain_count": [
+      1
+    ],
+    "installed_block_count": [
+      1
+    ],
+    "n_send": [
+      1
+    ],
+    "n_recv": [
+      1
+    ],
+    "n_retained": [
+      1
+    ],
+    "scalar_patch_nvalue": [
+      1
+    ],
+    "vector_patch_nvalue": [
+      1
+    ],
+    "n_send_boundary": [
+      1
+    ],
+    "n_recv_boundary": [
+      1
+    ],
+    "transport.flags322": [
+      4
+    ],
+    "program.header": [
+      1
+    ],
+    "program.surface_visits": [
+      1
+    ],
+    "gradient.shape": [
+      1
+    ],
+    "gradient.i": [
+      1
+    ],
+    "gradient.r": [
+      3
+    ],
+    "gradient.l": [
+      4
+    ],
+    "program.level": [
+      1
+    ],
+    "pressure.patch.shape": [
+      1
+    ],
+    "pressure.patch.i": [
+      1
+    ],
+    "pressure.node": [
+      1
+    ],
+    "pressure.producer_ordinal": [
+      1
+    ],
+    "diffusion.producer.shape": [
+      1
+    ],
+    "diffusion.producer.i": [
+      1
+    ],
+    "diffusion.producer.r": [
+      3
+    ],
+    "diffusion.producer.l": [
+      4
+    ],
+    "diffusion.restriction.shape": [
+      1
+    ],
+    "diffusion.restriction.i": [
+      1
+    ],
+    "diffusion.restriction.r": [
+      3
+    ],
+    "diffusion.restriction.l": [
+      4
+    ],
+    "diffusion.divergence.shape": [
+      1
+    ],
+    "diffusion.divergence.i": [
+      1
+    ],
+    "diffusion.divergence.r": [
+      3
+    ],
+    "rotation.curl.shape": [
+      1
+    ],
+    "rotation.curl.i": [
+      1
+    ],
+    "rotation.curl.r": [
+      3
+    ],
+    "rotation.curl.l": [
+      4
+    ],
+    "rotation.pentagon.shape": [
+      1
+    ],
+    "rotation.pentagon.i": [
+      1
+    ],
+    "rotation.pentagon.r": [
+      3
+    ],
+    "dynamics.divergence.shape": [
+      1
+    ],
+    "dynamics.divergence.i": [
+      1
+    ],
+    "dynamics.divergence.r": [
+      3
+    ],
+    "dynamics.divergence.l": [
+      4
+    ],
+    "dynamics.physics.shape": [
+      1
+    ],
+    "dynamics.physics.i": [
+      1
+    ],
+    "dynamics.physics.r": [
+      3
+    ],
+    "dynamics.physics.l": [
+      4
+    ],
+    "dynamics.injection.shape": [
+      1
+    ],
+    "dynamics.injection": [
+      1
+    ],
+    "dynamics.source.action": [
+      1
+    ],
+    "dynamics.source.operand": [
+      1
+    ],
+    "dynamics.source.direct.shape": [
+      1
+    ],
+    "dynamics.source.direct.i": [
+      1
+    ],
+    "dynamics.source.direct.r": [
+      3
+    ],
+    "dynamics.source.direct.l": [
+      4
+    ],
+    "dynamics.source.restriction.shape": [
+      1
+    ],
+    "dynamics.source.restriction.i": [
+      1
+    ],
+    "dynamics.source.restriction.l": [
+      4
+    ],
+    "retention.blocks": [
+      1
+    ],
+    "retention.block": [
+      1
+    ],
+    "retention.node": [
+      1
+    ],
+    "retention.length.shape": [
+      1
+    ],
+    "retention.length": [
+      3
+    ],
+    "retention.column": [
+      1
+    ],
+    "retention.ready.shape": [
+      1
+    ],
+    "retention.exner.shape": [
+      1
+    ],
+    "retention.theta.shape": [
+      1
+    ],
+    "retention.ready": [
+      4
+    ],
+    "retained.block": [
+      1
+    ],
+    "retained.scalar": [
+      3
+    ],
+    "retained.velocity": [
+      3
+    ],
+    "route.allocated": [
+      4
+    ],
+    "route.epoch": [
+      2
+    ],
+    "route.header": [
+      1
+    ],
+    "route.flags": [
+      4
+    ],
+    "route.sc": [
+      1
+    ],
+    "route.sd": [
+      1
+    ],
+    "route.rc": [
+      1
+    ],
+    "route.rd": [
+      1
+    ],
+    "route.source": [
+      1
+    ],
+    "route.target": [
+      1
+    ],
+    "route.address": [
+      1
+    ],
+    "route.orientation": [
+      1
+    ],
+    "route.send_peer": [
+      1
+    ],
+    "route.receive_peer": [
+      1
+    ],
+    "route.target_peer": [
+      1
+    ],
+    "route.allocations": [
+      1
+    ],
+    "rk.stage": [
+      1
+    ],
+    "physics.time": [
+      3
+    ],
+    "physics.firstcall": [
+      4
+    ],
+    "physics.visits": [
+      2
+    ],
+    "physics.column": [
+      1
+    ],
+    "physics.coordinates": [
+      3
+    ],
+    "physics.input": [
+      3
+    ],
+    "physics.output": [
+      3
+    ],
+    "driver.steps": [
+      1
+    ],
+    "step.time": [
+      3
+    ],
+    "step.dt": [
+      3
+    ],
+    "step.iteration": [
+      1
+    ]
+  },
+  "scopes": [
+    "adapt322",
+    "backend.adapter_route",
+    "backend.input",
+    "backend.rk_input",
+    "block",
+    "catalog.executed",
+    "cfl322",
+    "domain.fields322",
+    "ghost.plan",
+    "initialization",
+    "input.mean_route",
+    "input.scalar_route",
+    "input.vector_route",
+    "inverse.alias",
+    "inverse.begin",
+    "inverse.boundary",
+    "inverse.end",
+    "inverse.gather",
+    "inverse.inner",
+    "inverse.interior",
+    "inverse.level",
+    "inverse.level_boundary",
+    "inverse.level_interior",
+    "inverse.local_alias",
+    "inverse.node_map",
+    "inverse.outer",
+    "inverse.outer_install",
+    "inverse.outer_level",
+    "inverse.plan",
+    "inverse.prepare",
+    "inverse.publish322",
+    "inverse.range_alias",
+    "inverse.scalar",
+    "inverse.scatter",
+    "inverse.values322",
+    "main.boundary322",
+    "migration.routes",
+    "physics.column322",
+    "physics322",
+    "rhs.evaluate",
+    "rhs.output322",
+    "rhs.prepare",
+    "rhs.prepare_check",
+    "rhs.prepared_state",
+    "rhs.retain",
+    "rhs.retained322",
+    "rhs.rk_install",
+    "rhs.rk_installed322",
+    "rhs.rk_prepare",
+    "rhs.rk_values322",
+    "rk.final322",
+    "rk.provisional322",
+    "step",
+    "step322",
+    "storage.installed",
+    "transform.execute",
+    "transform.fixed_scalar_route",
+    "transform.fixed_vector_route",
+    "transform.installed322",
+    "transform.level",
+    "transform.outer_halo",
+    "transform.plan",
+    "transform.scalar_adapter",
+    "transform.scalar_halo",
+    "transform.scalar_initial",
+    "transform.scalar_publication",
+    "transform.scalar_wave_halo",
+    "transform.values322",
+    "transform.vector_adapter",
+    "transform.vector_halo",
+    "transform.vector_initial",
+    "transform.vector_publication",
+    "transform.vector_wave_halo",
+    "transport.event322",
+    "transport.footer322",
+    "writeback.plan"
+  ],
+  "writer_fields": {
+    "audit_rhs_distributed316": [
+      "executor.scalar_rhs.shape",
+      "executor.velocity_rhs.shape",
+      "placement.base",
+      "placement.key",
+      "placement.key.shape",
+      "placement.owned",
+      "transport.bound",
+      "transport.epoch",
+      "transport.route.bounds",
+      "transport.route.coordinate",
+      "transport.route_level",
+      "transport.route_phase",
+      "transport.scratch.shape",
+      "workspace.bernoulli.shape",
+      "workspace.diffusion_flux.shape",
+      "workspace.divu.shape",
+      "workspace.exner.shape",
+      "workspace.flux.shape",
+      "workspace.ke.shape",
+      "workspace.lap_divu.shape",
+      "workspace.laplacian.shape",
+      "workspace.lower.shape",
+      "workspace.midpoint.shape",
+      "workspace.phi.shape",
+      "workspace.physics.shape",
+      "workspace.pressure.shape",
+      "workspace.pv.shape",
+      "workspace.rotation.shape",
+      "workspace.scalar_physics.shape",
+      "workspace.scalar_rhs.shape",
+      "workspace.source.shape",
+      "workspace.sw_physics.shape",
+      "workspace.thermodynamic.shape",
+      "workspace.velocity_rhs.shape",
+      "workspace.vorticity.shape"
+    ],
+    "compile_prefix_demand": [],
+    "release_rhs_distributed": [],
+    "prepare_rhs_distributed": [],
+    "run_rhs_distributed": [
+      "execution.constants",
+      "execution.halo.order",
+      "execution.halo.shape",
+      "execution.nu",
+      "execution.nu.shape",
+      "execution.nu_pentagon",
+      "execution.order",
+      "execution.shape",
+      "execution.state.begin",
+      "execution.state.end"
+    ],
+    "rhs_distributed_halo": [],
+    "Scalar_Wavelet_Validator": [],
+    "Outer_Vector_Wavelet_Validator": [],
+    "Velocity_Restriction_Validator": [],
+    "Wavelet_Compression_Handler": [],
+    "Inverse_Scalar_Boundary_Handler": [],
+    "Inverse_Wavelet_Handler": [],
+    "call_adaptation_domain_consumer": [],
+    "refresh_native_inverse_scalar_boundary": [],
+    "refresh_native_inverse_vector_boundary": [],
+    "adapt": [
+      "adapt.operation",
+      "adapt.options",
+      "adapt.refined"
+    ],
+    "compress_wavelets": [],
+    "compress_wavelets_scalar_0": [],
+    "compress_wavelets_scalar_1": [],
+    "compress_wavelets_velo": [],
+    "compress_scalar": [],
+    "compress_vector": [],
+    "WT_after_step": [],
+    "WT_after_scalar_0": [],
+    "WT_after_scalar_1": [],
+    "WT_after_velo": [],
+    "fill_up_grid_and_IWT": [],
+    "check_transform_vector_stage": [],
+    "check_resident_transform": [],
+    "release_route": [],
+    "release_backend": [],
+    "prepare_resident_transform": [],
+    "audit_transform_plan316": [
+      "base",
+      "base.shape",
+      "boundary_address",
+      "boundary_address.shape",
+      "exchange_scratch.shape",
+      "extent",
+      "fixed_domain",
+      "fixed_domain.shape",
+      "fixed_index",
+      "fixed_index.shape",
+      "fixed_node",
+      "fixed_node.shape",
+      "fixed_physical_node",
+      "fixed_physical_node.shape",
+      "fixed_scalar.shape",
+      "fixed_vector.shape",
+      "forward_inner",
+      "forward_inner.shape",
+      "info",
+      "info.shape",
+      "inner.coefficients",
+      "inner.program",
+      "inner.program.shape",
+      "interior_address",
+      "interior_address.shape",
+      "interior_node",
+      "interior_node.shape",
+      "masks",
+      "outer.coefficients",
+      "outer.program",
+      "outer.program.shape",
+      "placement%inner_order",
+      "placement%inner_order.shape",
+      "placement%key",
+      "placement%key.shape",
+      "placement%level",
+      "placement%level.shape",
+      "placement%mask",
+      "placement%mask.shape",
+      "placement%outer_order",
+      "placement%outer_order.shape",
+      "placement%owned",
+      "placement%owned.shape",
+      "placement%owner",
+      "placement%owner.shape",
+      "placement%scalar_order",
+      "placement%scalar_order.shape",
+      "placement%state_key",
+      "placement%state_key.shape",
+      "publication_domain",
+      "publication_domain.shape",
+      "publication_node",
+      "publication_node.shape",
+      "publication_row",
+      "publication_row.shape",
+      "save_index",
+      "save_index.shape",
+      "save_node",
+      "save_node.shape",
+      "scalar.boundary.key",
+      "scalar.boundary.sign",
+      "scalar.coefficients",
+      "scalar.program",
+      "scalar.program.shape",
+      "scalar.shape",
+      "scalar_wavelet.shape",
+      "vector.boundary.key",
+      "vector.boundary.sign",
+      "vector.shape",
+      "vector_wavelet.shape",
+      "wire.shape"
+    ],
+    "audit_transform_adapter316": [
+      "extent",
+      "plan%index",
+      "plan%index.shape",
+      "plan%rc",
+      "plan%rc.shape",
+      "plan%rd",
+      "plan%rd.shape",
+      "plan%receive_peer",
+      "plan%receive_peer.shape",
+      "plan%received.shape",
+      "plan%request.shape",
+      "plan%sc",
+      "plan%sc.shape",
+      "plan%sd",
+      "plan%sd.shape",
+      "plan%send_peer",
+      "plan%send_peer.shape",
+      "plan%sent.shape",
+      "plan%sign",
+      "plan%sign.shape",
+      "plan%source",
+      "plan%source.shape",
+      "plan%target",
+      "plan%target.shape"
+    ],
+    "collect_boundary": [],
+    "compile_transform_homes": [],
+    "compile_publication_rows": [],
+    "transform_homes_for": [],
+    "bind_halo": [],
+    "bind_publication": [],
+    "compile_fixed_inputs": [],
+    "compile_forward_order": [],
+    "prepare_exchange_scratch": [],
+    "communicate": [
+      "transform.call322"
+    ],
+    "reset_aliases": [
+      "transform.call322"
+    ],
+    "save_scalar_target": [],
+    "save_vector_target": [],
+    "execute_resident_transform": [
+      "commit",
+      "masks",
+      "transform.call322"
+    ],
+    "audit_transform_values322": [
+      "transform.phase",
+      "transform.scalar",
+      "transform.scalar.shape",
+      "transform.scalar_wavelet",
+      "transform.scalar_wavelet.shape",
+      "transform.state",
+      "transform.vector",
+      "transform.vector.shape",
+      "transform.vector_wavelet",
+      "transform.vector_wavelet.shape"
+    ],
+    "install_checked_transform": [],
+    "install_transform_outputs": [],
+    "count_route": [],
+    "count_adapter": [],
+    "audit_transform_execution": [],
+    "audit_transform_plan": [],
+    "commit_interiors": [
+      "transform.call322"
+    ],
+    "prepare_connected_rhs": [
+      "backend.adapter_domain",
+      "backend.adapter_node",
+      "backend.adapter_value.shape",
+      "backend.generation",
+      "backend.geometry.base",
+      "backend.mask.domain",
+      "backend.mask.domains",
+      "backend.mask.edge",
+      "backend.mask.node",
+      "backend.mean.shape",
+      "backend.owned",
+      "backend.rk_domain",
+      "backend.rk_mean.shape",
+      "backend.rk_node",
+      "backend.rk_scalar.shape",
+      "backend.rk_value.shape",
+      "backend.rk_velocity.shape",
+      "backend.scalar.shape",
+      "backend.surface",
+      "backend.velocity.shape"
+    ],
+    "state_footprint": [],
+    "edges": [],
+    "evaluate_connected_rhs": [
+      "evaluate.epoch",
+      "evaluate.first_after_prepare",
+      "output.scalar",
+      "output.scalar.shape",
+      "output.velocity",
+      "output.velocity.shape",
+      "state.mean",
+      "state.mean.shape",
+      "state.scalar",
+      "state.scalar.shape",
+      "state.surface",
+      "state.velocity",
+      "state.velocity.shape"
+    ],
+    "retain_connected_rhs": [
+      "retain.epoch"
+    ],
+    "prepare_connected_rhs_rk": [
+      "rk.adapter",
+      "rk.adapter.shape",
+      "rk.mean",
+      "rk.mean.shape",
+      "rk.scalar",
+      "rk.scalar.shape",
+      "rk.value",
+      "rk.value.shape",
+      "rk.velocity",
+      "rk.velocity.shape",
+      "rk_prepare.epoch",
+      "rk_prepare.h"
+    ],
+    "audit_plan": [],
+    "rk_cost": [],
+    "audit": [],
+    "install_connected_rhs_rk": [
+      "installed.adapter",
+      "installed.extent",
+      "installed.resident",
+      "installed.temperature",
+      "installed.values",
+      "rk_install.epoch",
+      "rk_install.validate"
+    ],
+    "audit_domain_fields322": [
+      "fields.boundary_current",
+      "fields.coordinate",
+      "fields.domain",
+      "fields.edge_mask",
+      "fields.header",
+      "fields.node_level",
+      "fields.node_mask",
+      "fields.patch",
+      "fields.poles",
+      "fields.values"
+    ],
+    "init_Float_Field": [],
+    "init_Int_Field": [],
+    "init_Logical_Field": [],
+    "init_Domain": [],
+    "renumber_subtree_neigh_Domain": [],
+    "copy_subtree_field_Domain": [],
+    "copy_subtree_nodes_Domain": [],
+    "extract_subtree_patches_Domain": [],
+    "compact_subtree_storage_Domain": [],
+    "extend_Domain": [],
+    "set_neigh_Domain": [],
+    "audit_rhs_input316": [
+      "input.adapter_domain",
+      "input.adapter_node",
+      "input.adapter_provider",
+      "input.address",
+      "input.address.shape",
+      "input.epoch",
+      "input.extent",
+      "input.local_provider",
+      "input.mean.shape",
+      "input.means",
+      "input.read_mean.shape",
+      "input.read_scalar.shape",
+      "input.read_vector.shape",
+      "input.scalar.shape",
+      "input.vector.shape"
+    ],
+    "collect_providers": [],
+    "release_rhs_resident_input": [],
+    "prepare_rhs_resident_input": [],
+    "read_rhs_resident_input": [],
+    "begin_domain_consumer_audit": [],
+    "end_domain_consumer_audit": [],
+    "initialize": [],
+    "count_active": [],
+    "record_init_state": [],
+    "set_time_integrator": [],
+    "prepare_end_step_domain_consumers": [],
+    "write_checkpoint": [],
+    "write_output_consumer": [],
+    "apply_domain_physics_consumers": [],
+    "update_domain_soil_wavelet_consumer": [],
+    "restart": [],
+    "prepare_tolerance312": [],
+    "checkpoint312": [],
+    "audit_main_boundary322": [
+      "main.active",
+      "main.decisions",
+      "main.identity",
+      "main.integer_time",
+      "main.time"
+    ],
+    "time_step": [
+      "step.output_decisions"
+    ],
+    "init_basic": [],
+    "init_structures": [],
+    "cal_total_mass": [],
+    "cal_min_dt": [
+      "cfl.visit"
+    ],
+    "cal_min_mass": [],
+    "deallocate_structures": [],
+    "configure_transform_shadow": [],
+    "begin_transform_shadow": [],
+    "finish_transform_shadow": [],
+    "configure_stage192": [],
+    "check": [],
+    "die": [],
+    "displacements": [],
+    "prepare_native_inverse": [
+      "first_level"
+    ],
+    "audit_inverse_plan316": [
+      "alias_recv.shape",
+      "alias_send.shape",
+      "component",
+      "consumer_alias_slot",
+      "consumer_alias_slot.shape",
+      "consumer_alias_value.shape",
+      "dest",
+      "extent",
+      "inner.program",
+      "inner.program.shape",
+      "key",
+      "key.shape",
+      "node_domain",
+      "node_domain.shape",
+      "node_flags",
+      "node_flags.shape",
+      "node_id",
+      "node_id.shape",
+      "operation_first",
+      "operation_first.shape",
+      "operation_last",
+      "operation_last.shape",
+      "options",
+      "outer.coefficients",
+      "outer.program",
+      "outer.program.shape",
+      "publication.program",
+      "publication.program.shape",
+      "publication_tile.shape",
+      "range",
+      "requests.shape",
+      "restore203.shape",
+      "restore203_index",
+      "restore203_index.shape",
+      "restore203_slot",
+      "restore203_slot.shape",
+      "saved203.shape",
+      "scaffold_slot",
+      "scaffold_slot.shape",
+      "scaffold_value.shape",
+      "scalar.program",
+      "scalar.program.shape",
+      "slot",
+      "source",
+      "transfer_recv.shape",
+      "transfer_send.shape",
+      "value.shape"
+    ],
+    "audit_transfer316": [
+      "edgewise",
+      "plan%address",
+      "plan%address.shape",
+      "plan%key",
+      "plan%key.shape",
+      "plan%rc",
+      "plan%rc.shape",
+      "plan%rd",
+      "plan%rd.shape",
+      "plan%sc",
+      "plan%sc.shape",
+      "plan%sd",
+      "plan%sd.shape",
+      "plan%self_slot",
+      "plan%self_slot.shape",
+      "plan%slot",
+      "plan%slot.shape",
+      "plan%source_info",
+      "plan%source_info.shape",
+      "plan%target_info",
+      "plan%target_info.shape"
+    ],
+    "audit_alias316": [
+      "plan%dest",
+      "plan%dest.shape",
+      "plan%install_order",
+      "plan%install_order.shape",
+      "plan%rc",
+      "plan%rc.shape",
+      "plan%rd",
+      "plan%rd.shape",
+      "plan%sc",
+      "plan%sc.shape",
+      "plan%sd",
+      "plan%sd.shape",
+      "plan%source",
+      "plan%source.shape"
+    ],
+    "audit_inverse_scalar316": [
+      "coefficients",
+      "level_phase",
+      "selected_and_active"
+    ],
+    "audit_inverse_inner316": [
+      "coefficients",
+      "level",
+      "selected"
+    ],
+    "collect_boundaries": [],
+    "build_transfer": [],
+    "select_transfer": [],
+    "combine_transfers": [],
+    "combine_outer_edges": [],
+    "native_inverse_gather": [
+      "family",
+      "flags",
+      "level"
+    ],
+    "native_inverse_scatter": [
+      "family",
+      "flags",
+      "level"
+    ],
+    "prepare_self_routes": [],
+    "transfer_nodes": [],
+    "exchange_values": [],
+    "begin_exchange_values": [],
+    "finish_exchange_values": [],
+    "record_traffic": [],
+    "compile_aliases": [],
+    "combine_aliases": [],
+    "native_inverse_boundary": [
+      "family_and_range"
+    ],
+    "apply_aliases": [],
+    "alias_address": [],
+    "set_alias": [],
+    "compare_native_inverse": [],
+    "capture_native_inverse_consumer_aliases": [],
+    "publish_native_inverse": [
+      "publication.mode"
+    ],
+    "publish_canonical_inverse203": [
+      "publication.mode"
+    ],
+    "compile_publication203": [],
+    "compile_outer": [],
+    "native_inverse_outer": [
+      "level",
+      "operation_range"
+    ],
+    "audit_inverse_values322": [
+      "inverse.alias",
+      "inverse.alias.shape",
+      "inverse.phase",
+      "inverse.restore",
+      "inverse.restore.shape",
+      "inverse.scaffold",
+      "inverse.scaffold.shape",
+      "inverse.value",
+      "inverse.value.shape"
+    ],
+    "begin_inverse203": [
+      "options"
+    ],
+    "end_inverse203": [
+      "work"
+    ],
+    "seed_cut_phase_oracle": [],
+    "check_gather203": [],
+    "remember_outer203": [],
+    "store203": [],
+    "install_inverse203": [],
+    "compile203": [],
+    "triangle_geom": [],
+    "scalar_inverse203": [],
+    "inner_inverse203": [],
+    "Block_Vertical_Interpolator": [],
+    "Block_Inverse_Scalar_Boundary_Handler": [],
+    "audit_transport_begin322": [
+      "transport.count322",
+      "transport.epoch322",
+      "transport.identity322"
+    ],
+    "audit_transport_footer322": [
+      "transport.calls322"
+    ],
+    "try_resident_provisional_transform": [],
+    "begin_resident_transform_trial": [],
+    "end_resident_transform_trial": [],
+    "clear_parallel_block_state": [],
+    "clear_block_adaptation_decisions": [],
+    "clear_block_vertical_remap_storage": [],
+    "clear_block_vertical_remap_exchange": [],
+    "complete_block_adaptation_lifecycle": [],
+    "invalidate_parallel_block_domain_shadow": [],
+    "synchronize_parallel_block_solution_consumer": [],
+    "synchronize_parallel_block_checkpoint": [],
+    "prepare_parallel_block_grid_change": [],
+    "refresh_pending_parallel_block_adaptation_wavelets": [],
+    "configure_stage193": [],
+    "configure_stage194": [],
+    "configure_stage197": [],
+    "parallel_block_profile_end": [],
+    "block_profile_enter": [],
+    "block_profile_leave": [],
+    "record_parallel_block_profile_volume": [],
+    "record_parallel_block_topology": [],
+    "report_parallel_block_profile": [],
+    "report_block_detail": [],
+    "report_block_detail_steps": [],
+    "install_block_native_adaptation_mask_seed": [],
+    "stage_local_decision_subtree": [],
+    "stage_received_decision_subtree": [],
+    "prepare_block_adaptation_decision_storage": [],
+    "validate_and_install_domain_patch_decisions": [],
+    "accumulate_block_adaptation_significance": [],
+    "retain_post_grid_change_block_reconstruction": [],
+    "prepare_block_native_vertical_remap_boundary_state": [],
+    "prepare_block_native_vertical_remap": [],
+    "accumulate_block_minimum_relative_mass": [],
+    "validate_block_native_vertical_remap": [],
+    "write_block_native_vertical_remap_to_domains": [],
+    "complete_block_native_vertical_remap": [],
+    "snapshot_block_vertical_remap_mass": [],
+    "prepare_block_vertical_remap_workspace": [],
+    "prepare_vertical_remap_metadata_exchange": [],
+    "refresh_block_vertical_remap_masks": [],
+    "fill_vertical_remap_metadata": [],
+    "install_vertical_remap_mask_patch": [],
+    "install_retained_mask_subtree": [],
+    "remap_block_vertical_columns": [],
+    "remap_one_block_vertical_column": [],
+    "block_remap_pressure_coordinates": [],
+    "balance_metadata_295": [],
+    "partition_295": [],
+    "select_owners_295": [],
+    "consider": [],
+    "evaluate": [],
+    "shortlist_296": [],
+    "construct_candidates": [],
+    "emit": [],
+    "cover": [],
+    "parent_metadata_293": [],
+    "original_assignment_293": [],
+    "hold_parent_owners_293": [],
+    "child_metadata_294": [],
+    "coalesce_294": [],
+    "snapshot_groups312": [],
+    "install_groups_294": [],
+    "ghost_routes_294": [],
+    "check_owner_bridge322_catalog": [],
+    "apply_owner_bridge322": [],
+    "record_owner_bridge322": [],
+    "build_parallel_block_catalog": [],
+    "audit_catalog316": [
+      "catalog.domain_extent322",
+      "cut.domain",
+      "cut.root",
+      "domain.loc_id",
+      "domain.local_glo_id",
+      "domain.owner",
+      "physical",
+      "physical.shape"
+    ],
+    "audit_migration316": [
+      "bytes",
+      "extent",
+      "plan%recv_block",
+      "plan%recv_block.shape",
+      "plan%recv_byte_count",
+      "plan%recv_byte_count.shape",
+      "plan%recv_byte_displ",
+      "plan%recv_byte_displ.shape",
+      "plan%recv_count",
+      "plan%recv_count.shape",
+      "plan%recv_displ",
+      "plan%recv_displ.shape",
+      "plan%recv_nbyte",
+      "plan%recv_nbyte.shape",
+      "plan%send_block",
+      "plan%send_block.shape",
+      "plan%send_byte_count",
+      "plan%send_byte_count.shape",
+      "plan%send_byte_displ",
+      "plan%send_byte_displ.shape",
+      "plan%send_count",
+      "plan%send_count.shape",
+      "plan%send_displ",
+      "plan%send_displ.shape",
+      "plan%send_nbyte",
+      "plan%send_nbyte.shape"
+    ],
+    "audit_installed316": [],
+    "audit_block316": [
+      "bdry_node",
+      "bdry_node.shape",
+      "bdry_storage",
+      "bdry_storage.shape",
+      "block%bdry_scalar.shape",
+      "block%bdry_scalar_mean.shape",
+      "block%bdry_tke.shape",
+      "block%bdry_topography.shape",
+      "block%bdry_vector.shape",
+      "block%bdry_vector_mean.shape",
+      "block%bdry_wavelet_scalar.shape",
+      "block%bdry_wavelet_tke.shape",
+      "block%bdry_wavelet_vector.shape",
+      "block%ghost_scalar.shape",
+      "block%ghost_scalar_mean.shape",
+      "block%ghost_tke.shape",
+      "block%ghost_topography.shape",
+      "block%ghost_vector.shape",
+      "block%ghost_vector_mean.shape",
+      "block%ghost_wavelet_scalar.shape",
+      "block%ghost_wavelet_tke.shape",
+      "block%ghost_wavelet_vector.shape",
+      "block%neigh_class",
+      "block%neigh_class.shape",
+      "block%scalar.shape",
+      "block%scalar_mean.shape",
+      "block%tke.shape",
+      "block%topography.shape",
+      "block%vector.shape",
+      "block%vector_mean.shape",
+      "block%wavelet_scalar.shape",
+      "block%wavelet_tke.shape",
+      "block%wavelet_vector.shape",
+      "block_bdry",
+      "block_bdry.shape",
+      "ghost_node",
+      "ghost_node.shape",
+      "ghost_storage",
+      "ghost_storage.shape",
+      "identity",
+      "node",
+      "node.shape",
+      "patch",
+      "patch.shape",
+      "stencil",
+      "stencil.shape"
+    ],
+    "audit_ghost316": [
+      "ghost_exchange_plan%destination_block",
+      "ghost_exchange_plan%destination_block.shape",
+      "ghost_exchange_plan%destination_ghost",
+      "ghost_exchange_plan%destination_ghost.shape",
+      "ghost_exchange_plan%local_level_count",
+      "ghost_exchange_plan%local_level_count.shape",
+      "ghost_exchange_plan%local_level_displ",
+      "ghost_exchange_plan%local_level_displ.shape",
+      "ghost_exchange_plan%local_level_request",
+      "ghost_exchange_plan%local_level_request.shape",
+      "ghost_exchange_plan%local_order297",
+      "ghost_exchange_plan%local_order297.shape",
+      "ghost_exchange_plan%local_start297",
+      "ghost_exchange_plan%local_start297.shape",
+      "ghost_exchange_plan%recv_data",
+      "ghost_exchange_plan%recv_data.shape",
+      "ghost_exchange_plan%recv_level_base",
+      "ghost_exchange_plan%recv_level_base.shape",
+      "ghost_exchange_plan%recv_level_count",
+      "ghost_exchange_plan%recv_level_count.shape",
+      "ghost_exchange_plan%recv_level_displ",
+      "ghost_exchange_plan%recv_level_displ.shape",
+      "ghost_exchange_plan%recv_level_record",
+      "ghost_exchange_plan%recv_level_record.shape",
+      "ghost_exchange_plan%recv_record_count",
+      "ghost_exchange_plan%recv_record_count.shape",
+      "ghost_exchange_plan%recv_record_displ",
+      "ghost_exchange_plan%recv_record_displ.shape",
+      "ghost_exchange_plan%request_index",
+      "ghost_exchange_plan%request_index.shape",
+      "ghost_exchange_plan%scalar_patch_buffer.shape",
+      "ghost_exchange_plan%scalar_recv_buffer.shape",
+      "ghost_exchange_plan%scalar_recv_count",
+      "ghost_exchange_plan%scalar_recv_count.shape",
+      "ghost_exchange_plan%scalar_recv_displ",
+      "ghost_exchange_plan%scalar_recv_displ.shape",
+      "ghost_exchange_plan%scalar_send_buffer.shape",
+      "ghost_exchange_plan%scalar_send_count",
+      "ghost_exchange_plan%scalar_send_count.shape",
+      "ghost_exchange_plan%scalar_send_displ",
+      "ghost_exchange_plan%scalar_send_displ.shape",
+      "ghost_exchange_plan%send_data",
+      "ghost_exchange_plan%send_data.shape",
+      "ghost_exchange_plan%send_level_base",
+      "ghost_exchange_plan%send_level_base.shape",
+      "ghost_exchange_plan%send_level_count",
+      "ghost_exchange_plan%send_level_count.shape",
+      "ghost_exchange_plan%send_level_displ",
+      "ghost_exchange_plan%send_level_displ.shape",
+      "ghost_exchange_plan%send_level_record",
+      "ghost_exchange_plan%send_level_record.shape",
+      "ghost_exchange_plan%send_record_count",
+      "ghost_exchange_plan%send_record_count.shape",
+      "ghost_exchange_plan%send_record_displ",
+      "ghost_exchange_plan%send_record_displ.shape",
+      "ghost_exchange_plan%source_block",
+      "ghost_exchange_plan%source_block.shape",
+      "ghost_exchange_plan%source_local_patch",
+      "ghost_exchange_plan%source_local_patch.shape",
+      "ghost_exchange_plan%source_owner",
+      "ghost_exchange_plan%source_owner.shape",
+      "ghost_exchange_plan%source_patch_level",
+      "ghost_exchange_plan%source_patch_level.shape",
+      "ghost_exchange_plan%vector_patch_buffer.shape",
+      "ghost_exchange_plan%vector_recv_buffer.shape",
+      "ghost_exchange_plan%vector_recv_count",
+      "ghost_exchange_plan%vector_recv_count.shape",
+      "ghost_exchange_plan%vector_recv_displ",
+      "ghost_exchange_plan%vector_recv_displ.shape",
+      "ghost_exchange_plan%vector_send_buffer.shape",
+      "ghost_exchange_plan%vector_send_count",
+      "ghost_exchange_plan%vector_send_count.shape",
+      "ghost_exchange_plan%vector_send_displ",
+      "ghost_exchange_plan%vector_send_displ.shape",
+      "n_local_request",
+      "n_remote_recv",
+      "n_remote_send",
+      "n_request",
+      "route_level_count",
+      "route_level_start",
+      "scalar_n_value",
+      "vector_n_value"
+    ],
+    "audit_writeback316": [
+      "block_writeback_plan%boundary_scalar_block_recv_buffer.shape",
+      "block_writeback_plan%boundary_scalar_block_recv_count",
+      "block_writeback_plan%boundary_scalar_block_recv_count.shape",
+      "block_writeback_plan%boundary_scalar_block_recv_displ",
+      "block_writeback_plan%boundary_scalar_block_recv_displ.shape",
+      "block_writeback_plan%boundary_scalar_domain_send_buffer.shape",
+      "block_writeback_plan%boundary_scalar_domain_send_count",
+      "block_writeback_plan%boundary_scalar_domain_send_count.shape",
+      "block_writeback_plan%boundary_scalar_domain_send_displ",
+      "block_writeback_plan%boundary_scalar_domain_send_displ.shape",
+      "block_writeback_plan%boundary_vector_block_recv_buffer.shape",
+      "block_writeback_plan%boundary_vector_block_recv_count",
+      "block_writeback_plan%boundary_vector_block_recv_count.shape",
+      "block_writeback_plan%boundary_vector_block_recv_displ",
+      "block_writeback_plan%boundary_vector_block_recv_displ.shape",
+      "block_writeback_plan%boundary_vector_domain_send_buffer.shape",
+      "block_writeback_plan%boundary_vector_domain_send_count",
+      "block_writeback_plan%boundary_vector_domain_send_count.shape",
+      "block_writeback_plan%boundary_vector_domain_send_displ",
+      "block_writeback_plan%boundary_vector_domain_send_displ.shape",
+      "block_writeback_plan%domain_patch_covered.shape",
+      "block_writeback_plan%domain_patch_displ",
+      "block_writeback_plan%domain_patch_displ.shape",
+      "block_writeback_plan%domain_patch_reconstructed.shape",
+      "block_writeback_plan%native_scalar_stage.shape",
+      "block_writeback_plan%native_vector_stage.shape",
+      "block_writeback_plan%recv_block",
+      "block_writeback_plan%recv_block.shape",
+      "block_writeback_plan%recv_boundary_count",
+      "block_writeback_plan%recv_boundary_count.shape",
+      "block_writeback_plan%recv_boundary_displ",
+      "block_writeback_plan%recv_boundary_displ.shape",
+      "block_writeback_plan%recv_boundary_level",
+      "block_writeback_plan%recv_boundary_level.shape",
+      "block_writeback_plan%recv_boundary_nnode",
+      "block_writeback_plan%recv_boundary_nnode.shape",
+      "block_writeback_plan%recv_boundary_scalar_nvalue",
+      "block_writeback_plan%recv_boundary_scalar_nvalue.shape",
+      "block_writeback_plan%recv_boundary_source",
+      "block_writeback_plan%recv_boundary_source.shape",
+      "block_writeback_plan%recv_boundary_vector_nvalue",
+      "block_writeback_plan%recv_boundary_vector_nvalue.shape",
+      "block_writeback_plan%recv_count",
+      "block_writeback_plan%recv_count.shape",
+      "block_writeback_plan%recv_displ",
+      "block_writeback_plan%recv_displ.shape",
+      "block_writeback_plan%recv_patch_count",
+      "block_writeback_plan%recv_patch_count.shape",
+      "block_writeback_plan%recv_scalar_nvalue",
+      "block_writeback_plan%recv_scalar_nvalue.shape",
+      "block_writeback_plan%recv_vector_nvalue",
+      "block_writeback_plan%recv_vector_nvalue.shape",
+      "block_writeback_plan%scalar_domain_stage.shape",
+      "block_writeback_plan%scalar_recv_buffer.shape",
+      "block_writeback_plan%scalar_recv_count",
+      "block_writeback_plan%scalar_recv_count.shape",
+      "block_writeback_plan%scalar_recv_displ",
+      "block_writeback_plan%scalar_recv_displ.shape",
+      "block_writeback_plan%scalar_send_buffer.shape",
+      "block_writeback_plan%scalar_send_count",
+      "block_writeback_plan%scalar_send_count.shape",
+      "block_writeback_plan%scalar_send_displ",
+      "block_writeback_plan%scalar_send_displ.shape",
+      "block_writeback_plan%send_block",
+      "block_writeback_plan%send_block.shape",
+      "block_writeback_plan%send_boundary_count",
+      "block_writeback_plan%send_boundary_count.shape",
+      "block_writeback_plan%send_boundary_displ",
+      "block_writeback_plan%send_boundary_displ.shape",
+      "block_writeback_plan%send_boundary_level",
+      "block_writeback_plan%send_boundary_level.shape",
+      "block_writeback_plan%send_boundary_nnode",
+      "block_writeback_plan%send_boundary_nnode.shape",
+      "block_writeback_plan%send_boundary_scalar_nvalue",
+      "block_writeback_plan%send_boundary_scalar_nvalue.shape",
+      "block_writeback_plan%send_boundary_source",
+      "block_writeback_plan%send_boundary_source.shape",
+      "block_writeback_plan%send_boundary_vector_nvalue",
+      "block_writeback_plan%send_boundary_vector_nvalue.shape",
+      "block_writeback_plan%send_count",
+      "block_writeback_plan%send_count.shape",
+      "block_writeback_plan%send_displ",
+      "block_writeback_plan%send_displ.shape",
+      "block_writeback_plan%send_patch_count",
+      "block_writeback_plan%send_patch_count.shape",
+      "block_writeback_plan%send_scalar_nvalue",
+      "block_writeback_plan%send_scalar_nvalue.shape",
+      "block_writeback_plan%send_vector_nvalue",
+      "block_writeback_plan%send_vector_nvalue.shape",
+      "block_writeback_plan%vector_domain_stage.shape",
+      "block_writeback_plan%vector_recv_buffer.shape",
+      "block_writeback_plan%vector_recv_count",
+      "block_writeback_plan%vector_recv_count.shape",
+      "block_writeback_plan%vector_recv_displ",
+      "block_writeback_plan%vector_recv_displ.shape",
+      "block_writeback_plan%vector_send_buffer.shape",
+      "block_writeback_plan%vector_send_count",
+      "block_writeback_plan%vector_send_count.shape",
+      "block_writeback_plan%vector_send_displ",
+      "block_writeback_plan%vector_send_displ.shape",
+      "catalog_size",
+      "domain_count",
+      "installed_block_count",
+      "n_recv",
+      "n_recv_boundary",
+      "n_retained",
+      "n_send",
+      "n_send_boundary",
+      "scalar_patch_nvalue",
+      "vector_patch_nvalue"
+    ],
+    "capture_parallel_block_allocation_snapshot": [],
+    "assert_parallel_block_allocation_stability": [],
+    "prepare_parallel_block_production_state": [],
+    "migrate_blocks": [],
+    "check_block_scalar_stencil_consumer": [],
+    "check_block_vector_stencil_consumer": [],
+    "check_refreshed_block_stencil_consumers": [],
+    "check_block_boundary_routes": [],
+    "check_block_ghost_source_addresses": [],
+    "group_local_297": [],
+    "build_local_groups_297": [],
+    "clear_block_ghost_exchange_plan": [],
+    "build_block_ghost_exchange_plan": [],
+    "destination_state_298": [],
+    "build_block_ghost_level_subplans": [],
+    "check_block_ghost_exchange_plan": [],
+    "clear_staged_coarse_vector_boundary_plan": [],
+    "clear_block_writeback_plan": [],
+    "build_block_writeback_plan": [],
+    "build_block_domain_boundary_plan": [],
+    "build_staged_coarse_vector_boundary_plan": [],
+    "exchange_staged_coarse_vector_boundaries": [],
+    "install_retained_boundary": [],
+    "check_block_writeback_plan": [],
+    "exchange_block_writeback_payloads": [],
+    "exchange_temperature_writeback_payloads": [],
+    "check_block_writeback_payload_exchange": [],
+    "build_expected_writeback_payloads": [],
+    "compare_writeback_payloads": [],
+    "exchange_domain_to_block_payloads": [
+      "transport.flags322"
+    ],
+    "import_domain_field_family_to_blocks": [],
+    "import_retained_subtree": [],
+    "import_domain_boundary_field_family_to_blocks": [],
+    "pack_domain_boundary_prognostic": [],
+    "refresh_parallel_block_trend_boundary_state": [],
+    "refresh_parallel_block_candidate_boundary_state": [],
+    "validate_candidate_block_velocity_restriction": [],
+    "report_velocity_restriction_mismatch": [],
+    "produce_block_velocity_restriction": [],
+    "set_block_vector_sol_value": [],
+    "validate_candidate_block_outer_vector_wavelets": [],
+    "validate_staged_coarse_outer_vector_wavelets": [],
+    "staged_wavelet_mask": [],
+    "validate_complete_block_vector_wavelets": [],
+    "export_provisional_vector_boundaries": [],
+    "install_provisional_vector_boundary": [],
+    "install_provisional_vector_value": [],
+    "seed_complete_vector_route_sources": [],
+    "seed_complete_vector_route_source": [],
+    "propagate_complete_vector_boundaries": [],
+    "install_propagated_value": [],
+    "report_unresolved_route": [],
+    "produce_regular_vector_cell": [],
+    "set_inner": [],
+    "native_inner_interpolation": [],
+    "apply_native_pentagon_level": [],
+    "produce_pentagon": [],
+    "native_pentagon_correction": [],
+    "validate_candidate_block_scalar_wavelets": [],
+    "activate_complete_block_wavelet_output": [],
+    "prepare_block_native_wavelet_compression": [],
+    "activate_block_native_wavelet_compression": [],
+    "prepare_block_native_inverse_boundaries": [],
+    "activate_block_native_inverse_transform": [],
+    "synchronize_block_inverse_scalars": [],
+    "synchronize_block_inverse_vectors": [],
+    "reconstruct_native_inverse_outer_vectors": [],
+    "reconstruct_pentagon": [],
+    "adjust_pair": [],
+    "pentagon_correction": [],
+    "synchronize_block_inverse_outer_vectors": [],
+    "reconstruct_block_scalar_level": [],
+    "reconstruct_scalar_detail": [],
+    "reconstruct_one": [],
+    "reconstruct_block_scalar_columns": [],
+    "address_at": [],
+    "read_column": [],
+    "reconstruct_block_inner_vector_level": [],
+    "reconstruct_inner_vector": [],
+    "block_inner_vector_interpolation": [],
+    "set_block_scalar_sol_value": [],
+    "compress_block_atmospheric_wavelets": [],
+    "set_block_vector_wavelet_value": [],
+    "zero_resident_wavelets": [],
+    "produce_block_scalar_wavelets": [],
+    "assert_complete_scalar_wavelet_output": [],
+    "set_block_scalar_wavelet_value": [],
+    "assert_candidate_block_hydrostatic_match": [],
+    "refresh_candidate_block_edge_metrics": [],
+    "install_metric_patch": [],
+    "install_retained_subtree": [],
+    "evaluate_candidate_block_velocity_recomposition": [],
+    "clear_block_velocity_source_transport": [],
+    "begin_block_velocity_source_transport": [],
+    "capture_block_velocity_source_level": [],
+    "capture_patch": [],
+    "finalize_block_velocity_source_transport": [],
+    "prepare_block_native_velocity_remainder": [],
+    "reserve_thermodynamic_columns": [],
+    "compute_thermodynamic_column": [],
+    "refresh_candidate_block_velocity_remainder": [],
+    "install_remainder_patch": [],
+    "prepare_connected_transform_geometry": [],
+    "transform_geometry_requests": [],
+    "begin_block_scalar_divergence_capture": [],
+    "prepare_scalar_divergence_plan": [],
+    "clear_block_scalar_boundary_final_plan": [],
+    "prepare_block_scalar_restriction_exchange": [],
+    "prepare_block_scalar_boundary_provenance": [],
+    "prepare_boundary_cache_request_plan": [],
+    "assign_boundary_cache_slot": [],
+    "source_patch_block_key": [],
+    "map_source_block_subtree": [],
+    "domain_node_patch_key": [],
+    "domain_boundary_owner_key": [],
+    "prepare_block_scalar_capture_addresses": [],
+    "seed_scalar_producer_geometry": [],
+    "sample_scalar_working_storage": [],
+    "capture_block_scalar_physics_patch": [],
+    "capture_block_scalar_divergence_level": [],
+    "check_fused_record": [],
+    "capture_block_scalar_restriction_boundaries": [],
+    "fill_retained_boundary_record": [],
+    "fill_boundary_node": [],
+    "exchange_block_scalar_boundary_cache": [],
+    "publish_native_mass_rhs": [],
+    "finalize_block_scalar_divergence_capture": [],
+    "pack_deduplicated_full_transport": [],
+    "unpack_deduplicated_full_block": [],
+    "record_initial_volume": [],
+    "finalize_block_scalar_restriction_boundaries": [],
+    "get_block_field_layout_counts": [],
+    "finalize_production_restriction_boundaries": [],
+    "exchange_block_scalar_restriction_ghosts": [],
+    "fill_final_boundary_cache": [],
+    "pack_final_boundary_service": [],
+    "install_final_boundary_cache": [],
+    "set_final_boundary_cache_value": [],
+    "scatter_final_boundary_cache": [],
+    "post_sparse_payload_receives": [],
+    "post_sparse_payload_sends": [],
+    "complete_sparse_payload": [],
+    "record_ghost_volume": [],
+    "install_local_source": [],
+    "pack_patch_record": [],
+    "install_buffer_ghost": [],
+    "fields203_slots": [],
+    "pack_production_restriction_ghost": [],
+    "install_production_restriction_ghost": [],
+    "compute_block_scalar_direct_flux": [],
+    "prepare_temperature_edge_plan": [],
+    "map_patch": [],
+    "compute_temperature_rk_boundary": [],
+    "prepare_temperature_boundary_stage": [],
+    "apply_temperature_boundary_stage": [],
+    "capture_temperature_closure": [],
+    "exchange_temperature_edges": [],
+    "evaluate_candidate_block_scalar_restriction": [],
+    "fingerprint_temperature_chain": [],
+    "report_block_scalar_boundary_shadow": [],
+    "initialize_scalar_restriction_boundary_flux": [],
+    "restrict_block_scalar_flux_level": [],
+    "restrict_block_scalar_flux_columns": [],
+    "compare_block_scalar_restricted_flux": [],
+    "recompute_block_scalar_divergence_level": [],
+    "compare_block_scalar_restricted_divergence": [],
+    "report_record_value": [],
+    "set_block_patch_scalar_record_value": [],
+    "locate_block_scalar_record": [],
+    "resolve_block_scalar_record": [],
+    "report_scalar_restriction_components": [],
+    "validate_scalar_restriction_vector": [],
+    "validate_scalar_restriction_value": [],
+    "report_scalar_restriction_cursor": [],
+    "get_block_restriction_indices": [],
+    "complete_uncaptured_scalar_divergence_coverage": [],
+    "complete_patch": [],
+    "evaluate_candidate_block_exner_shadow": [],
+    "assert_candidate_block_tendency_payload_match": [],
+    "refresh_parallel_block_domain_prognostic_state": [],
+    "import_domain_trend_to_block_tendency": [],
+    "assert_retained_subtree": [],
+    "begin_block_domain_trend_step": [],
+    "complete_block_domain_trend_step": [],
+    "advance_block_domain_trend_euler": [],
+    "capture_block_domain_multistage_candidate_tendency": [],
+    "begin_block_domain_multistage_candidate_stage": [],
+    "retain_native_multistage_candidate_snapshot": [],
+    "consume_native_multistage_candidate_snapshot": [],
+    "retain_block_native_multistage_candidate": [],
+    "prepare_block_native_multistage_wavelet_stage": [],
+    "prepare_block_native_multistage_wavelet_acceptance": [],
+    "accept_block_native_multistage_candidate": [],
+    "pack_domain_subtree_prognostic": [],
+    "pack_domain_patch_prognostic": [],
+    "pack_domain_patch_edge_length": [],
+    "pack_domain_patch_velocity_recomposition": [],
+    "pack_domain_patch_theta_edge": [],
+    "pack_domain_patch_exner_difference": [],
+    "reconstruct_block_writeback_domain_stage": [],
+    "stage_local_subtree": [],
+    "stage_buffer_subtree": [],
+    "write_domain_patch_prognostic": [],
+    "write_block_field_family_to_domains": [],
+    "assert_canonical_inverse_return": [],
+    "assert_block_domain_field_family_match": [],
+    "check_block_ghost_request_manifest": [],
+    "check_block_scalar_ghost_payload_exchange": [],
+    "exchange_block_scalar_ghost_payloads": [],
+    "check_block_vector_ghost_payload_exchange": [],
+    "exchange_block_vector_ghost_payloads": [],
+    "refresh_block_sol_ghosts": [],
+    "refresh_block_wav_coeff_ghosts": [],
+    "refresh_block_sol_wav_coeff_ghosts": [],
+    "check_production_block_ghost_refresh": [],
+    "check_local_blocks": [],
+    "check_block_field_inventory": [],
+    "compute_block_exner_difference_kernel": [],
+    "prepare_column": [],
+    "check_parallel_block_lifecycle": [],
+    "check_parallel_block_scaling": [],
+    "print_exchange_volume": [],
+    "print_min_average_max": [],
+    "accumulate_block_hydrostatic_consumer": [],
+    "check_block_hydrostatic_reconstruction": [],
+    "accumulate_domain_subtree_fields": [],
+    "accumulate_domain_subtree_hydrostatic": [],
+    "build_block_migration_manifest": [],
+    "check_block_migration_manifest": [],
+    "exchange_block_migration_sizes": [],
+    "exchange_block_migration_payloads": [],
+    "clear_block_migration_manifest": [],
+    "check_rank": [],
+    "check_mpi": [],
+    "fail": [],
+    "audit_rhs_program316": [
+      "diffusion.divergence.i",
+      "diffusion.divergence.r",
+      "diffusion.divergence.shape",
+      "diffusion.producer.i",
+      "diffusion.producer.l",
+      "diffusion.producer.r",
+      "diffusion.producer.shape",
+      "diffusion.restriction.i",
+      "diffusion.restriction.l",
+      "diffusion.restriction.r",
+      "diffusion.restriction.shape",
+      "dynamics.divergence.i",
+      "dynamics.divergence.l",
+      "dynamics.divergence.r",
+      "dynamics.divergence.shape",
+      "dynamics.injection",
+      "dynamics.injection.shape",
+      "dynamics.physics.i",
+      "dynamics.physics.l",
+      "dynamics.physics.r",
+      "dynamics.physics.shape",
+      "dynamics.source.action",
+      "dynamics.source.direct.i",
+      "dynamics.source.direct.l",
+      "dynamics.source.direct.r",
+      "dynamics.source.direct.shape",
+      "dynamics.source.operand",
+      "dynamics.source.restriction.i",
+      "dynamics.source.restriction.l",
+      "dynamics.source.restriction.shape",
+      "gradient.i",
+      "gradient.l",
+      "gradient.r",
+      "gradient.shape",
+      "pressure.node",
+      "pressure.patch.i",
+      "pressure.patch.shape",
+      "pressure.producer_ordinal",
+      "program.header",
+      "program.level",
+      "program.surface_visits",
+      "rotation.curl.i",
+      "rotation.curl.l",
+      "rotation.curl.r",
+      "rotation.curl.shape",
+      "rotation.pentagon.i",
+      "rotation.pentagon.r",
+      "rotation.pentagon.shape"
+    ],
+    "clear_balance_295": [],
+    "interval_counts_299": [],
+    "scan_work_295": [],
+    "compile_rhs_domain_operators": [],
+    "compile_rhs_dynamics": [],
+    "compile_injection": [],
+    "compile_surface_visits": [],
+    "primitive_geometry": [],
+    "compile_divergence": [],
+    "compile_curl": [],
+    "compile_pentagon": [],
+    "merge_rhs_domain_operators": [],
+    "merge_dynamics": [],
+    "audit_rhs_retention316": [
+      "retention.block",
+      "retention.blocks",
+      "retention.column",
+      "retention.exner.shape",
+      "retention.length",
+      "retention.length.shape",
+      "retention.node",
+      "retention.ready",
+      "retention.ready.shape",
+      "retention.theta.shape"
+    ],
+    "prepare_rhs_retention": [],
+    "retain_rhs_tendency": [],
+    "install": [
+      "retained.block",
+      "retained.scalar",
+      "retained.velocity"
+    ],
+    "allocate_columns": [],
+    "accepted_velocity_rounding": [],
+    "column": [],
+    "audit_rhs_exchange316": [
+      "route.address",
+      "route.allocated",
+      "route.allocations",
+      "route.epoch",
+      "route.flags",
+      "route.header",
+      "route.orientation",
+      "route.rc",
+      "route.rd",
+      "route.receive_peer",
+      "route.sc",
+      "route.sd",
+      "route.send_peer",
+      "route.source",
+      "route.target",
+      "route.target_peer"
+    ],
+    "mpi_check": [],
+    "prefix": [],
+    "deliver": [],
+    "deliver_rhs_indexed_metadata": [],
+    "compile_rhs_owner_directory": [],
+    "lookup_rhs_owner_directory": [],
+    "resolve_rhs_home_writers": [],
+    "compile_rhs_exchange": [],
+    "select_demand_requests": [],
+    "rhs_exchange_backward_demand": [],
+    "rhs_exchange_restrict": [],
+    "exchange_rhs_values": [],
+    "rhs_exchange_source_slots": [],
+    "rhs_exchange_cost": [],
+    "release_rhs_exchange": [],
+    "trend_sub": [],
+    "dt_integrator": [],
+    "dt_integrator_split": [],
+    "call_domain_tendency_consumer": [],
+    "prepare_block_multistage_tendency": [],
+    "assert_multistage_legacy_tendency_calls": [],
+    "set_multistage_block_candidate_enabled": [],
+    "native_provisional_WT": [
+      "rk.stage"
+    ],
+    "Euler": [],
+    "RK3": [],
+    "RK4": [
+      "rk.stage"
+    ],
+    "RK_sub_step_compatibility": [],
+    "assert_temperature_boundary_stage": [],
+    "RK_sub_step": [],
+    "init_RK_mem": [],
+    "manage_q1_mem": [],
+    "RK4_split": [],
+    "RK3_split": [],
+    "Euler_split": [],
+    "RK_split": [],
+    "free_surface_update": [],
+    "physics_simple_step": [
+      "physics.firstcall",
+      "physics.time",
+      "physics.visits"
+    ],
+    "Rayleigh_friction": [],
+    "physics_call": [
+      "physics.column",
+      "physics.coordinates",
+      "physics.input",
+      "physics.output"
+    ]
+  },
+  "configured": {
+    "level_start": 5,
+    "level_end": 5,
+    "layers": 30,
+    "steps": 4,
+    "rhs_per_step": 4,
+    "halo_events_per_rhs": 630
+  },
+  "basis": "Sealed source call sites plus explicitly derived configured loop counts. Inventory is not learned from compared runs.",
+  "world_array_fields": [
+    "block_writeback_plan%boundary_scalar_block_recv_count",
+    "block_writeback_plan%boundary_scalar_block_recv_displ",
+    "block_writeback_plan%boundary_scalar_domain_send_count",
+    "block_writeback_plan%boundary_scalar_domain_send_displ",
+    "block_writeback_plan%boundary_vector_block_recv_count",
+    "block_writeback_plan%boundary_vector_block_recv_displ",
+    "block_writeback_plan%boundary_vector_domain_send_count",
+    "block_writeback_plan%boundary_vector_domain_send_displ",
+    "block_writeback_plan%recv_count",
+    "block_writeback_plan%recv_displ",
+    "block_writeback_plan%scalar_recv_count",
+    "block_writeback_plan%scalar_recv_displ",
+    "block_writeback_plan%scalar_send_count",
+    "block_writeback_plan%scalar_send_displ",
+    "block_writeback_plan%send_count",
+    "block_writeback_plan%send_displ",
+    "block_writeback_plan%vector_recv_count",
+    "block_writeback_plan%vector_recv_displ",
+    "block_writeback_plan%vector_send_count",
+    "block_writeback_plan%vector_send_displ",
+    "ghost_exchange_plan%recv_record_count",
+    "ghost_exchange_plan%recv_record_displ",
+    "ghost_exchange_plan%scalar_recv_count",
+    "ghost_exchange_plan%scalar_recv_displ",
+    "ghost_exchange_plan%scalar_send_count",
+    "ghost_exchange_plan%scalar_send_displ",
+    "ghost_exchange_plan%send_record_count",
+    "ghost_exchange_plan%send_record_displ",
+    "ghost_exchange_plan%vector_recv_count",
+    "ghost_exchange_plan%vector_recv_displ",
+    "ghost_exchange_plan%vector_send_count",
+    "ghost_exchange_plan%vector_send_displ",
+    "plan%recv_byte_count",
+    "plan%recv_byte_displ",
+    "plan%recv_count",
+    "plan%recv_displ",
+    "plan%send_byte_count",
+    "plan%send_byte_displ",
+    "plan%send_count",
+    "plan%send_displ"
+  ],
+  "stage322_required_scopes": {
+    "step322": 4,
+    "main.boundary322": 24,
+    "rhs.output322": 16,
+    "rhs.rk_values322": 16,
+    "rhs.rk_installed322": 16,
+    "rk.provisional322": 12,
+    "rk.final322": 4,
+    "physics322": 4,
+    "adapt322": 5,
+    "cfl322": 5,
+    "transform.values322": 48,
+    "transform.installed322": 12,
+    "inverse.values322": 12,
+    "transport.footer322": 1
+  },
+  "stage322_scope_fields": {
+    "step322": [
+      "step.output_decisions"
+    ],
+    "main.boundary322": [
+      "main.identity",
+      "main.time",
+      "main.integer_time",
+      "main.active",
+      "main.decisions"
+    ],
+    "rhs.output322": [
+      "output.scalar.shape",
+      "output.scalar",
+      "output.velocity.shape",
+      "output.velocity"
+    ],
+    "rhs.rk_values322": [
+      "rk.adapter.shape",
+      "rk.adapter",
+      "rk.value.shape",
+      "rk.value",
+      "rk.scalar.shape",
+      "rk.scalar",
+      "rk.mean.shape",
+      "rk.mean",
+      "rk.velocity.shape",
+      "rk.velocity"
+    ],
+    "rhs.rk_installed322": [
+      "installed.extent"
+    ],
+    "rk.provisional322": [
+      "rk.stage"
+    ],
+    "rk.final322": [
+      "rk.stage"
+    ],
+    "physics322": [
+      "physics.time",
+      "physics.firstcall",
+      "physics.visits"
+    ],
+    "physics.column322": [
+      "physics.column",
+      "physics.coordinates",
+      "physics.input",
+      "physics.output"
+    ],
+    "adapt322": [
+      "adapt.options",
+      "adapt.refined"
+    ],
+    "cfl322": [
+      "cfl.adaptive",
+      "cfl.visits",
+      "cfl.active_nodes",
+      "cfl.active_edges",
+      "cfl.result"
+    ],
+    "domain.fields322": [
+      "fields.header"
+    ],
+    "rhs.retained322": [
+      "retained.block",
+      "retained.scalar",
+      "retained.velocity"
+    ],
+    "inverse.values322": [
+      "inverse.phase",
+      "inverse.value.shape",
+      "inverse.value",
+      "inverse.scaffold.shape",
+      "inverse.scaffold",
+      "inverse.alias.shape",
+      "inverse.alias",
+      "inverse.restore.shape"
+    ],
+    "inverse.publish322": [
+      "publication.mode"
+    ],
+    "transform.values322": [
+      "transform.phase",
+      "transform.state",
+      "transform.scalar.shape",
+      "transform.scalar",
+      "transform.vector.shape",
+      "transform.vector",
+      "transform.scalar_wavelet.shape",
+      "transform.scalar_wavelet",
+      "transform.vector_wavelet.shape",
+      "transform.vector_wavelet"
+    ],
+    "transport.footer322": [
+      "transport.calls322"
+    ],
+    "transport.event322": [
+      "transport.identity322",
+      "transport.epoch322",
+      "transport.count322"
+    ]
+  }
+}

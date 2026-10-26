@@ -1,4 +1,5 @@
 module parallel_block_transform_adapter_mod
+  use audit316_mod, only: work325_enabled,work325_record
   ! Bounded raw-RK boundary version adapter. Register only actual readers;
   ! no full Domain numeric image, runtime lookup or global numeric collective.
   use iso_fortran_env,only : int64
@@ -86,6 +87,13 @@ contains
     type(Float_Field),intent(in) :: fields(N_VARIABLE,zlevels)
     real(dp),intent(inout) :: values(:,:)
     integer :: i,j,k,d,p,e,r,q,nreq,ierr
+    if(work325_enabled()) call work325_record('transform.adapter',plan%tag, &
+         [int(size(plan%source,2),int64),int(size(plan%target),int64), &
+         int(plan%columns,int64)*int(sum(plan%rc),int64),int(plan%columns,int64)*int(plan%sc(rank+1),int64), &
+         int(plan%columns,int64)*int(size(plan%target),int64),int(size(plan%sent),int64)+int(size(plan%received),int64), &
+         int(size(plan%request),int64)], &
+         8_int64*int(plan%columns,int64)*int(plan%rc,int64), &
+         8_int64*int(plan%columns,int64)*int(plan%sc,int64))
     do i=1,size(plan%source,2)
        d=plan%source(1,i);p=plan%source(2,i);e=plan%source(3,i)
        do k=1,zlevels

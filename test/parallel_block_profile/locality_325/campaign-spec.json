@@ -1,0 +1,65 @@
+{
+  "stage": 325,
+  "purpose": "Qualify exact256-owner locality candidate and its changed-work accounting before considering performance evaluation",
+  "performance_measurement": false,
+  "performance_qualified": false,
+  "solver_builds": 2,
+  "solver_launches": 3,
+  "small_helper_compilations": 2,
+  "small_callback_cases": 17,
+  "mpi_identity_launches": 1,
+  "placement_probe_launches": 1,
+  "reused_source_job": 55561,
+  "reused_qualification_job": 55567,
+  "reused_inputs": [
+    "source-bound independent legacy oracle",
+    "original private resume=-1 seed copied into new directories",
+    "unchanged source-family evidence"
+  ],
+  "configuration": {
+    "max_level": 5,
+    "tol": 0,
+    "vertical_layers": 30,
+    "mode": 1,
+    "subdivision": 2,
+    "ranks": 256,
+    "steps": 4,
+    "resume": 3
+  },
+  "schedule": [
+    {
+      "label": "checked-L256",
+      "build": "checked",
+      "owner": "L256",
+      "reason": "Changed selector and same-source runtime/reference checks aboveDomain extent"
+    },
+    {
+      "label": "qual-C0",
+      "build": "candidate",
+      "owner": "off",
+      "reason": "New-source default-off bridge to bound prior control and paired physical program/state reference"
+    },
+    {
+      "label": "qual-L256",
+      "build": "candidate",
+      "owner": "L256",
+      "reason": "New exactmap candidate semantic/science/changedwork comparison against same optimized binary"
+    }
+  ],
+  "estimated_allocation_minutes": [
+    15,
+    30
+  ],
+  "allocation_cap_minutes": 45,
+  "estimate_limitation": "Planning estimate only; first native compact encoding/verification cost is not measured. Timeout returns partial evidence and does not authorize retry or enlargement.",
+  "completed_capture_total_cap_bytes": 3221225472,
+  "collection_uncompressed_file_cap_bytes": 16777216,
+  "collection_uncompressed_total_cap_bytes": 67108864,
+  "continuation_policy": "No timing path, alternate map search, rank sweep, resubmit or automatic repeat. Qualification requires independent review before performance is considered.",
+  "failure_policy": "Fail closed; preserve prior campaign, private seed, new logs/checkpoints and captures. Collect compact evidence even after failure.",
+  "capture_run_monitored_cap_bytes": 2147483648,
+  "capture_budget_poll_seconds": 0.5,
+  "aggregate_cap_semantics": "Monitored stop thresholds, not atomic filesystem quotas. Partial output may overshoot during polling/termination; source per-rank sink limits independently bound writes.",
+  "capture_per_rank_compressed_monitored_cap_bytes": 67108864,
+  "capture_per_rank_physical_hard_cap_bytes": 134217728
+}

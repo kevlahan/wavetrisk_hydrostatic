@@ -1,4 +1,5 @@
 module parallel_block_mpi_mod
+  use audit316_mod, only: work325_enabled,work325_record
   use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
   use boundary310_mod, only: b310_enter,b310_leave
   use parallel_block_rhs_compile_mod,only : balance_mode_295,early_plan_295,early_work_295, &
@@ -6100,7 +6101,8 @@ contains
        case('A160');value=1
        case('B256');value=2
        case('C256');value=3
-       case default;error stop 'Stage322 owner map requires off, A160, B256, or C256'
+       case('L256');value=4
+       case default;error stop 'Stage322 owner map requires off, A160, B256, C256, or L256'
        end select
        read_once=.true.
     end if
@@ -6150,12 +6152,54 @@ contains
        208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223, &
        224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239, &
        240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255 ]
-    if(mode==3) then
+    ! Exact Stage324 permutation; never load an arbitrary owner file.
+    integer,parameter :: locality325(256)=[ &
+       0,1,160,2,3,4,161,5,6,7,162,8,9,10,163,11, &
+       12,13,164,14,15,16,165,17,18,19,166,20,21,22,167,23, &
+       24,25,168,26,27,28,169,29,30,31,170,32,33,34,171,35, &
+       36,37,172,38,39,40,173,41,42,43,174,44,45,46,175,47, &
+       48,49,176,50,51,52,177,53,54,55,178,56,57,58,179,59, &
+       60,61,180,62,63,64,181,65,66,67,182,68,69,70,183,71, &
+       72,73,184,74,75,76,185,77,78,79,186,80,81,82,187,83, &
+       84,85,188,86,87,88,189,89,90,91,190,92,93,94,191,95, &
+       96,97,192,98,99,100,193,101,102,103,194,104,105,106,195,107, &
+       108,109,196,110,111,112,197,113,114,115,198,116,117,118,199,119, &
+       120,121,200,122,123,124,201,125,126,127,202,128,129,130,203,131, &
+       132,133,204,134,135,136,205,137,138,139,206,140,141,142,207,143, &
+       144,208,209,210,145,211,212,213,146,214,215,216,147,217,218,219, &
+       148,220,221,222,149,223,224,225,150,226,227,228,151,229,230,231, &
+       152,232,233,234,153,235,236,237,154,238,239,240,155,241,242,243, &
+       156,244,245,246,157,247,248,249,158,250,251,252,159,253,254,255 ]
+    if(i<1.or.i>640.or.mode<1.or.mode>4) error stop 'Stage325 invalid owner lookup'
+    if(mode==4) then
+       r=locality325(native256(i)+1)
+    else if(mode==3) then
        r=native256(i)
     else
        r=(i-1)/4
     end if
   end function
+
+  subroutine check_locality325_permutation()
+    ! Once per construction: include this control work in the qualification ledger.
+    ! Independent of input ordering; every native group has exactly one new owner.
+    integer :: i,old,new,homes
+    integer :: mapping(0:255),seen(0:255),counts(0:255)
+    mapping=-1;seen=0;counts=0;homes=0
+    do i=1,640
+       old=selected_owner322(i,3);new=selected_owner322(i,4)
+       if(old<0.or.old>255.or.new<0.or.new>255) error stop 'Stage325 owner outside communicator'
+       if(mapping(old)/=-1.and.mapping(old)/=new) error stop 'Stage325 split numerical group'
+       mapping(old)=new;counts(new)=counts(new)+1
+       if(new==(i-1)/4) homes=homes+1
+    end do
+    if(any(mapping<0).or.any(counts<1).or.homes/=400) error stop 'Stage325 invalid locality map'
+    do i=0,255
+       seen(mapping(i))=seen(mapping(i))+1
+    end do
+    if(any(seen/=1).or.count(counts==3)/=192.or.count(counts==1)/=64) &
+         error stop 'Stage325 owner permutation is not bijective'
+  end subroutine
 
   subroutine check_owner_bridge322_catalog(require_bridge)
     use shared_mod, only : min_level,max_level,tol,resume,mode_split,timeint_type, &
@@ -6163,7 +6207,7 @@ contains
     logical,intent(in) :: require_bridge
     integer :: i,d,p,mode
     mode=owner_bridge322_mode()
-    if((mode==1.and.n_process/=160).or.((mode==2.or.mode==3).and.n_process/=256)) &
+    if((mode==1.and.n_process/=160).or.((mode==2.or.mode==3.or.mode==4).and.n_process/=256)) &
          error stop 'Stage322 owner bridge rank count'
     if(N_GLO_DOMAIN/=160.or.min_level/=5.or.max_level/=5.or.level_start/=5.or.level_end/=5) &
          error stop 'Stage322 owner bridge level configuration'
@@ -6203,6 +6247,8 @@ contains
     logical,save :: mode_agreed=.false.
     mode=owner_bridge322_mode()
     if(.not.mode_agreed) then
+    if(work325_enabled()) call work325_record('selector.consensus',0, &
+         [1_int64,2_int64*4_int64])
        ! All ranks participate, including off, so a mixed selector fails closed.
        ! This one new collective occurs in the initial catalogue, outside timing.
        local_mode=[mode,-mode]
@@ -6211,8 +6257,15 @@ contains
        if(global_mode(1)/=-global_mode(2)) error stop 'Stage322 owner bridge selectors differ across ranks'
        mode_agreed=.true.
     end if
+    if(work325_enabled()) call work325_record('selector.call',mode, &
+         [int(size(selected),int64),int(merge(0,640,mode==0),int64)])
     if(mode==0) return
     call check_owner_bridge322_catalog(.false.)
+    if(mode==4) then
+    if(work325_enabled()) call work325_record('selector.locality.guard',4, &
+         [640_int64,256_int64])
+    end if
+    if(mode==4) call check_locality325_permutation()
     if(size(selected)/=640.or.stride/=60.or.size(packed)/=640*stride) &
          error stop 'Stage322 owner bridge packed extent'
     native_mode=1
@@ -8100,6 +8153,14 @@ end subroutine build_parallel_block_catalog
 
     send_nbyte = 0
     seen_source = 0
+    ! Diagnostic extent census includes retained blocks; these are not bytes copied.
+    if(work325_enabled()) then
+       do ib=1,size(block_source)
+          b=block_source_catalog_index(ib)
+          call work325_record('migration.source',b,[int(packed_block_nbyte(block_source(ib)),int64), &
+               int(merge(1,0,block_catalog(b)%owner/=rank),int64)])
+       end do
+    end if
 
     do i = 1, manifest%n_send
 
@@ -8311,6 +8372,14 @@ end subroutine build_parallel_block_catalog
          BLOCK_PROFILE_TOPOLOGY,migration_send_peer_count, &
          migration_send_byte_count,migration_send_block_count)
 
+    if(work325_enabled()) call work325_record('migration',0, &
+         [int(size(block_source),int64), &
+         int(size(block_source)-manifest%n_send,int64),int(manifest%n_send,int64),int(manifest%n_recv,int64), &
+         manifest%total_send_nbyte,manifest%total_recv_nbyte, &
+         int(merge(n_local_blocks(),0,transfer_storage),int64),17_int64, &
+         int(size(send_payload),int64)+int(size(manifest%recv_payload),int64)], &
+         int(manifest%send_byte_count,int64), &
+         int(manifest%recv_byte_count,int64))
     if(audit316_enabled()) call audit_migration316(manifest)
     call clear_block_staging
     call clear_block_migration_manifest(manifest)
@@ -12482,6 +12551,20 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
+    if(component/=BLOCK_WRITEBACK_VECTOR) then
+    if(work325_enabled()) call work325_record('writeback.scalar',family, &
+         [int(sum(block_writeback_plan%scalar_send_count),int64), &
+         int(sum(block_writeback_plan%scalar_recv_count),int64)], &
+         8_int64*int(block_writeback_plan%scalar_send_count,int64), &
+         8_int64*int(block_writeback_plan%scalar_recv_count,int64))
+    end if
+    if(component/=BLOCK_WRITEBACK_SCALAR) then
+    if(work325_enabled()) call work325_record('writeback.vector',family, &
+         [int(sum(block_writeback_plan%vector_send_count),int64), &
+         int(sum(block_writeback_plan%vector_recv_count),int64)], &
+         8_int64*int(block_writeback_plan%vector_send_count,int64), &
+         8_int64*int(block_writeback_plan%vector_recv_count,int64))
+    end if
     call detail_enter(DP_WRITEBACK_MPI)
     if (component /= BLOCK_WRITEBACK_VECTOR) call MPI_Alltoallv( &
          block_writeback_plan%scalar_send_buffer, &
@@ -12561,6 +12644,10 @@ end subroutine build_parallel_block_catalog
        end do
        if (pos /= sd(r)+sc(r)+1) call fail("temperature-only publication send extent differs")
     end do
+    if(work325_enabled()) call work325_record('writeback.temperature',1, &
+         [int(sum(sc),int64),int(sum(rc),int64),int(sum(rc),int64)], &
+         8_int64*int(sc,int64), &
+         8_int64*int(rc,int64))
     call detail_enter(DP_WRITEBACK_MPI)
     call MPI_Alltoallv(block_writeback_plan%scalar_send_buffer,sc,sd,MPI_DOUBLE_PRECISION, &
          block_writeback_plan%scalar_recv_buffer,rc,rd,MPI_DOUBLE_PRECISION,comm,ierr)
@@ -12932,6 +13019,18 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
+    if(.not.transfer_vector_only) then
+    if(work325_enabled()) call work325_record('reverse.scalar',payload_family, &
+         [int(sum(block_writeback_plan%scalar_recv_count),int64), &
+         int(sum(block_writeback_plan%scalar_send_count),int64)], &
+         8_int64*int(block_writeback_plan%scalar_recv_count,int64), &
+         8_int64*int(block_writeback_plan%scalar_send_count,int64))
+    end if
+    if(work325_enabled()) call work325_record('reverse.vector',payload_family, &
+         [int(sum(block_writeback_plan%vector_recv_count),int64), &
+         int(sum(block_writeback_plan%vector_send_count),int64)], &
+         8_int64*int(block_writeback_plan%vector_recv_count,int64), &
+         8_int64*int(block_writeback_plan%vector_send_count,int64))
     if (.not. transfer_vector_only) then
        call MPI_Alltoallv( &
             block_writeback_plan%scalar_recv_buffer, &
@@ -13130,6 +13229,11 @@ end subroutine build_parallel_block_catalog
        end if
        imported_patch_count = imported_patch_count + local_patch
     end do
+    if(work325_enabled()) call work325_record('reverse.local',payload_family, &
+         [int(imported_patch_count,int64), &
+         int(imported_patch_count,int64)*int(merge(0,block_writeback_plan%scalar_patch_nvalue, &
+         transfer_vector_only),int64), &
+         int(imported_patch_count,int64)*int(block_writeback_plan%vector_patch_nvalue,int64)])
 
     do r = 1,n_process
        pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
@@ -13303,6 +13407,7 @@ end subroutine build_parallel_block_catalog
     logical :: plan_ready
     logical :: transfer_scalar
     logical :: transfer_vector
+    integer(int64) :: work325_boundary_local(3)
 
     check_current = .false.
     if (present(verify_current)) check_current = verify_current
@@ -13320,6 +13425,7 @@ end subroutine build_parallel_block_catalog
     end if
 
     call block_profile_enter(BLOCK_PROFILE_BOUNDARY_GHOST)
+    if(work325_enabled()) work325_boundary_local=0_int64
 
     do local_index = 1,n_local_blocks()
        b = local_block_catalog(local_index)
@@ -13565,6 +13671,9 @@ end subroutine build_parallel_block_catalog
                size(ghost_exchange_plan%vector_patch_buffer)) then
              call fail("retained boundary scratch extent is invalid")
           end if
+          if(work325_enabled()) work325_boundary_local=work325_boundary_local+ &
+               [1_int64,int(merge(n_scalar,0,transfer_scalar),int64), &
+               int(merge(n_vector,0,transfer_vector),int64)]
           call pack_domain_boundary_prognostic( &
                d,source_bdry,n_node,payload_family, &
                ghost_exchange_plan%scalar_patch_buffer(1:n_scalar), &
@@ -13587,6 +13696,20 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
+    if(work325_enabled().and.transfer_scalar) call work325_record('boundary.scalar',payload_family, &
+         [int(sum(block_writeback_plan%boundary_scalar_domain_send_count),int64), &
+         int(sum(block_writeback_plan%boundary_scalar_block_recv_count),int64), &
+         int(merge(sum(block_writeback_plan%boundary_scalar_block_recv_count),0,check_current),int64)], &
+         8_int64*int(block_writeback_plan%boundary_scalar_domain_send_count,int64), &
+         8_int64*int(block_writeback_plan%boundary_scalar_block_recv_count,int64))
+    if(work325_enabled().and.transfer_vector) call work325_record('boundary.vector',payload_family, &
+         [int(sum(block_writeback_plan%boundary_vector_domain_send_count),int64), &
+         int(sum(block_writeback_plan%boundary_vector_block_recv_count),int64), &
+         int(merge(sum(block_writeback_plan%boundary_vector_block_recv_count),0,check_current),int64)], &
+         8_int64*int(block_writeback_plan%boundary_vector_domain_send_count,int64), &
+         8_int64*int(block_writeback_plan%boundary_vector_block_recv_count,int64))
+    if(work325_enabled()) call work325_record('boundary.local',payload_family, &
+         [work325_boundary_local,merge(sum(work325_boundary_local(2:)),0_int64,check_current)])
     call record_parallel_block_profile_volume( &
          BLOCK_PROFILE_BOUNDARY_GHOST, &
          int(merge(count( &
@@ -34129,6 +34252,8 @@ end subroutine build_parallel_block_catalog
        reconstructed_patch_count = reconstructed_patch_count + n_patch
     end do
 
+    if(work325_enabled()) call work325_record('writeback.local',payload_family, &
+         [int(reconstructed_patch_count,int64)])
     do r = 1,n_process
        pos_scalar = block_writeback_plan%scalar_recv_displ(r) + 1
        pos_vector = block_writeback_plan%vector_recv_displ(r) + 1

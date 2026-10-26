@@ -1,5 +1,26 @@
 # Block refactoring: current objectives and operating rules
 
+## Stage325 locality qualification implementation — 2026-10-26
+
+User authorized implementation and commit after validation. The exact Stage324
+map is implemented as an isolated L256 selector; old selectors and fixed-case
+guards remain. Read docs/parallel-blocks-stage325-locality-qualification.md and
+ test/parallel_block_profile/locality_325. The local checked build, private
+four-rank initialization, codec/map checks and 60 offline tests pass. Native
+256-rank qualification is PENDING. No performance result or accepted-source
+promotion is established. Branch codex/stage325-locality-qualification preserves
+the Stage322 source snapshot 46260010 separately from Stage325. Main and earlier
+research changes remain untouched.
+
+Sealed native plan: two serial full builds and three four-step, 256-rank
+qualification runs; exact GCC 13.2 / MVAPICH 4 gates; bound private seed and
+legacy oracle reuse. Fixed 45-minute cap, no automatic repeat or extension,
+and zero timing runs. Preserve all checkpoints and old captures. Five migrations
+and seven adaptation calls are distinct. Native digest and provider/work gates
+must pass before considering performance. No old binary qualification transfer.
+Keep local work to serial compilation and initialization, at most four MPI
+ranks. The user's original scaling goal remains open.
+
 User-authorized objectives reset: 2026-10-09, following the project review and
 Stage277 results. Read `docs/parallel-blocks-objectives.md` and maintain
 `docs/parallel-blocks-scorecard.md` after every reviewed campaign or accepted

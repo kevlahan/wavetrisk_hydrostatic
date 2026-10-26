@@ -404,3 +404,10 @@ must not hide the original Domain barrier.
 and [v7 local qualification](/Users/kevlahan/.codex/worktrees/connected-rhs/wavetrisk_hydrostatic/docs/parallel-blocks-rhs-structural-repair-278-v7.md)
 retain prior evidence and limitations. Original returned payloads are not rerun;
 raw reports/hashes are independently verified. No remote actions during review.
+
+
+## Stage325 experimental locality gate,2026-10-26
+
+Exact256-owner map implemented and locally checked; native correctness/work
+qualification pending. No performance runs,scaling improvement or baseline
+promotion. See parallel-blocks-stage325-locality-qualification.md.

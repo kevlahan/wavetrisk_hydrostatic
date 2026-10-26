@@ -1,4 +1,5 @@
 module parallel_block_mod
+  use audit316_mod, only: work325_enabled,work325_record
   use parallel_block_profile_mod
 
   use, intrinsic :: iso_fortran_env, only : error_unit, int8, int64
@@ -607,6 +608,8 @@ subroutine move_block_storage(source,destination)
   ! aliases are retained: every Block_Data payload is an owned allocatable.
   type(Block_Data), intent(inout) :: source
   type(Block_Data), intent(out) :: destination
+    if(work325_enabled()) call work325_record('storage.move',0, &
+         [36_int64])
   destination%id=source%id
   destination%root_domain=source%root_domain
   destination%root_patch=source%root_patch

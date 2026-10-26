@@ -1,4 +1,5 @@
 module parallel_block_transform_backend_mod
+  use audit316_mod, only: work325_enabled,work325_record
   use iso_fortran_env,only : int64
   use audit316_mod, only : audit316_enabled,audit316_begin,audit316_end,audit316_i,audit316_i64,audit316_r,audit316_l
   use kind_mod,only : dp
@@ -57,6 +58,7 @@ module parallel_block_transform_backend_mod
   integer(int64),save :: generation=-1,masks=0,state=0,completed=0
   real(dp),allocatable,save :: checked_forward_vector(:,:),checked_wavelet_vector(:,:)
   integer,save :: nnode=0,nrow=0,nfixed=0,npublication=0,nboundary=0
+  integer,allocatable,save :: audit_publication_key325(:,:)
   logical,save :: option_read=.false.,enabled=.false.,audit_on=.false.
   integer(int64),save :: route_bytes=0,buffer_bytes=0,sent_values=0,received_values=0,messages=0,rounds=0
   integer(int64),save :: builds=0
@@ -242,6 +244,7 @@ contains
          interior_node,interior_address, &
          boundary_address,publication_domain,publication_node,publication_row,forward_inner,base,fixed_domain,fixed_physical_node)
     if(allocated(checked_forward_vector)) deallocate(checked_forward_vector,checked_wavelet_vector)
+    if(allocated(audit_publication_key325)) deallocate(audit_publication_key325)
     placement=Transform_Placement();generation=-1
   end subroutine
 
@@ -387,6 +390,7 @@ contains
     np=size(selected);npublication=np+nboundary
     allocate(publication_domain(np),publication_node(np),pkeys(4,npublication))
     pkeys(:,:np)=physical(:,selected);pkeys(:,np+1:)=inventory%physical
+    if(audit316_enabled()) audit_publication_key325=pkeys
     do i=1,np
        publication_domain(i)=loc_id(pkeys(1,i))+1;publication_node(i)=pkeys(2,i)
     end do
@@ -421,6 +425,13 @@ contains
     call bind_halo(vector_initial,3,level_start-2,.false.,homes,identity=.true.)
     call prepare_exchange_scratch
     call compile_forward_order
+    if(work325_enabled()) call work325_record('transform.workspace',0, &
+         [int(nnode,int64),int(nrow,int64),int(nrow-nnode,int64), &
+         int(npublication,int64),int(np,int64),int(nboundary,int64),int(size(fixed_node),int64), &
+         int(nrow-nnode-size(save_node)-size(fixed_node),int64), &
+         int(size(scalar),int64)+int(size(vector),int64), &
+         int(size(scalar_wavelet),int64)+int(size(vector_wavelet),int64),int(size(exchange_scratch),int64), &
+         int(size(wire),int64)])
     if(audit316_enabled()) call audit_transform_plan316
     segments(8)=MPI_Wtime()-stamp
     if(audit_on) write(*,'(a,3(i0,1x),8(es13.5,1x))') 'Transform279 preparation: ',rank,generation,masks,segments
@@ -440,6 +451,8 @@ contains
     call audit316_begin('transform.plan',generation)
     call audit316_i64('masks',[masks])
     call audit316_i('extent',[nnode,nrow,nfixed,npublication,nboundary,level_start,level_end,zlevels])
+    call audit316_i('publication.key325.shape',shape(audit_publication_key325))
+    call audit316_i('publication.key325',reshape(audit_publication_key325,[size(audit_publication_key325)]))
     if(allocated(placement%key)) then
        call audit316_i('placement%key.shape',shape(placement%key))
        call audit316_i('placement%key',reshape(placement%key,[size(placement%key)]))
@@ -1310,6 +1323,19 @@ contains
     call audit316_i('transform.phase',[phase,nnode,nrow,nfixed])
     call audit316_i64('transform.state',[state,completed])
     call audit316_i('transform.scalar.shape',shape(scalar))
+    call audit316_i('transform.numeric.scalar.shape',shape(scalar(:nnode,:)))
+    call audit316_i('transform.numeric.vector.shape',shape(vector(:3*nnode,:)))
+    call audit316_r('transform.numeric.scalar',reshape(scalar(:nnode,:),[size(scalar(:nnode,:))]))
+    call audit316_r('transform.numeric.vector',reshape(vector(:3*nnode,:),[size(vector(:3*nnode,:))]))
+    call audit316_i('transform.numeric.saved_scalar.shape',shape(scalar(nnode+1:nnode+size(save_node)+size(fixed_node),:)))
+    call audit316_i('transform.numeric.saved_vector.shape', &
+         shape(vector(3*nnode+1:3*(nnode+size(save_node)+size(fixed_node)),:)))
+    call audit316_r('transform.numeric.saved_scalar', &
+         reshape(scalar(nnode+1:nnode+size(save_node)+size(fixed_node),:), &
+         [(size(save_node)+size(fixed_node))*size(scalar,2)]))
+    call audit316_r('transform.numeric.saved_vector', &
+         reshape(vector(3*nnode+1:3*(nnode+size(save_node)+size(fixed_node)),:), &
+         [3*(size(save_node)+size(fixed_node))*size(vector,2)]))
     call audit316_i('transform.vector.shape',shape(vector))
     call audit316_i('transform.scalar_wavelet.shape',shape(scalar_wavelet))
     call audit316_i('transform.vector_wavelet.shape',shape(vector_wavelet))

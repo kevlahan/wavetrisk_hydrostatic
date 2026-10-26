@@ -1,4 +1,5 @@
 module parallel_block_transform_placement_mod
+  use audit316_mod, only: work325_enabled,work325_record
   ! Preparation-only placement of fixed kernels. Physical storage identities
   ! are preserved across the cut; runtime execution uses compact integer slots.
   use iso_fortran_env,only : int8,int64
@@ -105,6 +106,12 @@ contains
     call prefix(rc,rd);allocate(received(sum(rc)))
     call MPI_Alltoallv(sent,sc,sd,MPI_BYTE,received,rc,rd,MPI_BYTE,comm,ierr)
     if(ierr/=MPI_SUCCESS) error stop 'transform metadata exchange'
+    if(work325_enabled()) call work325_record('transform.geometry',0, &
+         [int(sum(sc),int64),int(sum(rc),int64), &
+         int(sc(rank+1),int64),int(rc(rank+1),int64),int(size(input%scalar),int64), &
+         int(size(input%inner),int64),int(size(input%outer),int64),2_int64], &
+         int(sc,int64), &
+         int(rc,int64))
     result%sent_bytes=sum(sc)-sc(rank+1);result%received_bytes=sum(rc)-rc(rank+1)
     deallocate(sent,identity)
     counts=0;p=1

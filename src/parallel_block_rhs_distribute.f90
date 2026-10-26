@@ -1,4 +1,5 @@
 module parallel_block_rhs_distribute_mod
+  use audit316_mod, only: work325_enabled,work325_record
   ! Topology placement and metadata delivery. Numerical stages use precompiled
   ! peer routes; no global metadata collective is executed by this module then.
   use iso_fortran_env, only : int8,int64
@@ -163,6 +164,11 @@ contains
        sent(p:p+n-1)=packet_list(i)%value;cursor(r)=p+n-1
     end do
     if(any(cursor/=sd+sc)) error stop 'RHS geometry packed extent'
+    if(work325_enabled()) call work325_record('rhs.geometry',0, &
+         [int(used,int64),int(sum(sc),int64),int(sum(rc),int64), &
+         int(sc(rank+1),int64),int(rc(rank+1),int64)], &
+         int(sc,int64), &
+         int(rc,int64))
     deallocate(packet_list,destination)
     call MPI_Alltoallv(sent,sc,sd,MPI_BYTE,incoming,rc,rd,MPI_BYTE,comm,ierr)
     if(ierr/=MPI_SUCCESS) error stop 'RHS geometry metadata delivery'
