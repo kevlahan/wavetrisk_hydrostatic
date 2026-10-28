@@ -93,10 +93,17 @@ program Drake
      tke_closure          = .false.                        ! use analytic profiles for eddy viscosity/diffusivity
      vert_diffuse         = .true.                         ! use vertical diffusion model
 
-     z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed
-     z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer
      max_depth            =   -4000 * METRE                ! total depth
      
+     select case (stratification)
+     case ("linear")
+        z_mixed              =    -200 * METRE             ! bottom of constant density surface mixed
+        z_linear             =    max_depth                ! bottom of linear stratification layer below mixed layer
+     case ("tanh")
+        z_mixed              =    -200 * METRE             ! bottom of constant density surface mixed
+        z_linear             =    -500 * METRE             ! bottom of linear stratification layer below mixed layer
+     end select
+
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
 
      drho                 =      -4 * KG/METRE**3          ! density perturbation at free surface at poles
