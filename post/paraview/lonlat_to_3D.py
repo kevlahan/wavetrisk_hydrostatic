@@ -17,12 +17,14 @@
 import csv, os, sys, glob, re, argparse, textwrap
 from utilities import *
 from contextlib import suppress
+from itertools import groupby
 import numpy as np
 import vtk
 import subprocess
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from vtk.util import numpy_support
 import scipy.ndimage
+from scipy.stats import t as student_t
 from datetime import datetime, timedelta
 from pathlib import Path
 from xyz2lonlat_layers import run_xyz_layers, run_xyz_layers_serial
@@ -131,8 +133,6 @@ class Cell3D():
                 self.attr_list[i] = np.concatenate((self.attr_list[i], attr))
     
     def construct_3Dimage(self):
-        global n_snapshots
-
         # Construct an unstructured grid
         ugrid = self.construct()
 
@@ -193,20 +193,8 @@ class Cell3D():
             vertical_profile.append(profl) 
         
         if compressible == 'y':
-            snapshot_statistics = zonal_diagnostics(img1.GetPointData(), img3.GetPointData())
-            n_snapshots += 1
+            zonal_statistics.update(zonal_diagnostics(img1.GetPointData(), img3.GetPointData()))
 
-            # Each saved time contributes one zonal diagnostic per grid point.
-            # Track its temporal mean and sum of squared deviations online.
-            for name, values in snapshot_statistics.items():
-                if n_snapshots == 1:
-                    zonal_time_mean[name] = values.copy()
-                    zonal_time_m2[name] = np.zeros_like(values)
-                else:
-                    delta = values - zonal_time_mean[name]
-                    zonal_time_mean[name] += delta / n_snapshots
-                    zonal_time_m2[name] += delta * (values - zonal_time_mean[name])
-        
         # Write out data
         file_out = f"{run}_{t:04d}"
 
@@ -235,13 +223,7 @@ class Cell3D():
                 statistics.SetSpacing(rgrid.GetSpacing())
                 statistics.SetOrigin(rgrid.GetOrigin())
 
-                for name, time_mean_values in zonal_time_mean.items():
-                    if n_snapshots > 1:
-                        time_std = np.sqrt(zonal_time_m2[name] / (n_snapshots - 1))
-                    else:
-                        time_std = np.full_like(time_mean_values, np.nan)
-                    add_scalar_data(time_mean_values, Nzonal, name, statistics)
-                    add_scalar_data(time_std, Nzonal, f"{name}_TimeStdDev", statistics)
+                zonal_statistics.add_to_image(statistics)
 
                 if (len(idxs)==1):
                     stats_file = f"{run}_{idxs[0]:04d}_statistics_zonal_{season}.vti"
@@ -495,6 +477,7 @@ def zonal_diagnostics(zonal_data, globe_data):
     u_globe = vtk_to_numpy(globe_data.GetArray("Velocity_Zonal")).reshape(shape)
     v_globe = vtk_to_numpy(globe_data.GetArray("Velocity_Meridional")).reshape(shape)
 
+    # First-order diagnostics are the longitude means of T and u.
     diagnostics = {
         "Temperature": temperature,
         "Velocity_Zonal": u,
@@ -507,12 +490,110 @@ def zonal_diagnostics(zonal_data, globe_data):
         t_eddy = t_globe[k] - temperature[k, :, None]
         u_eddy = u_globe[k] - u[k, :, None]
         v_eddy = v_globe[k] - v[k, :, None]
+        # The longitude means of T'², v'T', u'v', and (u'²+v'²)/2
+        # measure temperature variance, eddy heat flux, eddy momentum flux,
+        # and horizontal eddy kinetic energy, respectively.
         diagnostics["TemperatureVariance"][k] = longitude_mean(t_eddy * t_eddy)
         diagnostics["EddyHeatFlux"][k] = longitude_mean(v_eddy * t_eddy)
         diagnostics["EddyMomentumFlux"][k] = longitude_mean(u_eddy * v_eddy)
         diagnostics["EddyKineticEnergy"][k] = 0.5 * (
             longitude_mean(u_eddy * u_eddy) + longitude_mean(v_eddy * v_eddy))
     return diagnostics
+
+
+def ci_block_sizes(indices, seasonal, start_date, step_days, block_length):
+    """Return the number of snapshots in each consecutive confidence-interval block."""
+    if seasonal:
+        def season_year(index):
+            date = start_date + timedelta(days=index * step_days)
+            # Label December by the year containing the following January and February.
+            return date.year + (date.month == 12)
+
+        group_sizes = [sum(1 for _ in group)
+                       for _, group in groupby(indices, key=season_year)]
+    else:
+        group_sizes = [1] * len(indices)
+
+    sizes = [sum(group_sizes[i:i + block_length])
+             for i in range(0, len(group_sizes), block_length)]
+    if len(sizes) > 1 and len(group_sizes) % block_length:
+        # Include all snapshots without making an undersized final block.
+        last_size = sizes.pop()
+        sizes[-1] += last_size
+    return sizes
+
+
+class ZonalStatistics:
+    """Accumulate snapshot and block statistics on the latitude–P/Ps grid."""
+
+    def __init__(self, block_sizes):
+        self.block_sizes = block_sizes
+        self.snapshot_count = 0
+        self.block_count = 0
+        self.block_sample_count = 0
+        self.time_mean = {}
+        self.time_m2 = {}
+        self.block_sum = {}
+        self.block_mean = {}
+        self.block_m2 = {}
+
+    def update(self, diagnostics):
+        self.snapshot_count += 1
+
+        # One value per saved time and grid point. Welford updates give the
+        # climatological mean and snapshot variance with equal snapshot weights.
+        for name, values in diagnostics.items():
+            if self.snapshot_count == 1:
+                self.time_mean[name] = values.copy()
+                self.time_m2[name] = np.zeros_like(values)
+                self.block_sum[name] = np.zeros_like(values)
+                self.block_mean[name] = np.zeros_like(values)
+                self.block_m2[name] = np.zeros_like(values)
+            delta = values - self.time_mean[name]
+            self.time_mean[name] += delta / self.snapshot_count
+            self.time_m2[name] += delta * (values - self.time_mean[name])
+            self.block_sum[name] += values
+
+        block_size = self.block_sizes[self.block_count]
+        if self.snapshot_count == self.block_sample_count + block_size:
+            self.block_count += 1
+            self.block_sample_count += block_size
+            for name, total in self.block_sum.items():
+                mean = total / block_size
+                delta = mean - self.block_mean[name]
+                self.block_mean[name] += (block_size / self.block_sample_count) * delta
+                self.block_m2[name] += block_size * delta * (mean - self.block_mean[name])
+                total.fill(0)
+
+    def add_to_image(self, image):
+        # TimeStdDev measures variability across snapshots. CI95HalfWidth
+        # estimates sampling uncertainty of the climatological mean at each point.
+        # For B independent, sufficiently long blocks of sizes n_b, use
+        # SE^2 = sum_b n_b*(block_mean_b - time_mean)^2 / ((B-1)*sum_b n_b).
+        # This weights unequal blocks assuming their variances scale as 1/n_b.
+        # For equal blocks it reduces to the sample variance of block means / B.
+        if self.block_count > 1:
+            critical_value = student_t.ppf(0.975, df=self.block_count - 1)
+
+        for name, mean in self.time_mean.items():
+            time_std = np.full_like(mean, np.nan)
+            half_width = np.full_like(mean, np.nan)
+            if self.snapshot_count > 1:
+                time_std = np.sqrt(self.time_m2[name] / (self.snapshot_count - 1))
+            if self.block_count > 1:
+                variance = self.block_m2[name] / ((self.block_count - 1) * self.snapshot_count)
+                half_width = critical_value * np.sqrt(variance)
+            add_scalar_data(mean, mean.size, name, image)
+            add_scalar_data(time_std, mean.size, f"{name}_TimeStdDev", image)
+            add_scalar_data(half_width, mean.size, f"{name}_CI95HalfWidth", image)
+
+        # Record actual snapshot counts in each block in VTI Field Data.
+        sizes = numpy_to_vtk(np.array(self.block_sizes, dtype=np.int64), deep=True)
+        sizes.SetName("CIBlockSizes")
+        image.GetFieldData().AddArray(sizes)
+        count = numpy_to_vtk(np.array([self.block_count], dtype=np.int64), deep=True)
+        count.SetName("CIBlockCount")
+        image.GetFieldData().AddArray(count)
 
 
 def add_scalar_data(data, N, name, img):
@@ -549,7 +630,7 @@ DOC = textwrap.dedent("""\
     run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data
     run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
     run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
-    run_statistics_zonal.vti  2D uniform (lat,P/Ps)  climatological zonal means and temporal standard deviations
+    run_statistics_zonal.vti  2D uniform (lat,P/Ps)  climatological means, temporal standard deviations, and CI half-widths
     run.csv             1D (P/Ps)                 vertical profiles averaged over the sphere
 
   If t2 == t1 (single time), the following are saved:
@@ -563,12 +644,15 @@ DOC = textwrap.dedent("""\
     run_tttt.csv             1D              (P/Ps)         vertical profiles averaged over the sphere
 
   For compressible data, the statistics VTI includes climatological means and
-  _TimeStdDev arrays for temperature, zonal velocity, temperature variance,
+  _TimeStdDev and _CI95HalfWidth arrays for temperature, zonal velocity, temperature variance,
   eddy heat and momentum fluxes, and eddy kinetic energy. Eddy products use
   departures from the instantaneous zonal mean (Peixoto and Oort, 1992,
   Physics of Climate, pp. 62–63). Each selected snapshot has equal weight.
   _TimeStdDev is the sample standard deviation over snapshots (divisor n-1)
-  and is NaN for a single snapshot.
+  and is NaN for a single snapshot. _CI95HalfWidth is the pointwise 95%
+  confidence half-width of the mean, estimated from temporal block means
+  (NaN with fewer than two blocks). Check that the estimate is stable as
+  block length increases. CIBlockCount and CIBlockSizes are VTI Field Data.
 
   3D data has dimensions N x N/2 x nz. The vertical coordinate is P/Ps.
 """)
@@ -631,6 +715,9 @@ from a series of layers in directory folder.
     p.add_argument("--step-days", type=int, default=5,
                    help="day stride (seasonal mode); default 5")
 
+    p.add_argument("--ci-block-length", type=int,
+                   help="season occurrences per block in seasonal mode (default 1), "
+                        "or saved snapshots per block otherwise (default 73)")
     p.add_argument(
         "--start-date",
         type=parse_start_date,
@@ -643,6 +730,8 @@ from a series of layers in directory folder.
         p.print_help(); sys.exit(0)
 
     a = p.parse_args()
+    if a.ci_block_length is not None and a.ci_block_length < 1:
+        p.error("--ci-block-length must be positive.")
     
     seasons = a.seasons.lower() == "y"
     if seasons and (a.season == "all"):
@@ -664,14 +753,8 @@ from a series of layers in directory folder.
     step_days    = a.step_days if seasons else 5
     start_date   = a.start_date 
 
-    if seasons:
-        total_days = t2 * step_days
-        n_years    = total_days // 365
-    else:
-        total_days = None
-        n_years    = None
-
-    return run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years
+    block_length = a.ci_block_length if a.ci_block_length is not None else (1 if seasons else 73)
+    return run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, block_length
 
     
 #########################################################################################################################################
@@ -681,7 +764,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 
 # Input parameters
-(run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years) = parse_args()
+(run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, block_length) = parse_args()
 
 # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
 lat_dim  = int(np.sqrt((10*4**Jmax + 2)/2))
@@ -706,11 +789,6 @@ vert_scale  = 1    # rescaling for P/Ps vertical coordinate
 
 vert_min = vert_scale * vert_min
 vert_max = vert_scale * vert_max
-
-# Initialize statistics variables
-n_snapshots     = 0
-zonal_time_mean = {}
-zonal_time_m2   = {}
 
 # Remove .DS_store to avoid load error
 with suppress(OSError):
@@ -757,6 +835,12 @@ idxs = sorted(set(idxs)) # remove duplicates and sort
 
 if rank == 0:
      print(f"{len(idxs)} file indices to process: {list(idxs)}\n", flush=True)
+
+if rank == 0 and compressible == 'y':
+    block_sizes = ci_block_sizes(idxs, seasons, start_date, step_days, block_length)
+    zonal_statistics = ZonalStatistics(block_sizes)
+    print(f"95% confidence intervals: {len(block_sizes)} blocks; "
+          f"snapshots per block: {block_sizes}", flush=True)
 
 for t in idxs:
     if rank == 0:
