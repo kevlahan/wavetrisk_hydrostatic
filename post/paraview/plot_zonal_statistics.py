@@ -35,7 +35,7 @@ FIELDS = (
     ("Velocity_Zonal", r"Zonal velocity [m s$^{-1}$]", (-40, 40), 5),
     ("EddyKineticEnergy", r"Eddy Kinetic Energy [m$^2$ s$^{-2}$]", (-600, 600), 100),
     ("EddyHeatFlux", r"Eddy Heat Flux [K m s$^{-1}$]", (-40, 40), 5),
-    ("TemperatureVariance", r"Temperature Variance [K$^2$]", (-80, 80), 10),
+    ("TemperatureVariance", r"Eddy temperature variance [K$^2$]", (-700, 700), 100),
     ("EddyMomentumFlux", r"Eddy Momentum Flux [m$^2$ s$^{-2}$]", (-100, 100), 20),
 )
 MEAN_SCALE_OVERRIDES = {"summer": {"TemperatureVariance": ((-80, 80), 10)}}
