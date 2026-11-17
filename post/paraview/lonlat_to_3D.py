@@ -161,15 +161,10 @@ class Cell3D():
             raise RuntimeError("VTK resampling did not return a valid-point mask.")
         valid = vtk_to_numpy(valid_array).reshape(shape).astype(bool)
         filter_weight = None
-        invalid_count = valid.size - np.count_nonzero(valid)
-        if invalid_count:
+        if not valid.all():
             # Normalize the vertical Gaussian by the valid contribution so that
             # VTK's fill values cannot contaminate neighboring valid levels.
             filter_weight = scipy.ndimage.gaussian_filter1d(valid.astype(float), 1, axis=0)
-            empty_rings = np.count_nonzero(~valid.any(axis=2))
-            print(f"Snapshot {t:04d}: {invalid_count}/{valid.size} samples outside "
-                  f"the mesh; {empty_rings} latitude/pressure rings without samples.",
-                  flush=True)
 
         img1 = vtk.vtkImageData()
         img2 = vtk.vtkImageData()
