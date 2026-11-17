@@ -202,19 +202,13 @@ class Cell3D():
         writer = vtk.vtkXMLImageDataWriter()
 
         # Write 3D Cartesian grid data
-        writer.SetFileName(f"{file_out}_{season}.vti")
-        writer.SetInputData(img3)
-        writer.Write()
+        write_vti(writer, f"{file_out}_{season}.vti", img3)
 
         # Write zonal projection
-        writer.SetFileName(f"{file_out}_zonal_{season}.vti")
-        writer.SetInputData(img1)
-        writer.Write()
+        write_vti(writer, f"{file_out}_zonal_{season}.vti", img1)
 
         # Write meridional projection
-        writer.SetFileName(f"{file_out}_merid_{season}.vti")
-        writer.SetInputData(img2)
-        writer.Write()
+        write_vti(writer, f"{file_out}_merid_{season}.vti", img2)
 
         if compressible=='y':
             if t == idxs[-1]: # write average statistics
@@ -230,9 +224,7 @@ class Cell3D():
                 else:
                     stats_file = f"{run}_statistics_zonal_{season}.vti"
                     
-                writer.SetFileName(stats_file)
-                writer.SetInputData(statistics)
-                writer.Write()
+                write_vti(writer, stats_file, statistics)
 
                 # Save vertical profiles in csv file
                 vertical_profile = np.array(vertical_profile).T
@@ -366,10 +358,9 @@ def read_vti_images(file_list):
 def time_mean():
     # Computes time means of meridional and zonal averages and vertical profile
     zonal = avg_images("_zonal") # zonal projection
-    merid = avg_images("_merid") # meridional projection
+    avg_images("_merid")         # meridional projection
     avg_images("")               # complete 3D data
 
-    dims       = zonal.GetDimensions() 
     point_data = zonal.GetPointData()
     num_attrs  = point_data.GetNumberOfArrays()
 
@@ -390,25 +381,42 @@ def time_mean():
         for row in vertical_profile:
             writer.writerow(row)
    
-    # Delete individual time files except if not processing a single time
-    if (len(idxs)!=1):
-        for i in idxs:
-             tag = f"_{i:04d}"
-             delete_files(f"{run}{tag}_{season}.vtk")
-             delete_files(f"{run}{tag}_{season}.csv")
-             delete_files(f"{run}{tag}_zonal_{season}.vti")
-             delete_files(f"{run}{tag}_merid_{season}.vti")
-             delete_files(f"{run}{tag}_{season}.vti")
+    # Multi-snapshot runs reach here only after all final VTI and CSV outputs
+    # have been written. Remove only the snapshot paths used by this run/season.
+    removed = 0
+    for file_type in ("", "_zonal", "_merid"):
+        for path in snapshot_vti_paths(file_type):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                continue
+            removed += 1
+    print(f"Removed {removed} intermediate snapshot VTI files.", flush=True)
+
+    for i in idxs:
+        tag = f"_{i:04d}"
+        delete_files(f"{run}{tag}_{season}.vtk")
+        delete_files(f"{run}{tag}_{season}.csv")
+
+
+def snapshot_vti_paths(file_type):
+    return [Path(f"{run}_{index:04d}{file_type}_{season}.vti") for index in idxs]
+
+
+def write_vti(writer, filename, image):
+    writer.SetFileName(str(filename))
+    writer.SetInputData(image)
+    if writer.Write() != 1 or writer.GetErrorCode() != 0:
+        raise OSError(f"Could not write VTI file: {filename}")
+
 
 def avg_images(file_type):
-    # Average all image files specified by file_type
-    vti_files = []
-    for t in idxs:
-        vti_files.append(run+'_'+str(t).zfill(4)+file_type+"_"+season+'.vti')
+    # Average all image files specified by file_type.
+    vti_files = snapshot_vti_paths(file_type)
 
     # ---- Read the first file to get array names and metadata ----
     reader = vtk.vtkXMLImageDataReader()
-    reader.SetFileName(vti_files[0])
+    reader.SetFileName(str(vti_files[0]))
     reader.Update()
     image       = reader.GetOutput()
     point_data  = image.GetPointData()
@@ -426,9 +434,11 @@ def avg_images(file_type):
 
     # ---- Loop through all files and accumulate data ----
     for filename in vti_files:
-        reader.SetFileName(filename)
+        reader.SetFileName(str(filename))
         reader.Update()
         image      = reader.GetOutput()
+        if reader.GetErrorCode() != 0 or image.GetNumberOfPoints() != npts or npts == 0:
+            raise OSError(f"Could not read snapshot VTI file: {filename}")
         point_data = image.GetPointData()
        
         for name in array_names:
@@ -450,9 +460,7 @@ def avg_images(file_type):
 
     # ---- Write the averaged image ----
     writer = vtk.vtkXMLImageDataWriter()
-    writer.SetFileName(run+file_type+'_'+season+'.vti')
-    writer.SetInputData(output_image)
-    writer.Write()
+    write_vti(writer, f"{run}{file_type}_{season}.vti", output_image)
 
     return output_image
     
