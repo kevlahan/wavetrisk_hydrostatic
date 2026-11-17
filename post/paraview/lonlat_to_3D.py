@@ -155,6 +155,22 @@ class Cell3D():
         rgrid    = img.GetOutput()
         pnt_data = rgrid.GetPointData()
 
+        shape = (vert_dim, lat_dim, lon_dim)
+        valid_array = pnt_data.GetArray("vtkValidPointMask")
+        if valid_array is None:
+            raise RuntimeError("VTK resampling did not return a valid-point mask.")
+        valid = vtk_to_numpy(valid_array).reshape(shape).astype(bool)
+        filter_weight = None
+        invalid_count = valid.size - np.count_nonzero(valid)
+        if invalid_count:
+            # Normalize the vertical Gaussian by the valid contribution so that
+            # VTK's fill values cannot contaminate neighboring valid levels.
+            filter_weight = scipy.ndimage.gaussian_filter1d(valid.astype(float), 1, axis=0)
+            empty_rings = np.count_nonzero(~valid.any(axis=2))
+            print(f"Snapshot {t:04d}: {invalid_count}/{valid.size} samples outside "
+                  f"the mesh; {empty_rings} latitude/pressure rings without samples.",
+                  flush=True)
+
         img1 = vtk.vtkImageData()
         img2 = vtk.vtkImageData()
         img3 = vtk.vtkImageData()
@@ -171,17 +187,21 @@ class Cell3D():
         img3.SetOrigin(rgrid.GetOrigin())
 
         vertical_profile = []
-        for i in range(self.num_attrs):
-            name = pnt_data.GetArray(i).GetName()
-
-            # Extract 3D global data
-            globe = vtk_to_numpy(pnt_data.GetArray(i))
-            globe = globe.reshape(vert_dim, lat_dim, lon_dim)
-            globe = scipy.ndimage.gaussian_filter(globe, sigma=(1, 0, 0)) 
-
-            zonal = longitude_mean(globe)               # zonal average
-            merid = np.mean(globe, axis=1)              # meridional average
-            profl = np.mean(globe, axis=(1,2)).tolist() # vertical profile
+        for name in self.attr_names:
+            globe = vtk_to_numpy(pnt_data.GetArray(name)).reshape(shape)
+            if filter_weight is None:
+                globe = scipy.ndimage.gaussian_filter1d(globe, 1, axis=0)
+                zonal = longitude_mean(globe)
+                merid = np.mean(globe, axis=1)
+                profl = np.mean(globe, axis=(1, 2)).tolist()
+            else:
+                globe = filter_valid_samples(globe, valid, filter_weight)
+                zonal = longitude_mean(globe, valid)
+                merid = divide_by_coverage(
+                    np.sum(globe, axis=1, where=valid), np.sum(valid, axis=1))
+                profl = divide_by_coverage(
+                    np.sum(globe, axis=(1, 2), where=valid),
+                    np.sum(valid, axis=(1, 2))).tolist()
 
             attr1 = numpy_to_vtk(zonal.reshape(Nzonal)); attr1.SetName(name)
             attr2 = numpy_to_vtk(merid.reshape(Nmerid)); attr2.SetName(name)
@@ -193,7 +213,9 @@ class Cell3D():
             vertical_profile.append(profl) 
         
         if compressible == 'y':
-            zonal_statistics.update(zonal_diagnostics(img1.GetPointData(), img3.GetPointData()))
+            zonal_statistics.update(zonal_diagnostics(
+                img1.GetPointData(), img3.GetPointData(),
+                valid if filter_weight is not None else None))
 
         # Write out data
         file_out = f"{run}_{t:04d}"
@@ -239,17 +261,10 @@ class Cell3D():
 ###############################################################################################################################
 # Loads data from a vtk polydata file and sets vertical coordinate of interface based on attr_to_fill
 def load_dataset(file1, file2, attr_to_fill=None):
-    reader = vtk.vtkXMLPolyDataReader()
-        
-    # Layer below current interface
-    reader.SetFileName(file1)
-    reader.Update()
-    ugrid1 = reader.GetOutput() 
-
-    # Layer above current interface
-    reader.SetFileName(file2)
-    reader.Update()
-    ugrid2 = reader.GetOutput()
+    # Each reader must own a separate output. Reusing a reader for the
+    # second file overwrites the first layer's vtkPolyData.
+    ugrid1 = load_dataset_bdry(file1, 0)
+    ugrid2 = load_dataset_bdry(file2, 0)
 
     if (attr_to_fill is not None):
         set_vert_coord(ugrid1, ugrid2, attr_to_fill) # interface coordinate is average of coordinates of adjacent layers
@@ -464,14 +479,39 @@ def avg_images(file_type):
 
     return output_image
     
-def longitude_mean(values):
+def divide_by_coverage(total, coverage):
+    """Return NaN at grid points without any valid contributors."""
+    result = np.full(np.shape(total), np.nan, dtype=np.float64)
+    np.divide(total, coverage, out=result, where=coverage > 0)
+    return result
+
+
+def filter_valid_samples(values, valid, filter_weight):
+    numerator = scipy.ndimage.gaussian_filter1d(
+        np.where(valid, values, 0), 1, axis=0, output=np.float64)
+    # Preserve holes instead of reporting interpolated values outside the mesh.
+    filtered = np.full(values.shape, np.nan, dtype=np.float64)
+    np.divide(numerator, filter_weight, out=filtered, where=valid)
+    return filtered
+
+
+def longitude_mean(values, valid=None):
     # The uniform VTI grid includes both periodic endpoints. Give each half weight.
-    interior_sum = np.sum(values[..., 1:-1], axis=-1, dtype=np.float64)
-    endpoints = 0.5 * values[..., 0] + 0.5 * values[..., -1]
-    return (interior_sum + endpoints) / (values.shape[-1] - 1)
+    if valid is None:
+        interior_sum = np.sum(values[..., 1:-1], axis=-1, dtype=np.float64)
+        endpoints = 0.5 * values[..., 0] + 0.5 * values[..., -1]
+        return (interior_sum + endpoints) / (values.shape[-1] - 1)
+
+    interior_sum = np.sum(values[..., 1:-1], axis=-1, dtype=np.float64,
+                          where=valid[..., 1:-1])
+    endpoints = (0.5 * np.where(valid[..., 0], values[..., 0], 0)
+                 + 0.5 * np.where(valid[..., -1], values[..., -1], 0))
+    coverage = (np.count_nonzero(valid[..., 1:-1], axis=-1)
+                + 0.5 * valid[..., 0] + 0.5 * valid[..., -1])
+    return divide_by_coverage(interior_sum + endpoints, coverage)
 
 
-def zonal_diagnostics(zonal_data, globe_data):
+def zonal_diagnostics(zonal_data, globe_data, valid=None):
     shape = (vert_dim, lat_dim, lon_dim)
     zonal_shape = (vert_dim, lat_dim)
 
@@ -495,17 +535,18 @@ def zonal_diagnostics(zonal_data, globe_data):
         "EddyKineticEnergy": np.empty(zonal_shape),
     }
     for k in range(vert_dim):
+        valid_level = valid[k] if valid is not None else None
         t_eddy = t_globe[k] - temperature[k, :, None]
         u_eddy = u_globe[k] - u[k, :, None]
         v_eddy = v_globe[k] - v[k, :, None]
         # The longitude means of T'², v'T', u'v', and (u'²+v'²)/2
         # measure temperature variance, eddy heat flux, eddy momentum flux,
         # and horizontal eddy kinetic energy, respectively.
-        diagnostics["TemperatureVariance"][k] = longitude_mean(t_eddy * t_eddy)
-        diagnostics["EddyHeatFlux"][k] = longitude_mean(v_eddy * t_eddy)
-        diagnostics["EddyMomentumFlux"][k] = longitude_mean(u_eddy * v_eddy)
+        diagnostics["TemperatureVariance"][k] = longitude_mean(t_eddy * t_eddy, valid_level)
+        diagnostics["EddyHeatFlux"][k] = longitude_mean(v_eddy * t_eddy, valid_level)
+        diagnostics["EddyMomentumFlux"][k] = longitude_mean(u_eddy * v_eddy, valid_level)
         diagnostics["EddyKineticEnergy"][k] = 0.5 * (
-            longitude_mean(u_eddy * u_eddy) + longitude_mean(v_eddy * v_eddy))
+            longitude_mean(u_eddy * u_eddy, valid_level) + longitude_mean(v_eddy * v_eddy, valid_level))
     return diagnostics
 
 

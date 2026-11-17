@@ -5,6 +5,7 @@ Requires NumPy, Matplotlib, and VTK. Edit the settings below or run with --help.
 """
 import argparse
 import math
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -34,7 +35,7 @@ FIELDS = (
     ("Velocity_Zonal", r"Zonal velocity [m s$^{-1}$]", (-40, 40), 5),
     ("EddyKineticEnergy", r"Eddy Kinetic Energy [m$^2$ s$^{-2}$]", (-600, 600), 100),
     ("EddyHeatFlux", r"Eddy Heat Flux [K m s$^{-1}$]", (-40, 40), 5),
-    ("TemperatureVariance", r"Temperature Variance [K$^2$]", (-700, 700), 100),
+    ("TemperatureVariance", r"Temperature Variance [K$^2$]", (-80, 80), 10),
     ("EddyMomentumFlux", r"Eddy Momentum Flux [m$^2$ s$^{-2}$]", (-100, 100), 20),
 )
 MEAN_SCALE_OVERRIDES = {"summer": {"TemperatureVariance": ((-80, 80), 10)}}
@@ -88,11 +89,13 @@ def read_zonal_vti(path):
     for name in names:
         vtk_array = point_data.GetArray(name)
         if vtk_array is None:
-            raise ValueError(f"{path.name} is missing point-data array {name!r}.")
+            continue
         if vtk_array.GetNumberOfComponents() != 1:
             raise ValueError(f"Expected a scalar field for {name!r}.")
         # VTK stores x fastest. With nx=1, latitude varies fastest.
         arrays[name] = vtk_to_numpy(vtk_array).reshape(nz, nlat).copy()
+    if not arrays:
+        raise ValueError(f"{path.name} contains none of the expected zonal statistics arrays.")
     return lat, pressure, arrays
 
 
@@ -106,23 +109,51 @@ def rounded_maximum(value):
     return math.ceil(value / step) * step
 
 
-def make_figure(lat, pressure, arrays, season, run, suffix, title):
+def write_peak_confidence(path, arrays):
+    """Write one row per field at the largest finite absolute mean."""
+    with path.open("w", encoding="utf-8") as report:
+        print("Pointwise 95% confidence at the maximum absolute climatological mean", file=report)
+        print("All values are evaluated at the grid point where |M| is largest.", file=report)
+        print(f"{'Field':<21} {'Mean M':>12} {'Half-width H':>12} "
+              f"{'100H/|M|':>10} {'100StdDev/|M|':>15}", file=report)
+        for field, _, _, _ in FIELDS:
+            mean = arrays.get(field)
+            if mean is None or not np.isfinite(mean).any():
+                print(f"{field:<21} no finite mean values", file=report)
+                continue
+
+            magnitude = np.where(np.isfinite(mean), np.abs(mean), -np.inf)
+            k, j = np.unravel_index(np.argmax(magnitude), mean.shape)
+            value = mean[k, j]
+            half_widths = arrays.get(field + "_CI95HalfWidth")
+            half_width = half_widths[k, j] if half_widths is not None else np.nan
+            std_devs = arrays.get(field + "_TimeStdDev")
+            std_dev = std_devs[k, j] if std_devs is not None else np.nan
+            width_text = f"{half_width:.5g}" if np.isfinite(half_width) else "N/A"
+            relative = f"{100 * half_width / abs(value):.2f}%" if (
+                np.isfinite(half_width) and value != 0) else "N/A"
+            relative_std_dev = f"{100 * std_dev / abs(value):.2f}%" if (
+                np.isfinite(std_dev) and value != 0) else "N/A"
+            print(f"{field:<21} {value:12.5g} {width_text:>12} "
+                  f"{relative:>10} {relative_std_dev:>15}", file=report)
+
+
+def make_figure(lat, pressure, arrays, season, suffix):
     fig, axes = plt.subplots(2, 3, figsize=(17, 7.7), layout="constrained")
-    fig.suptitle(f"{run} · {season.title()} · {title}", fontsize=16)
 
     for ax, (field, label, limits, tick_step) in zip(axes.flat, FIELDS):
         name = field + suffix
-        values = arrays[name]
-        finite = values[np.isfinite(values)]
+        values = arrays.get(name)
         ax.set(xlabel=r"Latitude [$^\circ$]", ylabel=r"$P/P_s$")
         ax.yaxis.label.set_rotation(0)
         ax.yaxis.label.set_horizontalalignment("right")
         ax.set_xticks(np.arange(-90, 91, 30))
         ax.set_yticks(np.linspace(0, 1, 5), ["0", "0.25", "0.5", "0.75", "1"])
         ax.set(xlim=LATITUDE_LIMITS, ylim=PRESSURE_LIMITS)
+        finite = values[np.isfinite(values)] if values is not None else np.array([])
         if not finite.size:
-            ax.set_title(label)
-            ax.text(0.5, 0.5, "No finite values", ha="center", va="center", transform=ax.transAxes)
+            message = "Array missing from VTI" if values is None else "No finite values"
+            ax.text(0.5, 0.5, f"{field}\n{message}", ha="center", va="center", transform=ax.transAxes)
             continue
 
         if suffix:
@@ -166,8 +197,18 @@ def main():
     if not separator:
         prefix, season = path.stem, args.season
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    report_path = args.output_dir / f"{prefix}_climatology_{season}_peak_confidence.txt"
+    write_peak_confidence(report_path, arrays)
+    print(report_path)
     for suffix, tag, title in STATISTICS:
-        fig = make_figure(lat, pressure, arrays, season, prefix, suffix, title)
+        expected = [field + suffix for field, _, _, _ in FIELDS]
+        missing = [name for name in expected if name not in arrays]
+        if len(missing) == len(expected):
+            print(f"Skipping {title.lower()}: no matching arrays in {path.name}.", file=sys.stderr)
+            continue
+        if missing:
+            print(f"{path.name} is missing: {', '.join(missing)}.", file=sys.stderr)
+        fig = make_figure(lat, pressure, arrays, season, suffix)
         output = args.output_dir / f"{prefix}_climatology_{season}_{tag}.png"
         fig.savefig(output, dpi=DPI)
         print(output)
