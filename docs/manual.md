@@ -296,7 +296,12 @@ See [Section 5.2](#markdown-header-52-ncar-topography) for instruction on how to
 
 <a id="markdown-header-32-checkpointing-and-restarting"></a>
 ### 3.2 Checkpointing and restarting  
-The code checkpoints the data at an interval defined by the test case.  The full state of the simulation is saved by `io_mod/dump_adapt_mpi` and read in again by `io_mod/load_adapt_mpi`.
+The code checkpoints the data at an interval defined by the test case.  The checkpoint module serializes each domain and writes one compressed archive. Rank zero streams the payloads into a temporary file. Before publication, the ranks compare the decompressed archive against the in-memory directory and every payload byte. The verified archive is renamed into place.
+
+Version 2 stores the vertical remap counter with the model clock. Restart checks that the domain clocks, step and output counters, and saved remap counters agree. A fresh Simple Physics restart uses the surface and soil temperatures restored from the checkpoint.
+
+The reader also accepts version 1. For an exact continuation of a legacy run, set `WAVETRISK_LEGACY_IREMAP` to its known positive remap counter at the checkpoint. If omitted, the reader reports the counter it uses. Version 2 restores the saved value automatically. Earlier executables require version 1 archives. When both compressed and uncompressed files exist, the compressed archive is authoritative.
+
 
 When a checkpoint is written during a run, the run is restarted immediately from the saved checkpoint. This allows for parallel load balancing and pruning of the adaptive data structure by deleting inactive patches which both occur only during checkpointing. A run can be restarted from a saved checkpoint.
 
