@@ -101,6 +101,8 @@ module main_mod
   
   private
   public :: cpt_min_mass, initialize, restart, time_step
+  public :: dt_new
+  protected :: dt_new
   
   
   type Initial_State
