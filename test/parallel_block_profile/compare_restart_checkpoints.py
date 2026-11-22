@@ -18,8 +18,8 @@ def read(path, zmin, zmax, expected_domains=160):
     magic, version, nd = struct.unpack_from('<3q', raw)
     if expected_domains not in (40,160):
         raise ValueError("Only explicit J4 (40) or J5 (160) Domain layouts are supported")
-    if magic != 0x5741564554524953 or version != 1 or nd != expected_domains:
-        raise ValueError(f'Expected climate checkpoint v1 with {expected_domains} Domains')
+    if magic != 0x5741564554524953 or version not in (1, 2) or nd != expected_domains:
+        raise ValueError(f'Expected climate checkpoint v1 or v2 with {expected_domains} Domains')
     offset = np.frombuffer(raw, '<i8', nd, 24+4*nd)
     size = np.frombuffer(raw, '<i8', nd, 24+12*nd)
     expected = 24+20*nd
@@ -34,7 +34,8 @@ def read(path, zmin, zmax, expected_domains=160):
     if expected!=len(raw):
         raise ValueError('Truncated checkpoint or unsupported trailing extension')
     nk = zmax-zmin+1
-    metadata = 24+3*nk*8
+    clock = struct.Struct('<idqii' if version == 2 else '<idqi')
+    metadata = clock.size+3*nk*8
     coarse_bytes = nk*80*8
     record_bytes = coarse_bytes+16
     pole_bytes = nk*2*8
@@ -48,8 +49,8 @@ def read(path, zmin, zmax, expected_domains=160):
         if len(candidates) != 1:
             raise ValueError('Unsupported Domain payload layout')
         npole = candidates[0]
-        header = struct.unpack_from('<idqi', payload)
-        thresholds = np.frombuffer(payload, '<f8', 3*nk, 24)
+        header = clock.unpack_from(payload)
+        thresholds = np.frombuffer(payload, '<f8', 3*nk, clock.size)
         pos = metadata
         poles = np.frombuffer(payload, '<f8', npole*nk*2, pos).reshape(npole,nk,2)
         pos += npole*pole_bytes
