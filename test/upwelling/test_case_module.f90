@@ -343,6 +343,7 @@ contains
     implicit none
     integer :: k, l
 
+    call initialize_land_mask
     do l = level_end, level_start, -1
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        do k = 1, zmax
@@ -382,6 +383,7 @@ contains
           end do
        end do
     else ! need to set values over entire grid on restart
+       call initialize_land_mask
        do l = level_start, level_end
           call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           do k = 1, zmax
@@ -722,7 +724,7 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu
+    real(8) :: C, C_b, C_divu, C_mu, C_rotu, tau_b, tau_divu, tau_mu, tau_rotu
 
     ! Initial CFL limit for time step
     dt_cfl = min (cfl_safety*dx_avg(max_level)/wave_speed, 1.4d0*dx_avg(max_level)/u_wbc, 1.2d0*dx_avg(max_level)/c1)
@@ -764,7 +766,13 @@ contains
             " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
     end if
 
-    ! Penalization parameterss
+  end subroutine initialize_dt_viscosity_case
+
+  subroutine initialize_land_mask
+    ! Grid spacing is available before the first mask construction on either startup path.
+    implicit none
+    real(8) :: dlat
+
     dlat = 0.5d0*dble(npts_penal+2) * (dx_avg(min_level)/radius) / DEG ! widen channel to account for boundary smoothing
 
     width_S = 90d0 + (lat_c - (lat_width/2 + dlat))
@@ -773,7 +781,7 @@ contains
     ! Smoothing exponent for land mass
     n_smth_S = 4d0*radius * width_S*DEG / (dx_avg(min_level) * dble(npts_penal+2))
     n_smth_N = 4d0*radius * width_N*DEG / (dx_avg(min_level) * dble(npts_penal+2))
-  end subroutine initialize_dt_viscosity_case
+  end subroutine initialize_land_mask
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
     ! Set bathymetry
