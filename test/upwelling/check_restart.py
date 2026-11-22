@@ -12,7 +12,7 @@ import tempfile
 def run(executable, cwd, env, expected_error=None):
     result = subprocess.run(
         ["mpirun", "-n", "2", executable, "test_case.in"], cwd=cwd, env=env,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=300,
     )
     if expected_error is None:
         passed = result.returncode == 0
@@ -22,10 +22,11 @@ def run(executable, cwd, env, expected_error=None):
         raise RuntimeError(result.stdout)
 
 
-def configure(directory, grids, template, resume):
+def configure(directory, grids, template, resume, **overrides):
     directory.mkdir()
     (directory / "grids").symlink_to(grids)
     values = dict(max_level=5, zlevels=4, dt_write=0.01, time_end=0.03, resume=resume)
+    values.update(overrides)
     for key, value in values.items():
         template, count = re.subn(rf"(?m)^({key}\s+)\S+", rf"\g<1>{value}", template)
         assert count == 1, key
@@ -83,7 +84,21 @@ def main():
         injected = dict(env, PATH=f"{root}{os.pathsep}{env['PATH']}", CHECKPOINT_TEST_ZSTD=zstd)
         run(executable, writer, injected, "checkpoint archive failed byte verification")
         assert (writer / name).read_bytes() == archive
-    print("Passed checkpoint save, fresh restart, domain phase rejection, and failed publication tests.")
+        # Evolve a J5-J6 grid, then compare automatic and fresh continuation
+        # from the same nonzero checkpoint, including the adaptive tree.
+        warm, cold = root / "adaptive", root / "adaptive_restart"
+        settings = dict(max_level=6, dt_write=0.04, time_end=0.09)
+        configure(warm, grids, template, -1, **settings)
+        configure(cold, grids, template, 1, **settings)
+        run(executable, warm, env)
+        shutil.copy2(warm / "upwelling_checkpoint_0001.bin.zst", cold)
+        run(executable, cold, env)
+        evolved = "upwelling_checkpoint_0002.bin.zst"
+        expected = subprocess.check_output([zstd, "-dc", warm / evolved])
+        actual = subprocess.check_output([zstd, "-dc", cold / evolved])
+        assert actual == expected, "adaptive restart changed the next checkpoint"
+    print("Passed checkpoint save, fresh restart, domain phase rejection, failed publication, "
+          "and adaptive continuation tests.")
 
 
 if __name__ == "__main__":
