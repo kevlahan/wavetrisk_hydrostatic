@@ -25,8 +25,7 @@ def run(executable, cwd, env, expected_error=None):
 def configure(directory, grids, template, resume):
     directory.mkdir()
     (directory / "grids").symlink_to(grids)
-    # Initialization writes or reloads checkpoint zero before time integration.
-    values = dict(max_level=5, zlevels=4, dt_write=0.01, time_end=0, resume=resume)
+    values = dict(max_level=5, zlevels=4, dt_write=0.01, time_end=0.03, resume=resume)
     for key, value in values.items():
         template, count = re.subn(rf"(?m)^({key}\s+)\S+", rf"\g<1>{value}", template)
         assert count == 1, key

@@ -754,15 +754,12 @@ contains
        end select
     end if
 
-    ! Materialize the current block shadow transactionally before legacy
-    ! physics and adaptation can change Domain fields or topology. A new
-    ! compact state is installed after adaptation and retained through remap.
-    ! If no complete shadow exists, retain the idempotent cleanup path.
-    block_state_ready = parallel_block_state_is_ready()
-    if (block_state_ready .and. .not. block_multistage_candidate) then
+    ! Domain dynamics updates its own fields and wavelets. Discard the restart
+    ! shadow before that update so adaptation uses the current Domain masks.
+    if (block_euler_step) then
        call prepare_parallel_block_grid_change
        rebuild_block_state = .true.
-    else if (.not. block_state_ready) then
+    else if (.not. block_multistage_candidate) then
        call invalidate_parallel_block_domain_shadow
     end if
 
