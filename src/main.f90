@@ -64,6 +64,8 @@ module main_mod
 
   private
   public :: cpt_min_mass, initialize, restart, time_step
+  public :: dt_new
+  protected :: dt_new
 
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
   real(dp)                           :: dt_new, initial_total_mass, time_mult

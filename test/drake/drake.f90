@@ -163,6 +163,12 @@ program Drake
   if (etopo_bathy .or. etopo_coast) call read_etopo_data
   call assign_functions
   call initialize (run_id)
+  ! An evolved checkpoint is saved inside time_step, before the driver's
+  ! relaxation. Automatic restart returns with dt set to the recomputed
+  ! step size; fresh initialization also runs the viscosity initializer.
+  if (relax .and. resume_init >= 0 .and. istep_cumul > 0) then
+     call euler (sol, wav_coeff, trend_relax, dt_new)
+  end if
   call print_test_case_parameters
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
