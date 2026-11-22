@@ -71,8 +71,7 @@ contains
     !-----------------------------------------------------------------------------------
     use iniphyparam_mod,   only : iniphyparam
     use single_column_mod, only : initialize_extra_levels
-    use shared_mod,        only : dt
-    use phyparam_mod,      only : alloc, precompute
+    use shared_mod,        only : dt, resume, istep_cumul
     use read_param_mod
     use logging
     implicit none
@@ -101,6 +100,7 @@ contains
 
     ! Physics single column module extra levels initialization (as needs soil flag set in iniphyparam)
     call initialize_extra_levels (Nsoil+1)
+    if (resume >= 0 .and. istep_cumul > 0) call physics_checkpoint_restart
   end subroutine init_physics
 
   subroutine write_physics_params (file_unit, file_params)
@@ -205,8 +205,16 @@ contains
     !   Author: Gabrielle Ching-Johnson
     !
     !-----------------------------------------------------------------------------------
-    use phyparam_mod, only : alloc, precompute
+    use phyparam_mod, only : alloc, precompute, icount, zDay_last
+    use shared_mod, only : time
+    implicit none
 
+    ! Allocate package work arrays without cold-starting the saved soil column.
+    call alloc(1, zlevels)
+    call precompute()
+    icount = 0
+    zDay_last = real(time / DAY)
+    physics_firstcall_flag = .false.
   end subroutine physics_checkpoint_restart
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

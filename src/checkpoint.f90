@@ -2,11 +2,12 @@ module checkpoint_mod
 
   ! Provides checkpointing routines
 
+  use iso_c_binding, only: c_char, c_int, c_null_char
   use mpi_f08
   use iso_fortran_env, only: int8, int64
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_BDRY,  N_CHDRN, N_VARIABLE, MULT, cp_idx, istep_cumul, itime, iwrite, level_end, &
+  use shared_mod, only : N_BDRY,  N_CHDRN, N_VARIABLE, MULT, cp_idx, iremap, istep_cumul, itime, iwrite, level_end, &
      min_level, max_level,  n_glo_domain, run_id, scalars, threshold, time, vert_diffuse, zmin, zmax, zlevels, NONE, z_null
   
   use arch_mod,         only : barrier, comm, glo_id, n_process, rank, cp_load
@@ -31,7 +32,8 @@ module checkpoint_mod
        int(z'5741564554524953', int64)
 
   ! Version number of the checkpoint file layout.
-  integer(int64), parameter :: CP_VERSION = 1_int64
+  integer(int64), parameter :: CP_VERSION = 2_int64
+  integer(int64) :: loaded_version = CP_VERSION
 
   ! Absolute byte offset of each global domain within the checkpoint file.
   integer(int64), allocatable :: cp_offset(:)
@@ -42,6 +44,8 @@ module checkpoint_mod
   ! True if the restart .bin file was temporarily decompressed
   ! from the persistent .bin.zst checkpoint.
   logical :: cp_temporary_bin = .false.
+  character(:), allocatable :: prepared_file
+  integer :: prepared_id = -1
 
   ! Size of the fixed checkpoint header (magic number, version,
   ! number of global domains).
@@ -71,21 +75,9 @@ contains
 
 
   subroutine dump_adapt_mpi (id)
-    ! Save adaptive checkpoint data to one shared MPI-IO file.
-    !
-    ! Each MPI rank serializes all locally owned domains into one
-    ! temporary stream.  The rank-local streams are then written
-    ! collectively into one shared checkpoint file.
-    !
-    ! The checkpoint directory contains, for every global domain:
-    !
-    !   cp_load   : computational load
-    !   cp_offset : absolute byte offset in checkpoint file
-    !   cp_nbytes : serialized domain size in bytes
-    !
-    ! After the shared checkpoint has been closed collectively,
-    ! rank zero compresses it using zstd -1 and removes the
-    ! uncompressed .bin file.
+    ! Serialize local domains and stream their buffers to one filesystem writer.
+    ! Verify the compressed archive against the directory and the original
+    ! rank-local buffers before atomically publishing it on the same filesystem.
     !
     ! NOTE: Checkpoint generation modifies the adaptive grid structure
     ! by deleting patches that are not required in the adjacent zone.
@@ -97,10 +89,7 @@ contains
     integer :: d, k, v
     integer :: fid
     integer :: ierr
-    integer :: cmdstat, exitstat
-
-    type(MPI_File)   :: fh
-    type(MPI_Status) :: status
+    character(:), allocatable :: stage
 
     integer(int64) :: p0, p1
     integer(int64) :: rank_bytes
@@ -115,7 +104,6 @@ contains
 
     character(4)              :: cp4
     character(:), allocatable :: filename
-    character(:), allocatable :: cmd
 
 
     ! ---------------------------------------------------------------
@@ -313,118 +301,9 @@ contains
          trim(run_id) // "_checkpoint_" // cp4 // ".bin"
 
 
-    call MPI_File_open( &
-         comm, &
-         filename, &
-         MPI_MODE_CREATE + MPI_MODE_WRONLY, &
-         MPI_INFO_NULL, &
-         fh, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "dump_adapt_mpi: MPI_File_open failed"
-    end if
-
-
-    ! Truncate an existing checkpoint with the same name.
-    ! MPI_File_set_size is collective.
-
-    call MPI_File_set_size( &
-         fh, &
-         int(0, MPI_OFFSET_KIND), &
-         ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "dump_adapt_mpi: MPI_File_set_size failed"
-    end if
-
-
-    ! Rank zero writes header and directory.
-
-    if (rank == 0) then
-       call write_checkpoint_directory(fh)
-    end if
-
-
-    ! Make sure directory writing has completed before payload writes.
-
-    call MPI_Barrier(comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "dump_adapt_mpi: MPI_Barrier failed"
-    end if
-
-
-    ! ---------------------------------------------------------------
-    ! Write rank-local payloads collectively
-    ! ---------------------------------------------------------------
-
-    call MPI_File_write_at_all( &
-         fh, &
-         int(CP_DATA_POS + rank_disp, MPI_OFFSET_KIND), &
-         buf, &
-         int(rank_bytes), &
-         MPI_BYTE, &
-         status, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "dump_adapt_mpi: MPI_File_write_at_all failed"
-    end if
-
-
-    call MPI_File_close(fh, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "dump_adapt_mpi: MPI_File_close failed"
-    end if
-
-
-    ! ---------------------------------------------------------------
-    ! Compress completed checkpoint
-    ! ---------------------------------------------------------------
-    !
-    ! All MPI ranks must have closed the shared file before rank zero
-    ! starts compression.
-
-    call MPI_Barrier(comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "dump_adapt_mpi: pre-zstd barrier failed"
-    end if
-
-
-    if (rank == 0) then
-
-       cmd = 'zstd -q -1 --rm -f "' // trim(filename) // '"'
-
-       call execute_command_line( &
-            cmd, &
-            exitstat=exitstat, &
-            cmdstat=cmdstat)
-
-       if (cmdstat /= 0) then
-          error stop "dump_adapt_mpi: failed to execute zstd"
-       end if
-
-       if (exitstat /= 0) then
-          error stop "dump_adapt_mpi: zstd compression failed"
-       end if
-
-    end if
-
-
-    ! Ensure compression has completed before any rank proceeds.
-    ! The checkpoint now exists as filename//".zst".
-
-    call MPI_Barrier(comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "dump_adapt_mpi: post-zstd barrier failed"
-    end if
-
-
-    ! ---------------------------------------------------------------
-    ! Cleanup
-    ! ---------------------------------------------------------------
+    call temporary_file(filename, stage)
+    call publish_checkpoint(filename, stage, buf, rank_disp)
+    loaded_version = CP_VERSION
 
     deallocate(buf)
 
@@ -685,239 +564,154 @@ contains
   end subroutine build_checkpoint_directory
 
 
-  subroutine write_checkpoint_directory (fh)
-    implicit none
-
-    type(MPI_File), intent(in) :: fh
-
-    integer :: ierr
-    type(MPI_Status) :: status
-
-    integer(int64) :: header(3)
-
-    header(1) = CP_MAGIC
-    header(2) = CP_VERSION
-    header(3) = int(N_GLO_DOMAIN, int64)
-
-    call MPI_File_write_at( &
-         fh, &
-         int(0, MPI_OFFSET_KIND), &
-         header, 3, MPI_INTEGER8, &
-         status, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "write_checkpoint_directory: header write failed"
-    end if
-
-    call MPI_File_write_at( &
-         fh, &
-         int(CP_LOAD_POS, MPI_OFFSET_KIND), &
-         cp_load, N_GLO_DOMAIN, MPI_INTEGER, &
-         status, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "write_checkpoint_directory: load write failed"
-    end if
-
-    call MPI_File_write_at( &
-         fh, &
-         int(CP_OFFSET_POS, MPI_OFFSET_KIND), &
-         cp_offset, N_GLO_DOMAIN, MPI_INTEGER8, &
-         status, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "write_checkpoint_directory: offset write failed"
-    end if
-
-    call MPI_File_write_at( &
-         fh, &
-         int(CP_NBYTES_POS, MPI_OFFSET_KIND), &
-         cp_nbytes, N_GLO_DOMAIN, MPI_INTEGER8, &
-         status, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "write_checkpoint_directory: nbytes write failed"
-    end if
-
-  end subroutine write_checkpoint_directory
-
-
-  subroutine prepare_checkpoint_file (id, filename)
-    ! Ensure that the uncompressed checkpoint file exists.
-    !
-    ! If only filename.zst exists, rank zero decompresses it while
-    ! retaining the compressed checkpoint.  The resulting .bin file
-    ! is marked temporary and is removed after load_adapt_mpi completes.
-    !
-    ! This routine is safe to call more than once for the same restart.
-
-    implicit none
-
-    integer, intent(in) :: id
-
-    character(:), allocatable, intent(out) :: filename
-
-    integer :: ierr
-    integer :: cmdstat, exitstat
-    integer :: decompress_status
-
-    logical :: bin_exists
-    logical :: zst_exists
-    logical :: local_exists
-    logical :: all_exist
-
-    character(4) :: cp4
-    character(:), allocatable :: zst_filename
-    character(:), allocatable :: cmd
-
-
-    write(cp4,'(i4.4)') id
-
-    filename = &
-         trim(run_id) // "_checkpoint_" // cp4 // ".bin"
-
-    zst_filename = filename // ".zst"
-
-    decompress_status = 0
-
-
-    ! ---------------------------------------------------------------
-    ! Rank zero ensures that the uncompressed checkpoint exists.
-    ! ---------------------------------------------------------------
+  subroutine temporary_file(filename, path)
+    character(*), intent(in) :: filename
+    character(:), allocatable, intent(out) :: path
+    character(kind=c_char,len=len(filename)+8) :: template
+    integer(c_int) :: fd
+    interface
+       function mkstemp(name) bind(C) result(descriptor)
+         import c_char, c_int
+         character(c_char) :: name(*)
+         integer(c_int) :: descriptor
+       end function
+       function c_close(descriptor) bind(C,name='close') result(rc)
+         import c_int
+         integer(c_int), value :: descriptor
+         integer(c_int) :: rc
+       end function
+    end interface
 
     if (rank == 0) then
+       template = filename//'.XXXXXX'//c_null_char
+       fd = mkstemp(template)
+       if (fd < 0) error stop 'cannot create checkpoint staging file'
+       if (c_close(fd) /= 0) error stop 'cannot close checkpoint staging file'
+    end if
+    call MPI_Bcast(template,len(template),MPI_CHARACTER,0,comm)
+    path = template(:len(template)-1)
+  end subroutine temporary_file
 
-       inquire(file=filename,     exist=bin_exists)
-       inquire(file=zst_filename, exist=zst_exists)
-
-       if (.not. bin_exists) then
-
-          if (.not. zst_exists) then
-
-             decompress_status = 1
-
-          else
-
-             cmd = &
-                  'zstd -q -d -k -f "' // trim(zst_filename) // '"'
-
-             call execute_command_line( &
-                  cmd, &
-                  exitstat=exitstat, &
-                  cmdstat=cmdstat)
-
-             if (cmdstat /= 0) then
-
-                decompress_status = 2
-
-             elseif (exitstat /= 0) then
-
-                decompress_status = 3
-
-             else
-
-                inquire(file=filename, exist=bin_exists)
-
-                if (.not. bin_exists) then
-                   decompress_status = 4
-                else
-                   cp_temporary_bin = .true.
-                end if
-
-             end if
-
-          end if
-
+  function shell_path(path) result(quoted)
+    character(*), intent(in) :: path
+    character(:), allocatable :: quoted
+    integer :: i
+    quoted = "'"
+    do i = 1,len(path)
+       if (path(i:i) == "'") then
+          quoted = quoted // "'" // achar(92) // "''"
+       else
+          quoted = quoted // path(i:i)
        end if
+    end do
+    quoted = quoted // "'"
+  end function shell_path
 
+  subroutine run_zstd(command)
+    character(*), intent(in) :: command
+    integer :: launch, rc
+    call execute_command_line('zstd -q '//command,cmdstat=launch,exitstat=rc)
+    if (launch /= 0) error stop 'cannot start zstd'
+    if (rc /= 0) error stop 'checkpoint zstd operation failed'
+  end subroutine run_zstd
+
+  subroutine delete_file(path)
+    character(*), intent(in) :: path
+    integer :: unit
+    open(newunit=unit,file=path,status='old',access='stream',form='unformatted')
+    close(unit,status='delete')
+  end subroutine delete_file
+
+  subroutine publish_checkpoint(filename,stage,buf,disp)
+    character(*), intent(in) :: filename, stage
+    integer(int8), intent(in) :: buf(:)
+    integer(int64), intent(in) :: disp
+    integer, parameter :: chunk = 1048576
+    integer(int8), allocatable :: scratch(:)
+    integer(int64) :: header(3), offsets(N_GLO_DOMAIN), sizes(N_GLO_DOMAIN), bytes
+    integer :: loads(N_GLO_DOMAIN), r, unit, rc, n
+    integer(int64) :: pos
+    type(MPI_Status) :: status
+    logical :: valid, all_valid
+
+    allocate(scratch(chunk))
+    ! One filesystem client owns every write, including shared partial NFS pages.
+    if (rank == 0) then
+       open(newunit=unit,file=stage,status='old',access='stream',form='unformatted',action='write')
+       write(unit) CP_MAGIC, CP_VERSION, int(N_GLO_DOMAIN,int64), cp_load, cp_offset, cp_nbytes
+       write(unit) buf
+       do r=1,n_process-1
+          call MPI_Recv(bytes,1,MPI_INTEGER8,r,0,comm,status)
+          do pos=1,bytes,chunk
+             n=int(min(int(chunk,int64),bytes-pos+1))
+             call MPI_Recv(scratch,n,MPI_BYTE,r,0,comm,status)
+             write(unit) scratch(:n)
+          end do
+       end do
+       close(unit)
+       call run_zstd('-1 -o '//shell_path(stage//'.zst')//' -- '//shell_path(stage))
+       call run_zstd('-df -o '//shell_path(stage)//' -- '//shell_path(stage//'.zst'))
+    else
+       bytes=size(buf,kind=int64)
+       call MPI_Send(bytes,1,MPI_INTEGER8,0,0,comm)
+       do pos=1,bytes,chunk
+          n=int(min(int(chunk,int64),bytes-pos+1))
+          call MPI_Send(buf(pos:pos+n-1),n,MPI_BYTE,0,0,comm)
+       end do
     end if
 
-
-    ! ---------------------------------------------------------------
-    ! Broadcast preparation state.
-    ! ---------------------------------------------------------------
-
-    call MPI_Bcast( &
-         decompress_status, 1, MPI_INTEGER, &
-         0, comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop &
-            "prepare_checkpoint_file: status broadcast failed"
+    call MPI_Barrier(comm)
+    open(newunit=unit,file=stage,status='old',access='stream',form='unformatted',action='read')
+    valid=.true.
+    if (rank == 0) then
+       inquire(unit=unit,size=bytes)
+       read(unit,iostat=rc) header, loads, offsets, sizes
+       valid=rc==0
+       if (valid) valid=all(header==[CP_MAGIC,CP_VERSION,int(N_GLO_DOMAIN,int64)]) .and. &
+            all(loads==cp_load) .and. all(offsets==cp_offset) .and. all(sizes==cp_nbytes) .and. &
+            bytes==CP_DATA_POS+sum(cp_nbytes)
     end if
-
-    if (decompress_status /= 0) then
-
-       select case (decompress_status)
-
-       case (1)
-          error stop &
-               "prepare_checkpoint_file: checkpoint .bin and .bin.zst not found"
-
-       case (2)
-          error stop &
-               "prepare_checkpoint_file: failed to execute zstd"
-
-       case (3)
-          error stop &
-               "prepare_checkpoint_file: zstd decompression failed"
-
-       case (4)
-          error stop &
-               "prepare_checkpoint_file: decompressed checkpoint not found"
-
-       case default
-          error stop &
-               "prepare_checkpoint_file: checkpoint preparation failed"
-
-       end select
-
-    end if
-
-    call MPI_Bcast( &
-         cp_temporary_bin, 1, MPI_LOGICAL, &
-         0, comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop &
-            "prepare_checkpoint_file: temporary flag broadcast failed"
-    end if
-
-
-    ! Rank zero has completed decompression before this collective.
-    call MPI_Barrier(comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop &
-            "prepare_checkpoint_file: pre-open barrier failed"
-    end if
-
-
-    ! Verify that every rank can see the uncompressed file before
-    ! returning to a collective MPI_File_open.
-    inquire(file=filename, exist=local_exists)
-
-    call MPI_Allreduce( &
-         local_exists, all_exist, 1, MPI_LOGICAL, MPI_LAND, &
-         comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop &
-            "prepare_checkpoint_file: visibility reduction failed"
-    end if
-
-    if (.not. all_exist) then
-       if (.not. local_exists) then
-          write(*,'(A,I0,A,A,A)') &
-               'rank ', rank, ': checkpoint not visible: "', &
-               trim(filename), '"'
+    do pos=1,size(buf,kind=int64),chunk
+       n=int(min(int(chunk,int64),size(buf,kind=int64)-pos+1))
+       read(unit,pos=CP_DATA_POS+disp+pos,iostat=rc) scratch(:n)
+       if (rc/=0) valid=.false.
+       if (valid) valid=all(scratch(:n)==buf(pos:pos+n-1))
+    end do
+    close(unit)
+    call MPI_Allreduce(valid,all_valid,1,MPI_LOGICAL,MPI_LAND,comm)
+    if (.not. all_valid) then
+       if (rank == 0) then
+          call delete_file(stage//'.zst')
+          call delete_file(stage)
        end if
-       error stop &
-            "prepare_checkpoint_file: checkpoint .bin not visible on all ranks"
+       call MPI_Barrier(comm)
+       error stop 'checkpoint archive failed byte verification before publication'
     end if
+    if (rank==0) then
+       call rename(stage//'.zst',filename//'.zst',rc)
+       if (rc/=0) error stop 'cannot publish verified checkpoint'
+       call delete_file(stage)
+    end if
+    call MPI_Barrier(comm)
+  end subroutine publish_checkpoint
 
+  subroutine prepare_checkpoint_file(id,filename)
+    integer,intent(in) :: id
+    character(:),allocatable,intent(out) :: filename
+    character(:),allocatable :: base
+    character(4) :: cp4
+    write(cp4,'(i4.4)') id
+    base=trim(run_id)//'_checkpoint_'//cp4//'.bin'
+    if (rank==0) inquire(file=base//'.zst',exist=cp_temporary_bin)
+    call MPI_Bcast(cp_temporary_bin,1,MPI_LOGICAL,0,comm)
+    if (cp_temporary_bin) then
+       call temporary_file(base,filename)
+       if (rank==0) call run_zstd('-df -o '//shell_path(filename)//' -- '//shell_path(base//'.zst'))
+       call MPI_Barrier(comm)
+    else
+       filename=base
+    end if
   end subroutine prepare_checkpoint_file
-
 
   subroutine read_checkpoint_directory (id)
     implicit none
@@ -940,6 +734,10 @@ contains
     ! Ensure that the uncompressed checkpoint exists.  If only the
     ! .bin.zst file exists, rank zero creates a temporary .bin file.
 
+    if (allocated(prepared_file)) then
+       if (cp_temporary_bin .and. rank == 0) call delete_file(prepared_file)
+       deallocate(prepared_file)
+    end if
     call prepare_checkpoint_file(id, filename)
 
 
@@ -995,7 +793,7 @@ contains
           error stop "read_checkpoint_directory: bad checkpoint magic"
        end if
 
-       if (header(2) /= CP_VERSION) then
+       if (header(2) /= 1_int64 .and. header(2) /= CP_VERSION) then
           error stop "read_checkpoint_directory: unsupported version"
        end if
 
@@ -1051,6 +849,11 @@ contains
     ! Broadcast checkpoint directory
     ! ---------------------------------------------------------------
 
+    if (rank == 0) loaded_version = header(2)
+    call MPI_Bcast(loaded_version, 1, MPI_INTEGER8, 0, comm)
+    prepared_file = filename
+    prepared_id = id
+
     call MPI_Bcast( &
          cp_load, N_GLO_DOMAIN, MPI_INTEGER, &
          0, comm, ierr)
@@ -1095,6 +898,7 @@ contains
     write(fid) time
     write(fid) itime
     write(fid) iwrite
+    write(fid) iremap
     write(fid) threshold
 
     call dump(fid)
@@ -1270,7 +1074,8 @@ contains
     integer :: ierr
     integer :: error_len
 
-    integer :: delete_unit
+    integer :: count_read
+    integer(MPI_OFFSET_KIND) :: file_size
 
     character(len=MPI_MAX_ERROR_STRING) :: error_string
 
@@ -1315,7 +1120,12 @@ contains
     ! directory in memory but compresses the shared .bin to .bin.zst
     ! before load_adapt_mpi may be called.
 
-    call prepare_checkpoint_file(id, filename)
+    if (allocated(prepared_file)) then
+       if (prepared_id /= id) error stop 'checkpoint directory belongs to a different checkpoint'
+       call move_alloc(prepared_file, filename)
+    else
+       call prepare_checkpoint_file(id, filename)
+    end if
 
 
     ! ---------------------------------------------------------------
@@ -1348,6 +1158,12 @@ contains
          access="stream", &
          action="readwrite")
 
+
+    call MPI_File_get_size(fh, file_size, ierr)
+    if (ierr /= MPI_SUCCESS) error stop 'cannot determine checkpoint file size'
+    if (file_size < CP_DATA_POS .or. any(cp_nbytes < 24) .or. any(cp_offset < CP_DATA_POS)) &
+         error stop 'invalid checkpoint domain directory'
+    if (any(cp_offset > file_size - cp_nbytes)) error stop 'checkpoint domain extends beyond end of file'
 
     allocate(domain_pos(size(grid)))
 
@@ -1394,6 +1210,9 @@ contains
        end if
 
 
+       call MPI_Get_count(status, MPI_BYTE, count_read)
+       if (count_read /= nbytes) error stop 'short checkpoint domain read'
+
        inquire(unit=fid, pos=p)
 
        domain_pos(d) = p
@@ -1424,6 +1243,7 @@ contains
 
     flush(fid)
 
+    call validate_clocks(fid, domain_pos)
     call load_domains_stream(fid, domain_pos)
 
     close(fid)
@@ -1445,31 +1265,7 @@ contains
     end if
 
 
-    if (rank == 0 .and. cp_temporary_bin) then
-
-       ! Delete using Fortran rather than invoking an external rm command.
-
-       open( &
-            newunit=delete_unit, &
-            file=filename, &
-            status='old', &
-            action='read', &
-            iostat=ierr)
-
-       if (ierr /= 0) then
-          error stop "load_adapt_mpi: unable to open temporary checkpoint for deletion"
-       end if
-
-       close(delete_unit, status='delete', iostat=ierr)
-
-       if (ierr /= 0) then
-          error stop "load_adapt_mpi: unable to delete temporary checkpoint"
-       end if
-
-       cp_temporary_bin = .false.
-
-    end if
-
+    if (rank == 0 .and. cp_temporary_bin) call delete_file(filename)
 
     ! Ensure deletion is complete before returning.
 
@@ -1486,6 +1282,49 @@ contains
   end subroutine load_adapt_mpi
 
   
+  subroutine validate_clocks(unit,positions)
+    integer,intent(in) :: unit
+    integer(int64),intent(in) :: positions(:)
+    integer(int64) :: ticks, state(5), lo(5), hi(5), global_lo(5), global_hi(5)
+    real(dp) :: seconds
+    integer :: d, step, output, phase, rc
+    character(32) :: setting
+
+    lo=huge(lo)
+    hi=-huge(hi)
+    do d=1,size(positions)
+       phase=0
+       read(unit,pos=positions(d)) step,seconds,ticks,output
+       if (loaded_version>=2) then
+          read(unit) phase
+          if (phase < 1) error stop 'invalid saved remap phase'
+       end if
+       state=[int(step,int64),transfer(seconds,0_int64),ticks,int(output,int64),int(phase,int64)]
+       lo=min(lo,state)
+       hi=max(hi,state)
+    end do
+    call MPI_Allreduce(lo,global_lo,5,MPI_INTEGER8,MPI_MIN,comm)
+    call MPI_Allreduce(hi,global_hi,5,MPI_INTEGER8,MPI_MAX,comm)
+    if (any(global_lo/=global_hi)) error stop 'checkpoint domain clocks or remap phases disagree'
+    if (loaded_version>=2) then
+       iremap=int(global_lo(5))
+    else
+       if (rank==0) then
+          call get_environment_variable('WAVETRISK_LEGACY_IREMAP',setting,status=rc)
+          if (rc==0) then
+             read(setting,*,iostat=rc) iremap
+             if (rc/=0) error stop 'invalid WAVETRISK_LEGACY_IREMAP'
+             if (iremap<1) error stop 'invalid WAVETRISK_LEGACY_IREMAP'
+          else if (rc/=1) then
+             error stop 'cannot read WAVETRISK_LEGACY_IREMAP'
+          else
+             write(*,'(a,i0)') 'Legacy checkpoint omits vertical remap phase; using ',iremap
+          end if
+       end if
+       call MPI_Bcast(iremap,1,MPI_INTEGER,0,comm)
+    end if
+  end subroutine validate_clocks
+
   subroutine load_domains_stream (fid, domain_pos)
     ! Reconstruct all locally owned domains from a single
     ! rank-local unformatted stream.
@@ -1529,6 +1368,7 @@ contains
        read(fid) time
        read(fid) itime
        read(fid) iwrite
+       if (loaded_version >= 2) read(fid) iremap
        read(fid) threshold
 
        !
