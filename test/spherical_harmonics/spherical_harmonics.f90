@@ -14,6 +14,8 @@ program spherical_harmonics
   use shared_mod
   use adapt_mod
   use arch_mod
+  use checkpoint_mod, only : read_checkpoint_directory
+  use comm_mpi_mod, only : init_comm_mpi_mod
   use diagnostics_mod
   use domain_ops_mod
   use main_mod
@@ -30,6 +32,10 @@ program spherical_harmonics
   integer                             :: idata_loc, nmax
   real(dp), dimension(:), allocatable :: data, data_loc, lat_loc, lon_loc
 
+  call init_arch_mod
+  call init_comm_mpi_mod
+  call read_test_case_parameters
+
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !     Parameters (need radius for spectra)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -39,7 +45,6 @@ program spherical_harmonics
      compressible            = .true.                    
      split_mean_perturbation = .false.           
      physics_model           = .true.
-     NCAR_topo               = .true.
      topo_file               = "lp_J09J09_015.0km"
      topo_min_level          = 9
      topo_max_level          = 9
@@ -78,14 +83,17 @@ program spherical_harmonics
   !      Compute spectra for each checkpoint
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   do cp_idx = cp_beg, cp_end
-     resume = NONE
-     call restart
+     if (cp_idx /= cp_beg) then
+        resume = NONE
+        call read_checkpoint_directory (cp_idx)
+        call restart
+     end if
      
      if (trim (spec_type) == 'sphere') then
         call spec_sphere
      elseif (trim (spec_type) == 'latlon') then
         call spec_latlon_1layer
-        call flux_latlon_1layer
+        if (.not. compressible) call flux_latlon_1layer
      end if
   end do
   
@@ -96,8 +104,10 @@ program spherical_harmonics
      call avg_spec ('curlu')
      call avg_spec ('divu')
      call avg_spec ('u')
-     call avg_spec ('transfer')
-     call avg_spec ('flux')
+     if (.not. compressible .and. trim(spec_type) == 'latlon') then
+        call avg_spec ('transfer')
+        call avg_spec ('flux')
+     end if
      if (local_spec) then
         call avg_spec ('curlu_local')
         call avg_spec ('divu_local')

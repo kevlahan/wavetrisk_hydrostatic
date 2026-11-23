@@ -89,7 +89,7 @@ contains
 
   subroutine read_test_case_parameters
     implicit none
-    integer        :: fid = 500
+    integer        :: ios, fid = 500
     character(255) :: filename, varname
 
     ! Find input parameters file name
@@ -121,6 +121,11 @@ contains
     read (fid,*) varname, concentration
     read (fid,*) varname, ntaper
     read (fid,*) varname, angular_order
+    NCAR_topo = .false.
+    if (trim(data_case) == "climate") then
+       read (fid,*,iostat=ios) varname, NCAR_topo
+       if (ios > 0) error stop "Invalid NCAR_topo setting"
+    end if
     close(fid)
 
     resume = cp_beg

@@ -16,3 +16,4 @@ theta0          20           ! angular radius of spherical region for local spec
 concentration   0.99         ! percentage of total energy in local region
 ntaper          6            ! number of tapers (windows) to use in spectrum estimate (use all tapers with concentration close to desired value)
 angular_order   2            ! angular order used to estimate spherical bandwidth for tapers (windows)
+NCAR_topo       F            ! climate only: use external NCAR topography (optional)
