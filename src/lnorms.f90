@@ -236,6 +236,7 @@ contains
 
 
   subroutine lmin_velo (dom, i, j, zlev, offs, dims)
+    use diagnostics_mod, only : u_mag
     implicit none
 
     type(Domain), intent(inout) :: dom
