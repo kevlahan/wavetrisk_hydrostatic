@@ -107,8 +107,8 @@ contains
   function integrate_tri (fun, zlev) result(val)
     ! Integrate a function defined by fun over complete (non-overlapping) adaptive triangular grid.
     implicit none
-    integer, intent(in)    :: zlev
-    real(dp)               :: val
+    integer, intent(in) :: zlev
+    real(dp)            :: val
     procedure(fun3) :: fun
     
     integer :: l

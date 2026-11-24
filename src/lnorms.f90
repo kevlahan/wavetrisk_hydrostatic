@@ -1,46 +1,39 @@
 module lnorms_mod
 
   use kind_mod,   only : dp
-  use shared_mod, only : ADJZONE, EDGE, N_BDRY, lnorm, S_VELO, &
-       scalars, z_null, zmin, zmax
-
-  use comm_mpi_mod,   only : sum_int, sum_real, sync_max_real, sync_min_real
-  use domain_mod,     only : Domain, sol, sol_mean, idx
-  use domain_ops_mod, only : apply, apply_bdry
-
+  use shared_mod, only : ADJZONE, EDGE, N_BDRY, lnorm, S_TEMP, S_MASS, S_VELO, scalars
+  use domain_mod, only : Domain, sol, sol_mean, idx
+ 
   implicit none
 
   private
   public :: cal_lnorm, lnorm
 
-  integer :: n_norm
-
 contains
 
   subroutine cal_lnorm (order)
-    ! Calculates order = "1", "2", "inf", or "min" norm of all
-    ! prognostic variables.
+    ! Computes order = "1", "2", "inf", or "min" norm of prognostic variables.
     !
-    ! The l1 and l2 results are divided by the number of active cells
-    ! to obtain averages.
+    ! The l1 and l2 norms are computed as area integrals over the adaptive triangular grid.
+    
+    use shared_mod,     only : MATH_PI, radius, zmin, zmax
+    use comm_mpi_mod,   only : sum_int, sum_real, sync_max_real, sync_min_real
+    use domain_ops_mod, only : apply, apply_bdry
+    use integrate_mod,  only : integrate_tri
+    
     implicit none
 
     character(len=*), intent(in) :: order
 
-    integer :: k
-
-    ! Count the number of active cells.
-    n_norm = 0
-
-    call apply(count_norm, z_null)
-
-    n_norm = sum_int(n_norm)
+    integer  :: k
+    real(dp) :: Area
+    
+    Area = 4.0_dp*MATH_PI*radius**2
 
     ! Initialize norms.
     select case (order)
     case ("1", "2", "inf")
        lnorm = 0.0_dp
-
     case ("min")
        lnorm = 1.0e16_dp
     end select
@@ -48,150 +41,134 @@ contains
     do k = zmin, zmax
        select case (order)
        case ("1")
-          call apply_bdry(l1_scalar, k, 0, 1)
-          call apply_bdry(l1_velo,   k, 0, 0)
-
+          lnorm(S_MASS, k) = integrate_tri (l1_mass_fun, k) / Area
+          lnorm(S_TEMP, k) = integrate_tri (l1_temp_fun, k) / Area
+          lnorm(S_VELO, k) = integrate_tri (l1_velo_fun, k) / Area
        case ("2")
-          call apply_bdry(l2_scalar, k, 0, 1)
-          call apply_bdry(l2_velo,   k, 0, 0)
-
+          lnorm(S_MASS, k) = sqrt (integrate_tri (l2_mass_fun, k) / Area)
+          lnorm(S_TEMP, k) = sqrt (integrate_tri (l2_temp_fun, k) / Area)
+          lnorm(S_VELO, k) = sqrt (integrate_tri (l2_velo_fun, k) / Area)
        case ("inf")
-          call apply_bdry(linf_scalar, k, 0, 1)
-          call apply_bdry(linf_velo,   k, 0, 0)
-
-       case ("min")
-          call apply_bdry(lmin_scalar, k, 0, 1)
-          call apply_bdry(lmin_velo,   k, 0, 0)
-       end select
-
-       select case (order)
-       case ("1")
-          lnorm(:,k) = sum_real(lnorm(:,k)) / real(n_norm, kind=dp)
-
-       case ("2")
-          lnorm(:,k) = sqrt( &
-               sum_real(lnorm(:,k)) / real(n_norm, kind=dp))
-
-       case ("inf")
+          call apply_bdry (linf_scalar, k, 0, 1)
+          call apply_bdry (linf_velo,   k, 0, 0)
+          
           lnorm(:,k) = sync_max_real(lnorm(:,k))
-
        case ("min")
+          call apply_bdry (lmin_scalar, k, 0, 1)
+          call apply_bdry (lmin_velo,   k, 0, 0)
+          
           lnorm(:,k) = sync_min_real(lnorm(:,k))
        end select
     end do
   end subroutine cal_lnorm
 
 
-  subroutine count_norm (dom, i, j, zlev, offs, dims)
+  function l1_mass_fun (dom, i, j, zlev, offs, dims) result(val)
     implicit none
 
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: i, j, zlev
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
+
+    integer :: d, id
+
+    d  = dom%id + 1
+    id = idx(i, j, offs, dims)
+
+    val = abs(sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol(S_MASS,zlev)%data(d)%elts(id+1))
+  end function l1_mass_fun
+
+  
+  function l1_temp_fun (dom, i, j, zlev, offs, dims) result(val)
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
+
+    integer :: d, id
+
+    d  = dom%id + 1
+    id = idx(i, j, offs, dims)
+
+    val = abs(sol_mean(S_TEMP,zlev)%data(d)%elts(id+1) + sol(S_TEMP,zlev)%data(d)%elts(id+1))
+  end function l1_temp_fun
+
+
+  function l1_velo_fun (dom, i, j, zlev, offs, dims) result(val)
+    use diagnostics_mod, only : u_mag
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
+
+    integer :: id
+    
+    id = idx(i, j, offs, dims)
+
+    val = u_mag (dom, i, j, zlev, offs, dims)
+  end function l1_velo_fun
+  
+  
+  function l2_mass_fun (dom, i, j, zlev, offs, dims) result(val)
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
+
+    integer :: d, id
+
+    d  = dom%id + 1
+    id = idx(i, j, offs, dims)
+
+    val = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol(S_MASS,zlev)%data(d)%elts(id+1))**2 
+  end function l2_mass_fun
+
+  
+  function l2_temp_fun (dom, i, j, zlev, offs, dims) result(val)
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
+
+    integer :: d, id
+
+    d  = dom%id + 1
+    id = idx(i, j, offs, dims)
+
+    val = (sol_mean(S_TEMP,zlev)%data(d)%elts(id+1) + sol(S_TEMP,zlev)%data(d)%elts(id+1))**2 
+  end function l2_temp_fun
+
+
+  function l2_velo_fun (dom, i, j, zlev, offs, dims) result(val)
+    use diagnostics_mod, only : u_mag
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
 
     integer :: id
 
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       n_norm = n_norm + 1
-    end if
-  end subroutine count_norm
-
-
-  subroutine l1_scalar (dom, i, j, zlev, offs, dims)
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-
-    integer :: d, id, v
-
-    d  = dom%id + 1
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = lnorm(v,zlev) + abs( &
-               sol_mean(v,zlev)%data(d)%elts(id+1) + &
-               sol(v,zlev)%data(d)%elts(id+1))
-       end do
-    end if
-  end subroutine l1_scalar
-
-
-  subroutine l1_velo (dom, i, j, zlev, offs, dims)
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-
-    integer :: d, e, id, id_e
-
-    d  = dom%id + 1
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-
-          lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + &
-               abs(sol(S_VELO,zlev)%data(d)%elts(id_e))
-       end do
-    end if
-  end subroutine l1_velo
-
-
-  subroutine l2_scalar (dom, i, j, zlev, offs, dims)
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-
-    integer :: d, id, v
-
-    d  = dom%id + 1
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = lnorm(v,zlev) + ( &
-               sol_mean(v,zlev)%data(d)%elts(id+1) + &
-               sol(v,zlev)%data(d)%elts(id+1))**2
-       end do
-    end if
-  end subroutine l2_scalar
-
-
-  subroutine l2_velo (dom, i, j, zlev, offs, dims)
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-
-    integer :: d, e, id, id_e
-
-    d  = dom%id + 1
-    id = idx(i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-
-          lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + &
-               sol(S_VELO,zlev)%data(d)%elts(id_e)**2
-       end do
-    end if
-  end subroutine l2_velo
+    val = u_mag (dom, i, j, zlev, offs, dims)**2
+  end function l2_velo_fun
 
 
   subroutine linf_scalar (dom, i, j, zlev, offs, dims)
@@ -209,11 +186,9 @@ contains
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = max( &
+          lnorm(v,zlev) = max ( &
                lnorm(v,zlev), &
-               abs( &
-                    sol_mean(v,zlev)%data(d)%elts(id+1) + &
-                    sol(v,zlev)%data(d)%elts(id+1)))
+               abs (sol_mean(v,zlev)%data(d)%elts(id+1) + sol(v,zlev)%data(d)%elts(id+1)))
        end do
     end if
   end subroutine linf_scalar
@@ -234,16 +209,16 @@ contains
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = min( &
+          lnorm(v,zlev) = min ( &
                lnorm(v,zlev), &
-               sol_mean(v,zlev)%data(d)%elts(id+1) + &
-               sol(v,zlev)%data(d)%elts(id+1))
+               abs(sol_mean(v,zlev)%data(d)%elts(id+1) + sol(v,zlev)%data(d)%elts(id+1)))
        end do
     end if
   end subroutine lmin_scalar
 
 
   subroutine linf_velo (dom, i, j, zlev, offs, dims)
+    use diagnostics_mod, only : u_mag
     implicit none
 
     type(Domain), intent(inout) :: dom
@@ -251,20 +226,12 @@ contains
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
 
-    integer :: d, e, id, id_e
+    integer :: id
 
-    d  = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-
-          lnorm(S_VELO,zlev) = max( &
-               lnorm(S_VELO,zlev), &
-               abs(sol(S_VELO,zlev)%data(d)%elts(id_e)))
-       end do
-    end if
+    if (dom%mask_n%elts(id+1) >= ADJZONE) &
+         lnorm(S_VELO,zlev) = max (lnorm(S_VELO,zlev), u_mag (dom, i, j, zlev, offs, dims))
   end subroutine linf_velo
 
 
@@ -275,21 +242,13 @@ contains
     integer,      intent(in)    :: i, j, zlev
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
+    integer :: id
 
-    integer :: d, e, id, id_e
-
-    d  = dom%id + 1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do e = 1, EDGE
-          id_e = EDGE*id + e
-
-          lnorm(S_VELO,zlev) = min( &
-               lnorm(S_VELO,zlev), &
-               sol(S_VELO,zlev)%data(d)%elts(id_e))
-       end do
-    end if
+    if (dom%mask_n%elts(id+1) >= ADJZONE) &
+         lnorm(S_VELO,zlev) = min (lnorm(S_VELO,zlev), u_mag (dom, i, j, zlev, offs, dims))
   end subroutine lmin_velo
 
   
