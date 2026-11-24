@@ -633,11 +633,13 @@ contains
           write (6,'(a,a)')      "analytic_topo            = ", analytic_topo
        end if
 
-       write (6,'(a)') "Default thresholds for each layer"
-       write (6,'(a)') "Layer    S_MASS      S_TEMP      S_VELO"
-       do k = 1, zlevels
-          write (6,'(i3, 6x, 3(es8.2,4x))') k, threshold(S_MASS,k), threshold(S_TEMP,k), threshold(S_VELO,k)
-       end do
+       if (default_thresholds) then
+          write (6,'(a)') "Default thresholds for each layer"
+          write (6,'(a)') "Layer    S_MASS      S_TEMP      S_VELO"
+          do k = 1, zlevels
+             write (6,'(i3, 6x, 3(es8.2,4x))') k, threshold(S_MASS,k), threshold(S_TEMP,k), threshold(S_VELO,k)
+          end do
+       end if
        write (6,'(a)') &
             '*********************************************************************&
             &*************************************************************'
@@ -717,7 +719,7 @@ contains
 
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
-       where (tol * lnorm > threshold) threshold = tol * lnorm
+       threshold = tol * lnorm
     end if
   end subroutine set_thresholds_case
   

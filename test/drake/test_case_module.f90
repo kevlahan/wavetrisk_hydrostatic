@@ -589,7 +589,7 @@ contains
 
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
-       where (tol * lnorm > threshold_def * epsilon (1.0_dp)) threshold = tol * lnorm
+       threshold = tol * lnorm
     end if
   end subroutine set_thresholds_case
 
