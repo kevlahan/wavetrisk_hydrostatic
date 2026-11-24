@@ -1,7 +1,7 @@
 module lnorms_mod
 
   use kind_mod,   only : dp
-  use shared_mod, only : ADJZONE, EDGE, N_BDRY, lnorm, S_VELO, &
+  use shared_mod, only : ADJZONE, EDGE, N_BDRY, lnorm, S_TEMP, S_MASS, S_VELO, &
        scalars, z_null, zmin, zmax
 
   use comm_mpi_mod,   only : sum_int, sum_real, sync_max_real, sync_min_real
@@ -66,15 +66,13 @@ contains
 
        select case (order)
        case ("1")
-          lnorm(:,k) = sum_real(lnorm(:,k)) / real(n_norm, kind=dp)
-
+          lnorm(S_MASS:S_TEMP,k) = sum_real(lnorm(:,k))      / real(n_norm, kind=dp)
+          lnorm(S_VELO,k)        = sum_real(lnorm(S_VELO,k)) / (real(EDGE, dp) * real(n_norm, kind=dp))
        case ("2")
-          lnorm(:,k) = sqrt( &
-               sum_real(lnorm(:,k)) / real(n_norm, kind=dp))
-
+          lnorm(S_MASS:S_TEMP,k) = sqrt (sum_real(lnorm(:,k))      / real(n_norm, kind=dp))
+          lnorm(S_VELO,k)        = sqrt (sum_real(lnorm(S_VELO,k)) / (real(EDGE, dp) * real(n_norm, dp)))
        case ("inf")
           lnorm(:,k) = sync_max_real(lnorm(:,k))
-
        case ("min")
           lnorm(:,k) = sync_min_real(lnorm(:,k))
        end select
@@ -162,9 +160,8 @@ contains
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = lnorm(v,zlev) + ( &
-               sol_mean(v,zlev)%data(d)%elts(id+1) + &
-               sol(v,zlev)%data(d)%elts(id+1))**2
+          lnorm(v,zlev) = lnorm(v,zlev) + &
+               (sol_mean(v,zlev)%data(d)%elts(id+1) + sol(v,zlev)%data(d)%elts(id+1))**2
        end do
     end if
   end subroutine l2_scalar
