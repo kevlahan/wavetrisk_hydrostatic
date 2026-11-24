@@ -109,10 +109,6 @@ contains
     integer,      intent(in)    :: dims(2,N_BDRY+1)
     real(dp)                    :: val
 
-    integer :: id
-    
-    id = idx(i, j, offs, dims)
-
     val = u_mag (dom, i, j, zlev, offs, dims)
   end function l1_velo_fun
   
@@ -162,10 +158,6 @@ contains
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
     real(dp)                    :: val
-
-    integer :: id
-
-    id = idx(i, j, offs, dims)
 
     val = u_mag (dom, i, j, zlev, offs, dims)**2
   end function l2_velo_fun
