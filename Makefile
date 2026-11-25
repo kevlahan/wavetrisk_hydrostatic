@@ -182,7 +182,7 @@ MACHINE := $(shell scontrol show config 2>/dev/null | \
 $(info Machine: $(MACHINE))
 
 # Alliance Canada systems
-ifeq ($(MACHINE),$(filter $(MACHINE),nibi trillium narval))
+ifeq ($(MACHINE),$(filter $(MACHINE),fir nibi trillium narval))
 LAPACK := -lflexiblas
 endif
 
